@@ -3,6 +3,7 @@
 // The last onboarding screen, three directions: what you got ("Итог"), start right away ("Сразу в чат"),
 // a moment of joy ("Праздник").
 import { Button } from "@purr/ui/components/button";
+import { Confetti, type ConfettiRef } from "@purr/ui/components/confetti";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@purr/ui/components/input-group";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@purr/ui/components/item";
 import { Badge } from "@purr/ui/components/reui/badge";
@@ -11,13 +12,14 @@ import { IconTile } from "@purr/ui/components/reui/icon-tile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@purr/ui/components/select";
 import { cn } from "@purr/ui/lib/utils";
 import { ArrowRight, ArrowUp, ChevronRight, Plug, Plus, Sparkles, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { byNewest, fmtContext, models as nModels, providerBy } from "../_p7/mock";
 import { CapIcons, enter, NO_AUTOFILL, ProviderMark, RouteBadge } from "../_p7/shared";
 import type { Connected, Onboarding } from "./steps";
 
-export type DoneKind = "summary" | "compose" | "burst" | "rain" | "poppers" | "deal" | "hello";
+export type DoneKind = "summary" | "compose" | "burst" | "cannons" | "fireworks" | "stars" | "deal" | "hello";
 
 const enabledModels = (o: Onboarding) =>
   o.connected.flatMap((c) => providerBy(c.kind).models.filter((m) => c.models.has(m.id)).map((m) => ({ c, m })));
@@ -236,156 +238,126 @@ const Actions = ({ o, primary = "Открыть чат" }: { o: Onboarding; prim
 
 const REDUCED = "@media (prefers-reduced-motion: reduce) { .celebrate *, .celebrate { animation: none !important } .celebrate .confetti { display: none } }";
 
-// «Конфетти»: paper, not pixels — a quick rise that brakes at the top, then a slow drift down with sway and
-// flutter (air drag keeps the fall speed near constant), fading only at the end.
-const CONFETTI_CSS = `
-@keyframes cf-path {
-  0% { transform: translate(0, 0); opacity: 1; animation-timing-function: cubic-bezier(0.12, 0.8, 0.3, 1) }
-  18% { transform: translate(var(--x1), var(--peak)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
-  42% { transform: translate(calc(var(--x1) + var(--sway)), calc(var(--peak) + var(--fall) * 0.28)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
-  66% { transform: translate(calc(var(--x1) - var(--sway)), calc(var(--peak) + var(--fall) * 0.6)); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
-  100% { transform: translate(calc(var(--x1) + var(--sway) * 0.5), calc(var(--peak) + var(--fall))); opacity: 0 }
-}
-@keyframes cf-rain {
-  0% { transform: translate(0, 0); opacity: 0; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
-  8% { opacity: 1 }
-  35% { transform: translate(var(--sway), calc(var(--fall) * 0.33)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
-  68% { transform: translate(calc(var(--sway) * -1), calc(var(--fall) * 0.66)); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
-  100% { transform: translate(calc(var(--sway) * 0.5), var(--fall)); opacity: 0 }
-}
-@keyframes cf-flutter {
-  0% { transform: rotate(var(--r0)) scaleX(1) }
-  50% { transform: rotate(calc(var(--r0) + var(--spin) * 0.5)) scaleX(0.25) }
-  100% { transform: rotate(calc(var(--r0) + var(--spin))) scaleX(1) }
-}
-@keyframes title-in { from { transform: translateY(8px) scale(0.96); opacity: 0 } to { transform: none; opacity: 1 } }
+// «Конфетти» on Magic UI Confetti (canvas-confetti): real particle physics — drag, gravity, flutter.
+// Presets follow the Magic UI examples, aimed at the card and painted in the theme colors.
+const TITLE_CSS = `@keyframes title-in { from { transform: translateY(8px) scale(0.96); opacity: 0 } to { transform: none; opacity: 1 } }
 ${REDUCED}`;
 
-const CONFETTI_COLORS = ["var(--primary)", "var(--chart-1)", "var(--success)", "var(--warning)", "var(--info)", "var(--chart-3)"];
+type ConfettiMode = "burst" | "cannons" | "fireworks" | "stars";
 
-type ConfettiMode = "burst" | "rain" | "poppers";
-
-// Deterministic pseudo-random in [0, 1): the same scene on every replay, identical on server and client.
-const rand = (i: number, salt: number) => {
-  const x = Math.sin(i * 12.9898 + salt * 78.233) * 43_758.5453;
-  return Math.round((x - Math.floor(x)) * 1000) / 1000;
-};
-
-type Piece = { x: number; y: number; vars: Record<string, string>; delay: number; duration: number; flutter: number; shape: string; color: string };
-
-const scene = (mode: ConfettiMode): Piece[] => {
-  const count = mode === "rain" ? 44 : 40;
-  return Array.from({ length: count }, (_, i): Piece => {
-    const r = (salt: number) => rand(i, salt);
-    const common = {
-      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length] as string,
-      flutter: Math.round(420 + r(7) * 480),
-      shape: i % 5 === 0 ? "size-1.5 rounded-full" : i % 3 === 0 ? "h-1.5 w-3 rounded-[1px]" : "h-3 w-1.5 rounded-[1px]",
-    };
-    const spin = `${Math.round((r(8) > 0.5 ? 1 : -1) * (180 + r(9) * 180))}deg`;
-    const r0 = `${Math.round(r(10) * 360)}deg`;
-    if (mode === "rain") {
-      return {
-        ...common,
-        delay: Math.round(r(1) * 900),
-        duration: Math.round(2600 + r(2) * 1100),
-        vars: { "--fall": `${Math.round(360 + r(3) * 220)}px`, "--r0": r0, "--spin": spin, "--sway": `${Math.round(10 + r(4) * 22)}px` },
-        x: Math.round((r(5) - 0.5) * 620),
-        y: Math.round(-40 - r(6) * 60),
-      };
-    }
-    if (mode === "poppers") {
-      const left = i % 2 === 0;
-      const angle = ((left ? -1 : 1) * (12 + r(1) * 30) * Math.PI) / 180; // from vertical, leaning inward
-      const power = 300 + r(2) * 170;
-      return {
-        ...common,
-        delay: Math.round(r(3) * 90),
-        duration: Math.round(2300 + r(4) * 700),
-        vars: {
-          "--fall": `${Math.round(260 + r(5) * 160)}px`,
-          "--peak": `${Math.round(-Math.cos(angle) * power)}px`,
-          "--r0": r0,
-          "--spin": spin,
-          "--sway": `${Math.round(8 + r(6) * 16)}px`,
-          "--x1": `${Math.round(-Math.sin(angle) * power)}px`,
-        },
-        // The card's bottom corners, below the button
-        x: left ? -275 : 275,
-        y: 215,
-      };
-    }
-    const a = -Math.PI / 2 + (r(1) - 0.5) * Math.PI * 1.1; // mostly upward fan
-    const power = 110 + r(2) * 150;
-    return {
-      ...common,
-      delay: Math.round(r(3) * 80),
-      duration: Math.round(2200 + r(4) * 700),
-      vars: {
-        "--fall": `${Math.round(200 + r(5) * 180)}px`,
-        "--peak": `${Math.round(Math.sin(a) * power)}px`,
-        "--r0": r0,
-        "--spin": spin,
-        "--sway": `${Math.round(8 + r(6) * 18)}px`,
-        "--x1": `${Math.round(Math.cos(a) * power * 1.4)}px`,
-      },
-      x: 0,
-      y: 0,
-    };
+/** canvas-confetti wants hex; the theme speaks oklch. Let the browser convert through a 1px canvas. */
+const themeColors = (vars: string[]) => {
+  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  const styles = getComputedStyle(document.documentElement);
+  return vars.map((v) => {
+    if (!ctx) return "#3b82f6";
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = styles.getPropertyValue(v).trim() || "#3b82f6";
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    return `#${[r, g, b].map((n) => (n ?? 0).toString(16).padStart(2, "0")).join("")}`;
   });
 };
 
-const Confetti = ({ mode }: { mode: ConfettiMode }) => {
-  const pieces = useMemo(() => scene(mode), [mode]);
-  return (
-    <span aria-hidden className="confetti pointer-events-none absolute top-1/2 left-1/2 z-10">
-      {pieces.map((p, i) => (
-        <span
-          className="absolute block"
-          key={i}
-          style={
-            {
-              ...p.vars,
-              animation: `${mode === "rain" ? "cf-rain" : "cf-path"} ${p.duration}ms linear ${p.delay}ms both`,
-              left: p.x,
-              top: p.y,
-            } as React.CSSProperties
-          }
-        >
-          <span
-            className={cn("block", p.shape)}
-            style={
-              {
-                "--r0": p.vars["--r0"],
-                "--spin": p.vars["--spin"],
-                animation: `cf-flutter ${p.flutter}ms linear ${p.delay}ms infinite`,
-                background: p.color,
-              } as React.CSSProperties
-            }
-          />
-        </span>
-      ))}
-    </span>
-  );
+/** Where the headline is, in viewport fractions — canvas-confetti's `origin`. */
+const originOf = (el: HTMLElement | null) => {
+  const r = el?.getBoundingClientRect();
+  if (!r) return { x: 0.5, y: 0.3 };
+  return { x: (r.left + r.width / 2) / window.innerWidth, y: (r.top + r.height / 2) / window.innerHeight };
 };
 
-const CelebrateConfetti = ({ o, mode }: { o: Onboarding; mode: ConfettiMode }) => (
-  <>
-    <style>{CONFETTI_CSS}</style>
-    <FrameHeader className="celebrate relative items-center gap-2 pt-10! pb-6! text-center">
-      <Confetti mode={mode} />
-      <FrameTitle className="text-3xl tracking-tight" style={{ animation: "title-in 450ms cubic-bezier(0.23,1,0.32,1) 80ms both" }}>
-        Purr готов
-      </FrameTitle>
-      <FrameDescription className="max-w-sm" style={{ animation: "title-in 450ms cubic-bezier(0.23,1,0.32,1) 180ms both" }}>
-        {modelNames(o)} ждут первого вопроса. Всё остальное — в настройках, когда понадобится.
-      </FrameDescription>
-    </FrameHeader>
-    <FramePanel className="animate-in fade-in slide-in-from-bottom-1 fill-mode-both delay-300 duration-300 ease-out">
-      <Actions o={o} />
-    </FramePanel>
-  </>
-);
+const useCelebration = (
+  mode: ConfettiMode,
+  target: React.RefObject<HTMLElement | null>,
+  confetti: React.RefObject<ConfettiRef | null>,
+  ready: boolean
+) => {
+  useEffect(() => {
+    if (!ready) return;
+    const fire = (o: Parameters<ConfettiRef["fire"]>[0]) =>
+      confetti.current?.fire({ disableForReducedMotion: true, ...o });
+    const colors = themeColors(["--primary", "--chart-1", "--success", "--warning", "--info", "--chart-3"]);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let raf = 0;
+    const start = setTimeout(() => {
+      const origin = originOf(target.current);
+      if (mode === "burst") {
+        fire({ colors, decay: 0.92, gravity: 0.7, origin, particleCount: 110, scalar: 0.9, spread: 75, startVelocity: 38, ticks: 320 });
+        timers.push(setTimeout(() => fire({ colors, decay: 0.93, gravity: 0.6, origin, particleCount: 40, scalar: 0.8, spread: 120, startVelocity: 25, ticks: 300 }), 180));
+      }
+      if (mode === "cannons") {
+        const end = Date.now() + 1400;
+        const frame = () => {
+          fire({ angle: 60, colors, origin: { x: 0, y: 0.6 }, particleCount: 3, spread: 55, startVelocity: 60, ticks: 260 });
+          fire({ angle: 120, colors, origin: { x: 1, y: 0.6 }, particleCount: 3, spread: 55, startVelocity: 60, ticks: 260 });
+          if (Date.now() < end) raf = requestAnimationFrame(frame);
+        };
+        frame();
+      }
+      if (mode === "fireworks") {
+        const card = target.current?.closest('[data-slot="frame"]')?.getBoundingClientRect();
+        const box = card
+          ? { bottom: card.bottom / window.innerHeight, left: card.left / window.innerWidth, right: card.right / window.innerWidth, top: card.top / window.innerHeight }
+          : { bottom: 0.6, left: 0.3, right: 0.7, top: 0.1 };
+        const shots = [
+          { x: box.left, y: box.top + 0.05 },
+          { x: box.right, y: box.top + 0.12 },
+          { x: (box.left + box.right) / 2, y: box.top - 0.02 },
+          { x: box.left + 0.04, y: box.bottom - 0.1 },
+          { x: box.right - 0.04, y: box.bottom - 0.05 },
+        ];
+        shots.forEach((pos, i) =>
+          timers.push(setTimeout(() => fire({ colors, decay: 0.91, gravity: 0.8, origin: pos, particleCount: 45, spread: 360, startVelocity: 26, ticks: 90 }), i * 260))
+        );
+      }
+      if (mode === "stars") {
+        const gold = ["#FFE400", "#FFBD00", "#E89400", "#FFCA6C", "#FDFFB8"];
+        const star = { colors: [...gold, colors[0] as string], decay: 0.94, gravity: 0, origin, spread: 360, startVelocity: 26, ticks: 70 };
+        const shoot = () => {
+          fire({ ...star, particleCount: 36, scalar: 1.2, shapes: ["star"] });
+          fire({ ...star, particleCount: 12, scalar: 0.75, shapes: ["circle"] });
+        };
+        [0, 110, 220].forEach((d) => timers.push(setTimeout(shoot, d)));
+      }
+    }, 260);
+    return () => {
+      clearTimeout(start);
+      for (const t of timers) clearTimeout(t);
+      cancelAnimationFrame(raf);
+    };
+  }, [mode, target, confetti, ready]);
+};
+
+const CelebrateConfetti = ({ o, mode }: { o: Onboarding; mode: ConfettiMode }) => {
+  const title = useRef<HTMLDivElement>(null);
+  const confetti = useRef<ConfettiRef>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  useCelebration(mode, title, confetti, mounted);
+  return (
+    <>
+      <style>{TITLE_CSS}</style>
+      {/* One full-viewport canvas, portaled to <body>: the card's entrance transform would otherwise make
+          `fixed` relative to the card and clip the confetti. No worker, so React's dev double-mount can re-create it. */}
+      {mounted &&
+        createPortal(
+          <Confetti className="pointer-events-none fixed inset-0 z-50 size-full" globalOptions={{ resize: true, useWorker: false }} manualstart ref={confetti} />,
+          document.body
+        )}
+      <FrameHeader className="celebrate items-center gap-2 pt-10! pb-6! text-center">
+        <FrameTitle className="text-3xl tracking-tight" ref={title} style={{ animation: "title-in 450ms cubic-bezier(0.23,1,0.32,1) 80ms both" }}>
+          Purr готов
+        </FrameTitle>
+        <FrameDescription className="max-w-sm" style={{ animation: "title-in 450ms cubic-bezier(0.23,1,0.32,1) 180ms both" }}>
+          {modelNames(o)} ждут первого вопроса. Всё остальное — в настройках, когда понадобится.
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel className="animate-in fade-in slide-in-from-bottom-1 fill-mode-both delay-300 duration-300 ease-out">
+        <Actions o={o} />
+      </FramePanel>
+    </>
+  );
+};
 
 // «Раздача»: the connected models are dealt onto the table one by one, each clicks into place.
 const DEAL_CSS = `
@@ -511,8 +483,9 @@ export const DoneScreen = ({ kind, o }: { kind: DoneKind; o: Onboarding }) => {
     case "compose":
       return <Compose o={o} />;
     case "burst":
-    case "rain":
-    case "poppers":
+    case "cannons":
+    case "fireworks":
+    case "stars":
       return <CelebrateConfetti mode={kind} o={o} />;
     case "deal":
       return <CelebrateDeal o={o} />;
