@@ -60,6 +60,9 @@ importers:
       '@purr/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@tanstack/react-table':
+        specifier: ^9.2.4
+        version: 9.2.4(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       agentation:
         specifier: ^3.1.2
         version: 3.1.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)

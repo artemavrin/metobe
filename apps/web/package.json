@@ -14,6 +14,7 @@
     "@purr/contracts": "workspace:*",
     "@purr/core": "workspace:*",
     "@purr/ui": "workspace:*",
+    "@tanstack/react-table": "^9.2.4",
     "agentation": "^3.1.2",
     "better-auth": "^1.7.5",
     "lucide-react": "^1.47.0",

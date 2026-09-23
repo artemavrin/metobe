@@ -1,0 +1,110 @@
+import { Badge } from "@purr/ui/components/reui/badge";
+import {
+  Frame,
+  FrameDescription,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@purr/ui/components/reui/frame";
+import { IconTile } from "@purr/ui/components/reui/icon-tile";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@purr/ui/components/item";
+import { ChevronRight, LayoutDashboard, Rocket, Server } from "lucide-react";
+import Link from "next/link";
+
+type Entry = {
+  href: string;
+  title: string;
+  description: string;
+  icon: typeof Rocket;
+  status: "выбрано" | "выбираем" | "витрина";
+};
+
+const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
+  {
+    description: "Первый вход, провайдеры, модели и прокси — M2",
+    entries: [
+      {
+        description: "Первый запуск: провайдер → ключ → модели → чат. Направление «Шаги».",
+        href: "/dev/prototypes/onboarding",
+        icon: Rocket,
+        status: "выбрано",
+        title: "Онбординг",
+      },
+      {
+        description: "Экран на каждый день: «Панель», «Разделы», «Модели».",
+        href: "/dev/prototypes/providers",
+        icon: Server,
+        status: "выбираем",
+        title: "Настройки провайдеров и моделей",
+      },
+    ],
+    title: "P7 · Провайдеры и модели",
+  },
+  {
+    description: "Все компоненты ReUI и shadcn в теме Purr",
+    entries: [
+      {
+        description: "Кнопки, бейджи, графики, таблица.",
+        href: "/dev/showcase",
+        icon: LayoutDashboard,
+        status: "витрина",
+        title: "Дизайн-система",
+      },
+    ],
+    title: "Справочно",
+  },
+];
+
+const STATUS_VARIANT = { витрина: "secondary", выбираем: "warning-light", выбрано: "success-light" } as const;
+
+const PrototypesIndex = () => (
+  <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-12">
+    <header className="flex flex-col gap-1">
+      <h1 className="text-2xl font-semibold tracking-tight">Прототипы Purr</h1>
+      <p className="text-muted-foreground text-sm">
+        Живут здесь, пока идёт разработка. Варианты внутри прототипа переключаются пилюлей внизу или клавишами 1–9.
+      </p>
+    </header>
+    {GROUPS.map((group) => (
+      <Frame key={group.title} stacked>
+        <FrameHeader>
+          <FrameTitle>{group.title}</FrameTitle>
+          <FrameDescription>{group.description}</FrameDescription>
+        </FrameHeader>
+        <FramePanel className="p-1!">
+          <ItemGroup className="gap-0!">
+            {group.entries.map(({ href, title, description, icon: Icon, status }) => (
+              <Item key={href} render={<Link href={href} />} size="sm">
+                <ItemMedia>
+                  <IconTile size="sm" variant="frame">
+                    <Icon />
+                  </IconTile>
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{title}</ItemTitle>
+                  <ItemDescription>{description}</ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Badge size="sm" variant={STATUS_VARIANT[status]}>
+                    {status}
+                  </Badge>
+                  <ChevronRight className="text-muted-foreground size-4" />
+                </ItemActions>
+              </Item>
+            ))}
+          </ItemGroup>
+        </FramePanel>
+      </Frame>
+    ))}
+  </main>
+);
+
+export default PrototypesIndex;
