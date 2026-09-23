@@ -1,17 +1,17 @@
 "use client";
 
 import { Picker } from "../_shared/picker";
-import { LayoutCard } from "./layout-card";
-import { LayoutFeed } from "./layout-feed";
-import { LayoutSplit } from "./layout-split";
+import { CardDeck } from "./card-deck";
+import { CardHeader } from "./card-header";
+import { CardSpread } from "./card-spread";
 
-// P7: first-run onboarding. The flow ("Шаги") is chosen; the variants are layouts.
+// P7: first-run onboarding. Flow "Шаги" and the card layout are chosen; the variants are cards.
 const OnboardingPrototypePage = () => (
   <Picker
     variants={[
-      { Component: LayoutCard, name: "Карточка" },
-      { Component: LayoutSplit, name: "Сплит" },
-      { Component: LayoutFeed, name: "Лента" },
+      { Component: CardHeader, name: "Шапка" },
+      { Component: CardSpread, name: "Разворот" },
+      { Component: CardDeck, name: "Колода" },
     ]}
   />
 );
