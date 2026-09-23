@@ -106,8 +106,8 @@ const Deck = ({ labels = false, shuffle = false }: Options) => {
           spacing="lg"
           stacked
         >
-          <FrameHeader className="gap-1">
-            <div className="flex h-6 items-center justify-between">
+          {/* Navigation row: equal air above and below, the rule sits right under it */}
+          <div className="flex h-6 items-center justify-between px-(--frame-panel-header-px) pt-3 pb-4 box-content">
               <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
                 {canBack && (
                   <Button aria-label="Назад" className="-ml-1.5" onClick={o.back} size="icon-xs" variant="ghost">
@@ -127,9 +127,9 @@ const Deck = ({ labels = false, shuffle = false }: Options) => {
                   />
                 ))}
               </span>
-            </div>
-            {/* A barely-there rule between navigation and content */}
-            <Separator className="-mx-(--frame-panel-header-px) my-3 w-auto! opacity-60" />
+          </div>
+          <Separator className="opacity-60" />
+          <FrameHeader className="gap-1 pt-4!">
             {o.step === "done" && (
               <IconTile className="text-success mb-3" size="default" variant="soft">
                 <Check />

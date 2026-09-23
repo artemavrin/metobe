@@ -130,6 +130,23 @@ export const useConnection = (spec: ProviderSpec, proxies: Proxy[] = PROXIES) =>
   return { acceptProxy, declineProxy, error, phase, reset, route, start, tryProxy };
 };
 
+/**
+ * Keys and proxy URLs are not passwords: keep browsers and password managers (iCloud, 1Password,
+ * LastPass, Bitwarden) off them. `type="password"` is what summons them, so secrets use a text input
+ * masked with CSS instead.
+ */
+export const NO_AUTOFILL = {
+  autoCapitalize: "off",
+  autoComplete: "off",
+  autoCorrect: "off",
+  "data-1p-ignore": true,
+  "data-bwignore": true,
+  "data-form-type": "other",
+  "data-lpignore": "true",
+  spellCheck: false,
+} as const;
+export const MASKED = "[-webkit-text-security:disc]";
+
 export const busy = (p: Phase) => p === "direct" || p === "probing" || p === "models" || p === "proxyFound";
 
 // --- visuals on ReUI ------------------------------------------------------------------------------

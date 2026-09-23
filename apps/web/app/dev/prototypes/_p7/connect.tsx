@@ -35,7 +35,7 @@ import { ArrowLeftRight, Check, ChevronRight, CircleAlert, Globe, KeyRound, Load
 import { useEffect, useId, useState } from "react";
 
 import { PROXIES, PROVIDERS, type ProviderKind, type Proxy, providerBy, SAMPLE_KEYS } from "./mock";
-import { busy, enter, type Phase, ProviderMark, type RouteChoice, useConnection } from "./shared";
+import { busy, enter, MASKED, NO_AUTOFILL, type Phase, ProviderMark, type RouteChoice, useConnection } from "./shared";
 
 // --- provider choice ------------------------------------------------------------------------------
 
@@ -181,6 +181,7 @@ export const ConnectForm = ({
 
   return (
     <form
+      autoComplete="off"
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
@@ -192,6 +193,7 @@ export const ConnectForm = ({
           <Field data-invalid={conn.error?.field === "extra" || undefined}>
             <FieldLabel htmlFor={`${id}-extra`}>{spec.extraField.label}</FieldLabel>
             <Input
+              {...NO_AUTOFILL}
               aria-invalid={conn.error?.field === "extra" || undefined}
               className={cn("font-mono", large && "h-10")}
               disabled={locked}
@@ -210,14 +212,15 @@ export const ConnectForm = ({
               <KeyRound />
             </InputGroupAddon>
             <InputGroupInput
+              {...NO_AUTOFILL}
               aria-invalid={conn.error?.field === "key" || undefined}
               autoFocus
-              className="font-mono"
+              className={cn("font-mono", key && MASKED)}
               disabled={locked}
               id={`${id}-key`}
               onChange={(e) => setKey(e.target.value)}
               placeholder={spec.keyPlaceholder}
-              type="password"
+              type="text"
               value={key}
             />
             <InputGroupAddon align="inline-end">
@@ -262,6 +265,7 @@ export const ConnectForm = ({
                 <Network />
               </InputGroupAddon>
               <InputGroupInput
+                {...NO_AUTOFILL}
                 aria-invalid={conn.error?.field === "proxy" || undefined}
                 aria-label="Адрес прокси"
                 className="font-mono"
