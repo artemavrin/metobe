@@ -13,7 +13,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@purr/ui/components/input-otp";
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import { sendCode, verifyCode } from "./actions";
 import type { SendCodeState, VerifyState } from "./actions";
@@ -32,6 +32,8 @@ export const CodeForm = ({
     {}
   );
   const formRef = useRef<HTMLFormElement>(null);
+  // input-otp is always controlled internally, so the value lives here rather than in defaultValue.
+  const [code, setCode] = useState(initialCode);
   return (
     <form action={action} ref={formRef}>
       <input name="email" type="hidden" value={email} />
@@ -40,11 +42,12 @@ export const CodeForm = ({
           <FieldLabel htmlFor="code">Код из письма для {email}</FieldLabel>
           <InputOTP
             autoFocus
-            defaultValue={initialCode}
+            onChange={setCode}
             id="code"
             maxLength={6}
             name="code"
             onComplete={() => formRef.current?.requestSubmit()}
+            value={code}
           >
             <InputOTPGroup>
               {CODE_SLOTS.map((index) => (

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "check-types": "next typegen && tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@purr/contracts": "workspace:*",
@@ -22,6 +23,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@purr/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

@@ -31,3 +31,5 @@ spikes/**/node_modules/
 coverage/
 next-env.d.ts
 .vercel/
+test-results/
+playwright-report/
