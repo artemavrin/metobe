@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Purr installer: asks a few questions, writes .env, starts the stack and prints the claim link.
 # Non-interactive: PURR_YES=1 plus PURR_URL, PURR_PORT, PURR_DATABASE_URL, PURR_PROXY, PURR_SMTP_URL as needed.
+# PURR_BUILD=1 builds the image from this checkout instead of pulling ghcr.io/artemavrin/purr.
 # Inputs are PURR_-prefixed on purpose: a shell-wide HTTPS_PROXY must not leak into the containers.
 set -euo pipefail
 
@@ -75,8 +76,16 @@ else
 fi
 
 say
-say "Собираю и запускаю…"
-compose build --quiet app
+if [ "${PURR_BUILD:-}" = "1" ]; then
+  say "Собираю образ из исходников…"
+  compose build --quiet app
+elif compose pull --quiet app worker; then
+  say "Скачал готовый образ."
+else
+  say "${yellow}Не удалось скачать образ — собираю из исходников.${off}"
+  compose build --quiet app
+fi
+say "Запускаю…"
 compose up -d --wait app worker
 
 link="$(compose exec -T app purr claim-link | grep -oE 'https?://[^ ]+' || true)"

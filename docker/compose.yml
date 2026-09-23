@@ -5,7 +5,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: purr:local
+    # Published image by default; install.sh builds from source only when it cannot pull (or PURR_BUILD=1).
+    image: ${PURR_IMAGE:-ghcr.io/artemavrin/purr:latest}
     restart: unless-stopped
     env_file:
       - path: ../.env
@@ -29,7 +30,7 @@ services:
       start_period: 20s
 
   worker:
-    image: purr:local
+    image: ${PURR_IMAGE:-ghcr.io/artemavrin/purr:latest}
     command: ["worker"]
     restart: unless-stopped
     env_file:
