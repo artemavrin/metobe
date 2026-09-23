@@ -111,7 +111,7 @@ SMTP живёт в UI (D15): для старта он не нужен, приг�
 | `better-auth` | — | вместо NextAuth из шаблона |
 | `bullmq` | — | очереди: email, фоновые агенты и диспетчер (v2), песочница (v3) |
 | TanStack Query / Form / Hotkeys, `nuqs`, `motion` | — | по стеку |
-| **ReUI** (приоритет) + shadcn/ui, база Base UI, иконки lucide | shadcn CLI 4.21 | ReUI — первый выбор для любого компонента, §9.5; итоги S2 — D20 |
+| **ReUI** (приоритет) + shadcn/ui, база Base UI, иконки lucide; графики — **EvilCharts** | shadcn CLI 4.21 | §9.5; итоги S2 — D20 |
 | `nodemailer` + `react-email` | — | письма |
 
 ## 4. Структура проекта
@@ -478,21 +478,21 @@ widgetRegistry = { chart: {...}, table: {...}, metrics: {...} }   // schema + Co
 
 1. Если нужный компонент или блок есть в ReUI — берём его.
 2. Если нет — берём shadcn/ui. Стиль shadcn в `components.json` выбираем тот же, что у ReUI (`<base>-<variant>`, например `base-nova`), чтобы базовые примитивы выглядели как ReUI.
-3. Для графиков — ReUI, если в нём есть подходящие (проверить в S2), иначе EvilCharts.
+3. **Графики — исключение: EvilCharts.** Его анимации, градиенты, свечение и тултипы — часть вау (D20). Ставится так же, из `packages/ui`, в `components/evilcharts/*`.
 
 | Задача | Выбор |
 | --- | --- |
 | Все компоненты интерфейса | ReUI → shadcn/ui в стиле ReUI |
 | Таблицы | ReUI Data Grid (TanStack Table + Virtual + dnd-kit) |
-| Графики | ReUI — бесплатные блоки `@reui/c-chart-*` на shadcn `chart` + recharts (S2); EvilCharts — запасной |
+| Графики | **EvilCharts** — ради его анимаций, градиентов и свечения (D20); на recharts, как и ReUI |
 
 Вариант стиля ReUI (`vega`, `nova`, `maia`, `lyra`, `mira`, `luma`, `sera`, `rhea`) — решение визуальное, выбирается глазами на прототипе (D20).
 
-Риски (spike S2):
+Итоги S2 (D20):
 
-- голые `registryDependencies` у ReUI (`button`, `input`, `select`, …) резолвятся в реестр shadcn. Если стиль проекта совпадает со стилем ReUI, это ожидаемое поведение, а не порча. Совпадают ли имена стилей ReUI и shadcn — **проверить**. Порядок установки: `shadcn init` в стиле ReUI → ReUI → EvilCharts, с просмотром diff;
-- в зависимостях ReUI есть `@base-ui/react` даже для `radix`-стиля;
-- у EvilCharts нет явного заявления о поддержке React 19 / Tailwind v4. Замена — `shadcn/chart`, контракт §9.1 от неё не меняется.
+- `shadcn add` запускаем из `packages/ui` — тогда примитивы и составные компоненты ReUI и EvilCharts ложатся в дизайн-систему; перезаписей нет, совпадающие файлы пропускаются.
+- База — Base UI (`base-nova`), иконки — `lucide-react`.
+- ReUI и EvilCharts работают на React 19 / Tailwind v4; контракт виджетов §9.1 от конкретной библиотеки не зависит.
 
 ## 10. Auth и доступ
 

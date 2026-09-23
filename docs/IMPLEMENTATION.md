@@ -46,36 +46,36 @@ Turborepo + pnpm workspaces. Пакеты — «just-in-time»: экспорти
 
 | package | Что внутри | Где выполняется | Кто использует |
 | --- | --- | --- | --- |
-| `@repo/ui` | дизайн-система: ReUI и shadcn в стиле ReUI, токены и тема, общий CSS, мелкие общие компоненты. **Без бизнес-логики и запросов к данным** | браузер | web |
-| `@repo/contracts` | Zod-схемы и типы, общие для клиента и сервера: тело `POST /api/chat`, тип `ChatMessage` (наши data-части и тулы), спеки виджетов, поля коннекторов для форм, DTO API | везде, без Node-зависимостей | web (клиент и сервер), core |
-| `@repo/db` | Drizzle: схема по агрегатам, миграции, клиент | сервер | core, cli |
-| `@repo/core` | серверный домен, subpath-экспорты: `/secrets`, `/net`, `/ai`, `/chat`, `/mcp`, `/connectors`, `/search`, `/agents`, `/queries`, `/env`. Импортирует `server-only`, ничего из `next/*` | сервер | web (серверная часть), worker, cli |
-| `@repo/emails` | react-email шаблоны и `render` | сервер | core |
-| `@repo/tsconfig` | общие tsconfig: base, nextjs, node | — | все |
+| `@purr/ui` | дизайн-система: ReUI и shadcn в стиле ReUI, токены и тема, общий CSS, мелкие общие компоненты. **Без бизнес-логики и запросов к данным** | браузер | web |
+| `@purr/contracts` | Zod-схемы и типы, общие для клиента и сервера: тело `POST /api/chat`, тип `ChatMessage` (наши data-части и тулы), спеки виджетов, поля коннекторов для форм, DTO API | везде, без Node-зависимостей | web (клиент и сервер), core |
+| `@purr/db` | Drizzle: схема по агрегатам, миграции, клиент | сервер | core, cli |
+| `@purr/core` | серверный домен, subpath-экспорты: `/secrets`, `/net`, `/ai`, `/chat`, `/mcp`, `/connectors`, `/search`, `/agents`, `/queries`, `/env`. Импортирует `server-only`, ничего из `next/*` | сервер | web (серверная часть), worker, cli |
+| `@purr/emails` | react-email шаблоны и `render` | сервер | core |
+| `@purr/tsconfig` | общие tsconfig: base, nextjs, node | — | все |
 
 Ultracite, knip и turbo настраиваются в корне, отдельный пакет конфига линтера не нужен.
 
 **Граф зависимостей** — только сверху вниз:
 
 ```
-apps/web     → @repo/ui, @repo/contracts, @repo/core
-apps/worker  → @repo/core
-apps/cli     → @repo/core, @repo/db (миграции)
-@repo/core   → @repo/db, @repo/contracts, @repo/emails
-@repo/ui     → (только react, ReUI, radix/base-ui)
+apps/web     → @purr/ui, @purr/contracts, @purr/core
+apps/worker  → @purr/core
+apps/cli     → @purr/core, @purr/db (миграции)
+@purr/core   → @purr/db, @purr/contracts, @purr/emails
+@purr/ui     → (только react, ReUI, radix/base-ui)
 ```
 
 Правила, которые держат границы (проверяются knip и ревью):
 
-1. **Приложения не импортируют `@repo/db` напрямую.** Запросы живут в `@repo/core/queries`, иначе web и worker разъедутся в том, как читают одни и те же данные. Исключение — `apps/cli` для миграций.
-2. **`@repo/ui` не знает о домене.** Компонент «карточка вызова тула» или «виджет графика» — это домен, его место в `apps/web/modules/*`. В `ui` лежат кнопки, поля, таблица, диалоги, графики как примитивы.
-3. **`@repo/contracts` изоморфен.** Никаких `node:*`, драйверов и секретов: его импортирует браузер.
-4. **`@repo/core` — только сервер.** Первая строка в нём — `import 'server-only'`, чтобы случайный импорт из клиентского компонента падал на сборке, а не утекал в бандл. Этот пакет бросает ошибку вне условия экспорта `react-server`, поэтому `worker` и `cli` запускаются с `node --conditions=react-server`, а `tsup` бандлит их с тем же условием — **проверить** на скелете.
+1. **Приложения не импортируют `@purr/db` напрямую.** Запросы живут в `@purr/core/queries`, иначе web и worker разъедутся в том, как читают одни и те же данные. Исключение — `apps/cli` для миграций.
+2. **`@purr/ui` не знает о домене.** Компонент «карточка вызова тула» или «виджет графика» — это домен, его место в `apps/web/modules/*`. В `ui` лежат кнопки, поля, таблица, диалоги, графики как примитивы.
+3. **`@purr/contracts` изоморфен.** Никаких `node:*`, драйверов и секретов: его импортирует браузер.
+4. **`@purr/core` — только сервер.** Первая строка в нём — `import 'server-only'`, чтобы случайный импорт из клиентского компонента падал на сборке, а не утекал в бандл. Этот пакет бросает ошибку вне условия экспорта `react-server`, поэтому `worker` и `cli` запускаются с `node --conditions=react-server`, а `tsup` бандлит их с тем же условием — **проверить** на скелете.
 
 **Чего не выносим и почему:**
 
 - **Рендер чата** (диспетчер parts, карточки тулов, composer, виджеты) остаётся в `apps/web/modules/chat`: потребитель один, а логика завязана на `useChat`. Вынесем, если появится второе приложение.
-- **`@repo/ai`, `@repo/mcp`, `@repo/connectors` отдельными пакетами** — не нужны: у них одни и те же потребители (web и worker), дробление добавило бы только конфигов. Границы внутри `core` задают subpath-экспорты. Делим, когда у части появится свой потребитель или тяжёлая зависимость, которая мешает остальным.
+- **`@purr/ai`, `@purr/mcp`, `@purr/connectors` отдельными пакетами** — не нужны: у них одни и те же потребители (web и worker), дробление добавило бы только конфигов. Границы внутри `core` задают subpath-экспорты. Делим, когда у части появится свой потребитель или тяжёлая зависимость, которая мешает остальным.
 
 **UI в монорепо:**
 
@@ -116,7 +116,7 @@ docs/
 ### M1. Скелет и установка
 
 1. `scaffold-nextjs`, фазы 1–2 и 4–6: `create-next-app`, Agentation, Ultracite, Turborepo. Фаза 3 (Blode) заменяется на `shadcn init` в стиле ReUI и подключение реестров `@reui` и `@evilcharts` в `components.json`. Фаза 7 (GitHub и Vercel) не выполняется, фаза 8 (favicon, OG) — в M7. Скилл ставит всё через npm, у нас pnpm: команды переводятся на `pnpm`.
-2. Каркас приложений `apps/worker`, `apps/cli` и пакетов `@repo/ui`, `@repo/contracts`, `@repo/db`, `@repo/core`, `@repo/emails`, `@repo/tsconfig` (§2). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
+2. Каркас приложений `apps/worker`, `apps/cli` и пакетов `@purr/ui`, `@purr/contracts`, `@purr/db`, `@purr/core`, `@purr/emails`, `@purr/tsconfig` (§2). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
 3. Drizzle: клиент, `drizzle.config.ts`, схема `system_settings`, `users`, `claim_tokens`, `invitations`. Better Auth CLI генерирует свои таблицы.
 4. Better Auth: email + пароль. `proxy.ts` проверяет только cookie, полная проверка — в layout группы `(app)`.
 5. `docker/Dockerfile` по примеру `with-docker`, `compose.yml`, healthcheck'и, `GET /api/health`.
@@ -127,10 +127,10 @@ docs/
 
 ### M2. Провайдеры и модели
 
-1. `@repo/core/secrets`: AES-256-GCM, AAD, canary при старте, `use()`, маски, `pnpm cli secrets:rotate`.
+1. `@purr/core/secrets`: AES-256-GCM, AAD, canary при старте, `use()`, маски, `pnpm cli secrets:rotate`.
 2. Схема `providers`, `model_vendors`, `models`, `model_runs`, `secrets`.
-3. `@repo/core/net`: прокси, маршрутизация (явный выбор у объекта → домены прокси → напрямую), dispatcher'ы HTTP и SOCKS5 по итогам S4, проверка прокси, автоподбор прокси при недоступном провайдере, закрепление IP для трафика с SSRF-защитой, импорт `HTTPS_PROXY` / `ALL_PROXY` в запись прокси при первом старте. Схема `proxies`, `proxy_domains`, поля `proxy_mode` / `proxy_id` у объектов, UI `/settings/proxies`.
-4. `@repo/core/ai`: фабрика по `kind`, `fetch` из `core/net`, Яндекс (итоги S3), кеш и сброс по Redis `config:changed`.
+3. `@purr/core/net`: прокси, маршрутизация (явный выбор у объекта → домены прокси → напрямую), dispatcher'ы HTTP и SOCKS5 по итогам S4, проверка прокси, автоподбор прокси при недоступном провайдере, закрепление IP для трафика с SSRF-защитой, импорт `HTTPS_PROXY` / `ALL_PROXY` в запись прокси при первом старте. Схема `proxies`, `proxy_domains`, поля `proxy_mode` / `proxy_id` у объектов, UI `/settings/proxies`.
+4. `@purr/core/ai`: фабрика по `kind`, `fetch` из `core/net`, Яндекс (итоги S3), кеш и сброс по Redis `config:changed`.
 5. Discovery и seed-справочник: Яндекс, цены.
 6. UI настроек провайдеров и моделей — прототип P7. Формы на TanStack Form + Zod, данные через TanStack Query.
 
@@ -144,15 +144,15 @@ docs/
 ### M4. Подключения, MCP, поиск
 
 1. Схема `catalog_items`, `connections`, `search_backends`.
-2. `@repo/core/mcp`: `@ai-sdk/mcp`, allowlist, префиксы, `approval_policy`.
-3. `@repo/core/connectors`: `email` (nodemailer, пресеты, `verify`), `http_api` (авторизация, генерация тулов из OpenAPI), SSRF-guard для своих подключений.
+2. `@purr/core/mcp`: `@ai-sdk/mcp`, allowlist, префиксы, `approval_policy`.
+3. `@purr/core/connectors`: `email` (nodemailer, пресеты, `verify`), `http_api` (авторизация, генерация тулов из OpenAPI), SSRF-guard для своих подключений.
 4. `request_connection` + форма в ленте + `POST /api/connections`. Предупреждение о пароле в composer.
 5. `web_search` / `web_fetch` на SearXNG, `source-url`-части, карточка источников.
 6. UI каталога, «Мои подключения», карточки вызовов тулов и подтверждения — прототипы P4, P8.
 
 ### M5. Генеративный UI
 
-1. Реестр виджетов (`chart`, `table`, `metrics`) — схемы в `@repo/contracts`, компоненты в `apps/web/modules/widgets` поверх примитивов `@repo/ui`.
+1. Реестр виджетов (`chart`, `table`, `metrics`) — схемы в `@purr/contracts`, компоненты в `apps/web/modules/widgets` поверх примитивов `@purr/ui`.
 2. `toModelOutput` + `sourceRef` (итоги S5), фолбэк на невалидный спек.
 3. ReUI Data Grid и графики по итогам S2.
 
@@ -176,4 +176,4 @@ docs/
 
 - `turbo check-types`, `ultracite check`, `vitest` — зелёные, иначе этап не закрыт.
 - Критерий «Готово, когда» из PLAN проверяется руками в браузере, на чистой установке через `install.sh`.
-- Чистая логика (`@repo/core`, `@repo/contracts`, `modules/*/model`) покрывается тестами рядом с файлом. Компоненты — по необходимости.
+- Чистая логика (`@purr/core`, `@purr/contracts`, `modules/*/model`) покрывается тестами рядом с файлом. Компоненты — по необходимости.
