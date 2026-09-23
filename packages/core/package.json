@@ -11,12 +11,16 @@
   "dependencies": {
     "@purr/contracts": "workspace:*",
     "@purr/db": "workspace:*",
+    "better-auth": "^1.7.5",
+    "drizzle-orm": "^0.45.3",
+    "nodemailer": "^10.0.10",
     "server-only": "^0.0.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@purr/tsconfig": "workspace:*",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.2",
     "typescript": "^5"
   }
 }
