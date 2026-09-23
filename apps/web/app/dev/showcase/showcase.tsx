@@ -49,7 +49,7 @@ export const Showcase = () => {
             }
             variant="outline"
           >
-            {resolvedTheme === "dark" ? "Светлая тема" : "Тёмная тема"}
+            Сменить тему
           </Button>
         </div>
       </header>

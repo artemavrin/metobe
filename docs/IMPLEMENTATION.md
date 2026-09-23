@@ -174,6 +174,13 @@ docs/
 
 ## 6. Проверки на каждом этапе
 
+**Смена пресета shadcn** (`apply --preset <код>`) — только из `apps/web`: из `packages/ui` CLI не находит фреймворк. После `apply` вручную:
+
+- вернуть `apps/web/app/layout.tsx`: пресет вписывает шрифт с `subsets: ['latin']`, без кириллицы;
+- удалить созданный `apps/web/lib/utils.ts`: `cn()` берётся из `@purr/ui/lib/utils`;
+- если сменился стиль (например, `nova` → `mira`), переставить компоненты ReUI из `packages/ui` с `--overwrite`, чтобы они совпали со стилем;
+- `pnpm fix`: `globals.css` пишется без форматирования.
+
 - Каждый новый компонент дизайн-системы и каждый виджет сразу появляется на витрине `/dev/showcase` (`pnpm dev` → http://localhost:3000/dev/showcase), чтобы его можно было посмотреть и потрогать руками, а не только на скриншоте.
 
 - `turbo check-types`, `ultracite check`, `vitest` — зелёные, иначе этап не закрыт.
