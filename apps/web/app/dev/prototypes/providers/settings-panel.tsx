@@ -34,7 +34,8 @@ const NAV = [
 
 type Filter = "all" | "on" | "off";
 
-export const SettingsPanel = () => {
+/** `embedded`: inside the settings mode of the app shell, which brings its own navigation. */
+export const SettingsPanel = ({ embedded = false }: { embedded?: boolean }) => {
   const [connected, setConnected] = useState<Connected[]>(seedConnected);
   const [selected, setSelected] = useState<ProviderKind>("openai");
   const [dialog, setDialog] = useState(false);
@@ -44,7 +45,8 @@ export const SettingsPanel = () => {
   const update = useCallback((c: Connected) => setConnected((all) => all.map((x) => (x.kind === c.kind ? c : x))), []);
 
   return (
-    <div className="bg-background flex h-dvh text-sm">
+    <div className={cn("bg-background flex text-sm", embedded ? "h-full min-h-0" : "h-dvh")}>
+      {!embedded && (
       <aside className="bg-sidebar flex w-56 shrink-0 flex-col gap-1 border-r p-2">
         <div className="flex h-10 items-center px-2 font-semibold">Purr</div>
         <Button className="justify-start" variant="ghost">
@@ -61,6 +63,7 @@ export const SettingsPanel = () => {
         ))}
         <div className="text-muted-foreground mt-auto px-2 py-2 text-xs">Артём · админ</div>
       </aside>
+      )}
 
       <section className="flex w-72 shrink-0 flex-col border-r">
         <div className="flex h-12 items-center justify-between border-b px-3">

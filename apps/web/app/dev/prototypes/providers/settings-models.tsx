@@ -25,7 +25,8 @@ const CAP_FILTERS: { key: keyof Caps; label: string; icon: typeof Wrench }[] = [
   { icon: Braces, key: "structured", label: "JSON" },
 ];
 
-export const SettingsModels = () => {
+/** `embedded`: inside the settings mode of the app shell, which brings its own header. */
+export const SettingsModels = ({ embedded = false }: { embedded?: boolean }) => {
   const [connected, setConnected] = useState<Connected[]>(seedConnected);
   const [dialog, setDialog] = useState(false);
   const [providers, setProviders] = useState<string[]>([]);
@@ -79,13 +80,15 @@ export const SettingsModels = () => {
   };
 
   return (
-    <div className="bg-background min-h-dvh text-sm">
+    <div className={cn("bg-background text-sm", !embedded && "min-h-dvh")}>
+      {!embedded && (
       <header className="flex h-14 items-center justify-between border-b px-6">
         <span className="font-semibold">Purr · Настройки</span>
         <Button size="sm" variant="outline">
           <MessageSquare /> Чат
         </Button>
       </header>
+      )}
 
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-6 py-8 pb-32">
         <div>

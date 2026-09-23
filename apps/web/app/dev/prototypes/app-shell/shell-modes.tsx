@@ -29,8 +29,9 @@ import { AREAS, CHAT_GROUPS, CHATS, SETTINGS, type SettingsSection, USER } from 
 
 type ChatView = { id?: string } | { area: "agents" | "inbox" };
 
-export const ShellModes = () => {
-  const [mode, setMode] = useState<"chat" | "settings">("chat");
+/** `start` and `providers` let other prototypes open the shell right in settings with their own providers page. */
+export const ShellModes = ({ start = "chat", providers }: { start?: "chat" | "settings"; providers?: React.ReactNode } = {}) => {
+  const [mode, setMode] = useState<"chat" | "settings">(start);
   const [chat, setChat] = useState<ChatView>({});
   const [section, setSection] = useState<SettingsSection>("providers");
 
@@ -49,7 +50,7 @@ export const ShellModes = () => {
   return mode === "chat" ? (
     <ChatMode chat={chat} onChat={setChat} onSettings={() => setMode("settings")} />
   ) : (
-    <SettingsMode onBack={() => setMode("chat")} onSection={setSection} section={section} />
+    <SettingsMode onBack={() => setMode("chat")} onSection={setSection} providers={providers} section={section} />
   );
 };
 
@@ -57,16 +58,18 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
   <SidebarProvider className="animate-in fade-in duration-200 ease-out">
     <Sidebar variant="floating">
       <SidebarHeader>
-        <div className="flex h-8 items-center justify-between px-1">
+        <div className="flex h-8 items-center px-1">
           <span className="flex items-center gap-2 text-sm font-semibold">
             <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs">P</span>
             Purr
           </span>
-          <Button aria-label="Новый чат" onClick={() => onChat({})} size="icon-sm" variant="ghost">
-            <SquarePen />
-          </Button>
         </div>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton isActive={!("area" in chat) && !chat.id} onClick={() => onChat({})}>
+              <SquarePen /> <span>Новый чат</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           {AREAS.filter((a) => a.id !== "chat").map((a) => (
             <SidebarMenuItem key={a.id}>
               <SidebarMenuButton isActive={"area" in chat && chat.area === a.id} onClick={() => onChat({ area: a.id })}>
@@ -124,7 +127,17 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
   </SidebarProvider>
 );
 
-const SettingsMode = ({ section, onSection, onBack }: { section: SettingsSection; onSection: (s: SettingsSection) => void; onBack: () => void }) => {
+const SettingsMode = ({
+  section,
+  onSection,
+  onBack,
+  providers,
+}: {
+  section: SettingsSection;
+  onSection: (s: SettingsSection) => void;
+  onBack: () => void;
+  providers?: React.ReactNode;
+}) => {
   const [q, setQ] = useState("");
   const groups = SETTINGS.map((g) => ({ ...g, items: g.items.filter((i) => `${i.label} ${i.hint}`.toLowerCase().includes(q.toLowerCase())) })).filter(
     (g) => g.items.length
@@ -173,7 +186,7 @@ const SettingsMode = ({ section, onSection, onBack }: { section: SettingsSection
           {!groups.length && <p className="text-muted-foreground px-2 text-sm">Ничего не нашлось</p>}
         </nav>
         <main className="bg-background min-w-0 flex-1 overflow-y-auto" key={section}>
-          <SettingsPage section={section} />
+          {section === "providers" && providers ? providers : <SettingsPage section={section} />}
         </main>
       </div>
     </div>
