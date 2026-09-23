@@ -62,6 +62,16 @@ export const DONE_STATE: OnboardingState = {
   step: "done",
 };
 
+/** The finish line with a lot selected: to check that the finish screen doesn't try to list them all. */
+export const DONE_MANY_STATE: OnboardingState = {
+  connected: [
+    DONE_STATE.connected[0] as Connected,
+    { kind: "gateway", models: new Set(providerBy("gateway").models.slice(0, 40).map((m) => m.id)), route: { kind: "direct" } },
+  ],
+  kind: "gateway",
+  step: "done",
+};
+
 /** The models step with AI Gateway connected — the provider with the longest list. */
 export const MODELS_STATE: OnboardingState = {
   connected: [{ kind: "gateway", models: new Set(), route: { kind: "direct" } }],

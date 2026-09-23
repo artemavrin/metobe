@@ -11,7 +11,7 @@ import { ArrowLeft, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { type DoneKind, DoneScreen } from "./done";
-import { copy, DONE_STATE, MODELS_STATE, type OnboardingState, STEPS, StepBody, stepNumber, useOnboarding } from "./steps";
+import { copy, DONE_MANY_STATE, DONE_STATE, MODELS_STATE, type OnboardingState, STEPS, StepBody, stepNumber, useOnboarding } from "./steps";
 
 // Leaving card: stays opaque while it travels, fades only at the very end — no muddy cross-fade of two texts.
 const LEAVE_KEYFRAMES = `
@@ -157,10 +157,13 @@ const Deck = ({ labels = false, shuffle = false, done, start }: Options) => {
 };
 
 export const DeckQuiet = () => <Deck />;
-export const DeckModels = () => <Deck done="confetti" start={MODELS_STATE} />;
+export const DeckModels = () => <Deck done="burst" start={MODELS_STATE} />;
 export const DoneSummary = () => <Deck done="summary" />;
 export const DoneCompose = () => <Deck done="compose" />;
-export const DoneConfetti = () => <Deck done="confetti" />;
+export const DoneBurst = () => <Deck done="burst" />;
+export const DoneRain = () => <Deck done="rain" />;
+export const DonePoppers = () => <Deck done="poppers" />;
+export const DoneBurstMany = () => <Deck done="burst" start={DONE_MANY_STATE} />;
 export const DoneDeal = () => <Deck done="deal" />;
 export const DoneHello = () => <Deck done="hello" />;
 export const DeckLabels = () => <Deck labels />;

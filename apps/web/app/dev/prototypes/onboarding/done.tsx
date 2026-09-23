@@ -13,11 +13,11 @@ import { cn } from "@purr/ui/lib/utils";
 import { ArrowRight, ArrowUp, ChevronRight, Plug, Plus, Sparkles, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { fmtContext, models as nModels, providerBy } from "../_p7/mock";
+import { byNewest, fmtContext, models as nModels, providerBy } from "../_p7/mock";
 import { CapIcons, enter, NO_AUTOFILL, ProviderMark, RouteBadge } from "../_p7/shared";
 import type { Connected, Onboarding } from "./steps";
 
-export type DoneKind = "summary" | "compose" | "confetti" | "deal" | "hello";
+export type DoneKind = "summary" | "compose" | "burst" | "rain" | "poppers" | "deal" | "hello";
 
 const enabledModels = (o: Onboarding) =>
   o.connected.flatMap((c) => providerBy(c.kind).models.filter((m) => c.models.has(m.id)).map((m) => ({ c, m })));
@@ -213,9 +213,14 @@ const Compose = ({ o }: { o: Onboarding }) => {
 
 // --- «Праздник»: three takes ---------------------------------------------------------------------
 
+/** Who is waiting in chat: up to three names, otherwise the two newest and the rest as a count. */
 const modelNames = (o: Onboarding) => {
-  const names = enabledModels(o).map(({ m }) => m.title);
-  return names.length > 1 ? `${names.slice(0, -1).join(", ")} и ${names.at(-1)}` : (names[0] ?? "");
+  const names = enabledModels(o)
+    .map(({ m }) => m)
+    .sort(byNewest)
+    .map((m) => m.title);
+  if (names.length <= 3) return names.length > 1 ? `${names.slice(0, -1).join(", ")} и ${names.at(-1)}` : (names[0] ?? "");
+  return `${names[0]}, ${names[1]} и ещё ${nModels(names.length - 2)}`;
 };
 
 const Actions = ({ o, primary = "Открыть чат" }: { o: Onboarding; primary?: string }) => (
@@ -231,64 +236,144 @@ const Actions = ({ o, primary = "Открыть чат" }: { o: Onboarding; prim
 
 const REDUCED = "@media (prefers-reduced-motion: reduce) { .celebrate *, .celebrate { animation: none !important } .celebrate .confetti { display: none } }";
 
-// «Конфетти»: a restrained burst in the theme colors, once, from behind the headline.
+// «Конфетти»: paper, not pixels — a quick rise that brakes at the top, then a slow drift down with sway and
+// flutter (air drag keeps the fall speed near constant), fading only at the end.
 const CONFETTI_CSS = `
-@keyframes confetti-fly {
-  0% { transform: translate(0, 0) rotate(0) scale(0.6); opacity: 1 }
-  45% { transform: translate(calc(var(--dx) * 0.8), var(--up)) rotate(calc(var(--r) * 0.6)) scale(1); opacity: 1 }
-  100% { transform: translate(var(--dx), var(--down)) rotate(var(--r)) scale(0.9); opacity: 0 }
+@keyframes cf-path {
+  0% { transform: translate(0, 0); opacity: 1; animation-timing-function: cubic-bezier(0.12, 0.8, 0.3, 1) }
+  18% { transform: translate(var(--x1), var(--peak)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
+  42% { transform: translate(calc(var(--x1) + var(--sway)), calc(var(--peak) + var(--fall) * 0.28)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
+  66% { transform: translate(calc(var(--x1) - var(--sway)), calc(var(--peak) + var(--fall) * 0.6)); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
+  100% { transform: translate(calc(var(--x1) + var(--sway) * 0.5), calc(var(--peak) + var(--fall))); opacity: 0 }
+}
+@keyframes cf-rain {
+  0% { transform: translate(0, 0); opacity: 0; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
+  8% { opacity: 1 }
+  35% { transform: translate(var(--sway), calc(var(--fall) * 0.33)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
+  68% { transform: translate(calc(var(--sway) * -1), calc(var(--fall) * 0.66)); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1) }
+  100% { transform: translate(calc(var(--sway) * 0.5), var(--fall)); opacity: 0 }
+}
+@keyframes cf-flutter {
+  0% { transform: rotate(var(--r0)) scaleX(1) }
+  50% { transform: rotate(calc(var(--r0) + var(--spin) * 0.5)) scaleX(0.25) }
+  100% { transform: rotate(calc(var(--r0) + var(--spin))) scaleX(1) }
 }
 @keyframes title-in { from { transform: translateY(8px) scale(0.96); opacity: 0 } to { transform: none; opacity: 1 } }
 ${REDUCED}`;
 
 const CONFETTI_COLORS = ["var(--primary)", "var(--chart-1)", "var(--success)", "var(--warning)", "var(--info)", "var(--chart-3)"];
 
-const Confetti = () => {
-  // Deterministic spread so the burst looks the same on every replay; rounded so server and client agree.
-  const pieces = useMemo(
-    () =>
-      Array.from({ length: 34 }, (_, i) => {
-        const a = (i / 34) * Math.PI * 2 + (i % 3) * 0.35;
-        const dist = 120 + ((i * 53) % 110);
-        return {
-          color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-          delay: (i % 5) * 18,
-          down: `${40 + ((i * 37) % 90)}px`,
-          dx: `${Math.round(Math.cos(a) * dist)}px`,
-          r: `${(i % 2 ? 1 : -1) * (180 + ((i * 29) % 360))}deg`,
-          round: i % 4 === 0,
-          up: `${Math.round(-Math.abs(Math.sin(a)) * dist * 0.7 - 30)}px`,
-        };
-      }),
-    []
-  );
+type ConfettiMode = "burst" | "rain" | "poppers";
+
+// Deterministic pseudo-random in [0, 1): the same scene on every replay, identical on server and client.
+const rand = (i: number, salt: number) => {
+  const x = Math.sin(i * 12.9898 + salt * 78.233) * 43_758.5453;
+  return Math.round((x - Math.floor(x)) * 1000) / 1000;
+};
+
+type Piece = { x: number; y: number; vars: Record<string, string>; delay: number; duration: number; flutter: number; shape: string; color: string };
+
+const scene = (mode: ConfettiMode): Piece[] => {
+  const count = mode === "rain" ? 44 : 40;
+  return Array.from({ length: count }, (_, i): Piece => {
+    const r = (salt: number) => rand(i, salt);
+    const common = {
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length] as string,
+      flutter: Math.round(420 + r(7) * 480),
+      shape: i % 5 === 0 ? "size-1.5 rounded-full" : i % 3 === 0 ? "h-1.5 w-3 rounded-[1px]" : "h-3 w-1.5 rounded-[1px]",
+    };
+    const spin = `${Math.round((r(8) > 0.5 ? 1 : -1) * (180 + r(9) * 180))}deg`;
+    const r0 = `${Math.round(r(10) * 360)}deg`;
+    if (mode === "rain") {
+      return {
+        ...common,
+        delay: Math.round(r(1) * 900),
+        duration: Math.round(2600 + r(2) * 1100),
+        vars: { "--fall": `${Math.round(360 + r(3) * 220)}px`, "--r0": r0, "--spin": spin, "--sway": `${Math.round(10 + r(4) * 22)}px` },
+        x: Math.round((r(5) - 0.5) * 620),
+        y: Math.round(-40 - r(6) * 60),
+      };
+    }
+    if (mode === "poppers") {
+      const left = i % 2 === 0;
+      const angle = ((left ? -1 : 1) * (12 + r(1) * 30) * Math.PI) / 180; // from vertical, leaning inward
+      const power = 300 + r(2) * 170;
+      return {
+        ...common,
+        delay: Math.round(r(3) * 90),
+        duration: Math.round(2300 + r(4) * 700),
+        vars: {
+          "--fall": `${Math.round(260 + r(5) * 160)}px`,
+          "--peak": `${Math.round(-Math.cos(angle) * power)}px`,
+          "--r0": r0,
+          "--spin": spin,
+          "--sway": `${Math.round(8 + r(6) * 16)}px`,
+          "--x1": `${Math.round(-Math.sin(angle) * power)}px`,
+        },
+        // The card's bottom corners, below the button
+        x: left ? -275 : 275,
+        y: 215,
+      };
+    }
+    const a = -Math.PI / 2 + (r(1) - 0.5) * Math.PI * 1.1; // mostly upward fan
+    const power = 110 + r(2) * 150;
+    return {
+      ...common,
+      delay: Math.round(r(3) * 80),
+      duration: Math.round(2200 + r(4) * 700),
+      vars: {
+        "--fall": `${Math.round(200 + r(5) * 180)}px`,
+        "--peak": `${Math.round(Math.sin(a) * power)}px`,
+        "--r0": r0,
+        "--spin": spin,
+        "--sway": `${Math.round(8 + r(6) * 18)}px`,
+        "--x1": `${Math.round(Math.cos(a) * power * 1.4)}px`,
+      },
+      x: 0,
+      y: 0,
+    };
+  });
+};
+
+const Confetti = ({ mode }: { mode: ConfettiMode }) => {
+  const pieces = useMemo(() => scene(mode), [mode]);
   return (
-    <span aria-hidden className="confetti pointer-events-none absolute top-1/2 left-1/2">
+    <span aria-hidden className="confetti pointer-events-none absolute top-1/2 left-1/2 z-10">
       {pieces.map((p, i) => (
         <span
-          className={cn("absolute block", p.round ? "size-1.5 rounded-full" : "h-2.5 w-1 rounded-[1px]")}
+          className="absolute block"
           key={i}
           style={
             {
-              "--down": p.down,
-              "--dx": p.dx,
-              "--r": p.r,
-              "--up": p.up,
-              animation: `confetti-fly 1100ms cubic-bezier(0.23, 1, 0.32, 1) ${p.delay}ms both`,
-              background: p.color,
+              ...p.vars,
+              animation: `${mode === "rain" ? "cf-rain" : "cf-path"} ${p.duration}ms linear ${p.delay}ms both`,
+              left: p.x,
+              top: p.y,
             } as React.CSSProperties
           }
-        />
+        >
+          <span
+            className={cn("block", p.shape)}
+            style={
+              {
+                "--r0": p.vars["--r0"],
+                "--spin": p.vars["--spin"],
+                animation: `cf-flutter ${p.flutter}ms linear ${p.delay}ms infinite`,
+                background: p.color,
+              } as React.CSSProperties
+            }
+          />
+        </span>
       ))}
     </span>
   );
 };
 
-const CelebrateConfetti = ({ o }: { o: Onboarding }) => (
+const CelebrateConfetti = ({ o, mode }: { o: Onboarding; mode: ConfettiMode }) => (
   <>
     <style>{CONFETTI_CSS}</style>
     <FrameHeader className="celebrate relative items-center gap-2 pt-10! pb-6! text-center">
-      <Confetti />
+      <Confetti mode={mode} />
       <FrameTitle className="text-3xl tracking-tight" style={{ animation: "title-in 450ms cubic-bezier(0.23,1,0.32,1) 80ms both" }}>
         Purr готов
       </FrameTitle>
@@ -425,8 +510,10 @@ export const DoneScreen = ({ kind, o }: { kind: DoneKind; o: Onboarding }) => {
       return <Summary o={o} />;
     case "compose":
       return <Compose o={o} />;
-    case "confetti":
-      return <CelebrateConfetti o={o} />;
+    case "burst":
+    case "rain":
+    case "poppers":
+      return <CelebrateConfetti mode={kind} o={o} />;
     case "deal":
       return <CelebrateDeal o={o} />;
     case "hello":

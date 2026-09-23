@@ -1,17 +1,17 @@
 "use client";
 
 import { Picker } from "../_shared/picker";
-import { DeckModels, DoneConfetti, DoneDeal, DoneHello } from "./card-deck";
+import { DoneBurst, DoneBurstMany, DonePoppers, DoneRain } from "./card-deck";
 
-// P7: first-run onboarding. Chosen: flow "Шаги", card "Колода", riff "Тихая", finish direction "Праздник".
-// Now choosing how to celebrate; each variant opens on the finish screen. "Итог" and "Сразу в чат" stay in done.tsx.
+// P7: first-run onboarding. Chosen: flow "Шаги", card "Колода", riff "Тихая", finish "Праздник · Конфетти".
+// Now tuning the confetti. «Раздача», «Привет», «Итог», «Сразу в чат» stay in done.tsx; the models step is DeckModels.
 const OnboardingPrototypePage = () => (
   <Picker
     variants={[
-      { Component: DoneConfetti, name: "Конфетти" },
-      { Component: DoneDeal, name: "Раздача" },
-      { Component: DoneHello, name: "Привет" },
-      { Component: DeckModels, name: "Шаг «Модели»" },
+      { Component: DoneBurst, name: "Залп" },
+      { Component: DoneRain, name: "Дождь" },
+      { Component: DonePoppers, name: "Хлопушки" },
+      { Component: DoneBurstMany, name: "Залп · 40 моделей" },
     ]}
   />
 );
