@@ -88,30 +88,30 @@ MinIO не используем: репозиторий архивирован, 
 ### 2.3 Что где настраивается
 
 | `.env` (инфраструктура, до старта) | БД через UI (данные, после старта) |
-|---|---|
+| --- | --- |
 | `DATABASE_URL`, `REDIS_URL`, `S3_*`, `APP_URL` | провайдеры, ключи, модели, цены |
 | `SECRETS_KEY`, `BETTER_AUTH_SECRET` | MCP-серверы, скиллы |
 | `HTTPS_PROXY` / `ALL_PROXY` — стартовый прокси: при первом запуске превращается в запись в админке | прокси и что через каждый ходит (§18) |
-| | пользователи, роли, лимиты, SMTP |
+|  | пользователи, роли, лимиты, SMTP |
 
 SMTP живёт в UI (D15): для старта он не нужен, приглашения работают и без него, а в UI его удобно проверить кнопкой «отправить тестовое письмо».
 
 ## 3. Стек
 
 | Пакет | Версия | Примечание |
-|---|---|---|
+| --- | --- | --- |
 | `next` | 16.x | App Router; вместо `middleware.ts` теперь `proxy.ts` (Node runtime) |
 | `ai` | 7.x | знания о v5/v6 устарели — сверяться с `node_modules/ai/docs` |
 | `@ai-sdk/react` | 4.x | `useChat` |
 | `@ai-sdk/openai-compatible` | 3.x | Яндекс, Ollama `/v1`, vLLM, OpenRouter и т.п. |
 | `@ai-sdk/mcp` | — | MCP выехал из `ai`, больше не `experimental_` |
 | `resumable-stream` | 2.x | Redis + `waitUntil` |
-| `drizzle-orm` | 0.45+ | |
-| `zod` | 4.x | |
+| `drizzle-orm` | 0.45+ |  |
+| `zod` | 4.x |  |
 | `better-auth` | — | вместо NextAuth из шаблона |
 | `bullmq` | — | очереди: email, фоновые агенты и диспетчер (v2), песочница (v3) |
 | TanStack Query / Form / Hotkeys, `nuqs`, `motion` | — | по стеку |
-| **ReUI** (приоритет) + shadcn/ui + EvilCharts | — | ReUI — первый выбор для любого компонента, §9.5 |
+| **ReUI** (приоритет) + shadcn/ui, база Base UI, иконки lucide | shadcn CLI 4.21 | ReUI — первый выбор для любого компонента, §9.5; итоги S2 — D20 |
 | `nodemailer` + `react-email` | — | письма |
 
 ## 4. Структура проекта
@@ -164,34 +164,34 @@ spikes/                 одноразовые S1–S12, вне workspace
 ### 5.1 Система и пользователи
 
 ```ts
-system_settings   // синглтон: secrets_canary; пароль SMTP — secrets (owner_type = 'system', purpose = 'smtp_password')
-                  // policies jsonb: { personalConnections: 'off'|'public_only'|'on',
-                  //   agentMinIntervalMin, agentsPaused, agentMaxSteps, agentMaxCost, agentMaxTimeoutS,
-                  //   rateLimits: { [role]: … },
-                  //   builtinTools: { web_search, web_fetch, … : bool },
-                  //   personalApprovalDefaults: { [connectorTool]: 'auto'|'ask' } — для своих подключений (§8) }
-users             // Better Auth + role: 'superuser' | 'admin' | 'user', timezone (из браузера)
-sessions, accounts, verifications   // Better Auth
-claim_tokens      // token_hash, expires_at, used_at
-invitations       // email?, role, token_hash, expires_at, accepted_at
+system_settings; // синглтон: secrets_canary; пароль SMTP — secrets (owner_type = 'system', purpose = 'smtp_password')
+// policies jsonb: { personalConnections: 'off'|'public_only'|'on',
+//   agentMinIntervalMin, agentsPaused, agentMaxSteps, agentMaxCost, agentMaxTimeoutS,
+//   rateLimits: { [role]: … },
+//   builtinTools: { web_search, web_fetch, … : bool },
+//   personalApprovalDefaults: { [connectorTool]: 'auto'|'ask' } — для своих подключений (§8) }
+users; // Better Auth + role: 'superuser' | 'admin' | 'user', timezone (из браузера)
+(sessions, accounts, verifications); // Better Auth
+claim_tokens; // token_hash, expires_at, used_at
+invitations; // email?, role, token_hash, expires_at, accepted_at
 ```
 
 ### 5.2 Провайдеры и модели
 
 ```ts
-providers    // kind: 'openai'|'anthropic'|'openai-compatible'|'yandex'|'gateway'
-             // title, base_url, enabled; ключ — secrets (owner_type = 'provider', purpose = 'api_key', §17)
-             // options jsonb — Zod discriminated union по kind:
-             //   yandex: folderId
-             // proxy_mode: 'auto' | 'direct' | 'proxy', proxy_id? (§18)
-model_vendors
-models       // provider_id, vendor_id, model_id, title, enabled, default_access
-             // context_window, capabilities jsonb,
-             // capabilities_source: 'discovered' | 'seed' | 'manual'
-             // price_input / price_output / price_cached — за 1M токенов, price_currency
-             // used_for_titles
-model_runs   // chat_id (SET NULL), user_id, model_id,
-             // input / output / cached tokens, cost, currency, latency_ms, status
+providers; // kind: 'openai'|'anthropic'|'openai-compatible'|'yandex'|'gateway'
+// title, base_url, enabled; ключ — secrets (owner_type = 'provider', purpose = 'api_key', §17)
+// options jsonb — Zod discriminated union по kind:
+//   yandex: folderId
+// proxy_mode: 'auto' | 'direct' | 'proxy', proxy_id? (§18)
+model_vendors;
+models; // provider_id, vendor_id, model_id, title, enabled, default_access
+// context_window, capabilities jsonb,
+// capabilities_source: 'discovered' | 'seed' | 'manual'
+// price_input / price_output / price_cached — за 1M токенов, price_currency
+// used_for_titles
+model_runs; // chat_id (SET NULL), user_id, model_id,
+// input / output / cached tokens, cost, currency, latency_ms, status
 ```
 
 - `capabilities`: `null` — «источник не сообщил», `false` — «точно нет». От этого зависит, деградировать функциональность или падать (§7.3).
@@ -203,12 +203,12 @@ model_runs   // chat_id (SET NULL), user_id, model_id,
 Форма взята из `vercel/chatbot`:
 
 ```ts
-chats       // id, user_id, title, visibility, created_at
-            // kind: 'chat' | 'agent_run', agent_id? — запуск агента это обычный чат (§16)
-messages    // id, chat_id, role, parts jsonb, attachments jsonb, created_at
-streams     // id, chat_id, created_at
-votes       // (chat_id, message_id), is_upvoted
-documents   // PK (id, created_at) — версии артефактов, v2
+chats; // id, user_id, title, visibility, created_at
+// kind: 'chat' | 'agent_run', agent_id? — запуск агента это обычный чат (§16)
+messages; // id, chat_id, role, parts jsonb, attachments jsonb, created_at
+streams; // id, chat_id, created_at
+votes; // (chat_id, message_id), is_upvoted
+documents; // PK (id, created_at) — версии артефактов, v2
 ```
 
 `messages.parts` хранит `UIMessage['parts']` как есть, в формате AI SDK — так рекомендует официальная дока по persistence. Цена: мажорный апгрейд `ai` может потребовать миграции данных (в шаблоне так появилась таблица `Message_v2`).
@@ -216,32 +216,32 @@ documents   // PK (id, created_at) — версии артефактов, v2
 ### 5.4 Каталог, подключения, скиллы, секреты, поиск
 
 ```ts
-catalog_items         // каталог админа — всё, к чему подключаются: MCP и коннекторы (§17)
-                      // key, title, type: 'mcp' | 'email' | 'http_api' | 'database' | 'telegram_bot' | 'webhook_out'
-                      // config jsonb — по type: для mcp — url, transport ('http' | 'sse' — v1, 'stdio' — v3, D18),
-                      //   auth ('none'|'bearer'|'header'|'basic'|'oauth2' — oauth2 в v2);
-                      //   для database/http_api/email — хост, порт, base URL и т.п.
-                      // credential_mode: 'shared' | 'per_user'
-                      // connection_fields jsonb — что спросить у пользователя при per_user (§17.7)
-                      // allowed_tools text[], approval_policy jsonb { [tool]: 'auto'|'ask'|'deny' } (§8)
-                      // default_access bool (D12), enabled, proxy_mode, proxy_id? (§18)
-connections           // подключение пользователя: к пункту каталога (catalog_id) или своё (catalog_id = null; свой MCP-сервер — v2)
-                      // user_id, type (как у catalog_items), catalog_id?
-                      // config jsonb — несекретные поля: хост, порт, шифрование, логин
-                      //   (для своих подключений — всё; для каталожных — только то, что спросили у пользователя)
-                      // status: 'active' | 'needs_reauth' | 'error', last_used_at, last_error
-                      // секретные поля — строки secrets с owner_type = 'connection'
-oauth_flows           // состояние PKCE — v2
-search_backends       // kind: 'searxng' | 'yandex' | 'tinyfish' | 'tavily', config jsonb, is_default, enabled,
-                      // proxy_mode, proxy_id? — только для облачных бэкендов; SearXNG ходит в интернет сам (§18.2)
-proxies               // name, type: 'http' | 'https' | 'socks5' | 'socks5h', host, port, username?
-                      // пароль — secrets (owner_type = 'proxy'), enabled
-                      // last_check_at, last_check_ok, exit_ip, exit_country, latency_ms (§18)
-proxy_domains         // proxy_id, domain ('openai.com' покрывает поддомены) — «эти адреса через этот прокси»
-skills                // v2: owner_id? (null = общий), slug, name, description, storage_key (S3), enabled
-secrets               // единое хранилище секретов — §17.2
-audit_log             // actor_id, action, target_type, target_id, at — изменения подключений и секретов (v2)
-*_access              // точечные гранты на models и catalog_items — v2 (D12)
+catalog_items; // каталог админа — всё, к чему подключаются: MCP и коннекторы (§17)
+// key, title, type: 'mcp' | 'email' | 'http_api' | 'database' | 'telegram_bot' | 'webhook_out'
+// config jsonb — по type: для mcp — url, transport ('http' | 'sse' — v1, 'stdio' — v3, D18),
+//   auth ('none'|'bearer'|'header'|'basic'|'oauth2' — oauth2 в v2);
+//   для database/http_api/email — хост, порт, base URL и т.п.
+// credential_mode: 'shared' | 'per_user'
+// connection_fields jsonb — что спросить у пользователя при per_user (§17.7)
+// allowed_tools text[], approval_policy jsonb { [tool]: 'auto'|'ask'|'deny' } (§8)
+// default_access bool (D12), enabled, proxy_mode, proxy_id? (§18)
+connections; // подключение пользователя: к пункту каталога (catalog_id) или своё (catalog_id = null; свой MCP-сервер — v2)
+// user_id, type (как у catalog_items), catalog_id?
+// config jsonb — несекретные поля: хост, порт, шифрование, логин
+//   (для своих подключений — всё; для каталожных — только то, что спросили у пользователя)
+// status: 'active' | 'needs_reauth' | 'error', last_used_at, last_error
+// секретные поля — строки secrets с owner_type = 'connection'
+oauth_flows; // состояние PKCE — v2
+search_backends; // kind: 'searxng' | 'yandex' | 'tinyfish' | 'tavily', config jsonb, is_default, enabled,
+// proxy_mode, proxy_id? — только для облачных бэкендов; SearXNG ходит в интернет сам (§18.2)
+proxies; // name, type: 'http' | 'https' | 'socks5' | 'socks5h', host, port, username?
+// пароль — secrets (owner_type = 'proxy'), enabled
+// last_check_at, last_check_ok, exit_ip, exit_country, latency_ms (§18)
+proxy_domains; // proxy_id, domain ('openai.com' покрывает поддомены) — «эти адреса через этот прокси»
+skills; // v2: owner_id? (null = общий), slug, name, description, storage_key (S3), enabled
+secrets; // единое хранилище секретов — §17.2
+audit_log * // actor_id, action, target_type, target_id, at — изменения подключений и секретов (v2)
+  _access; // точечные гранты на models и catalog_items — v2 (D12)
 ```
 
 `shared`-пункт каталога доступен без записи в `connections`: его креды общие (`secrets` с `owner_type = 'catalog_item'`).
@@ -249,26 +249,26 @@ audit_log             // actor_id, action, target_type, target_id, at — изм
 ### 5.5 Фоновые агенты — v2
 
 ```ts
-agents       // owner_id, name, instructions, model_id, enabled
-             // connection_ids uuid[] | null — id подключений; null = все активные подключения владельца
-             //   плюс доступные ему shared-пункты каталога (D22)
-             // cron, timezone, next_run_at
-             // notify_policy: 'always' | 'if_new' | 'attention_only' — по умолчанию if_new
-             // max_steps, timeout_s, max_cost — в валюте модели агента (D19);
-             //   ограничены сверху потолками админа из policies (agentMaxSteps и т.д.)
-             // consecutive_failures, paused_reason
-agent_versions  // agent_id, version, snapshot jsonb (инструкции, модель, tools, cron, политики)
-                // changed_by, change_summary («добавлен Jira, сводка только по срочному»), created_at
-agent_runs   // agent_id, agent_version — какой версией сделан запуск, chat_id
-             // trigger: 'schedule' | 'manual' | 'webhook' | 'test'
-             // status: 'queued' | 'running' | 'waiting_approval' | 'done' | 'failed' | 'cancelled'
-             // outcome: 'done' | 'nothing_new' | 'needs_attention', summary
-             // started_at, finished_at, cost, currency, error
-inbox_items  // user_id, agent_run_id, kind: 'notify' | 'question' | 'review' | 'alert'
-             // read_at, archived_at
-notification_prefs  // user_id, channels: { inApp, push, email, telegram — v3 }
-                    // quiet_hours, digest_at — в users.timezone; дайджест собирает тот же минутный тик (§16.2)
-push_subscriptions  // user_id, endpoint, keys, user_agent, created_at — Web Push
+agents; // owner_id, name, instructions, model_id, enabled
+// connection_ids uuid[] | null — id подключений; null = все активные подключения владельца
+//   плюс доступные ему shared-пункты каталога (D22)
+// cron, timezone, next_run_at
+// notify_policy: 'always' | 'if_new' | 'attention_only' — по умолчанию if_new
+// max_steps, timeout_s, max_cost — в валюте модели агента (D19);
+//   ограничены сверху потолками админа из policies (agentMaxSteps и т.д.)
+// consecutive_failures, paused_reason
+agent_versions; // agent_id, version, snapshot jsonb (инструкции, модель, tools, cron, политики)
+// changed_by, change_summary («добавлен Jira, сводка только по срочному»), created_at
+agent_runs; // agent_id, agent_version — какой версией сделан запуск, chat_id
+// trigger: 'schedule' | 'manual' | 'webhook' | 'test'
+// status: 'queued' | 'running' | 'waiting_approval' | 'done' | 'failed' | 'cancelled'
+// outcome: 'done' | 'nothing_new' | 'needs_attention', summary
+// started_at, finished_at, cost, currency, error
+inbox_items; // user_id, agent_run_id, kind: 'notify' | 'question' | 'review' | 'alert'
+// read_at, archived_at
+notification_prefs; // user_id, channels: { inApp, push, email, telegram — v3 }
+// quiet_hours, digest_at — в users.timezone; дайджест собирает тот же минутный тик (§16.2)
+push_subscriptions; // user_id, endpoint, keys, user_agent, created_at — Web Push
 ```
 
 ## 6. Сообщения и стрим
@@ -292,10 +292,16 @@ POST /api/chat
 const stream = createUIMessageStream({
   originalMessages: uiMessages,
   execute: async ({ writer }) => {
-    writer.write({ type: 'data-status', data: { phase: 'waiting-model' }, transient: true });
+    writer.write({
+      type: "data-status",
+      data: { phase: "waiting-model" },
+      transient: true,
+    });
     const result = streamText({
-      model, instructions, tools,
-      messages: await convertToModelMessages(uiMessages, { tools }),   // тот же ToolSet — ради toModelOutput
+      model,
+      instructions,
+      tools,
+      messages: await convertToModelMessages(uiMessages, { tools }), // тот же ToolSet — ради toModelOutput
       stopWhen: isStepCount(5),
       abortSignal: activeGenerations.register(chatId),
       onAbort: ({ steps }) => persistPartial(steps),
@@ -356,10 +362,10 @@ Transient `data-status` показывает фазы: `waiting-model` → `thin
 
 ```ts
 createOpenAICompatible({
-  name: 'yandex',
-  baseURL: 'https://ai.api.cloud.yandex.net/v1',
-  headers: { Authorization: `Api-Key ${apiKey}`, 'OpenAI-Project': folderId },   // нужен ли OpenAI-Project — spike S3
-})
+  name: "yandex",
+  baseURL: "https://ai.api.cloud.yandex.net/v1",
+  headers: { Authorization: `Api-Key ${apiKey}`, "OpenAI-Project": folderId }, // нужен ли OpenAI-Project — spike S3
+});
 ```
 
 - В `models.model_id` храним короткое имя (`aliceai-llm`, `yandexgpt-5.1`), фабрика собирает URI `gpt://<folderId>/<model>`.
@@ -379,7 +385,7 @@ createOpenAICompatible({
 Один ключ — доступ к моделям разных вендоров. Проверено по `@ai-sdk/gateway@4.0.88`, который реэкспортируется из `ai` как `gateway`.
 
 ```ts
-createGateway({ apiKey, fetch: proxiedFetch })   // есть baseURL и headers; fetch — для прокси (§7.2)
+createGateway({ apiKey, fetch: proxiedFetch }); // есть baseURL и headers; fetch — для прокси (§7.2)
 ```
 
 - **Discovery богаче, чем у остальных.** `getAvailableModels()` отдаёт `id`, `name`, `description`, `pricing` (USD **за токен**, строками) и `modelType`. Цены записываем как `discovered`, при сохранении умножая на 1M. Вендор определяется по префиксу id (`anthropic/…`, `openai/…`).
@@ -415,7 +421,7 @@ createGateway({ apiKey, fetch: proxiedFetch })   // есть baseURL и headers;
 Поэтому свои тулы `web_search` и `web_fetch`. Бэкенды настраиваются в админке так же, как провайдеры моделей:
 
 | Бэкенд | Роль |
-|---|---|
+| --- | --- |
 | **SearXNG** в compose | по умолчанию: локально, бесплатно, без ключей. JSON включается в `settings.yml`, иначе ответ 403 |
 | Yandex Search API — запасной | качество на русском. Платно: ≈ $4 за 1000 запросов днём, ≈ $0.25 в отложенном режиме, бесплатного тарифа нет |
 | TinyFish — запасной | облачные Search и Fetch бесплатно (30 поисков и 150 URL в минуту), нужен ключ, скорее всего через прокси |
@@ -451,7 +457,7 @@ widgetRegistry = { chart: {...}, table: {...}, metrics: {...} }   // schema + Co
 2. Модели через `toModelOutput` уходит **сжатая** версия: схема колонок, первые N строк, число строк и `ref` на вызов. `toModelOutput` есть в `ai@7`, его вызывает `convertToModelMessages`.
 3. Рендер-тул принимает `{ kind, spec, source: { toolCallId } }`. Сервер берёт полный результат из истории чата, применяет спек (колонки, сортировку, агрегат) и отдаёт виджету готовые данные.
 
-Модель решает, *что* показать, и никогда не переписывает цифры. Большие выборки не съедают контекст.
+Модель решает, _что_ показать, и никогда не переписывает цифры. Большие выборки не съедают контекст.
 
 **Spike S5** должен проверить две вещи: применяется ли `toModelOutput` между шагами внутри одного `streamText` и можно ли обернуть им MCP-тулы из `client.tools()`.
 
@@ -475,10 +481,10 @@ widgetRegistry = { chart: {...}, table: {...}, metrics: {...} }   // schema + Co
 3. Для графиков — ReUI, если в нём есть подходящие (проверить в S2), иначе EvilCharts.
 
 | Задача | Выбор |
-|---|---|
+| --- | --- |
 | Все компоненты интерфейса | ReUI → shadcn/ui в стиле ReUI |
 | Таблицы | ReUI Data Grid (TanStack Table + Virtual + dnd-kit) |
-| Графики | ReUI, если есть; иначе EvilCharts, recharts-вариант |
+| Графики | ReUI — бесплатные блоки `@reui/c-chart-*` на shadcn `chart` + recharts (S2); EvilCharts — запасной |
 
 Вариант стиля ReUI (`vega`, `nova`, `maia`, `lyra`, `mira`, `luma`, `sera`, `rhea`) — решение визуальное, выбирается глазами на прототипе (D20).
 
@@ -523,7 +529,7 @@ widgetRegistry = { chart: {...}, table: {...}, metrics: {...} }   // schema + Co
 ## 15. Компромиссы
 
 | Решение | Цена | Почему |
-|---|---|---|
+| --- | --- | --- |
 | Один инстанс `app` | нет горизонтального масштабирования | простая отмена, MCP-клиенты в памяти, честность |
 | Без мастера, инфраструктура в compose | один шаг в терминале | нет проблемы «курицы и яйца», DDL не идёт через HTTP, первый визит нельзя перехватить |
 | Линейная история | варианты ответа теряются | путь шаблона, простота |
@@ -549,6 +555,7 @@ widgetRegistry = { chart: {...}, table: {...}, metrics: {...} }   // schema + Co
 ### 16.1a Изменение
 
 Агент меняется так же, как создаётся — словами. Модель вызывает встроенный тул `update_agent({ agentId, patch })`, он возвращает **черновик изменений, а не применяет их**. В ленте появляется карточка «было → стало»:
+
 - инструкции — diff по смыслу, а не по символам: «+ смотреть ещё в Jira», «− присылать всё → только срочное»;
 - расписание — словами и ближайшие три запуска до и после;
 - инструменты — что добавилось и что убралось;
@@ -557,11 +564,13 @@ widgetRegistry = { chart: {...}, table: {...}, metrics: {...} }   // schema + Co
 Кнопки: «Применить», «Применить и прогнать сейчас», «Отменить».
 
 **Откуда можно менять:**
+
 - **Из запуска.** Открываешь вчерашнюю сводку и пишешь «в следующий раз не включай рассылки». Модель отличает разовый вопрос по этому запуску от постоянного изменения и во втором случае предлагает карточку «запомнить для следующих запусков?». Молча агента она не меняет никогда.
 - **Из оценки результата.** 👎 на запуске с комментарием («слишком длинно») превращается в предложение правки той же карточкой.
 - **Со страницы агента.** Кнопка «Изменить» открывает чат, в контексте которого текущая конфигурация. Вкладка «Настройки» — обычная форма: редактор инструкций, расписание с подписью словами, список инструментов галочками.
 
 **Версии и безопасность изменений:**
+
 - Каждое применение создаёт запись `agent_versions` с кратким описанием изменения. Каждый запуск знает свою версию (`agent_runs.agent_version`), поэтому видно, какая настройка дала какой результат.
 - На странице агента есть история версий с кнопкой «откатить к этой».
 - **Тестовый прогон** (`trigger = 'test'`) запускает агента с новой версией сразу. Результат приходит только во входящие, без push и email, и не считается в счётчик сбоев.
@@ -627,16 +636,19 @@ BullMQ job scheduler «agents-dispatch», cron * * * * * — один на вс�
 Пять поверхностей. Как именно они выглядят, решают прототипы P11–P15.
 
 **Сайдбар** — агенты видны постоянно, а не спрятаны в настройках:
+
 - наверху пункт «Входящие» со счётчиком непрочитанного;
 - секция «Агенты» под чатами: у каждого точка состояния (идёт запуск / ждёт / на паузе / ошибка).
 
 **Входящие** (`/inbox`) — единая лента результатов по модели ambient agents от LangChain:
+
 - **Notify** — «вот сводка»;
 - **Question** — агенту нужен ответ или подключение (`outcome = needs_attention`);
 - **Alert** — сбой или пауза: «агент остановлен после 5 ошибок: MCP-сервер не отвечает» → «проверить подключение»;
 - **Review** — подтвердить действие: тул, которому админ поставил `ask` (§16.3), а позже — всё при флаге агента «спрашивать перед записью».
 
 Карточка показывает агента, исход, 1–3 строки сводки и время, из неё можно сразу:
+
 - открыть запуск;
 - ответить — продолжение разговора в чате запуска;
 - прочитать или архивировать;
@@ -645,6 +657,7 @@ BullMQ job scheduler «agents-dispatch», cron * * * * * — один на вс�
 Фильтры в URL через `nuqs`: непрочитанные, требуют внимания, по агенту. Группировка по дням. С клавиатуры: `j`/`k` — навигация, `e` — в архив, `Enter` — открыть.
 
 **Агенты** (`/agents`) — карточки:
+
 - имя и одна строка о том, что агент делает;
 - расписание словами и обратный отсчёт до следующего запуска («через 2 ч 14 мин»);
 - лента исходов последних запусков цветными точками: сделано / ничего нового / нужно внимание / сбой;
@@ -653,6 +666,7 @@ BullMQ job scheduler «agents-dispatch», cron * * * * * — один на вс�
 Пустое состояние — шаблоны («утренняя сводка», «следить за изменениями», «дайджест по теме») и поле «или опиши своими словами», которое создаёт агента фразой.
 
 **Страница агента** (`/agents/[id]`):
+
 - в шапке состояние, переключатель, «Запустить сейчас», «Изменить»;
 - вкладки в URL:
   - **Запуски** — лента: исход, триггер, длительность, стоимость в валюте модели; клик открывает чат запуска;
@@ -666,7 +680,7 @@ BullMQ job scheduler «agents-dispatch», cron * * * * * — один на вс�
 Каналы по нарастанию навязчивости. Пользователь выбирает их в `/settings/notifications`, у агента — `notify_policy`.
 
 | Канал | Когда срабатывает | Как устроено |
-|---|---|---|
+| --- | --- | --- |
 | **Входящие** | всегда | запись `inbox_items` |
 | **В приложении** | вкладка открыта | `worker` публикует событие в Redis → `app` отдаёт его по SSE (`/api/notifications/stream`) → тост и обновление счётчика без перезагрузки. Если SSE не поднялся — опрос через TanStack Query |
 | **Push браузера** | вкладка закрыта | Web Push: service worker + VAPID-ключи, которые генерирует `install.sh`. Нужен HTTPS (кроме localhost). На iPhone — только если приложение установлено на экран «Домой» — **проверить** (S9) |
@@ -674,6 +688,7 @@ BullMQ job scheduler «agents-dispatch», cron * * * * * — один на вс�
 | **Telegram** | v3 | Vercel Chat SDK + `@chat-adapter/telegram`: уведомление с кнопками «открыть» и «ответить» |
 
 **Правила против спама — это часть вау, а не ограничение:**
+
 - по умолчанию `if_new`: «ничего нового» во входящие не попадает и не уведомляет;
 - тихие часы: уведомления копятся и приходят утром одним сообщением;
 - дайджест: вместо N писем — одно в заданное время;
@@ -692,8 +707,8 @@ BullMQ job scheduler «agents-dispatch», cron * * * * * — один на вс�
 
 ### 17.1 Кто что добавляет
 
-| | Админ (организация) | Пользователь |
-|---|---|---|
+|  | Админ (организация) | Пользователь |
+| --- | --- | --- |
 | MCP-серверы | каталог: URL, транспорт, разрешённые тулы, способ авторизации | подключается к серверу из каталога своими кредами; свой сервер — если админ разрешил (v2) |
 | stdio MCP | только суперюзер (v3, D18) | нельзя |
 | Скиллы | общие | личные (v2), плюс «сохранить как скилл» из чата |
@@ -719,12 +734,12 @@ BullMQ job scheduler «agents-dispatch», cron * * * * * — один на вс�
 Все секреты — ключи провайдеров, SMTP, токены MCP и OAuth — лежат в одной таблице:
 
 ```ts
-secrets   // id, owner_type: 'system' | 'provider' | 'catalog_item' | 'connection' | 'search_backend' | 'proxy'
-          //   (| 'agent' — токен вебхука, v3), owner_id
-          // purpose: 'api_key' | 'password' | 'token' | 'headers' | 'oauth_access' | 'oauth_refresh' | …
-          // связь владелец → секреты идёт через (owner_type, owner_id), массивов id нет
-          // ciphertext, iv, auth_tag, key_version
-          // hint ('sk-…a1B2'), expires_at?, created_at, rotated_at, last_used_at
+secrets; // id, owner_type: 'system' | 'provider' | 'catalog_item' | 'connection' | 'search_backend' | 'proxy'
+//   (| 'agent' — токен вебхука, v3), owner_id
+// purpose: 'api_key' | 'password' | 'token' | 'headers' | 'oauth_access' | 'oauth_refresh' | …
+// связь владелец → секреты идёт через (owner_type, owner_id), массивов id нет
+// ciphertext, iv, auth_tag, key_version
+// hint ('sk-…a1B2'), expires_at?, created_at, rotated_at, last_used_at
 ```
 
 - **Шифрование:** AES-256-GCM из `node:crypto`, случайный IV на каждую запись.
@@ -796,7 +811,7 @@ connectorTypes.email = {
 **Типы коннекторов.** Правило: встроенный коннектор делается для **протокола**, а не для конкретного сервиса. Сервисы (GitHub, Notion, Bitrix24, amoCRM, Яндекс 360, Jira…) подключаются как MCP из каталога — поддерживать свой адаптер к каждому API бесконечно.
 
 | type | Поля | Тулы агента | Проверка | Когда |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `mcp` | `connection_fields` пункта каталога; OAuth — v2 | тулы сервера | `client.tools()` | v1 |
 | `email` | пресет, SMTP-хост, порт, SSL/STARTTLS, логин, пароль | `email_send` | `verify()` | v1 |
 | `http_api` | base URL, авторизация (bearer / заголовок / basic / query), OpenAPI-спека по желанию | тул на каждую операцию из спеки, иначе общий `http_request` | тестовый запрос | v1 |
@@ -836,6 +851,7 @@ connectorTypes.email = {
 ### 18.1 Прокси
 
 `/settings/proxies` — список прокси. У каждого:
+
 - тип: `http`, `https`, `socks5`, `socks5h` (у `socks5h` DNS разрешается на стороне прокси — нужно, когда блокируют и DNS);
 - хост, порт, логин; пароль — в `secrets`;
 - кнопка **«Проверить»**: запрос через прокси показывает внешний IP, страну и задержку. Результат сохраняется и виден в списке.
@@ -864,6 +880,7 @@ connectorTypes.email = {
 Те же данные видны и с другой стороны: в форме провайдера или пункта каталога есть поле «Прокси» со значениями «авто» (по доменам), «напрямую» или «через X». Два вида одного поля, а не две настройки.
 
 **Как выбирается маршрут** для конкретного запроса:
+
 1. у объекта явно выбран прокси или «напрямую» → так и идёт;
 2. объект на «авто» или его нет → ищется прокси, в доменах которого есть адрес назначения;
 3. ничего не нашлось → **напрямую**.

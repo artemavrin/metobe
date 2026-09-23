@@ -5,8 +5,8 @@
 ## 1. Заготовки
 
 | Заготовка | Берём | Заменяем / не берём |
-|---|---|---|
-| Скилл **`scaffold-nextjs`** | `create-next-app` с его флагами, Turborepo, Ultracite (oxlint, oxfmt, lefthook), knip, vitest, `reactCompiler: true`, Agentation в dev | Blode UI → **ReUI + shadcn** (D20); `blode-icons-react` → иконки, которые тянет ReUI (**проверить** в S2); деплой на Vercel → **Docker compose** |
+| --- | --- | --- |
+| Скилл **`scaffold-nextjs`** | `create-next-app` с его флагами, Turborepo, Ultracite (oxlint, oxfmt, lefthook), knip, vitest, `reactCompiler: true`, Agentation в dev | Blode UI → **ReUI + shadcn** (D20); `blode-icons-react` → `lucide-react`, который тянет ReUI (S2); деплой на Vercel → **Docker compose** |
 | **shadcn CLI** + реестры **`@reui`**, **`@evilcharts`** | компоненты интерфейса | — |
 | **Better Auth CLI** | генерация Drizzle-схемы auth-таблиц | — |
 | **Drizzle Kit** | миграции | — |
@@ -17,7 +17,7 @@
 **Почему `vercel/chatbot` не форкаем.** Из него пришлось бы вырезать больше, чем взять: авторизацию, гостей, хранилище, botid, привязку к gateway. Проще взять скелет из `scaffold-nextjs` и перенести проверенные куски шаблона:
 
 | Из `vercel/chatbot` | Куда | Что меняется |
-|---|---|---|
+| --- | --- | --- |
 | `app/(chat)/api/chat/route.ts` | `apps/web/app/api/chat/route.ts` | Better Auth вместо NextAuth, наш реестр моделей, сборка тулов из подключений, `toModelOutput` |
 | `lib/db/schema.ts` — Chat, Message_v2, Stream, Vote, Document | `packages/db/schema/chat.ts` | `kind` у чатов (ARCH §5.3); `agent_id` с FK — миграцией v2 вместе с таблицей `agents` |
 | `lib/artifacts/*`, `artifacts/<kind>/*` | `apps/web/artifacts/` | `sheet` на ReUI Data Grid (v2) |
@@ -35,7 +35,7 @@ Turborepo + pnpm workspaces. Пакеты — «just-in-time»: экспорти
 ### Приложения
 
 | app | Что это | Почему отдельно |
-|---|---|---|
+| --- | --- | --- |
 | `apps/web` | Next 16: UI, API, генерация чата, SSE уведомлений | — |
 | `apps/worker` | Node: BullMQ — email в v1; диспетчер расписаний, запуски агентов, дайджесты — v2 | долгие фоновые задачи не должны тормозить чат (D2) |
 | `apps/cli` | `claim-link`, `reset-password`, `secrets:rotate`, `seed` | вызывается из entrypoint и `docker compose exec`, без поднятия Next |
@@ -45,7 +45,7 @@ Turborepo + pnpm workspaces. Пакеты — «just-in-time»: экспорти
 ### Пакеты
 
 | package | Что внутри | Где выполняется | Кто использует |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `@repo/ui` | дизайн-система: ReUI и shadcn в стиле ReUI, токены и тема, общий CSS, мелкие общие компоненты. **Без бизнес-логики и запросов к данным** | браузер | web |
 | `@repo/contracts` | Zod-схемы и типы, общие для клиента и сервера: тело `POST /api/chat`, тип `ChatMessage` (наши data-части и тулы), спеки виджетов, поля коннекторов для форм, DTO API | везде, без Node-зависимостей | web (клиент и сервер), core |
 | `@repo/db` | Drizzle: схема по агрегатам, миграции, клиент | сервер | core, cli |
@@ -73,12 +73,13 @@ apps/cli     → @repo/core, @repo/db (миграции)
 4. **`@repo/core` — только сервер.** Первая строка в нём — `import 'server-only'`, чтобы случайный импорт из клиентского компонента падал на сборке, а не утекал в бандл. Этот пакет бросает ошибку вне условия экспорта `react-server`, поэтому `worker` и `cli` запускаются с `node --conditions=react-server`, а `tsup` бандлит их с тем же условием — **проверить** на скелете.
 
 **Чего не выносим и почему:**
+
 - **Рендер чата** (диспетчер parts, карточки тулов, composer, виджеты) остаётся в `apps/web/modules/chat`: потребитель один, а логика завязана на `useChat`. Вынесем, если появится второе приложение.
 - **`@repo/ai`, `@repo/mcp`, `@repo/connectors` отдельными пакетами** — не нужны: у них одни и те же потребители (web и worker), дробление добавило бы только конфигов. Границы внутри `core` задают subpath-экспорты. Делим, когда у части появится свой потребитель или тяжёлая зависимость, которая мешает остальным.
 
-**Риски монорепо для UI** (проверяет spike S2):
-- shadcn в монорепо: `components.json` и в `packages/ui`, и в `apps/web`, примитивы ставятся в `packages/ui`. Работают ли так же реестры `@reui` и `@evilcharts` — **проверить**.
-- Tailwind v4 должен видеть классы из пакета: в CSS приложения `@source` на `packages/ui` — **проверить**.
+**UI в монорепо:**
+
+- Проверено в S2 (D20): `shadcn add` запускается из `packages/ui`, Tailwind видит классы через `@source` в `globals.css` пакета, перезаписей нет.
 
 ### Дерево
 

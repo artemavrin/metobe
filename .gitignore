@@ -27,3 +27,7 @@ data/
 
 # spikes are throwaway
 spikes/**/node_modules/
+.next/
+coverage/
+next-env.d.ts
+.vercel/

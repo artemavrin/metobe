@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Node (server packages)",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "lib": ["es2023"],
+    "types": ["node"],
+    "noEmit": true
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "extends": "@purr/tsconfig/react-library.json",
+  "compilerOptions": {
+    "paths": {
+      "@purr/ui/*": ["./src/*"]
+    }
+  },
+  "include": ["."],
+  "exclude": ["node_modules", "dist"]
+}
