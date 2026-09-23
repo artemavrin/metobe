@@ -1,5 +1,7 @@
 "use client";
 
+import { House } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type Variant = { name: string; Component: () => React.ReactNode; pickerTop?: boolean };
@@ -93,6 +95,10 @@ export const Picker = ({ variants: VARIANTS }: { variants: Variant[] }) => {
         data-ready={ready ? "" : undefined}
       >
         <span aria-hidden="true" className="proto-picker-highlight" ref={highlight} />
+        <Link aria-label="Все прототипы" className="proto-picker-item proto-picker-replay" href="/dev/prototypes" title="Все прототипы">
+          <House className="size-3.5" />
+        </Link>
+        <span aria-hidden="true" className="proto-picker-divider" />
         {VARIANTS.map((v, i) => (
           <button
             aria-current={i === current ? "true" : undefined}

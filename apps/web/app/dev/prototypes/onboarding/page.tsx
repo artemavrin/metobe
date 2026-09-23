@@ -1,17 +1,16 @@
 "use client";
 
 import { Picker } from "../_shared/picker";
-import { CardDeck } from "./card-deck";
-import { CardHeader } from "./card-header";
-import { CardSpread } from "./card-spread";
+import { DeckLabels, DeckQuiet, DeckShuffle } from "./card-deck";
 
-// P7: first-run onboarding. Flow "Шаги" and the card layout are chosen; the variants are cards.
+// P7: first-run onboarding. Flow "Шаги" and the "Колода" card are chosen; the variants riff on the deck.
+// The earlier cards "Шапка" and "Разворот" stay in card-header.tsx and card-spread.tsx for reference.
 const OnboardingPrototypePage = () => (
   <Picker
     variants={[
-      { Component: CardHeader, name: "Шапка" },
-      { Component: CardSpread, name: "Разворот" },
-      { Component: CardDeck, name: "Колода" },
+      { Component: DeckQuiet, name: "Тихая" },
+      { Component: DeckLabels, name: "Подписи" },
+      { Component: DeckShuffle, name: "Тасовка" },
     ]}
   />
 );
