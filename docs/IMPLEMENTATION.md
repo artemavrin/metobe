@@ -38,7 +38,7 @@ Turborepo + pnpm workspaces. Пакеты — «just-in-time»: экспорти
 | --- | --- | --- |
 | `apps/web` | Next 16: UI, API, генерация чата, SSE уведомлений | — |
 | `apps/worker` | Node: BullMQ — email в v1; диспетчер расписаний, запуски агентов, дайджесты — v2 | долгие фоновые задачи не должны тормозить чат (D2) |
-| `apps/cli` | `claim-link`, `reset-password`, `secrets:rotate`, `seed` | вызывается из entrypoint и `docker compose exec`, без поднятия Next |
+| `apps/cli` | `migrate`, `claim-link`, `login-link`, `secrets:rotate`, `seed` | вызывается из entrypoint и `docker compose exec`, без поднятия Next |
 
 Все три собираются в **один Docker-образ** с тремя командами.
 
@@ -118,7 +118,7 @@ docs/
 1. `scaffold-nextjs`, фазы 1–2 и 4–6: `create-next-app`, Agentation, Ultracite, Turborepo. Фаза 3 (Blode) заменяется на `shadcn init` в стиле ReUI и подключение реестра `@reui` в `components.json`. Фаза 7 (GitHub и Vercel) не выполняется, фаза 8 (favicon, OG) — в M7. Скилл ставит всё через npm, у нас pnpm: команды переводятся на `pnpm`.
 2. ✓ Каркас приложений `apps/worker`, `apps/cli` и пакетов `@purr/ui`, `@purr/contracts`, `@purr/db`, `@purr/core`, `@purr/tsconfig` (§2). `@purr/emails` — в M6, вместе с первым письмом: пустой пакет не заводим. Проверено: `server-only` в Node работает с `--conditions=react-server` (tsx в dev, tsup бандлит с тем же условием). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
 3. Drizzle: клиент, `drizzle.config.ts`, схема `system_settings`, `users`, `claim_tokens`, `invitations`. Better Auth CLI генерирует свои таблицы.
-4. Better Auth: email + пароль. `proxy.ts` проверяет только cookie, полная проверка — в layout группы `(app)`.
+4. Better Auth без паролей (D17): магическая ссылка и код в одном письме — плагины Better Auth для magic link и email OTP, точные имена и API **проверить** по документации в `node_modules`. Claim-ссылка создаёт сессию суперюзера. `proxy.ts` проверяет только cookie, полная проверка — в layout группы `(app)`. В dev-профиль compose добавляется Mailpit, чтобы письма со ссылками было видно локально.
 5. `docker/Dockerfile` по примеру `with-docker`, `compose.yml`, healthcheck'и, `GET /api/health`.
 6. `entrypoint.sh` → `cli migrate`: мигратор `drizzle-orm` под `pg_advisory_lock` (в standalone-образе нет `drizzle-kit`) → `cli seed` → `cli claim-link`. Если задан `HTTPS_PROXY` / `ALL_PROXY` и прокси ещё нет — запись создаётся на шаге M2, когда появится таблица `proxies`.
 7. `install.sh`: проверка docker, три вопроса, генерация `.env` (`SECRETS_KEY`, `BETTER_AUTH_SECRET`, пароли, VAPID), `compose up`, ожидание health, печать ссылки. Неинтерактивный режим — через переменные окружения.
@@ -158,7 +158,7 @@ docs/
 
 ### M6. Пользователи
 
-Роли, приглашение по ссылке, SMTP в настройках с тестовым письмом, сброс пароля (письмом и `pnpm cli reset-password`), rate limit в Redis.
+Роли, приглашение по ссылке (сама создаёт сессию), SMTP в настройках с тестовым письмом, одноразовая ссылка для входа от админа (в интерфейсе и `pnpm cli login-link`), rate limit в Redis.
 
 ### M7. Полировка UX
 
