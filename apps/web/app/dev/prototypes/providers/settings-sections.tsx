@@ -22,7 +22,8 @@ import { ConnectDialog, type Connected, seedConnected } from "../_p7/connect-dia
 import { byNewest, fmtContext, fmtPrice, isNew, models as nModels, PROXIES, providerBy } from "../_p7/mock";
 import { CapIcons, enter, ProviderMark, RouteBadge } from "../_p7/shared";
 
-export const SettingsSections = () => {
+/** The providers page body, without app chrome — the app shell prototype mounts it inside its layout. */
+export const ProvidersSettings = () => {
   const [connected, setConnected] = useState<Connected[]>(seedConnected);
   const [dialog, setDialog] = useState(false);
   const enabled = connected.reduce((n, c) => n + c.models.size, 0);
@@ -30,14 +31,7 @@ export const SettingsSections = () => {
   const update = (c: Connected) => setConnected((all) => all.map((x) => (x.kind === c.kind ? c : x)));
 
   return (
-    <div className="bg-background min-h-dvh">
-      <header className="bg-background/80 sticky top-0 z-10 flex h-14 items-center justify-between border-b px-6 backdrop-blur">
-        <span className="text-sm font-semibold">Purr · Настройки</span>
-        <Button size="sm" variant="outline">
-          <MessageSquare /> Чат · {nModels(enabled)}
-        </Button>
-      </header>
-
+    <>
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-10 pb-32">
         <div className="flex items-end justify-between gap-4">
           <div>
@@ -118,9 +112,21 @@ export const SettingsSections = () => {
         onOpenChange={setDialog}
         open={dialog}
       />
-    </div>
+    </>
   );
 };
+
+export const SettingsSections = () => (
+  <div className="bg-background min-h-dvh">
+    <header className="bg-background/80 sticky top-0 z-10 flex h-14 items-center justify-between border-b px-6 backdrop-blur">
+      <span className="text-sm font-semibold">Purr · Настройки</span>
+      <Button size="sm" variant="outline">
+        <MessageSquare /> Чат
+      </Button>
+    </header>
+    <ProvidersSettings />
+  </div>
+);
 
 const ProviderSection = ({ connected, onChange }: { connected: Connected; onChange: (c: Connected) => void }) => {
   const spec = providerBy(connected.kind);

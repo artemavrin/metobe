@@ -16,7 +16,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@purr/ui/components/item";
-import { ChevronRight, LayoutDashboard, Rocket, Server } from "lucide-react";
+import { ChevronRight, LayoutDashboard, PanelsTopLeft, Rocket, Server } from "lucide-react";
 import Link from "next/link";
 
 type Entry = {
@@ -47,6 +47,19 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
       },
     ],
     title: "P7 · Провайдеры и модели",
+  },
+  {
+    description: "Где живут чат, агенты и все настройки",
+    entries: [
+      {
+        description: "Оболочка приложения: «Классика», «Две зоны», «Режимы».",
+        href: "/dev/prototypes/app-shell",
+        icon: PanelsTopLeft,
+        status: "выбираем",
+        title: "App shell",
+      },
+    ],
+    title: "Оболочка",
   },
   {
     description: "Все компоненты ReUI и shadcn в теме Purr",
