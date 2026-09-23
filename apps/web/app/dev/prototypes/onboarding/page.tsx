@@ -1,19 +1,18 @@
 "use client";
 
 import { Picker } from "../_shared/picker";
-import { DoneBurst, DoneBurstMany, DoneCannons, DoneFireworks, DoneStars } from "./card-deck";
+import { DeckModels, DoneBurst, DoneBurstMany, OnboardingFinal } from "./card-deck";
 
-// P7: first-run onboarding. Chosen: flow "Шаги", card "Колода", riff "Тихая", finish "Праздник · Конфетти".
-// Confetti is Magic UI Confetti (canvas-confetti); the variants are its presets aimed at the card.
-// «Раздача», «Привет», «Итог», «Сразу в чат» stay in done.tsx; the models step is DeckModels.
+// P7: first-run onboarding — decided. Flow "Шаги", card "Колода" (riff "Тихая"), finish "Праздник · Конфетти · Залп".
+// Explored and kept for reference: cards "Шапка"/"Разворот" (card-header.tsx, card-spread.tsx), deck riffs
+// «Подписи»/«Тасовка» and finishes «Итог», «Сразу в чат», «Раздача», «Привет», other confetti presets (done.tsx).
 const OnboardingPrototypePage = () => (
   <Picker
     variants={[
-      { Component: DoneBurst, name: "Залп" },
-      { Component: DoneCannons, name: "Пушки" },
-      { Component: DoneFireworks, name: "Фейерверк" },
-      { Component: DoneStars, name: "Звёзды" },
-      { Component: DoneBurstMany, name: "Залп · 40 моделей" },
+      { Component: OnboardingFinal, name: "Онбординг" },
+      { Component: DeckModels, name: "Шаг «Модели»" },
+      { Component: DoneBurst, name: "Финал" },
+      { Component: DoneBurstMany, name: "Финал · 40 моделей" },
     ]}
   />
 );

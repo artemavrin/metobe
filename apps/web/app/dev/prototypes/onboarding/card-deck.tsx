@@ -157,6 +157,8 @@ const Deck = ({ labels = false, shuffle = false, done, start }: Options) => {
 };
 
 export const DeckQuiet = () => <Deck />;
+/** The chosen onboarding end to end: "Тихая" deck, finish "Праздник · Конфетти · Залп". */
+export const OnboardingFinal = () => <Deck done="burst" />;
 export const DeckModels = () => <Deck done="burst" start={MODELS_STATE} />;
 export const DoneSummary = () => <Deck done="summary" />;
 export const DoneCompose = () => <Deck done="compose" />;

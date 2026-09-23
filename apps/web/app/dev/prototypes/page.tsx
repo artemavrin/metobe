@@ -32,7 +32,7 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
     description: "Первый вход, провайдеры, модели и прокси — M2",
     entries: [
       {
-        description: "Первый запуск: провайдер → ключ → модели → чат. Выбрано: поток «Шаги», карточка «Колода», вариант «Тихая». «Подписи» и «Тасовка» — для сравнения.",
+        description: "Готово: «Шаги» в карточке «Колода», финал — конфетти «Залп». Рядом — ярлыки на шаг «Модели» и финал.",
         href: "/dev/prototypes/onboarding",
         icon: Rocket,
         status: "выбрано",
