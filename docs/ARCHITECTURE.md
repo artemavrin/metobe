@@ -126,10 +126,10 @@ apps/
       (auth)/sign-in, claim, invite/
       (app)/
         chat/[id]/
-      dev/showcase/                     витрина дизайн-системы — только в dev, в продакшне 404
         inbox/                          входящие агентов — v2
         agents/  agents/[id]/           список и страница агента — v2
         settings/{providers,models,proxies,catalog,search,skills,users,usage,notifications,connections}/
+      dev/showcase/                     витрина дизайн-системы — только в dev, в продакшне 404
       api/
         auth/[...all]/          Better Auth
         chat/                   POST — генерация
