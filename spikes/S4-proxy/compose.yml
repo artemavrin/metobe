@@ -1,0 +1,26 @@
+# Test bench: mock and mailpit SMTP live on an internal network, reachable from the host only through the proxies.
+name: spike-s4
+services:
+  mock:
+    image: node:24-alpine
+    command: ["node", "/mock.mjs"]
+    environment: { MOCK_NAME: behind-proxy }
+    volumes: ["./mock.mjs:/mock.mjs:ro"]
+    networks: [inner]
+  mailpit:
+    image: axllent/mailpit
+    networks: [inner, outer]
+    ports: ["127.0.0.1:18025:8025"]
+  http-proxy:
+    image: ghcr.io/tarampampam/3proxy:latest
+    environment: { PROXY_LOGIN: spike, PROXY_PASSWORD: secret, PRIMARY_RESOLVER: 127.0.0.11 }
+    networks: [inner, outer]
+    ports: ["127.0.0.1:13128:3128"]
+  socks-proxy:
+    image: ghcr.io/tarampampam/3proxy:latest
+    environment: { PROXY_LOGIN: spike, PROXY_PASSWORD: secret, PRIMARY_RESOLVER: 127.0.0.11 }
+    networks: [inner, outer]
+    ports: ["127.0.0.1:11080:1080"]
+networks:
+  inner: { internal: true }
+  outer: {}
