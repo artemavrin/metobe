@@ -7,7 +7,7 @@
 | Заготовка | Берём | Заменяем / не берём |
 | --- | --- | --- |
 | Скилл **`scaffold-nextjs`** | `create-next-app` с его флагами, Turborepo, Ultracite (oxlint, oxfmt, lefthook), knip, vitest, `reactCompiler: true`, Agentation в dev | Blode UI → **ReUI + shadcn** (D20); `blode-icons-react` → `lucide-react`, который тянет ReUI (S2); деплой на Vercel → **Docker compose** |
-| **shadcn CLI** + реестры **`@reui`**, **`@evilcharts`** | компоненты интерфейса | — |
+| **shadcn CLI** + реестр **`@reui`** | компоненты интерфейса и графики | EvilCharts — пробовали, отказались (D20) |
 | **Better Auth CLI** | генерация Drizzle-схемы auth-таблиц | — |
 | **Drizzle Kit** | миграции | — |
 | **`vercel/chatbot`** | донор, **не форк**: переносим и адаптируем отдельные файлы (таблица ниже) | NextAuth, гостевые пользователи, Vercel Blob, botid, gateway-only модели, entitlements гостей |
@@ -115,7 +115,7 @@ docs/
 
 ### M1. Скелет и установка
 
-1. `scaffold-nextjs`, фазы 1–2 и 4–6: `create-next-app`, Agentation, Ultracite, Turborepo. Фаза 3 (Blode) заменяется на `shadcn init` в стиле ReUI и подключение реестров `@reui` и `@evilcharts` в `components.json`. Фаза 7 (GitHub и Vercel) не выполняется, фаза 8 (favicon, OG) — в M7. Скилл ставит всё через npm, у нас pnpm: команды переводятся на `pnpm`.
+1. `scaffold-nextjs`, фазы 1–2 и 4–6: `create-next-app`, Agentation, Ultracite, Turborepo. Фаза 3 (Blode) заменяется на `shadcn init` в стиле ReUI и подключение реестра `@reui` в `components.json`. Фаза 7 (GitHub и Vercel) не выполняется, фаза 8 (favicon, OG) — в M7. Скилл ставит всё через npm, у нас pnpm: команды переводятся на `pnpm`.
 2. Каркас приложений `apps/worker`, `apps/cli` и пакетов `@purr/ui`, `@purr/contracts`, `@purr/db`, `@purr/core`, `@purr/emails`, `@purr/tsconfig` (§2). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
 3. Drizzle: клиент, `drizzle.config.ts`, схема `system_settings`, `users`, `claim_tokens`, `invitations`. Better Auth CLI генерирует свои таблицы.
 4. Better Auth: email + пароль. `proxy.ts` проверяет только cookie, полная проверка — в layout группы `(app)`.

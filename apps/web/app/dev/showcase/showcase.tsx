@@ -1,32 +1,14 @@
 "use client";
 
 import { Button } from "@purr/ui/components/button";
-import { EvilAreaChart } from "@purr/ui/components/evilcharts/charts/recharts-area-chart";
-import { EvilBarChart } from "@purr/ui/components/evilcharts/charts/recharts-bar-chart";
+import { ChartBar as BarChartExample } from "@purr/ui/components/examples/c-chart-2";
+import { Pattern as AreaChartExample } from "@purr/ui/components/examples/c-chart-13";
+import { Pattern as LineChartExample } from "@purr/ui/components/examples/c-chart-17";
+import { Pattern as DonutChartExample } from "@purr/ui/components/examples/c-chart-19";
 import { Pattern as DataGridExample } from "@purr/ui/components/examples/c-data-grid-34";
 import { Badge } from "@purr/ui/components/reui/badge";
 import { useTheme } from "next-themes";
 import { useState } from "react";
-
-const revenue = [
-  { costs: 80, month: "Янв", revenue: 186 },
-  { costs: 200, month: "Фев", revenue: 305 },
-  { costs: 120, month: "Мар", revenue: 237 },
-  { costs: 190, month: "Апр", revenue: 273 },
-  { costs: 130, month: "Май", revenue: 209 },
-  { costs: 140, month: "Июн", revenue: 314 },
-];
-
-const chartConfig = {
-  costs: {
-    colors: { dark: ["#f59e0b"], light: ["#d97706"] },
-    label: "Расходы",
-  },
-  revenue: {
-    colors: { dark: ["#34d399", "#22d3ee"], light: ["#059669", "#0891b2"] },
-    label: "Выручка",
-  },
-};
 
 const Section = ({
   title,
@@ -54,7 +36,7 @@ export const Showcase = () => {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold">Витрина Purr</h1>
           <p className="text-muted-foreground text-sm">
-            ReUI + shadcn, графики EvilCharts. Только в режиме разработки.
+            ReUI + shadcn, графики ReUI на recharts. Только в режиме разработки.
           </p>
         </div>
         <div className="flex gap-2">
@@ -72,27 +54,12 @@ export const Showcase = () => {
         </div>
       </header>
 
-      <Section title="Графики — EvilCharts">
-        <div className="grid gap-8 md:grid-cols-2" key={replay}>
-          <div className="h-72">
-            <EvilAreaChart config={chartConfig} data={revenue} xDataKey="month">
-              <EvilAreaChart.Grid />
-              <EvilAreaChart.XAxis dataKey="month" />
-              <EvilAreaChart.Tooltip />
-              <EvilAreaChart.Area dataKey="revenue" />
-              <EvilAreaChart.Area dataKey="costs" variant="hatched" />
-              <EvilAreaChart.Legend />
-            </EvilAreaChart>
-          </div>
-          <div className="h-72">
-            <EvilBarChart config={chartConfig} data={revenue}>
-              <EvilBarChart.Grid />
-              <EvilBarChart.XAxis dataKey="month" />
-              <EvilBarChart.Tooltip />
-              <EvilBarChart.Bar dataKey="revenue" glowing />
-              <EvilBarChart.Bar dataKey="costs" />
-            </EvilBarChart>
-          </div>
+      <Section title="Графики — ReUI">
+        <div className="grid gap-6 md:grid-cols-2" key={replay}>
+          <BarChartExample />
+          <AreaChartExample />
+          <LineChartExample />
+          <DonutChartExample />
         </div>
       </Section>
 
