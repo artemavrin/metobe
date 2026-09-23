@@ -52,10 +52,10 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
     description: "Где живут чат, агенты и все настройки",
     entries: [
       {
-        description: "Оболочка приложения: «Классика», «Две зоны», «Режимы».",
+        description: "Выбрано: «Режимы» — чат с лёгким сайдбаром, настройки отдельным режимом (⌘, / Esc). «Классика» и «Две зоны» — для сравнения.",
         href: "/dev/prototypes/app-shell",
         icon: PanelsTopLeft,
-        status: "выбираем",
+        status: "выбрано",
         title: "App shell",
       },
     ],
