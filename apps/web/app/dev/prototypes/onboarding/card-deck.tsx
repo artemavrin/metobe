@@ -157,8 +157,10 @@ const Deck = ({ labels = false, shuffle = false, done, start }: Options) => {
 };
 
 export const DeckQuiet = () => <Deck />;
+const FROM_START: OnboardingState = { connected: [], kind: "openai", step: "pick" };
+
 /** The chosen onboarding end to end: "Тихая" deck, finish "Праздник · Конфетти · Залп". */
-export const OnboardingFinal = () => <Deck done="burst" />;
+export const OnboardingFinal = () => <Deck done="burst" start={FROM_START} />;
 export const DeckModels = () => <Deck done="burst" start={MODELS_STATE} />;
 export const DoneSummary = () => <Deck done="summary" />;
 export const DoneCompose = () => <Deck done="compose" />;

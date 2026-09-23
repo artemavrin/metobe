@@ -349,7 +349,7 @@ const CelebrateConfetti = ({ o, mode }: { o: Onboarding; mode: ConfettiMode }) =
           Purr готов
         </FrameTitle>
         <FrameDescription className="max-w-sm" style={{ animation: "title-in 450ms cubic-bezier(0.23,1,0.32,1) 180ms both" }}>
-          {modelNames(o)} ждут первого вопроса. Всё остальное — в настройках, когда понадобится.
+          {modelNames(o)} {enabledModels(o).length === 1 ? "ждёт" : "ждут"} первого вопроса. Всё остальное — в настройках, когда понадобится.
         </FrameDescription>
       </FrameHeader>
       <FramePanel className="animate-in fade-in slide-in-from-bottom-1 fill-mode-both delay-300 duration-300 ease-out">
