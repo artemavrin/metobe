@@ -42,7 +42,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The real installer from this checkout; PURR_BUILD tests this commit instead of a published image.
-      - run: ./scripts/install.sh
+      # Fed through stdin like `curl | bash`, so nothing may read the rest of the script.
+      - run: bash < install.sh | tee /tmp/install.log && grep -q '/claim?token=' /tmp/install.log
+        working-directory: scripts
         env:
           PURR_YES: "1"
           PURR_BUILD: "1"

@@ -62,7 +62,8 @@ else
   image="ghcr.io/$REPO:$PURR_VERSION"
 fi
 
-compose() { docker compose -f compose.yml --env-file .env "$@"; }
+# Under `curl | bash` stdin is the rest of this script: docker must not read it.
+compose() { docker compose -f compose.yml --env-file .env "$@" </dev/null; }
 
 say "${bold}Purr${off}${PURR_VERSION:+ $PURR_VERSION} — $(pwd)"
 say
@@ -115,7 +116,7 @@ fi
 build() {
   [ "$mode" = "checkout" ] || fail "не удалось скачать образ $image"
   say "Собираю образ из исходников…"
-  docker compose -f compose.yml -f docker/compose.build.yml --env-file .env build --quiet app
+  docker compose -f compose.yml -f docker/compose.build.yml --env-file .env build --quiet app </dev/null
 }
 
 say
