@@ -1,0 +1,29 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+.next/
+out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# runtime data
+data/
+*.log
+
+# os / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# spikes are throwaway
+spikes/**/node_modules/
