@@ -5,7 +5,7 @@ import { findUserByEmail } from "@purr/core/users";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
 
 export interface SendCodeState {
   email?: string;
@@ -27,7 +27,9 @@ export const sendCode = async (
   const email = parsed.data;
   // Same answer whether the user exists or not, so the form cannot be used to probe emails.
   if (await findUserByEmail(email)) {
-    await auth.api.sendVerificationOTP({ body: { email, type: "sign-in" } });
+    await getAuth().api.sendVerificationOTP({
+      body: { email, type: "sign-in" },
+    });
   }
   return { email, sent: true };
 };
@@ -44,7 +46,7 @@ export const verifyCode = async (
     return { error: parsed.error.issues[0]?.message };
   }
   try {
-    await auth.api.signInEmailOTP({
+    await getAuth().api.signInEmailOTP({
       body: { email: parsed.data.email, otp: parsed.data.code },
       headers: await headers(),
     });

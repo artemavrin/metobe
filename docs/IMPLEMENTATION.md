@@ -119,15 +119,15 @@ docs/
 2. ✓ Каркас приложений `apps/worker`, `apps/cli` и пакетов `@purr/ui`, `@purr/contracts`, `@purr/db`, `@purr/core`, `@purr/tsconfig` (§2). `@purr/emails` — в M6, вместе с первым письмом: пустой пакет не заводим. Проверено: `server-only` в Node работает с `--conditions=react-server` (tsx в dev, tsup бандлит с тем же условием). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
 3. Drizzle: клиент, `drizzle.config.ts`, схема `system_settings`, `users`, `claim_tokens`, `invitations`. Better Auth CLI генерирует свои таблицы.
 4. ✓ Better Auth 1.7 без паролей (D17). Используется **один** плагин — `email-otp`: «магическая ссылка» — это URL `/login/verify?email&code` с тем же кодом, поэтому в письме ссылка и код совпадают, а claim, приглашения и `cli login-link` работают через тот же механизм (`auth.api.createVerificationOTP` выпускает код без отправки письма). Вход — POST из server action: почтовые сканеры, открывающие ссылки, код не сжигают. Публичная регистрация закрыта (`disableSignUp`), код хранится хэшем, 10 минут, 5 попыток. Схема auth-таблиц генерируется официальным CLI `auth` (пакет `auth`, бывший `@better-auth/cli`). Rate limit на запрос кода — в M6 вместе с Redis: server actions вызывают `auth.api` напрямую, минуя HTTP-лимитер Better Auth. Claim-ссылка создаёт сессию суперюзера. `proxy.ts` проверяет только cookie, полная проверка — в layout группы `(app)`. В dev-профиль compose добавляется Mailpit, чтобы письма со ссылками было видно локально.
-5. `docker/Dockerfile` по примеру `with-docker`, `compose.yml`, healthcheck'и, `GET /api/health`.
-6. `entrypoint.sh` → `cli migrate`: мигратор `drizzle-orm` под `pg_advisory_lock` (в standalone-образе нет `drizzle-kit`) → `cli seed` → `cli claim-link`. Если задан `HTTPS_PROXY` / `ALL_PROXY` и прокси ещё нет — запись создаётся на шаге M2, когда появится таблица `proxies`.
-7. `install.sh`: проверка docker, три вопроса, генерация `.env` (`SECRETS_KEY`, `BETTER_AUTH_SECRET`, пароли, VAPID), `compose up`, ожидание health, печать ссылки. Неинтерактивный режим — через переменные окружения.
+5. ✓ `docker/Dockerfile`: один образ на Node 24 (web по умолчанию, `worker`, CLI `purr` внутри контейнера), standalone-сборка Next с `outputFileTracingRoot` на корень монорепо, пользователь не root, `pnpm install --ignore-scripts` (корневой `prepare` с lefthook требует git). `docker/compose.yml` — установка: наружу смотрит только приложение; `docker/compose.dev.yml` — порты баз на `127.0.0.1` и Mailpit, подключается через `COMPOSE_FILE` в dev `.env`. `GET /api/health`. Сборка web не требует env: Better Auth создаётся лениво, а страницы с сессией становятся динамическими.
+6. ✓ `entrypoint.sh` → `purr migrate`: мигратор `drizzle-orm` под `pg_advisory_lock` (в standalone-образе нет `drizzle-kit`) → `cli seed` → `cli claim-link`. Если задан `HTTPS_PROXY` / `ALL_PROXY` и прокси ещё нет — запись создаётся на шаге M2, когда появится таблица `proxies`.
+7. ✓ `scripts/install.sh`: проверка docker, вопросы (адрес, порт, встроенная или своя БД, прокси, SMTP — всё с умолчаниями), генерация `.env` с правами 600 (`BETTER_AUTH_SECRET`, `SECRETS_KEY`, пароль Postgres), `compose up --wait`, печать claim-ссылки. Повторный запуск берёт существующий `.env` и не трогает секреты. Неинтерактивный режим — `PURR_YES=1` и переменные `PURR_*` (префикс нарочно: глобальный `HTTPS_PROXY` из шелла не должен утечь в контейнеры). Проверено на изолированной копии: 49 с при прогретом кеше сборки. **Осталось для ставки «≤ 90 с на чистой машине»:** публиковать готовый образ в GHCR из CI, чтобы `install.sh` скачивал его, а не собирал. VAPID-ключи — вместе с Web Push (v2).
 8. `/claim` → «Создать аккаунт» → пустой чат с приглашением подключить провайдера. Вид — прототип P1.
-9. CI (lint, types, test) — **НУЖНО РЕШЕНИЕ:** где живёт репозиторий и CI (GitHub Actions / GitLab / локально). Скаффолд предполагает GitHub.
+9. ✓ CI — GitHub Actions (`.github/workflows/ci.yml`): `checks` (линт, типы, сборка) и `e2e` (настоящий `install.sh` в неинтерактивном режиме + Playwright против поднятого стека).
 
 ### M2. Провайдеры и модели
 
-1. `@purr/core/secrets`: AES-256-GCM, AAD, canary при старте, `use()`, маски, `pnpm cli secrets:rotate`.
+1. `@purr/core/secrets`: AES-256-GCM, AAD, canary при старте, `use()`, маски, `purr secrets:rotate`.
 2. Схема `providers`, `model_vendors`, `models`, `model_runs`, `secrets`.
 3. `@purr/core/net`: прокси, маршрутизация (явный выбор у объекта → домены прокси → напрямую), dispatcher'ы HTTP и SOCKS5 по итогам S4, проверка прокси, автоподбор прокси при недоступном провайдере, закрепление IP для трафика с SSRF-защитой, импорт `HTTPS_PROXY` / `ALL_PROXY` в запись прокси при первом старте. Схема `proxies`, `proxy_domains`, поля `proxy_mode` / `proxy_id` у объектов, UI `/settings/proxies`.
 4. `@purr/core/ai`: фабрика по `kind`, `fetch` из `core/net`, Яндекс (итоги S3), кеш и сброс по Redis `config:changed`.
@@ -158,7 +158,7 @@ docs/
 
 ### M6. Пользователи
 
-Роли, приглашение по ссылке (сама создаёт сессию), SMTP в настройках с тестовым письмом, одноразовая ссылка для входа от админа (в интерфейсе и `pnpm cli login-link`), rate limit в Redis.
+Роли, приглашение по ссылке (сама создаёт сессию), SMTP в настройках с тестовым письмом, одноразовая ссылка для входа от админа (в интерфейсе и `purr login-link`), rate limit в Redis.
 
 ### M7. Полировка UX
 
