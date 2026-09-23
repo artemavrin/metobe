@@ -6,7 +6,8 @@
       "package-name": "purr",
       "bump-minor-pre-major": true,
       "draft": true,
-      "force-tag-creation": true
+      "force-tag-creation": true,
+      "initial-version": "0.1.0"
     }
   }
 }
