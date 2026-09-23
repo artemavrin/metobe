@@ -66,7 +66,7 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
         </div>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton isActive={!("area" in chat) && !chat.id} onClick={() => onChat({})}>
+            <SidebarMenuButton onClick={() => onChat({})}>
               <SquarePen /> <span>Новый чат</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
