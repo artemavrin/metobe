@@ -70,7 +70,7 @@ apps/cli     → @purr/core, @purr/db (миграции)
 1. **Приложения не импортируют `@purr/db` напрямую.** Запросы живут в `@purr/core/queries`, иначе web и worker разъедутся в том, как читают одни и те же данные. Исключение — `apps/cli` для миграций.
 2. **`@purr/ui` не знает о домене.** Компонент «карточка вызова тула» или «виджет графика» — это домен, его место в `apps/web/modules/*`. В `ui` лежат кнопки, поля, таблица, диалоги, графики как примитивы.
 3. **`@purr/contracts` изоморфен.** Никаких `node:*`, драйверов и секретов: его импортирует браузер.
-4. **`@purr/core` — только сервер.** Первая строка в нём — `import 'server-only'`, чтобы случайный импорт из клиентского компонента падал на сборке, а не утекал в бандл. Этот пакет бросает ошибку вне условия экспорта `react-server`, поэтому `worker` и `cli` запускаются с `node --conditions=react-server`, а `tsup` бандлит их с тем же условием — **проверить** на скелете.
+4. **`@purr/core` — только сервер.** Каждый модуль начинается с `import 'server-only'`, чтобы случайный импорт из клиентского компонента падал на сборке, а не утекал в бандл. Этот пакет бросает ошибку вне условия экспорта `react-server`, поэтому `worker` и `cli` запускаются с `--conditions=react-server`, а `tsup` бандлит их с тем же условием — проверено на скелете.
 
 **Чего не выносим и почему:**
 
@@ -116,7 +116,7 @@ docs/
 ### M1. Скелет и установка
 
 1. `scaffold-nextjs`, фазы 1–2 и 4–6: `create-next-app`, Agentation, Ultracite, Turborepo. Фаза 3 (Blode) заменяется на `shadcn init` в стиле ReUI и подключение реестра `@reui` в `components.json`. Фаза 7 (GitHub и Vercel) не выполняется, фаза 8 (favicon, OG) — в M7. Скилл ставит всё через npm, у нас pnpm: команды переводятся на `pnpm`.
-2. Каркас приложений `apps/worker`, `apps/cli` и пакетов `@purr/ui`, `@purr/contracts`, `@purr/db`, `@purr/core`, `@purr/emails`, `@purr/tsconfig` (§2). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
+2. ✓ Каркас приложений `apps/worker`, `apps/cli` и пакетов `@purr/ui`, `@purr/contracts`, `@purr/db`, `@purr/core`, `@purr/tsconfig` (§2). `@purr/emails` — в M6, вместе с первым письмом: пустой пакет не заводим. Проверено: `server-only` в Node работает с `--conditions=react-server` (tsx в dev, tsup бандлит с тем же условием). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
 3. Drizzle: клиент, `drizzle.config.ts`, схема `system_settings`, `users`, `claim_tokens`, `invitations`. Better Auth CLI генерирует свои таблицы.
 4. Better Auth: email + пароль. `proxy.ts` проверяет только cookie, полная проверка — в layout группы `(app)`.
 5. `docker/Dockerfile` по примеру `with-docker`, `compose.yml`, healthcheck'и, `GET /api/health`.

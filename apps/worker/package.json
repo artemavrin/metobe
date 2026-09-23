@@ -1,0 +1,21 @@
+{
+  "name": "@purr/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "check-types": "tsc --noEmit",
+    "dev": "tsx watch --conditions=react-server --env-file=../../.env src/index.ts",
+    "start": "node --conditions=react-server dist/index.js"
+  },
+  "dependencies": {
+    "@purr/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@purr/tsconfig": "workspace:*",
+    "@types/node": "^20",
+    "tsup": "^8",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

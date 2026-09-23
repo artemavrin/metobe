@@ -1,0 +1,22 @@
+{
+  "name": "@purr/cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "check-types": "tsc --noEmit",
+    "start": "node --conditions=react-server dist/index.js",
+    "cli": "tsx --conditions=react-server --env-file=../../.env src/index.ts"
+  },
+  "dependencies": {
+    "@purr/core": "workspace:*",
+    "@purr/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@purr/tsconfig": "workspace:*",
+    "@types/node": "^20",
+    "tsup": "^8",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}
