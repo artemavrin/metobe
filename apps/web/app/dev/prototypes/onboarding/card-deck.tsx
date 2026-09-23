@@ -2,7 +2,7 @@
 
 // Card "Колода": the steps still ahead peek out behind the card; the deck thins as you go.
 import { Button } from "@purr/ui/components/button";
-import { Frame, FrameDescription, FrameFooter, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
+import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
 import { IconTile } from "@purr/ui/components/reui/icon-tile";
 import { cn } from "@purr/ui/lib/utils";
 import { ArrowLeft, Check } from "lucide-react";
@@ -35,14 +35,32 @@ export const CardDeck = () => {
           stacked
         >
           <FrameHeader className="gap-1">
-            {o.step === "done" ? (
+            {/* Navigation lives on top: back and step on the left, progress dots on the right */}
+            <div className="mb-3 flex h-6 items-center justify-between">
+              <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+                {canBack && (
+                  <Button aria-label="Назад" className="-ml-1.5" onClick={o.back} size="icon-xs" variant="ghost">
+                    <ArrowLeft />
+                  </Button>
+                )}
+                {o.step === "done" ? "Готово" : `Шаг ${n} · ${STEPS[n - 1]?.title}`}
+              </span>
+              <span aria-label={`Шаг ${Math.min(n, STEPS.length)} из ${STEPS.length}`} className="flex items-center gap-1.5">
+                {STEPS.map((s, i) => (
+                  <span
+                    className={cn(
+                      "h-1.5 rounded-full transition-[width,background-color] duration-300 ease-out",
+                      n === i + 1 ? "bg-primary w-5" : n > i + 1 ? "bg-primary/40 w-1.5" : "bg-border w-1.5"
+                    )}
+                    key={s.id}
+                  />
+                ))}
+              </span>
+            </div>
+            {o.step === "done" && (
               <IconTile className="text-success mb-3" size="default" variant="soft">
                 <Check />
               </IconTile>
-            ) : (
-              <span className="text-muted-foreground mb-2 text-xs font-medium">
-                Шаг {n} · {STEPS[n - 1]?.title}
-              </span>
             )}
             <FrameTitle className="text-xl">{title}</FrameTitle>
             <FrameDescription>{description}</FrameDescription>
@@ -50,26 +68,6 @@ export const CardDeck = () => {
           <FramePanel>
             <StepBody large o={o} />
           </FramePanel>
-          <FrameFooter className="flex-row items-center justify-between">
-            {canBack ? (
-              <Button className="-ml-2" onClick={o.back} size="xs" variant="ghost">
-                <ArrowLeft /> Назад
-              </Button>
-            ) : (
-              <span />
-            )}
-            <span className="flex items-center gap-1.5" aria-label={`Шаг ${Math.min(n, 3)} из 3`}>
-              {STEPS.map((s, i) => (
-                <span
-                  className={cn(
-                    "h-1.5 rounded-full transition-[width,background-color] duration-300 ease-out",
-                    n === i + 1 ? "bg-primary w-5" : n > i + 1 ? "bg-primary/40 w-1.5" : "bg-border w-1.5"
-                  )}
-                  key={s.id}
-                />
-              ))}
-            </span>
-          </FrameFooter>
         </Frame>
       </div>
     </div>
