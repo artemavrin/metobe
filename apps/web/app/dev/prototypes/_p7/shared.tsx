@@ -11,14 +11,20 @@ import { type Caps, PROXIES, type ProviderKind, type ProviderSpec, type Proxy } 
 
 // --- connection check simulation ------------------------------------------------------------------
 
-export type Phase = "idle" | "direct" | "probing" | "proxyFound" | "models" | "done" | "error";
+/** `blocked` — direct failed and no proxy is configured yet: the user supplies one. */
+export type Phase = "idle" | "direct" | "probing" | "proxyFound" | "blocked" | "models" | "done" | "error";
 export type RouteChoice = { kind: "direct" } | { kind: "proxy"; proxy: Proxy };
-export type CheckError = { title: string; hint: string; field?: "key" | "extra" };
+export type CheckError = { title: string; hint: string; field?: "key" | "extra" | "proxy" };
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Walks the same path the real check will: direct → proxies on network/geo failure → models. */
-export const useConnection = (spec: ProviderSpec) => {
+const PROXY_URL = /^(https?|socks5h?):\/\/(?:[^@/\s]+@)?([^:/\s]+)(?::(\d+))?\/?$/;
+
+/**
+ * Walks the same path the real check will: direct → known proxies on network/geo failure → models.
+ * With no proxies configured (a fresh install) a blocked provider stops at `blocked` and asks for one.
+ */
+export const useConnection = (spec: ProviderSpec, proxies: Proxy[] = PROXIES) => {
   const [phase, setPhase] = useState<Phase>("idle");
   const [route, setRoute] = useState<RouteChoice>({ kind: "direct" });
   const [error, setError] = useState<CheckError | null>(null);
@@ -61,10 +67,14 @@ export const useConnection = (spec: ProviderSpec) => {
         });
       }
       if (spec.directBlocked) {
+        if (!proxies.length) {
+          setPhase("blocked");
+          return;
+        }
         setPhase("probing");
         await wait(1100);
         if (!alive()) return;
-        setRoute({ kind: "proxy", proxy: PROXIES[0] as Proxy });
+        setRoute({ kind: "proxy", proxy: proxies[0] as Proxy });
         setPhase("proxyFound");
         return;
       }
@@ -72,7 +82,34 @@ export const useConnection = (spec: ProviderSpec) => {
       await wait(800);
       if (alive()) setPhase("done");
     },
-    [spec]
+    [spec, proxies]
+  );
+
+  /** A proxy typed in by the user: checked, then saved as the first proxy record. */
+  const tryProxy = useCallback(
+    async (url: string) => {
+      const match = PROXY_URL.exec(url.trim());
+      if (!match) {
+        setError({ field: "proxy", hint: "Например http://user:pass@10.0.0.5:3128 или socks5://proxy.local:1080", title: "Не похоже на адрес прокси" });
+        return;
+      }
+      const id = ++run.current;
+      setError(null);
+      setPhase("probing");
+      await wait(1100);
+      if (run.current !== id) return;
+      if (url.includes("bad")) {
+        setError({ field: "proxy", hint: "Проверьте адрес и порт: прокси не принял соединение за 10 секунд.", title: "Прокси не отвечает" });
+        setPhase("blocked");
+        return;
+      }
+      const type = match[1]?.startsWith("socks") ? "socks5" : "http";
+      setRoute({ kind: "proxy", proxy: { country: "DE", id: "new", latency: 52, title: match[2] ?? "прокси", type } });
+      setPhase("models");
+      await wait(800);
+      if (run.current === id) setPhase("done");
+    },
+    []
   );
 
   const acceptProxy = useCallback(async () => {
@@ -90,7 +127,7 @@ export const useConnection = (spec: ProviderSpec) => {
     });
   }, [spec]);
 
-  return { acceptProxy, declineProxy, error, phase, reset, route, start };
+  return { acceptProxy, declineProxy, error, phase, reset, route, start, tryProxy };
 };
 
 export const busy = (p: Phase) => p === "direct" || p === "probing" || p === "models" || p === "proxyFound";

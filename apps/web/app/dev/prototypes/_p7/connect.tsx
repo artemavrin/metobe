@@ -31,10 +31,10 @@ import {
   StepperTrigger,
 } from "@purr/ui/components/reui/stepper";
 import { cn } from "@purr/ui/lib/utils";
-import { Check, ChevronRight, CircleAlert, KeyRound, LoaderCircle, Route } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronRight, CircleAlert, Globe, KeyRound, LoaderCircle, Network, Route } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
-import { PROVIDERS, type ProviderKind, providerBy, SAMPLE_KEYS } from "./mock";
+import { PROXIES, PROVIDERS, type ProviderKind, type Proxy, providerBy, SAMPLE_KEYS } from "./mock";
 import { busy, enter, type Phase, ProviderMark, type RouteChoice, useConnection } from "./shared";
 
 // --- provider choice ------------------------------------------------------------------------------
@@ -85,7 +85,7 @@ export const ProviderList = ({
 
 // --- check progress on the ReUI Stepper -----------------------------------------------------------
 
-const activeStep = (p: Phase) => ({ direct: 1, models: 3, probing: 2, proxyFound: 2 })[p as "direct"] ?? 4;
+const activeStep = (p: Phase) => ({ blocked: 2, direct: 1, models: 3, probing: 2, proxyFound: 2 })[p as "direct"] ?? 4;
 
 export const CheckSteps = ({ phase, route, title, blocked }: { phase: Phase; route: RouteChoice; title: string; blocked: boolean }) => {
   const step = activeStep(phase);
@@ -97,8 +97,10 @@ export const CheckSteps = ({ phase, route, title, blocked }: { phase: Phase; rou
           ? blocked
             ? "Напрямую или через прокси"
             : "Напрямую"
-          : phase === "probing"
-            ? "Напрямую гео-блок — пробуем прокси…"
+          : phase === "blocked"
+            ? "Напрямую не отвечает — нужен прокси"
+            : phase === "probing"
+              ? "Пробуем через прокси…"
             : route.kind === "proxy"
               ? `Через «${route.proxy.title}» · ${route.proxy.latency} мс`
               : "Напрямую",
@@ -147,19 +149,26 @@ export const ConnectForm = ({
   onDone,
   footer,
   large,
+  proxies = PROXIES,
+  onSwitchProvider,
 }: {
   kind: ProviderKind;
   onDone: (route: RouteChoice) => void;
   footer?: (state: { busy: boolean }) => React.ReactNode;
   large?: boolean;
+  /** Proxies already configured. A fresh install has none. */
+  proxies?: Proxy[];
+  onSwitchProvider?: () => void;
 }) => {
   const spec = providerBy(kind);
-  const conn = useConnection(spec);
+  const conn = useConnection(spec, proxies);
+  const [proxyUrl, setProxyUrl] = useState("");
   const [key, setKey] = useState("");
   const [extra, setExtra] = useState("");
   const id = useId();
   const locked = busy(conn.phase);
   const checking = conn.phase !== "idle" && conn.phase !== "error";
+  const blockedFlow = conn.phase === "blocked" || (conn.phase === "probing" && !proxies.length);
 
   useEffect(() => {
     if (conn.phase === "done") onDone(conn.route);
@@ -225,7 +234,7 @@ export const ConnectForm = ({
         </Field>
       </FieldGroup>
 
-      {conn.error && (
+      {conn.error && conn.error.field !== "proxy" && (
         <Alert variant="destructive">
           <CircleAlert />
           <AlertTitle>{conn.error.title}</AlertTitle>
@@ -233,10 +242,63 @@ export const ConnectForm = ({
         </Alert>
       )}
 
-      {checking && (
+      {checking && !blockedFlow && (
         <div className="animate-in fade-in fill-mode-both rounded-xl border p-4 duration-200 ease-out">
           <CheckSteps blocked={spec.directBlocked} phase={conn.phase} route={conn.route} title={spec.title} />
         </div>
+      )}
+
+      {blockedFlow && (
+        <Alert className="animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-200 ease-out" variant="warning">
+          <Globe />
+          <AlertTitle>Ключ подошёл, но {spec.title} из этой сети не отвечает</AlertTitle>
+          <AlertDescription>
+            Похоже на гео-блок. Укажите прокси — через него пойдёт только {spec.title}, остальное напрямую. Или подключите
+            провайдера, который доступен отсюда.
+          </AlertDescription>
+          <div className="col-start-2 mt-3 flex flex-col gap-2">
+            <InputGroup>
+              <InputGroupAddon>
+                <Network />
+              </InputGroupAddon>
+              <InputGroupInput
+                aria-invalid={conn.error?.field === "proxy" || undefined}
+                aria-label="Адрес прокси"
+                className="font-mono"
+                disabled={conn.phase === "probing"}
+                onChange={(e) => setProxyUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void conn.tryProxy(proxyUrl);
+                  }
+                }}
+                placeholder="http://host:3128 или socks5://host:1080"
+                value={proxyUrl}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton disabled={conn.phase === "probing"} onClick={() => setProxyUrl("http://proxy.corp.local:3128")} size="xs">
+                  Пример
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+            {conn.error?.field === "proxy" && (
+              <p className="text-destructive text-xs">
+                <span className="font-medium">{conn.error.title}.</span> {conn.error.hint}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={conn.phase === "probing"} onClick={() => void conn.tryProxy(proxyUrl)} size="sm" type="button">
+                {conn.phase === "probing" ? "Проверяем…" : "Проверить через прокси"}
+              </Button>
+              {onSwitchProvider && (
+                <Button disabled={conn.phase === "probing"} onClick={onSwitchProvider} size="sm" type="button" variant="ghost">
+                  <ArrowLeftRight /> Другой провайдер
+                </Button>
+              )}
+            </div>
+          </div>
+        </Alert>
       )}
 
       {conn.phase === "proxyFound" && conn.route.kind === "proxy" && (

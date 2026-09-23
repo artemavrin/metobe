@@ -32,7 +32,7 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
     description: "Первый вход, провайдеры, модели и прокси — M2",
     entries: [
       {
-        description: "Первый запуск: провайдер → ключ → модели → чат. Направление «Шаги».",
+        description: "Первый запуск: провайдер → ключ → модели → чат. Поток «Шаги» выбран, выбираем раскладку: «Карточка», «Сплит», «Лента».",
         href: "/dev/prototypes/onboarding",
         icon: Rocket,
         status: "выбрано",
