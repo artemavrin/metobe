@@ -9,7 +9,7 @@
 * **auth:** passwordless sign-in with email codes and claim flow ([cefdbb1](https://github.com/artemavrin/purr/commit/cefdbb16b2d9c7c3b16727da1f3a5b7671ced75b))
 * docker image, install script and CI ([7377d99](https://github.com/artemavrin/purr/commit/7377d998d0538be078c962dfaa3a5e56856f1880))
 * one-line installer and release-based image publishing ([bd66fbb](https://github.com/artemavrin/purr/commit/bd66fbbe3623876db3bf1e6054cb81be464ec57b))
-* **ui:** add EvilCharts area and bar charts to design system ([0e56817](https://github.com/artemavrin/purr/commit/0e56817685fd482408375b54bc58c91a8fe02b93))
+* **ui:** design system on shadcn and ReUI with ReUI charts
 * **web:** add dev-only design system showcase ([8fb621b](https://github.com/artemavrin/purr/commit/8fb621b1bc8b2eb283024e063f5ce3cf9f48dce2))
 
 
