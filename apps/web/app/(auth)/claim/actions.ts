@@ -14,7 +14,7 @@ export interface ClaimState {
 const reasons = {
   "already-claimed": "Администратор уже создан. Войдите через страницу входа.",
   "invalid-token":
-    "Ссылка недействительна или устарела. Выпустите новую: docker compose -f docker/compose.yml --env-file .env exec app purr claim-link",
+    "Ссылка недействительна или устарела. Выпустите новую: docker compose exec app purr claim-link",
 };
 
 export const claim = async (

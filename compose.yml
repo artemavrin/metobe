@@ -2,14 +2,11 @@ name: purr
 
 services:
   app:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    # Published image by default; install.sh builds from source only when it cannot pull (or PURR_BUILD=1).
+    # Published release image; docker/compose.build.yml adds a source build for development and CI.
     image: ${PURR_IMAGE:-ghcr.io/artemavrin/purr:latest}
     restart: unless-stopped
     env_file:
-      - path: ../.env
+      - path: .env
         required: false
     environment: &app-env
       DATABASE_URL: ${APP_DATABASE_URL:-postgres://${POSTGRES_USER:-purr}:${POSTGRES_PASSWORD:-purr}@postgres:5432/${POSTGRES_DB:-purr}}
@@ -34,7 +31,7 @@ services:
     command: ["worker"]
     restart: unless-stopped
     env_file:
-      - path: ../.env
+      - path: .env
         required: false
     environment: *app-env
     depends_on:
