@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/artemavrin/purr/compare/v0.1.0...v0.1.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* **install:** keep docker off stdin under curl | bash ([db6d2c1](https://github.com/artemavrin/purr/commit/db6d2c171a33422944534f0351de7dd7efa24b88))
+
 ## 0.1.0 (2026-09-23)
 
 
