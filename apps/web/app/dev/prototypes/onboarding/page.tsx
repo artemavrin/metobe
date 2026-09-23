@@ -1,16 +1,17 @@
 "use client";
 
 import { Picker } from "../_shared/picker";
-import { DeckLabels, DeckQuiet, DeckShuffle } from "./card-deck";
+import { DeckModels, DoneConfetti, DoneDeal, DoneHello } from "./card-deck";
 
-// P7: first-run onboarding. Flow "Шаги" and the "Колода" card are chosen; the variants riff on the deck.
-// The earlier cards "Шапка" and "Разворот" stay in card-header.tsx and card-spread.tsx for reference.
+// P7: first-run onboarding. Chosen: flow "Шаги", card "Колода", riff "Тихая", finish direction "Праздник".
+// Now choosing how to celebrate; each variant opens on the finish screen. "Итог" and "Сразу в чат" stay in done.tsx.
 const OnboardingPrototypePage = () => (
   <Picker
     variants={[
-      { Component: DeckQuiet, name: "Тихая" },
-      { Component: DeckLabels, name: "Подписи" },
-      { Component: DeckShuffle, name: "Тасовка" },
+      { Component: DoneConfetti, name: "Конфетти" },
+      { Component: DoneDeal, name: "Раздача" },
+      { Component: DoneHello, name: "Привет" },
+      { Component: DeckModels, name: "Шаг «Модели»" },
     ]}
   />
 );

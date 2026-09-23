@@ -8,7 +8,7 @@ import { Switch } from "@purr/ui/components/switch";
 import { type ColumnDef, useTable } from "@tanstack/react-table";
 import { useMemo } from "react";
 
-import { fmtContext, fmtPrice, type Model, type ProviderKind, providerBy } from "./mock";
+import { fmtContext, fmtPrice, isNew, type Model, type ProviderKind, providerBy } from "./mock";
 import { CapIcons, ProviderMark } from "./shared";
 
 export type ModelRow = { key: string; kind: ProviderKind; model: Model; on: boolean };
@@ -43,9 +43,9 @@ export const ModelsGrid = ({
           <div className={row.original.on ? "" : "opacity-60"}>
             <div className="flex items-center gap-1.5 font-medium">
               {row.original.model.title}
-              {row.original.model.recommended && (
-                <Badge size="xs" variant="primary-light">
-                  рек.
+              {isNew(row.original.model) && (
+                <Badge size="xs" variant="info-light">
+                  новая
                 </Badge>
               )}
             </div>

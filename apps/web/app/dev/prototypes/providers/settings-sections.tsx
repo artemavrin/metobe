@@ -19,7 +19,7 @@ import { ChevronDown, Ellipsis, Globe, MessageSquare, Network, Plus } from "luci
 import { useState } from "react";
 
 import { ConnectDialog, type Connected, seedConnected } from "../_p7/connect-dialog";
-import { fmtContext, fmtPrice, models as nModels, PROXIES, providerBy } from "../_p7/mock";
+import { byNewest, fmtContext, fmtPrice, isNew, models as nModels, PROXIES, providerBy } from "../_p7/mock";
 import { CapIcons, enter, ProviderMark, RouteBadge } from "../_p7/shared";
 
 export const SettingsSections = () => {
@@ -125,7 +125,8 @@ export const SettingsSections = () => {
 const ProviderSection = ({ connected, onChange }: { connected: Connected; onChange: (c: Connected) => void }) => {
   const spec = providerBy(connected.kind);
   const [expanded, setExpanded] = useState(Boolean(connected.fresh));
-  const visible = expanded ? spec.models : spec.models.filter((m) => connected.models.has(m.id));
+  const sorted = [...spec.models].sort(byNewest);
+  const visible = expanded ? sorted : sorted.filter((m) => connected.models.has(m.id));
   const toggle = (id: string, on: boolean) => {
     const next = new Set(connected.models);
     if (on) next.add(id);
@@ -184,9 +185,9 @@ const ProviderSection = ({ connected, onChange }: { connected: Connected; onChan
                   <div className="flex flex-1 flex-col gap-0.5">
                     <span className="flex items-center gap-1.5 text-sm font-medium">
                       {m.title}
-                      {m.recommended && (
-                        <Badge size="xs" variant="primary-light">
-                          рек.
+                      {isNew(m) && (
+                        <Badge size="xs" variant="info-light">
+                          новая
                         </Badge>
                       )}
                     </span>

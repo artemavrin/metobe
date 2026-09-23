@@ -10,7 +10,8 @@ import { cn } from "@purr/ui/lib/utils";
 import { ArrowLeft, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { copy, STEPS, StepBody, stepNumber, useOnboarding } from "./steps";
+import { type DoneKind, DoneScreen } from "./done";
+import { copy, DONE_STATE, MODELS_STATE, type OnboardingState, STEPS, StepBody, stepNumber, useOnboarding } from "./steps";
 
 // Leaving card: stays opaque while it travels, fades only at the very end — no muddy cross-fade of two texts.
 const LEAVE_KEYFRAMES = `
@@ -21,10 +22,12 @@ const LEAVE_KEYFRAMES = `
 // The card surface without Frame's translucency, so back cards never show through.
 const SURFACE = "bg-[color-mix(in_oklch,var(--muted)_50%,var(--background))]";
 
-type Options = { labels?: boolean; shuffle?: boolean };
+/** `done` swaps the finish screen; with it the deck opens right on that screen. */
+type Options = { labels?: boolean; shuffle?: boolean; done?: DoneKind; start?: OnboardingState };
 
-const Deck = ({ labels = false, shuffle = false }: Options) => {
-  const o = useOnboarding();
+const Deck = ({ labels = false, shuffle = false, done, start }: Options) => {
+  const o = useOnboarding(start ?? (done ? DONE_STATE : undefined));
+  const finished = o.step === "done";
   const { title, description } = copy(o);
   const n = stepNumber(o.step);
   const ahead = Math.max(0, STEPS.length - n);
@@ -32,7 +35,7 @@ const Deck = ({ labels = false, shuffle = false }: Options) => {
   const peek = labels ? 26 : 12;
 
   // Shuffle: remember where we came from, to play the leaving card and pick the direction.
-  const label = o.step === "done" ? "Готово" : `Шаг ${n} · ${STEPS[n - 1]?.title}`;
+  const label = finished ? (done ? "Настройка завершена" : "Готово") : `Шаг ${n} · ${STEPS[n - 1]?.title}`;
   const prev = useRef({ label, n, title });
   const [leaving, setLeaving] = useState<{ label: string; title: string; forward: boolean; id: number } | null>(null);
   useEffect(() => {
@@ -121,7 +124,7 @@ const Deck = ({ labels = false, shuffle = false }: Options) => {
                   <span
                     className={cn(
                       "h-1.5 rounded-full transition-[width,background-color] duration-300 ease-out",
-                      n === i + 1 ? "bg-primary w-5" : n > i + 1 ? "bg-primary/40 w-1.5" : "bg-border w-1.5"
+                      finished && done ? "bg-primary w-1.5" : n === i + 1 ? "bg-primary w-5" : n > i + 1 ? "bg-primary/40 w-1.5" : "bg-border w-1.5"
                     )}
                     key={s.id}
                   />
@@ -129,6 +132,10 @@ const Deck = ({ labels = false, shuffle = false }: Options) => {
               </span>
           </div>
           <Separator className="opacity-60" />
+          {finished && done ? (
+            <DoneScreen kind={done} o={o} />
+          ) : (
+            <>
           <FrameHeader className="gap-1 pt-4!">
             {o.step === "done" && (
               <IconTile className="text-success mb-3" size="default" variant="soft">
@@ -141,6 +148,8 @@ const Deck = ({ labels = false, shuffle = false }: Options) => {
           <FramePanel>
             <StepBody large o={o} />
           </FramePanel>
+            </>
+          )}
         </Frame>
       </div>
     </div>
@@ -148,5 +157,11 @@ const Deck = ({ labels = false, shuffle = false }: Options) => {
 };
 
 export const DeckQuiet = () => <Deck />;
+export const DeckModels = () => <Deck done="confetti" start={MODELS_STATE} />;
+export const DoneSummary = () => <Deck done="summary" />;
+export const DoneCompose = () => <Deck done="compose" />;
+export const DoneConfetti = () => <Deck done="confetti" />;
+export const DoneDeal = () => <Deck done="deal" />;
+export const DoneHello = () => <Deck done="hello" />;
 export const DeckLabels = () => <Deck labels />;
 export const DeckShuffle = () => <Deck shuffle />;

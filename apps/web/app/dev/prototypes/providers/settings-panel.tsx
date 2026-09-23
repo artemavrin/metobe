@@ -20,7 +20,7 @@ import { Boxes, Mail, MessageSquare, Network, Plus, RefreshCw, Search, Server, S
 import { useCallback, useMemo, useState } from "react";
 
 import { ConnectDialog, type Connected, seedConnected } from "../_p7/connect-dialog";
-import { models as nModels, type ProviderKind, providerBy, recommendedIds, SAMPLE_KEYS } from "../_p7/mock";
+import { byNewest, models as nModels, type ProviderKind, providerBy, SAMPLE_KEYS } from "../_p7/mock";
 import { ModelsGrid, type ModelRow } from "../_p7/models-grid";
 import { ProviderMark, RouteBadge } from "../_p7/shared";
 
@@ -118,7 +118,8 @@ const ProviderDetail = ({ connected, onChange }: { connected: Connected; onChang
 
   const rows = useMemo<ModelRow[]>(
     () =>
-      spec.models
+      [...spec.models]
+        .sort(byNewest)
         .map((model) => ({ key: model.id, kind: spec.kind, model, on: connected.models.has(model.id) }))
         .filter((r) => (filter === "on" ? r.on : filter === "off" ? !r.on : true))
         .filter((r) => `${r.model.title} ${r.model.id} ${r.model.vendor}`.toLowerCase().includes(q.toLowerCase())),
@@ -167,7 +168,7 @@ const ProviderDetail = ({ connected, onChange }: { connected: Connected; onChang
         <Alert className="animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-200 ease-out" variant="success">
           <Sparkles />
           <AlertDescription>
-            Нашлось {nModels(spec.models.length + spec.hiddenCount)}, включили {connected.models.size} рекомендованных.
+            Нашлось {nModels(spec.models.length)} для чата. Включите те, что увидят пользователи, — новые сверху.
           </AlertDescription>
           <AlertAction>
             <Button onClick={() => onChange({ ...connected, fresh: false })} size="xs" variant="ghost">
@@ -196,9 +197,6 @@ const ProviderDetail = ({ connected, onChange }: { connected: Connected; onChang
           <ToggleGroupItem value="off">Выключенные</ToggleGroupItem>
         </ToggleGroup>
         <div className="ml-auto flex gap-1">
-          <Button onClick={() => setModels(recommendedIds(spec))} size="sm" variant="ghost">
-            Рекомендованные
-          </Button>
           <Button onClick={() => setModels(new Set(spec.models.map((m) => m.id)))} size="sm" variant="ghost">
             Включить все
           </Button>

@@ -13,7 +13,7 @@ import { ArrowLeft } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { ConnectForm, ProviderList } from "./connect";
-import { type ProviderKind, providerBy, recommendedIds } from "./mock";
+import { type ProviderKind, providerBy } from "./mock";
 import { ProviderMark, type RouteChoice } from "./shared";
 
 export type Connected = { kind: ProviderKind; models: Set<string>; route: RouteChoice; fresh?: boolean };
@@ -50,7 +50,7 @@ export const ConnectDialog = ({
   const done = useCallback(
     (route: RouteChoice) => {
       if (!kind) return;
-      onConnected({ fresh: true, kind, models: recommendedIds(providerBy(kind)), route });
+      onConnected({ fresh: true, kind, models: new Set(), route });
       onOpenChange(false);
       setKind(null);
     },
