@@ -18,7 +18,7 @@ import { LogoPicker } from "./parts";
 import type { ProviderInfo, Settings } from "./state";
 
 export const ProvidersPage = ({ s }: { s: Settings }) => {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState(() => s.providers[0]?.slug ?? null);
   const current = s.providers.find((p) => p.slug === selected) ?? s.providers[0];
   return (
     <div className="flex h-full min-h-0 text-sm">

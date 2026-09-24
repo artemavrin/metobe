@@ -115,7 +115,8 @@ export const useSettings = () => {
         map.set(slug, entry);
       }
     }
-    return [...map.values()].sort((a, b) => b.models.filter((x) => x.on).length - a.models.filter((x) => x.on).length || a.title.localeCompare(b.title));
+    // Stable order: toggling a model must not move rows under the cursor.
+    return [...map.values()].sort((a, b) => b.models.length - a.models.length || a.title.localeCompare(b.title));
   }, [panel.list, overrides]);
 
   const providerOf = (m: Model) => {
