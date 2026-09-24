@@ -25,7 +25,7 @@ import {
   RecheckButton,
   visibleInChat,
 } from "../panel/common";
-import { EditRow, LogoPicker, Row, Section, useListHighlight } from "./parts";
+import { EditRow, LIST_PANEL, LogoPicker, Row, Section, useListHighlight } from "./parts";
 import { COUNTRY, type ProxyEntry, type Settings } from "./state";
 
 /** Round-trip of the last check, deterministic per source (the real app stores the last check result). */
@@ -49,7 +49,7 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
   const list = useListHighlight(p?.kind, panel.list.length);
   return (
     <div className="flex h-full min-h-0 text-sm">
-      <aside className="flex w-80 shrink-0 flex-col border-r">
+      <aside className={LIST_PANEL}>
         <div className="flex items-start justify-between gap-2 px-5 pt-6 pb-3">
           <div>
             <h1 className="text-base font-semibold">Источники</h1>
@@ -74,7 +74,7 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 ease-out active:scale-[0.99]",
                   "relative",
-                  !active && "hover:bg-muted/50"
+                  !active && "hover:bg-sidebar-accent/60"
                 )}
                 data-active={active}
                 key={x.kind}

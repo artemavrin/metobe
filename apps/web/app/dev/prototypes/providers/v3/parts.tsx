@@ -155,7 +155,7 @@ export const useListHighlight = (activeKey: string | undefined, count: number) =
     <span
       aria-hidden
       className={cn(
-        "bg-muted pointer-events-none absolute inset-x-2 top-0 rounded-lg",
+        "bg-sidebar-accent pointer-events-none absolute inset-x-2 top-0 rounded-lg",
         ready && "transition-transform duration-200 ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transition-none"
       )}
       style={{ height: box.h, transform: `translateY(${box.y}px)` }}
@@ -164,12 +164,16 @@ export const useListHighlight = (activeKey: string | undefined, count: number) =
   return { highlight, ref };
 };
 
+/** The list column of a list → detail page: a second floating panel, styled like the shell's sidebar. */
+export const LIST_PANEL =
+  "bg-sidebar text-sidebar-foreground ring-sidebar-border my-2 flex w-80 shrink-0 flex-col overflow-hidden rounded-lg shadow-sm ring-1";
+
 /** One row of a list → detail sidebar. */
 export const ListRow = ({ active, onClick, media, title, sub, trail }: { active: boolean; onClick: () => void; media: ReactNode; title: ReactNode; sub: ReactNode; trail?: ReactNode }) => (
   <button
     className={cn(
       "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] motion-reduce:active:scale-100",
-      !active && "hover:bg-muted/50"
+      !active && "hover:bg-sidebar-accent/60"
     )}
     data-active={active}
     onClick={onClick}

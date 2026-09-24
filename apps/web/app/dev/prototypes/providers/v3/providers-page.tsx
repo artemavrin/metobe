@@ -14,7 +14,7 @@ import { useRef, useState } from "react";
 import { BrandLogo } from "../../_p7/brand";
 import { byNewest, fmtContext, fmtPrice, isNew, providerBy } from "../../_p7/mock";
 import { NO_AUTOFILL } from "../../_p7/shared";
-import { LogoPicker, useListHighlight } from "./parts";
+import { LIST_PANEL, LogoPicker, useListHighlight } from "./parts";
 import type { ProviderInfo, Settings } from "./state";
 
 export const ProvidersPage = ({ s }: { s: Settings }) => {
@@ -23,7 +23,7 @@ export const ProvidersPage = ({ s }: { s: Settings }) => {
   const list = useListHighlight(current?.slug, s.providers.length);
   return (
     <div className="flex h-full min-h-0 text-sm">
-      <aside className="flex w-80 shrink-0 flex-col border-r">
+      <aside className={LIST_PANEL}>
         <div className="px-5 pt-6 pb-3">
           <h1 className="text-base font-semibold">Провайдеры</h1>
           <p className="text-muted-foreground text-xs">Кто сделал модели. Логотип и название видны в выборе модели в чате.</p>
@@ -39,7 +39,7 @@ export const ProvidersPage = ({ s }: { s: Settings }) => {
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 ease-out active:scale-[0.99]",
                   "relative",
-                  !active && "hover:bg-muted/50"
+                  !active && "hover:bg-sidebar-accent/60"
                 )}
                 data-active={active}
                 key={p.slug}
