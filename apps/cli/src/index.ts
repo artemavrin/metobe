@@ -2,6 +2,7 @@ import { createAuth } from "@metobe/core/auth";
 import { issueClaimLink } from "@metobe/core/claim";
 import { getEnv } from "@metobe/core/env";
 import { buildLoginLink } from "@metobe/core/login-link";
+import { importEnvProxy } from "@metobe/core/net";
 import { ensureSecretsCanary, rotateSecrets } from "@metobe/core/secrets";
 import { findUserByEmail } from "@metobe/core/users";
 import { runMigrations } from "@metobe/db/migrate";
@@ -34,6 +35,15 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   migrate: async () => {
     await runMigrations(getEnv().DATABASE_URL, process.env.MIGRATIONS_DIR);
     console.log("migrations applied");
+  },
+  // First start: HTTPS_PROXY / ALL_PROXY from install.sh becomes a proxy record bound to nothing (ARCH §18.1).
+  "proxies:import-env": async () => {
+    const imported = await importEnvProxy();
+    if (imported) {
+      console.log(
+        `proxies: ${imported.type} proxy ${imported.host} imported from the environment`
+      );
+    }
   },
   // Run by the entrypoint before the app starts: a wrong SECRETS_KEY stops the container with a clear message.
   "secrets:check": async () => {
