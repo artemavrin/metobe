@@ -137,12 +137,12 @@ export const usageOf = (kind: ProviderKind, m: Model, on: boolean) => {
   return { cost, days, requests };
 };
 
-export const Sparkline = ({ days }: { days: number[] }) => {
+export const Sparkline = ({ days, className, bar = "w-1" }: { days: number[]; className?: string; bar?: string }) => {
   const max = Math.max(1, ...days);
   return (
-    <span aria-hidden className="flex h-5 items-end gap-0.5">
+    <span aria-hidden className={cn("flex h-5 items-end gap-0.5", className)}>
       {days.map((d, i) => (
-        <span className="bg-primary/60 w-1 rounded-[1px]" key={i} style={{ height: `${Math.max(8, (d / max) * 100)}%` }} />
+        <span className={cn("bg-primary/60 rounded-[1px]", bar)} key={i} style={{ height: `${Math.max(8, (d / max) * 100)}%` }} />
       ))}
     </span>
   );
@@ -307,7 +307,7 @@ export const RouteSelect = ({ panel, p, className }: { panel: Panel; p: PanelPro
   <Select onValueChange={(v) => panel.setRoute(p.kind, String(v))} value={p.routeMode}>
     <SelectTrigger className={cn("w-60", className)}>
       <SelectValue>
-        {p.routeMode === "auto" ? `Авто · сейчас ${routeLabel(p)}` : p.routeMode === "direct" ? "Только напрямую" : `Через ${PROXIES.find((x) => x.id === p.routeMode)?.title}`}
+        {p.routeMode === "auto" ? `Авто · ${routeLabel(p)}` : p.routeMode === "direct" ? "Только напрямую" : `Через ${PROXIES.find((x) => x.id === p.routeMode)?.title}`}
       </SelectValue>
     </SelectTrigger>
     <SelectContent>
