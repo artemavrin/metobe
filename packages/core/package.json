@@ -10,9 +10,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "4.0.62",
+    "@ai-sdk/gateway": "4.0.91",
+    "@ai-sdk/openai": "4.0.74",
+    "@ai-sdk/openai-compatible": "3.0.55",
     "@metobe/contracts": "workspace:*",
     "@metobe/db": "workspace:*",
     "@metobe/i18n": "workspace:*",
+    "ai": "7.0.113",
     "better-auth": "^1.7.5",
     "drizzle-orm": "^0.45.3",
     "nodemailer": "^10.0.10",
