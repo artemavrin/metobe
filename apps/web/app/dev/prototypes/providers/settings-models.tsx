@@ -133,7 +133,7 @@ export const SettingsModels = ({ embedded = false }: { embedded?: boolean }) => 
               <InputGroupAddon>
                 <Search />
               </InputGroupAddon>
-              <InputGroupInput onChange={(e) => setQ(e.target.value)} placeholder="Модель, вендор или id" value={q} />
+              <InputGroupInput onChange={(e) => setQ(e.target.value)} placeholder="Модель, провайдер или id" value={q} />
             </InputGroup>
             <ToggleGroup multiple onValueChange={setCaps} size="sm" spacing={0} value={caps} variant="outline">
               {CAP_FILTERS.map(({ key, label, icon: Icon }) => (

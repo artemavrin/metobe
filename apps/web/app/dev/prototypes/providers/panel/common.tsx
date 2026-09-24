@@ -31,7 +31,7 @@ import { MASKED, NO_AUTOFILL, ProviderMark, type RouteChoice } from "../../_p7/s
 // --- state ----------------------------------------------------------------------------------------
 
 export type Health = { state: "ok"; checked: string } | { state: "error"; message: string; since: string } | { state: "checking" };
-export type PanelProvider = Connected & { health: Health; keyTail: string; routeMode: "auto" | "direct" | string };
+export type PanelProvider = Connected & { health: Health; keyTail: string; routeMode: "auto" | "direct" | string; enabled?: boolean };
 
 const proxy = PROXIES[0] as (typeof PROXIES)[number];
 
@@ -65,8 +65,8 @@ export const seedPanel = (): PanelProvider[] => [
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Provider list state with the actions every riff needs. */
-export const usePanel = () => {
-  const [list, setList] = useState<PanelProvider[]>(seedPanel);
+export const usePanel = (seed: () => PanelProvider[] = seedPanel) => {
+  const [list, setList] = useState<PanelProvider[]>(seed);
   const [selected, setSelected] = useState<ProviderKind>("openai");
   const current = list.find((p) => p.kind === selected) ?? list[0];
 
@@ -118,13 +118,16 @@ export const usePanel = () => {
     setSelected(c.kind);
   };
 
-  return { add, current, list, recheck, remove, replaceKey, selected, setModels, setRoute, setSelected, toggleModel };
+  /** Switch a source off without dropping its key. */
+  const setEnabled = (kind: ProviderKind, enabled: boolean) => patch(kind, (p) => ({ ...p, enabled }));
+
+  return { add, current, list, recheck, remove, replaceKey, selected, setEnabled, setModels, setRoute, setSelected, toggleModel };
 };
 
 export type Panel = ReturnType<typeof usePanel>;
 
 /** Chat sees a provider's models only while its key works. */
-export const visibleInChat = (p: PanelProvider) => (p.health.state === "error" ? 0 : p.models.size);
+export const visibleInChat = (p: PanelProvider) => (p.health.state === "error" || p.enabled === false ? 0 : p.models.size);
 
 // --- usage from our own model_runs (mock, deterministic) ------------------------------------------
 

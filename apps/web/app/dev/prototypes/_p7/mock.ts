@@ -88,7 +88,7 @@ export const PROVIDERS: ProviderSpec[] = [
     title: "Anthropic",
   },
   {
-    blurb: "Один ключ — модели всех вендоров",
+    blurb: "Один ключ — модели всех провайдеров",
     directBlocked: false,
     hiddenCount: 126,
     hiddenNote: "эмбеддинги, картинки, видео и голос",

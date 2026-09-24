@@ -199,10 +199,10 @@ const ModelsBody = ({ o, current }: { o: Onboarding; current: Connected }) => {
           {vendors.length > 1 && (
             <Select onValueChange={(v) => setVendor(String(v))} value={vendor}>
               <SelectTrigger className="w-40">
-                <SelectValue>{vendor === "all" ? "Все вендоры" : vendor}</SelectValue>
+                <SelectValue>{vendor === "all" ? "Все провайдеры" : vendor}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Все вендоры</SelectItem>
+                <SelectItem value="all">Все провайдеры</SelectItem>
                 {vendors.map((v) => (
                   <SelectItem key={v} value={v}>
                     {v}

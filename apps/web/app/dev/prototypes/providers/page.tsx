@@ -9,12 +9,14 @@ import { PanelTabs } from "./panel/riff-tabs";
 import { WowBoard } from "./wow/board";
 import { WowDeck } from "./wow/deck";
 import { WowMap } from "./wow/map";
+import { SettingsV3 } from "./v3";
 
 // P7: everyday provider settings inside the chosen shell («Режимы» → settings).
-// «Панель» (panel2.tsx) is the chosen structure in the onboarding's look; the rest stay for comparison.
+// «Источники + провайдеры» (v3/) splits sources and model providers (D29) in a calm list → detail; the rest stay for comparison.
 const ProvidersPrototypePage = () => (
   <Picker
     variants={[
+      { Component: SettingsV3, name: "Два раздела" },
       { Component: () => <ShellModes providers={<Panel2 />} start="settings" />, name: "Панель" },
       { Component: () => <ShellModes providers={<WowDeck />} start="settings" />, name: "Колода" },
       { Component: () => <ShellModes providers={<WowMap />} start="settings" />, name: "Схема" },

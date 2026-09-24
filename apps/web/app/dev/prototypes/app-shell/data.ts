@@ -3,6 +3,7 @@ import {
   Bell,
   Bot,
   Boxes,
+  Factory,
   HardDrive,
   Info,
   Mail,
@@ -18,6 +19,7 @@ import {
 
 export type SettingsSection =
   | "providers"
+  | "vendors"
   | "models"
   | "proxies"
   | "connections"
@@ -34,7 +36,8 @@ export type View = { kind: "chat"; id?: string } | { kind: "agents" } | { kind: 
 export const SETTINGS: { title: string; items: { id: SettingsSection; label: string; icon: typeof Server; hint: string }[] }[] = [
   {
     items: [
-      { hint: "Ключи, маршруты и какие модели видны в чате", icon: Server, id: "providers", label: "Провайдеры" },
+      { hint: "Кто даёт доступ к моделям: ключи, маршруты, здоровье", icon: Server, id: "providers", label: "Источники" },
+      { hint: "Кто сделал модели: названия и логотипы в чате", icon: Factory, id: "vendors", label: "Провайдеры" },
       { hint: "Все модели всех провайдеров: цены, возможности, доступ", icon: Boxes, id: "models", label: "Модели" },
       { hint: "Что через какой прокси ходит", icon: Network, id: "proxies", label: "Прокси" },
     ],

@@ -30,7 +30,13 @@ import { AREAS, CHAT_GROUPS, CHATS, SETTINGS, type SettingsSection, USER } from 
 type ChatView = { id?: string } | { area: "agents" | "inbox" };
 
 /** `start` and `providers` let other prototypes open the shell right in settings with their own providers page. */
-export const ShellModes = ({ start = "chat", providers }: { start?: "chat" | "settings"; providers?: React.ReactNode } = {}) => {
+type Pages = Partial<Record<SettingsSection, React.ReactNode>>;
+
+export const ShellModes = ({
+  start = "chat",
+  providers,
+  pages,
+}: { start?: "chat" | "settings"; providers?: React.ReactNode; pages?: Pages } = {}) => {
   const [mode, setMode] = useState<"chat" | "settings">(start);
   const [chat, setChat] = useState<ChatView>({});
   const [section, setSection] = useState<SettingsSection>("providers");
@@ -50,7 +56,7 @@ export const ShellModes = ({ start = "chat", providers }: { start?: "chat" | "se
   return mode === "chat" ? (
     <ChatMode chat={chat} onChat={setChat} onSettings={() => setMode("settings")} />
   ) : (
-    <SettingsMode onBack={() => setMode("chat")} onSection={setSection} providers={providers} section={section} />
+    <SettingsMode onBack={() => setMode("chat")} onSection={setSection} pages={{ providers, ...pages }} section={section} />
   );
 };
 
@@ -131,12 +137,12 @@ const SettingsMode = ({
   section,
   onSection,
   onBack,
-  providers,
+  pages,
 }: {
   section: SettingsSection;
   onSection: (s: SettingsSection) => void;
   onBack: () => void;
-  providers?: React.ReactNode;
+  pages?: Pages;
 }) => {
   const [q, setQ] = useState("");
   const groups = SETTINGS.map((g) => ({ ...g, items: g.items.filter((i) => `${i.label} ${i.hint}`.toLowerCase().includes(q.toLowerCase())) })).filter(
@@ -186,7 +192,7 @@ const SettingsMode = ({
           {!groups.length && <p className="text-muted-foreground px-2 text-sm">Ничего не нашлось</p>}
         </nav>
         <main className="bg-background min-w-0 flex-1 overflow-y-auto" key={section}>
-          {section === "providers" && providers ? providers : <SettingsPage section={section} />}
+          {pages?.[section] ?? <SettingsPage section={section} />}
         </main>
       </div>
     </div>
