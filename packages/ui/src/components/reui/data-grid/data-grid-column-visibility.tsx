@@ -4,8 +4,8 @@ import type { ReactElement } from "react"
 import {
   getColumnHeaderLabel,
   useDataGrid,
-} from "@purr/ui/components/reui/data-grid/data-grid"
-import type { DataGridFeatures } from "@purr/ui/components/reui/data-grid/data-grid"
+} from "@metobe/ui/components/reui/data-grid/data-grid"
+import type { DataGridFeatures } from "@metobe/ui/components/reui/data-grid/data-grid"
 import type { Table } from "@tanstack/react-table"
 
 import {
@@ -15,7 +15,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@purr/ui/components/dropdown-menu"
+} from "@metobe/ui/components/dropdown-menu"
 
 function DataGridColumnVisibility<TData extends object>({
   table,

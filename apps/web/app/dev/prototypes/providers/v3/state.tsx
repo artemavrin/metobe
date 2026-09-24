@@ -65,7 +65,7 @@ const seedProxies = (): ProxyEntry[] => [
     id: "corp",
     title: "Корп-прокси",
     type: "http",
-    user: "svc-purr",
+    user: "svc-metobe",
   },
   {
     address: "51.15.0.7:1080",

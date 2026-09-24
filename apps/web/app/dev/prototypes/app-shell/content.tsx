@@ -1,8 +1,8 @@
 "use client";
 
 // Screens shared by every shell variant, so the variants differ only in the shell around them.
-import { Avatar, AvatarFallback } from "@purr/ui/components/avatar";
-import { Button } from "@purr/ui/components/button";
+import { Avatar, AvatarFallback } from "@metobe/ui/components/avatar";
+import { Button } from "@metobe/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,11 +12,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "@purr/ui/components/dropdown-menu";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@purr/ui/components/empty";
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@purr/ui/components/input-group";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { IconTile } from "@purr/ui/components/reui/icon-tile";
+} from "@metobe/ui/components/dropdown-menu";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@metobe/ui/components/empty";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@metobe/ui/components/input-group";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
 import { ArrowUp, Bot, ChevronDown, LogOut, Moon, Paperclip, Settings, User } from "lucide-react";
 
 import { NO_AUTOFILL, ProviderMark } from "../_p7/shared";

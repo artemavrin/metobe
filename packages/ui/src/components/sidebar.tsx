@@ -6,23 +6,23 @@ import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
-import { useIsMobile } from "@purr/ui/hooks/use-mobile"
-import { Button } from "@purr/ui/components/button"
-import { Input } from "@purr/ui/components/input"
-import { Separator } from "@purr/ui/components/separator"
+import { useIsMobile } from "@metobe/ui/hooks/use-mobile"
+import { Button } from "@metobe/ui/components/button"
+import { Input } from "@metobe/ui/components/input"
+import { Separator } from "@metobe/ui/components/separator"
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@purr/ui/components/sheet"
-import { Skeleton } from "@purr/ui/components/skeleton"
+} from "@metobe/ui/components/sheet"
+import { Skeleton } from "@metobe/ui/components/skeleton"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@purr/ui/components/tooltip"
+} from "@metobe/ui/components/tooltip"
 import { PanelLeftIcon } from "lucide-react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"

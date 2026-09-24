@@ -17,7 +17,7 @@ import type {
 } from "canvas-confetti"
 import confetti from "canvas-confetti"
 
-import { Button } from "@purr/ui/components/button"
+import { Button } from "@metobe/ui/components/button"
 
 export type ConfettiRef = {
   fire: (options?: ConfettiOptions) => Promise<void> | void

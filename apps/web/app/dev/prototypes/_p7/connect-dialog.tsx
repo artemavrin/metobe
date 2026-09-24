@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@purr/ui/components/button";
+import { Button } from "@metobe/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@purr/ui/components/dialog";
+} from "@metobe/ui/components/dialog";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useState } from "react";
 

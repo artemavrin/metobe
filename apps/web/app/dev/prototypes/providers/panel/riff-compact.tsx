@@ -2,12 +2,12 @@
 
 // Riff «Компакт»: providers shrink to a rail of marks, the connection is one editable strip, the table gets
 // bulk selection and inline price editing.
-import { Button } from "@purr/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
-import { Alert, AlertDescription } from "@purr/ui/components/reui/alert";
-import { Frame, FramePanel } from "@purr/ui/components/reui/frame";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@metobe/ui/components/popover";
+import { Alert, AlertDescription } from "@metobe/ui/components/reui/alert";
+import { Frame, FramePanel } from "@metobe/ui/components/reui/frame";
+import { cn } from "@metobe/ui/lib/utils";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { CircleAlert, KeyRound, Pencil, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";

@@ -1,5 +1,5 @@
 {
-  "name": "@purr/cli",
+  "name": "@metobe/cli",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,11 +9,11 @@
     "cli": "tsx --conditions=react-server --env-file=../../.env src/index.ts"
   },
   "dependencies": {
-    "@purr/core": "workspace:*",
-    "@purr/db": "workspace:*"
+    "@metobe/core": "workspace:*",
+    "@metobe/db": "workspace:*"
   },
   "devDependencies": {
-    "@purr/tsconfig": "workspace:*",
+    "@metobe/tsconfig": "workspace:*",
     "@types/node": "^20",
     "tsup": "^8",
     "tsx": "^4",

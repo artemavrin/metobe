@@ -1,5 +1,5 @@
 {
-  "name": "@purr/db",
+  "name": "@metobe/db",
   "private": true,
   "type": "module",
   "exports": {
@@ -17,7 +17,7 @@
     "postgres": "^3.4.9"
   },
   "devDependencies": {
-    "@purr/tsconfig": "workspace:*",
+    "@metobe/tsconfig": "workspace:*",
     "@types/node": "^20",
     "drizzle-kit": "^0.31.11",
     "typescript": "^5"

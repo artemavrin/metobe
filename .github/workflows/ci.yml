@@ -41,15 +41,15 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The real installer from this checkout; PURR_BUILD tests this commit instead of a published image.
+      # The real installer from this checkout; METOBE_BUILD tests this commit instead of a published image.
       # Fed through stdin like `curl | bash`, so nothing may read the rest of the script.
       - run: bash < install.sh | tee /tmp/install.log && grep -q '/claim?token=' /tmp/install.log
         working-directory: scripts
         env:
-          PURR_YES: "1"
-          PURR_BUILD: "1"
-      - run: pnpm --filter @purr/web exec playwright install --with-deps chromium
-      - run: pnpm --filter @purr/web test:e2e
+          METOBE_YES: "1"
+          METOBE_BUILD: "1"
+      - run: pnpm --filter @metobe/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @metobe/web test:e2e
       - if: failure()
         run: docker compose logs --no-color
       - if: failure()
@@ -164,8 +164,8 @@ jobs:
       - name: Attach installer and compose file
         run: |
           mkdir -p /tmp/assets
-          sed "s/^PURR_VERSION=\"\"/PURR_VERSION=\"$VERSION\"/" scripts/install.sh > /tmp/assets/install.sh
-          grep -q "^PURR_VERSION=\"$VERSION\"" /tmp/assets/install.sh
+          sed "s/^METOBE_VERSION=\"\"/METOBE_VERSION=\"$VERSION\"/" scripts/install.sh > /tmp/assets/install.sh
+          grep -q "^METOBE_VERSION=\"$VERSION\"" /tmp/assets/install.sh
           cp compose.yml /tmp/assets/compose.yml
           gh release upload "$TAG" /tmp/assets/install.sh /tmp/assets/compose.yml --clobber
       - name: Publish the release

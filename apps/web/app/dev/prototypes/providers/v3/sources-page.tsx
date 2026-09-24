@@ -2,15 +2,15 @@
 
 // «Источники»: who gives access to models. Calm list → detail: a list with live health, a detail page with the check
 // as an object, connection as settings rows, models grouped by provider with logos, a danger zone at the end.
-import { Button } from "@purr/ui/components/button";
-import { Input } from "@purr/ui/components/input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@purr/ui/components/select";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Switch } from "@purr/ui/components/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { Input } from "@metobe/ui/components/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@metobe/ui/components/popover";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@metobe/ui/components/select";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Switch } from "@metobe/ui/components/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { cn } from "@metobe/ui/lib/utils";
 import { ChevronDown, Network, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 

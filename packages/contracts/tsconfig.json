@@ -1,4 +1,4 @@
 {
-  "extends": "@purr/tsconfig/react-library.json",
+  "extends": "@metobe/tsconfig/react-library.json",
   "include": ["src"]
 }

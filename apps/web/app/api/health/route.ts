@@ -1,4 +1,4 @@
-import { checkHealth } from "@purr/core/health";
+import { checkHealth } from "@metobe/core/health";
 
 export const GET = async () => {
   const health = await checkHealth();

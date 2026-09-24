@@ -26,14 +26,14 @@ importers:
 
   apps/cli:
     dependencies:
-      '@purr/core':
+      '@metobe/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@purr/db':
+      '@metobe/db':
         specifier: workspace:*
         version: link:../../packages/db
     devDependencies:
-      '@purr/tsconfig':
+      '@metobe/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/node':
@@ -54,13 +54,13 @@ importers:
       '@lobehub/icons-static-svg':
         specifier: ^1.95.1
         version: 1.95.1
-      '@purr/contracts':
+      '@metobe/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@purr/core':
+      '@metobe/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@purr/ui':
+      '@metobe/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@tanstack/react-table':
@@ -91,12 +91,12 @@ importers:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
+      '@metobe/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
-      '@purr/tsconfig':
-        specifier: workspace:*
-        version: link:../../packages/tsconfig
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.3
@@ -121,11 +121,11 @@ importers:
 
   apps/worker:
     dependencies:
-      '@purr/core':
+      '@metobe/core':
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
-      '@purr/tsconfig':
+      '@metobe/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/node':
@@ -147,7 +147,7 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@purr/tsconfig':
+      '@metobe/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       typescript:
@@ -156,10 +156,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@purr/contracts':
+      '@metobe/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@purr/db':
+      '@metobe/db':
         specifier: workspace:*
         version: link:../db
       better-auth:
@@ -178,7 +178,7 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@purr/tsconfig':
+      '@metobe/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -200,7 +200,7 @@ importers:
         specifier: ^3.4.9
         version: 3.4.9
     devDependencies:
-      '@purr/tsconfig':
+      '@metobe/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -266,7 +266,7 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
-      '@purr/tsconfig':
+      '@metobe/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@tailwindcss/postcss':

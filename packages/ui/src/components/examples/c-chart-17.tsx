@@ -9,7 +9,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@purr/ui/components/card"
+} from "@metobe/ui/components/card"
 import {
   ChartContainer,
   ChartLegend,
@@ -17,7 +17,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@purr/ui/components/chart"
+} from "@metobe/ui/components/chart"
 
 const chartData = [
   { month: "January", forecast: 2600, forecastArea: 2600 },

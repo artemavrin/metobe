@@ -1,20 +1,20 @@
 "use client";
 
 // Direction: one document — every provider is a Frame section with its models as a switch list; proxies at the end.
-import { Button } from "@purr/ui/components/button";
+import { Button } from "@metobe/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@purr/ui/components/dropdown-menu";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@purr/ui/components/item";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Frame, FrameDescription, FrameFooter, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
-import { IconTile } from "@purr/ui/components/reui/icon-tile";
-import { Switch } from "@purr/ui/components/switch";
-import { cn } from "@purr/ui/lib/utils";
+} from "@metobe/ui/components/dropdown-menu";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@metobe/ui/components/item";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Frame, FrameDescription, FrameFooter, FrameHeader, FramePanel, FrameTitle } from "@metobe/ui/components/reui/frame";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
+import { Switch } from "@metobe/ui/components/switch";
+import { cn } from "@metobe/ui/lib/utils";
 import { ChevronDown, Ellipsis, Globe, MessageSquare, Network, Plus } from "lucide-react";
 import { useState } from "react";
 
@@ -119,7 +119,7 @@ export const ProvidersSettings = () => {
 export const SettingsSections = () => (
   <div className="bg-background min-h-dvh">
     <header className="bg-background/80 sticky top-0 z-10 flex h-14 items-center justify-between border-b px-6 backdrop-blur">
-      <span className="text-sm font-semibold">Purr · Настройки</span>
+      <span className="text-sm font-semibold">Metobe · Настройки</span>
       <Button size="sm" variant="outline">
         <MessageSquare /> Чат
       </Button>

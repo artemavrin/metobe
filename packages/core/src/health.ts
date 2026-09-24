@@ -1,5 +1,5 @@
 import "server-only";
-import type { HealthResponse } from "@purr/contracts/health";
+import type { HealthResponse } from "@metobe/contracts/health";
 
 import { getDb } from "./db";
 

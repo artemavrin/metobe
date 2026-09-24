@@ -11,11 +11,11 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@purr/ui/components",
-    "utils": "@purr/ui/lib/utils",
-    "hooks": "@purr/ui/hooks",
-    "lib": "@purr/ui/lib",
-    "ui": "@purr/ui/components"
+    "components": "@metobe/ui/components",
+    "utils": "@metobe/ui/lib/utils",
+    "hooks": "@metobe/ui/hooks",
+    "lib": "@metobe/ui/lib",
+    "ui": "@metobe/ui/components"
   },
   "rtl": false,
   "menuColor": "default",

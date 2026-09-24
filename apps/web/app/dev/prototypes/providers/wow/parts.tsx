@@ -1,10 +1,10 @@
 "use client";
 
 // Pieces shared by the «вау» directions: the models switch list in the onboarding's visual language.
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Switch } from "@purr/ui/components/switch";
-import { cn } from "@purr/ui/lib/utils";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Switch } from "@metobe/ui/components/switch";
+import { cn } from "@metobe/ui/lib/utils";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 

@@ -1,11 +1,11 @@
-import { isMailConfigured } from "@purr/core/mail";
+import { isMailConfigured } from "@metobe/core/mail";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@purr/ui/components/card";
+} from "@metobe/ui/components/card";
 import { connection } from "next/server";
 
 import { LoginForm } from "./login-form";
@@ -18,7 +18,7 @@ const LoginPage = async () => {
     <main className="flex min-h-dvh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Вход в Purr</CardTitle>
+          <CardTitle>Вход в Metobe</CardTitle>
           <CardDescription>
             Пришлём ссылку и код — пароль не нужен.
           </CardDescription>

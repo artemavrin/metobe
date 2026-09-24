@@ -2,11 +2,11 @@
 
 // Card "Колода": the steps still ahead peek out behind the card; the deck thins as you go.
 // Riffs: "Тихая" (baseline), "Подписи" (back cards name the next steps), "Тасовка" (cards travel between steps).
-import { Button } from "@purr/ui/components/button";
-import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
-import { IconTile } from "@purr/ui/components/reui/icon-tile";
-import { Separator } from "@purr/ui/components/separator";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@metobe/ui/components/reui/frame";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
+import { Separator } from "@metobe/ui/components/separator";
+import { cn } from "@metobe/ui/lib/utils";
 import { ArrowLeft, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 

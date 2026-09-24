@@ -1,14 +1,14 @@
 "use client";
 
-import { Button } from "@purr/ui/components/button";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@purr/ui/components/field";
-import { Input } from "@purr/ui/components/input";
+import { Button } from "@metobe/ui/components/button";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@metobe/ui/components/field";
+import { Input } from "@metobe/ui/components/input";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
-} from "@purr/ui/components/input-group";
+} from "@metobe/ui/components/input-group";
 import {
   Item,
   ItemActions,
@@ -17,9 +17,9 @@ import {
   ItemGroup,
   ItemMedia,
   ItemTitle,
-} from "@purr/ui/components/item";
-import { Alert, AlertDescription, AlertTitle } from "@purr/ui/components/reui/alert";
-import { Badge } from "@purr/ui/components/reui/badge";
+} from "@metobe/ui/components/item";
+import { Alert, AlertDescription, AlertTitle } from "@metobe/ui/components/reui/alert";
+import { Badge } from "@metobe/ui/components/reui/badge";
 import {
   Stepper,
   StepperDescription,
@@ -29,8 +29,8 @@ import {
   StepperSeparator,
   StepperTitle,
   StepperTrigger,
-} from "@purr/ui/components/reui/stepper";
-import { cn } from "@purr/ui/lib/utils";
+} from "@metobe/ui/components/reui/stepper";
+import { cn } from "@metobe/ui/lib/utils";
 import { ArrowLeftRight, Check, ChevronRight, CircleAlert, Globe, KeyRound, LoaderCircle, Network, Route } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 

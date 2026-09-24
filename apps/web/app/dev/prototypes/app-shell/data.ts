@@ -90,4 +90,4 @@ export const CHATS: { id: string; title: string; group: "Сегодня" | "Вч
 
 export const CHAT_GROUPS = ["Сегодня", "Вчера", "На этой неделе", "Раньше"] as const;
 
-export const USER = { email: "artem@purr.local", initials: "АМ", name: "Артём", role: "Админ" };
+export const USER = { email: "artem@metobe.local", initials: "АМ", name: "Артём", role: "Админ" };

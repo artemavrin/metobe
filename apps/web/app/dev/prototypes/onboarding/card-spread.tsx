@@ -1,10 +1,10 @@
 "use client";
 
 // Card "Разворот": one wide card, two columns — the left page names the step, the right page does it.
-import { Button } from "@purr/ui/components/button";
-import { Frame, FramePanel } from "@purr/ui/components/reui/frame";
-import { IconTile } from "@purr/ui/components/reui/icon-tile";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { Frame, FramePanel } from "@metobe/ui/components/reui/frame";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
+import { cn } from "@metobe/ui/lib/utils";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { copy, STEPS, StepBody, stepNumber, stepSummary, useOnboarding } from "./steps";
@@ -20,7 +20,7 @@ export const CardSpread = () => {
       <Frame className="h-fit w-full max-w-4xl" spacing="lg">
         <FramePanel className="grid grid-cols-[280px_1fr] gap-0 p-0!">
           <aside className="bg-muted/50 flex flex-col gap-6 rounded-l-[inherit] border-r p-7">
-            <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">Настройка Purr</span>
+            <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">Настройка Metobe</span>
             <div className="animate-in fade-in slide-in-from-bottom-1 fill-mode-both flex flex-col gap-2 duration-200 ease-out" key={o.step}>
               {o.step === "done" ? (
                 <IconTile className="text-success animate-in zoom-in-90 fade-in fill-mode-both duration-300 ease-out" size="lg" variant="soft">

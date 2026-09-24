@@ -1,15 +1,15 @@
 "use client";
 
 // Direction: models first — one table of every model from every provider; providers are a filter strip on top.
-import { Button } from "@purr/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Label } from "@purr/ui/components/label";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Frame, FrameFooter, FramePanel } from "@purr/ui/components/reui/frame";
-import { Switch } from "@purr/ui/components/switch";
-import { ToggleGroup, ToggleGroupItem } from "@purr/ui/components/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Label } from "@metobe/ui/components/label";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Frame, FrameFooter, FramePanel } from "@metobe/ui/components/reui/frame";
+import { Switch } from "@metobe/ui/components/switch";
+import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { cn } from "@metobe/ui/lib/utils";
 import { Braces, Brain, Eye, Globe, MessageSquare, Plus, Route, Search, Wrench } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -83,7 +83,7 @@ export const SettingsModels = ({ embedded = false }: { embedded?: boolean }) => 
     <div className={cn("bg-background text-sm", !embedded && "min-h-dvh")}>
       {!embedded && (
       <header className="flex h-14 items-center justify-between border-b px-6">
-        <span className="font-semibold">Purr · Настройки</span>
+        <span className="font-semibold">Metobe · Настройки</span>
         <Button size="sm" variant="outline">
           <MessageSquare /> Чат
         </Button>

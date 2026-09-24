@@ -1,9 +1,9 @@
-import { createAuth } from "@purr/core/auth";
-import { issueClaimLink } from "@purr/core/claim";
-import { getEnv } from "@purr/core/env";
-import { buildLoginLink } from "@purr/core/login-link";
-import { findUserByEmail } from "@purr/core/users";
-import { runMigrations } from "@purr/db/migrate";
+import { createAuth } from "@metobe/core/auth";
+import { issueClaimLink } from "@metobe/core/claim";
+import { getEnv } from "@metobe/core/env";
+import { buildLoginLink } from "@metobe/core/login-link";
+import { findUserByEmail } from "@metobe/core/users";
+import { runMigrations } from "@metobe/db/migrate";
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   "claim-link": async () => {

@@ -1,4 +1,4 @@
-import type { Db } from "@purr/db/client";
+import type { Db } from "@metobe/db/client";
 import type { BetterAuthOptions, BetterAuthPlugin } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { emailOTP } from "better-auth/plugins/email-otp";

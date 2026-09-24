@@ -4,9 +4,9 @@ set -e
 case "$1" in
   web)
     # Migrations run under a Postgres advisory lock, so concurrent starts are safe.
-    purr migrate
+    metobe migrate
     # Prints a one-time claim link until the first superuser exists.
-    purr claim-link
+    metobe claim-link
     exec node apps/web/server.js
     ;;
   worker)

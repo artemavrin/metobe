@@ -161,7 +161,7 @@ await checkBlocked("pinned HTTP blocks 10.0.0.1", () => status("http://10.0.0.1/
 async function mail(proxy: string, subject: string) {
   const transport = nodemailer.createTransport({ host: "mailpit", port: 1025, secure: false, proxy } as never);
   transport.set("proxy_socks_module", { SocksClient });
-  const info = await transport.sendMail({ from: "spike@purr.test", to: "me@purr.test", subject, text: "hi" });
+  const info = await transport.sendMail({ from: "spike@metobe.test", to: "me@metobe.test", subject, text: "hi" });
   return info.response;
 }
 await check("SMTP via SOCKS5", () => mail("socks5://spike:secret@127.0.0.1:11080", "via socks5"));

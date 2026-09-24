@@ -1,10 +1,10 @@
 "use client";
 
 // Card "Шапка": brand and progress live inside the card's own header; nothing floats outside it.
-import { Button } from "@purr/ui/components/button";
-import { Frame, FrameDescription, FrameFooter, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
-import { IconTile } from "@purr/ui/components/reui/icon-tile";
-import { Stepper, StepperIndicator, StepperItem, StepperNav, StepperTrigger } from "@purr/ui/components/reui/stepper";
+import { Button } from "@metobe/ui/components/button";
+import { Frame, FrameDescription, FrameFooter, FrameHeader, FramePanel, FrameTitle } from "@metobe/ui/components/reui/frame";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
+import { Stepper, StepperIndicator, StepperItem, StepperNav, StepperTrigger } from "@metobe/ui/components/reui/stepper";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { copy, STEPS, StepBody, stepNumber, useOnboarding } from "./steps";
@@ -21,7 +21,7 @@ export const CardHeader = () => {
         <FrameHeader className="gap-5">
           <div className="flex items-center gap-3">
             <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs font-semibold">P</span>
-            <span className="text-sm font-medium">Настройка Purr</span>
+            <span className="text-sm font-medium">Настройка Metobe</span>
             {o.step !== "done" && (
               <div className="ml-auto flex items-center gap-2.5">
                 <Stepper className="w-24" value={n}>

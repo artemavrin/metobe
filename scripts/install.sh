@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Purr installer and updater.
+# Metobe installer and updater.
 #
-#   curl -fsSL https://github.com/artemavrin/purr/releases/latest/download/install.sh | bash
+#   curl -fsSL https://github.com/artemavrin/metobe/releases/latest/download/install.sh | bash
 #
-# Installs into ./purr (PURR_DIR to change). Running it again updates to the latest release and keeps .env.
-# From a git checkout it installs that checkout instead (PURR_BUILD=1 builds the image from source).
+# Installs into ./metobe (METOBE_DIR to change). Running it again updates to the latest release and keeps .env.
+# From a git checkout it installs that checkout instead (METOBE_BUILD=1 builds the image from source).
 #
-# Non-interactive: PURR_YES=1 plus PURR_URL, PURR_PORT, PURR_DATABASE_URL, PURR_PROXY, PURR_SMTP_URL as needed.
-# Inputs are PURR_-prefixed on purpose: a shell-wide HTTPS_PROXY must not leak into the containers.
+# Non-interactive: METOBE_YES=1 plus METOBE_URL, METOBE_PORT, METOBE_DATABASE_URL, METOBE_PROXY, METOBE_SMTP_URL as needed.
+# Inputs are METOBE_-prefixed on purpose: a shell-wide HTTPS_PROXY must not leak into the containers.
 set -euo pipefail
 
 # Stamped by the release workflow; empty when running from a git checkout.
-PURR_VERSION=""
-REPO="artemavrin/purr"
+METOBE_VERSION=""
+REPO="artemavrin/metobe"
 
 bold=$'\033[1m'; dim=$'\033[2m'; red=$'\033[31m'; green=$'\033[32m'; yellow=$'\033[33m'; off=$'\033[0m'
 [ -t 1 ] || { bold=""; dim=""; red=""; green=""; yellow=""; off=""; }
@@ -22,7 +22,7 @@ fail() { printf '%sОшибка:%s %s\n' "$red" "$off" "$*" >&2; exit 1; }
 
 # `curl | bash` gives the script stdin, so questions are read from the terminal directly.
 tty_in=""
-if [ "${PURR_YES:-}" != "1" ] && { exec 3</dev/tty; } 2>/dev/null; then tty_in=3; fi
+if [ "${METOBE_YES:-}" != "1" ] && { exec 3</dev/tty; } 2>/dev/null; then tty_in=3; fi
 
 # ask VAR "question" "default" — keeps a value already set in the environment.
 ask() {
@@ -44,68 +44,68 @@ command -v openssl >/dev/null || fail "не найден openssl"
 
 # --- where we install ------------------------------------------------------------------------------
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
-if [ -z "$PURR_VERSION" ] && [ -f "$script_dir/../compose.yml" ] && [ -f "$script_dir/../docker/Dockerfile" ]; then
+if [ -z "$METOBE_VERSION" ] && [ -f "$script_dir/../compose.yml" ] && [ -f "$script_dir/../docker/Dockerfile" ]; then
   mode="checkout"
   cd "$script_dir/.."
-  image="${PURR_IMAGE:-ghcr.io/$REPO:latest}"
+  image="${METOBE_IMAGE:-ghcr.io/$REPO:latest}"
 else
   mode="release"
   command -v curl >/dev/null || fail "не найден curl"
-  if [ -z "$PURR_VERSION" ]; then
-    PURR_VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -nE 's/.*"tag_name": *"v?([^"]+)".*/\1/p' | head -1)"
-    [ -n "$PURR_VERSION" ] || fail "не удалось узнать последнюю версию Purr"
+  if [ -z "$METOBE_VERSION" ]; then
+    METOBE_VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -nE 's/.*"tag_name": *"v?([^"]+)".*/\1/p' | head -1)"
+    [ -n "$METOBE_VERSION" ] || fail "не удалось узнать последнюю версию Metobe"
   fi
-  mkdir -p "${PURR_DIR:-purr}"
-  cd "${PURR_DIR:-purr}"
-  curl -fsSL "https://github.com/$REPO/releases/download/v$PURR_VERSION/compose.yml" -o compose.yml ||
-    fail "не удалось скачать compose.yml версии $PURR_VERSION"
-  image="ghcr.io/$REPO:$PURR_VERSION"
+  mkdir -p "${METOBE_DIR:-metobe}"
+  cd "${METOBE_DIR:-metobe}"
+  curl -fsSL "https://github.com/$REPO/releases/download/v$METOBE_VERSION/compose.yml" -o compose.yml ||
+    fail "не удалось скачать compose.yml версии $METOBE_VERSION"
+  image="ghcr.io/$REPO:$METOBE_VERSION"
 fi
 
 # Under `curl | bash` stdin is the rest of this script: docker must not read it.
 compose() { docker compose -f compose.yml --env-file .env "$@" </dev/null; }
 
-say "${bold}Purr${off}${PURR_VERSION:+ $PURR_VERSION} — $(pwd)"
+say "${bold}Metobe${off}${METOBE_VERSION:+ $METOBE_VERSION} — $(pwd)"
 say
 
 # --- .env ------------------------------------------------------------------------------------------
 if [ -f .env ]; then
   say "Найден .env — секреты не меняю."
-  if grep -q '^PURR_IMAGE=' .env; then
-    sed -i.bak "s#^PURR_IMAGE=.*#PURR_IMAGE=$image#" .env && rm -f .env.bak
+  if grep -q '^METOBE_IMAGE=' .env; then
+    sed -i.bak "s#^METOBE_IMAGE=.*#METOBE_IMAGE=$image#" .env && rm -f .env.bak
   else
-    echo "PURR_IMAGE=$image" >> .env
+    echo "METOBE_IMAGE=$image" >> .env
   fi
 else
-  ask PURR_URL "По какому адресу будут открывать Purr" "http://localhost:3000"
-  ask PURR_PORT "Порт на этой машине" "3000"
-  if [ -z "${PURR_DATABASE_URL:-}" ]; then
-    ask PURR_DB_CHOICE "База данных: 1 — встроенная, 2 — своя PostgreSQL" "1"
-    if [ "$PURR_DB_CHOICE" = "2" ]; then
-      ask PURR_DATABASE_URL "Адрес своей базы (postgres://user:password@host:5432/db)" ""
-      [ -n "$PURR_DATABASE_URL" ] || fail "для своей базы нужен адрес"
+  ask METOBE_URL "По какому адресу будут открывать Metobe" "http://localhost:3000"
+  ask METOBE_PORT "Порт на этой машине" "3000"
+  if [ -z "${METOBE_DATABASE_URL:-}" ]; then
+    ask METOBE_DB_CHOICE "База данных: 1 — встроенная, 2 — своя PostgreSQL" "1"
+    if [ "$METOBE_DB_CHOICE" = "2" ]; then
+      ask METOBE_DATABASE_URL "Адрес своей базы (postgres://user:password@host:5432/db)" ""
+      [ -n "$METOBE_DATABASE_URL" ] || fail "для своей базы нужен адрес"
     fi
   fi
-  ask PURR_PROXY "Исходящий прокси, если нужен (http://… или socks5://…)" ""
-  ask PURR_SMTP_URL "Почта для писем со входом (smtp://user:pass@host:587), можно позже в настройках" ""
+  ask METOBE_PROXY "Исходящий прокси, если нужен (http://… или socks5://…)" ""
+  ask METOBE_SMTP_URL "Почта для писем со входом (smtp://user:pass@host:587), можно позже в настройках" ""
 
   umask 077
   {
     echo "# Generated by install.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "PURR_IMAGE=$image"
-    echo "APP_PORT=$PURR_PORT"
-    echo "BETTER_AUTH_URL=$PURR_URL"
+    echo "METOBE_IMAGE=$image"
+    echo "APP_PORT=$METOBE_PORT"
+    echo "BETTER_AUTH_URL=$METOBE_URL"
     echo "BETTER_AUTH_SECRET=$(secret)"
     echo "# Encrypts provider keys and connection secrets. Losing it makes them unrecoverable."
     echo "SECRETS_KEY=$(secret)"
-    if [ -n "${PURR_DATABASE_URL:-}" ]; then
-      echo "APP_DATABASE_URL=$PURR_DATABASE_URL"
+    if [ -n "${METOBE_DATABASE_URL:-}" ]; then
+      echo "APP_DATABASE_URL=$METOBE_DATABASE_URL"
     else
       echo "COMPOSE_PROFILES=db"
       echo "POSTGRES_PASSWORD=$(password)"
     fi
-    [ -z "$PURR_PROXY" ] || echo "HTTPS_PROXY=$PURR_PROXY"
-    [ -z "$PURR_SMTP_URL" ] || echo "SMTP_URL=$PURR_SMTP_URL"
+    [ -z "$METOBE_PROXY" ] || echo "HTTPS_PROXY=$METOBE_PROXY"
+    [ -z "$METOBE_SMTP_URL" ] || echo "SMTP_URL=$METOBE_SMTP_URL"
   } > .env
   say
   say "${yellow}Сохраните SECRETS_KEY из файла .env в надёжном месте.${off}"
@@ -120,7 +120,7 @@ build() {
 }
 
 say
-if [ "${PURR_BUILD:-}" = "1" ]; then
+if [ "${METOBE_BUILD:-}" = "1" ]; then
   build
 elif compose pull --quiet app worker; then
   say "Образ $image скачан."
@@ -131,12 +131,12 @@ fi
 say "Запускаю…"
 compose up -d --wait --remove-orphans app worker
 
-link="$(compose exec -T app purr claim-link | grep -oE 'https?://[^ ]+' || true)"
+link="$(compose exec -T app metobe claim-link | grep -oE 'https?://[^ ]+' || true)"
 say
-say "${green}${bold}Purr запущен.${off}"
+say "${green}${bold}Metobe запущен.${off}"
 if [ -n "$link" ]; then
   say "Создайте аккаунт администратора: ${bold}${link}${off}"
-  say "${dim}Ссылка одноразовая и действует 24 часа. Новую выдаст: docker compose exec app purr claim-link${off}"
+  say "${dim}Ссылка одноразовая и действует 24 часа. Новую выдаст: docker compose exec app metobe claim-link${off}"
 else
   say "Вход: $(grep -E '^BETTER_AUTH_URL=' .env | cut -d= -f2-)/login"
 fi

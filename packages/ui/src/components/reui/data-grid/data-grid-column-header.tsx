@@ -5,13 +5,13 @@ import type { HTMLAttributes, ReactNode } from "react"
 import {
   getColumnHeaderLabel,
   useDataGrid,
-} from "@purr/ui/components/reui/data-grid/data-grid"
-import type { DataGridFeatures } from "@purr/ui/components/reui/data-grid/data-grid"
+} from "@metobe/ui/components/reui/data-grid/data-grid"
+import type { DataGridFeatures } from "@metobe/ui/components/reui/data-grid/data-grid"
 import { Subscribe } from "@tanstack/react-table"
 import type { Column } from "@tanstack/react-table"
 
 import { cn } from "cn"
-import { Button } from "@purr/ui/components/button"
+import { Button } from "@metobe/ui/components/button"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -24,7 +24,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@purr/ui/components/dropdown-menu"
+} from "@metobe/ui/components/dropdown-menu"
 import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon, CheckIcon, ArrowLeftToLineIcon, ArrowRightToLineIcon, ArrowLeftIcon, ArrowRightIcon, Settings2Icon, PinOffIcon } from "lucide-react"
 
 interface DataGridColumnHeaderProps<

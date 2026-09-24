@@ -1,10 +1,10 @@
 "use client";
 
-// «Схема»: a live route map. Purr → direct / a proxy → each provider; request dots run along the lines,
+// «Схема»: a live route map. Metobe → direct / a proxy → each provider; request dots run along the lines,
 // a broken key is a red dashed line. Changing a route re-draws the line. The selected node opens below.
-import { Alert, AlertDescription, AlertTitle } from "@purr/ui/components/reui/alert";
-import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
-import { cn } from "@purr/ui/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@metobe/ui/components/reui/alert";
+import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@metobe/ui/components/reui/frame";
+import { cn } from "@metobe/ui/lib/utils";
 import { CircleAlert, Globe, Plus, Route } from "lucide-react";
 import { useState } from "react";
 
@@ -26,7 +26,7 @@ import { ModelSwitchList } from "./parts";
 
 const W = 1000;
 const H = 300;
-const X = { lane: 500, provider: 850, purr: 130 };
+const X = { lane: 500, provider: 850, metobe: 130 };
 
 const LANES = [{ id: "direct", title: "Напрямую" }, ...PROXIES.map((p) => ({ id: p.id, title: p.title }))];
 const laneOf = (p: PanelProvider) => (p.route.kind === "direct" ? "direct" : p.route.proxy.id);
@@ -46,7 +46,7 @@ export const WowMap = () => {
   const pathOf = (x: PanelProvider, i: number) => {
     const yl = yLane(LANES.findIndex((l) => l.id === laneOf(x)));
     const yp = yProvider(i);
-    return `M${X.purr + 70},${H / 2} C${X.purr + 220},${H / 2} ${X.lane - 180},${yl} ${X.lane - 60},${yl} L${X.lane + 60},${yl} C${X.lane + 180},${yl} ${X.provider - 180},${yp} ${X.provider - 70},${yp}`;
+    return `M${X.metobe + 70},${H / 2} C${X.metobe + 220},${H / 2} ${X.lane - 180},${yl} ${X.lane - 60},${yl} L${X.lane + 60},${yl} C${X.lane + 180},${yl} ${X.provider - 180},${yp} ${X.provider - 70},${yp}`;
   };
 
   return (
@@ -93,11 +93,11 @@ export const WowMap = () => {
           })}
         </svg>
 
-        {/* Purr */}
-        <div className="bg-background absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-xl border px-3 py-2 shadow-sm" style={{ left: `${(X.purr / W) * 100}%`, top: "50%" }}>
+        {/* Metobe */}
+        <div className="bg-background absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-xl border px-3 py-2 shadow-sm" style={{ left: `${(X.metobe / W) * 100}%`, top: "50%" }}>
           <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-lg text-xs font-semibold">P</span>
           <span className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold">Purr</span>
+            <span className="text-sm font-semibold">Metobe</span>
             <span className="text-muted-foreground text-[11px]">в чате {total}</span>
           </span>
         </div>

@@ -1,12 +1,12 @@
-import { Badge } from "@purr/ui/components/reui/badge";
+import { Badge } from "@metobe/ui/components/reui/badge";
 import {
   Frame,
   FrameDescription,
   FrameHeader,
   FramePanel,
   FrameTitle,
-} from "@purr/ui/components/reui/frame";
-import { IconTile } from "@purr/ui/components/reui/icon-tile";
+} from "@metobe/ui/components/reui/frame";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
 import {
   Item,
   ItemActions,
@@ -15,7 +15,7 @@ import {
   ItemGroup,
   ItemMedia,
   ItemTitle,
-} from "@purr/ui/components/item";
+} from "@metobe/ui/components/item";
 import { ChevronRight, LayoutDashboard, PanelsTopLeft, Rocket, Server } from "lucide-react";
 import Link from "next/link";
 
@@ -62,7 +62,7 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
     title: "Оболочка",
   },
   {
-    description: "Все компоненты ReUI и shadcn в теме Purr",
+    description: "Все компоненты ReUI и shadcn в теме Metobe",
     entries: [
       {
         description: "Кнопки, бейджи, графики, таблица.",
@@ -81,7 +81,7 @@ const STATUS_VARIANT = { витрина: "secondary", выбираем: "warning
 const PrototypesIndex = () => (
   <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-12">
     <header className="flex flex-col gap-1">
-      <h1 className="text-2xl font-semibold tracking-tight">Прототипы Purr</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Прототипы Metobe</h1>
       <p className="text-muted-foreground text-sm">
         Живут здесь, пока идёт разработка. Варианты внутри прототипа переключаются пилюлей внизу или клавишами 1–9.
       </p>

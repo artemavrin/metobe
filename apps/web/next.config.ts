@@ -7,7 +7,12 @@ const nextConfig: NextConfig = {
   // Trace from the monorepo root so workspace packages end up in the standalone build.
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   reactCompiler: true,
-  transpilePackages: ["@purr/ui", "@purr/core", "@purr/contracts", "@purr/db"],
+  transpilePackages: [
+    "@metobe/ui",
+    "@metobe/core",
+    "@metobe/contracts",
+    "@metobe/db",
+  ],
 };
 
 export default nextConfig;

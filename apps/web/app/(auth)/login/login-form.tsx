@@ -1,18 +1,18 @@
 "use client";
 
-import { Button } from "@purr/ui/components/button";
+import { Button } from "@metobe/ui/components/button";
 import {
   Field,
   FieldError,
   FieldGroup,
   FieldLabel,
-} from "@purr/ui/components/field";
-import { Input } from "@purr/ui/components/input";
+} from "@metobe/ui/components/field";
+import { Input } from "@metobe/ui/components/input";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
-} from "@purr/ui/components/input-otp";
+} from "@metobe/ui/components/input-otp";
 import { useActionState, useRef, useState } from "react";
 
 import { sendCode, verifyCode } from "./actions";

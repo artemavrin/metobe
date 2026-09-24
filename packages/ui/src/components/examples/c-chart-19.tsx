@@ -9,13 +9,13 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@purr/ui/components/card"
+} from "@metobe/ui/components/card"
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@purr/ui/components/chart"
+} from "@metobe/ui/components/chart"
 
 const chartData = [
   { source: "direct", visits: 4200, fill: "var(--color-direct)" },

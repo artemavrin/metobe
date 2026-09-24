@@ -1,5 +1,5 @@
 import "server-only";
-import { createDb } from "@purr/db/client";
+import { createDb } from "@metobe/db/client";
 
 import { getEnv } from "./env";
 

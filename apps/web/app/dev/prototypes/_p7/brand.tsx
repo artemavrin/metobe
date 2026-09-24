@@ -36,7 +36,7 @@ import openrouter from "@lobehub/icons-static-svg/icons/openrouter.svg";
 import together from "@lobehub/icons-static-svg/icons/together-color.svg";
 import vllm from "@lobehub/icons-static-svg/icons/vllm-color.svg";
 import xinference from "@lobehub/icons-static-svg/icons/xinference-color.svg";
-import { cn } from "@purr/ui/lib/utils";
+import { cn } from "@metobe/ui/lib/utils";
 
 import type { ProviderKind } from "./mock";
 

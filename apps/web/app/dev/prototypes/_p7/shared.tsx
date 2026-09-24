@@ -1,9 +1,9 @@
 "use client";
 
-import { Badge } from "@purr/ui/components/reui/badge";
-import { IconTile } from "@purr/ui/components/reui/icon-tile";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
-import { cn } from "@purr/ui/lib/utils";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { cn } from "@metobe/ui/lib/utils";
 import { Braces, Brain, Eye, Globe, Route, Wrench } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
