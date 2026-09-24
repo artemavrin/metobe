@@ -59,5 +59,22 @@ export type CapabilitySource = (typeof capabilitySources)[number];
 export const currencies = ["USD", "RUB"] as const;
 export type Currency = (typeof currencies)[number];
 
+/** A price as typed: a plain decimal, no exponent, so it round-trips exactly through Postgres numeric. */
+export const decimalSchema = z
+  .string()
+  .trim()
+  .regex(/^\d+(?:\.\d+)?$/u, "decimal");
+
+/** Model prices per `unitTokens` tokens (any positive count), in one currency. Every price is optional. */
+export const pricingSchema = z.object({
+  cacheRead: decimalSchema.nullable(),
+  cacheWrite: decimalSchema.nullable(),
+  currency: z.enum(currencies),
+  input: decimalSchema.nullable(),
+  output: decimalSchema.nullable(),
+  unitTokens: z.number().int().positive(),
+});
+export type Pricing = z.infer<typeof pricingSchema>;
+
 export const runStatuses = ["ok", "error", "aborted"] as const;
 export type RunStatus = (typeof runStatuses)[number];

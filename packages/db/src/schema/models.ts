@@ -101,11 +101,17 @@ export const models = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     /** The source's own id: `gpt-5.2`, `anthropic/claude-sonnet-5`, `yandexgpt-5.1` (the URI is built from the folder). */
     modelId: text("model_id").notNull(),
-    /** Per 1M tokens, in `price_currency`; never converted between currencies (D19). */
-    priceCached: numeric("price_cached", { precision: 14, scale: 6 }),
+    /**
+     * Prices exactly as entered or reported, per `price_unit_tokens` tokens (1, 1000, 1M — any), in
+     * `price_currency`. Unbounded numeric: nothing is normalised or rounded, so tiny per-token prices never turn
+     * into zeros; costs are computed exactly (core/pricing). Currencies are never converted (D19).
+     */
+    priceCacheRead: numeric("price_cache_read"),
+    priceCacheWrite: numeric("price_cache_write"),
     priceCurrency: text("price_currency").$type<Currency>(),
-    priceInput: numeric("price_input", { precision: 14, scale: 6 }),
-    priceOutput: numeric("price_output", { precision: 14, scale: 6 }),
+    priceInput: numeric("price_input"),
+    priceOutput: numeric("price_output"),
+    priceUnitTokens: integer("price_unit_tokens"),
     providerId: uuid("provider_id")
       .notNull()
       .references(() => providers.id, { onDelete: "restrict" }),
@@ -125,6 +131,10 @@ export const models = pgTable(
     unique("models_source_model").on(table.sourceId, table.modelId),
     index("models_provider").on(table.providerId),
     check(
+      "models_price_unit",
+      sql`${table.priceUnitTokens} is null or ${table.priceUnitTokens} > 0`
+    ),
+    check(
       "models_capabilities_source",
       sql`${table.capabilitiesSource} in ('discovered', 'seed', 'manual')`
     ),
@@ -134,10 +144,12 @@ export const models = pgTable(
 export const modelRuns = pgTable(
   "model_runs",
   {
-    cachedTokens: integer("cached_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
     /** The chat, once chats exist (M3); SET NULL keeps usage history when a chat is deleted. */
     chatId: uuid("chat_id"),
-    cost: numeric("cost", { precision: 14, scale: 6 }),
+    /** Exact: the source's reported cost (AI Gateway) or tokens × the model's prices at the time of the run. */
+    cost: numeric("cost"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
