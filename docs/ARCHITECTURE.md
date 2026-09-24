@@ -364,25 +364,27 @@ Transient `data-status` показывает фазы: `waiting-model` → `thin
 
 ### 7.4 Yandex AI Studio
 
-Официального источника для AI SDK нет, community-пакет `yandex-ai` сидит на `ai@6`. Подключаем через `createOpenAICompatible`: его `headers` применяются после `apiKey`.
+Официального источника для AI SDK нет, community-пакет `yandex-ai` сидит на `ai@6`. Подключаем через `createOpenAICompatible` — проверено spike S3 (`spikes/S3-S7-openai-compatible`).
 
 ```ts
 createOpenAICompatible({
   name: "yandex",
   baseURL: "https://ai.api.cloud.yandex.net/v1",
-  headers: { Authorization: `Api-Key ${apiKey}`, "OpenAI-Project": folderId }, // нужен ли OpenAI-Project — spike S3
+  apiKey, // уходит как Bearer — Яндекс принимает; OpenAI-Project не нужен
+  fetch: yandexFetch(proxiedFetch), // чинит поток Alice AI с инструментами (ниже)
 });
 ```
 
-- В `models.model_id` храним короткое имя (`aliceai-llm`, `yandexgpt-5.1`), фабрика собирает URI `gpt://<folderId>/<model>`.
+- В `models.model_id` храним короткое имя (`aliceai-llm`, `yandexgpt-5.1`), фабрика собирает URI `gpt://<folderId>/<model>/latest` — короткие id API не принимает.
 - AI Studio хостит и чужие открытые модели (Qwen, DeepSeek, gpt-oss): провайдер у них свой, источник — Яндекс.
 - Авторизация — API-ключ сервисного аккаунта с ролью `ai.languageModels.user`. IAM-токены (живут ≤ 12 ч) отложены.
-- `/v1/models` отдаёт только id, всё остальное берём из seed.
+- `/v1/models` отдаёт готовые URI всех моделей каталога (чат `gpt://`, эмбеддинги `emb://`, голос `speech-realtime-*`); для чата берём `gpt://` без `speech-*`. Всё остальное — названия, возможности, цены — из seed.
 - Ограничения, которые учитывает model router:
-  - `tool_choice` принимает только `auto` и `none`;
+  - `tool_choice` принимает `auto`, `none` и `required` (S3);
   - изображения — только base64 data-URL, поэтому вложения из S3 инлайним;
   - structured output подтверждён только для YandexGPT;
-  - стрим с tools не подтверждён — spike S3;
+  - стрим с tools работает у всех моделей (S3). **Alice AI** ломает поток: без `finish_reason` при `auto`, служебный `[TOOL_CALL_END]` в тексте при `required`, `id` вызова равен имени функции. Обёртка `yandexFetch` в `core/ai` чинит все три на лету и остальным моделям не мешает;
+  - стрим у YandexGPT идёт крупными кусками (≈ по предложению) — текст в UI сглаживаем `smoothStream`;
   - квота по умолчанию — 10 одновременных синхронных генераций, так что 429 будут и требуют понятного UX.
 - Оплата в рублях. Нерезиденты России и Казахстана платят в USD и только картами нероссийских банков.
 
@@ -406,7 +408,7 @@ createGateway({ apiKey, fetch: proxiedFetch }); // есть baseURL и headers; 
 
 ### 7.6 Ollama
 
-В v1 — через `createOpenAICompatible` поверх `/v1`. Работают ли так tools, проверяет spike S7. Если нет — community-пакет `ai-sdk-ollama` (peer `ai ^7`), тогда в `sources.kind` добавится `'ollama'`. `ollama-ai-provider` несовместим с `ai@7`.
+Через `createOpenAICompatible` поверх `/v1` — проверено spike S7: стрим, инструменты в обычном и стрим-режиме и цикл «вызов → результат → ответ» работают (`qwen3`, `gemma4`, `gpt-oss`). Отдельный `ai-sdk-ollama` не нужен, `sources.kind` остаётся `'openai-compatible'`. Первый запрос к модели идёт 8–14 с — сервер загружает её в память; статус генерации это подписывает (P9).
 
 ## 8. Инструменты
 

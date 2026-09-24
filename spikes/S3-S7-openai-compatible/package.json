@@ -1,0 +1,14 @@
+{
+  "name": "spike-s3-s7-openai-compatible",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "tsx spike.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.55",
+    "ai": "7.0.113",
+    "tsx": "^4.23.15",
+    "zod": "4.6.5"
+  }
+}

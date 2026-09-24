@@ -12,11 +12,11 @@
 | --- | --- | --- | --- |
 | S1 | Resume + stop на `ai@7` + `resumable-stream`, один инстанс | перезагрузка страницы посреди ответа продолжает стрим; `stop` реально прерывает генерацию и сохраняет частичный ответ | D5, D6 |
 | S2 ✓ | ReUI (приоритет) + shadcn в стиле ReUI + графики на Next 16 / React 19 / Tailwind v4, в монорепо с `packages/ui` | реестр `@reui` ставит компоненты в `packages/ui`, Tailwind видит их классы через `@source`; примитивы shadcn визуально совпадают с ReUI; таблица с фильтрами и график рендерятся; понятно, есть ли графики в ReUI; выбран `base` или `radix` | D20 |
-| S3 | Яндекс через `openai-compatible`: стрим, tools, стрим с tools, нужен ли `OpenAI-Project` | ответ стримится, тул вызывается и в обычном, и в стрим-режиме | ARCH §7.4 |
+| S3 ✓ | Яндекс через `openai-compatible`: стрим, tools, стрим с tools, нужен ли `OpenAI-Project` | ответ стримится, тул вызывается и в обычном, и в стрим-режиме | ARCH §7.4 |
 | S4 ✓ | Прокси: кастомный `fetch` + `undici` ProxyAgent у openai / anthropic / openai-compatible / gateway, SOCKS5-dispatcher (`fetch-socks`?), SMTP через SOCKS в nodemailer, туннель на закреплённый IP с SNI по имени; плюс формат `/v1/models/{id}/endpoints` и `GatewayGenerationInfo` у AI Gateway | стрим идёт через HTTP-прокси у одного источника, через SOCKS5 у другого и напрямую у третьего в одном процессе; письмо уходит через SOCKS5; понятно, откуда брать возможности и фактическую стоимость Gateway | D14, ARCH §7.5 |
 | S5 | `toModelOutput` между шагами `streamText` и обёртка MCP-тулов | модель видит сжатый результат, в `parts` лежит полный; рендер-тул строит виджет по `toolCallId` | D11 |
 | S6 | SeaweedFS S3 в compose | presigned upload из браузера (CORS), healthcheck, ключи из `.env` | D4 |
-| S7 | Ollama через `openai-compatible` `/v1`: tools | tool call работает; если нет — проверить `ai-sdk-ollama` | ARCH §7.6 |
+| S7 ✓ | Ollama через `openai-compatible` `/v1`: tools | tool call работает; если нет — проверить `ai-sdk-ollama` | ARCH §7.6 |
 | S8 | SearXNG в compose: JSON-формат, русские запросы, поведение при ~1 запросе в секунду, прокси в `outgoing.proxies` включая SOCKS5 | `web_search` стабильно возвращает результаты по ru/en; понятно, когда начинаются капчи | D21 |
 | S9 | Web Push в self-hosted Next 16: service worker, VAPID, HTTPS, iPhone, доставка через прокси (`web-push` `proxy`) | уведомление приходит при закрытой вкладке на десктопе; понятно, что нужно для iPhone | D24 |
 | S10 | OAuth MCP через `authProvider` из `@ai-sdk/mcp` с токенами в нашей БД (v2) | подключили публичный OAuth MCP-сервер; токен сам обновился после истечения; отзыв → `needs_reauth` | D25, D26 |

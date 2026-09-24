@@ -134,7 +134,7 @@ docs/
 1. `@metobe/core/secrets`: AES-256-GCM, AAD, canary при старте, `use()`, маски, `metobe secrets:rotate`.
 2. Схема `sources`, `providers`, `models`, `model_runs`, `secrets`.
 3. `@metobe/core/net`: прокси, маршрутизация (явный выбор у объекта → домены прокси → напрямую), dispatcher'ы HTTP и SOCKS5 по итогам S4, проверка прокси, автоподбор прокси при недоступном источнике, закрепление IP для трафика с SSRF-защитой, импорт `HTTPS_PROXY` / `ALL_PROXY` в запись прокси при первом старте. Схема `proxies`, `proxy_domains`, поля `proxy_mode` / `proxy_id` у объектов, UI `/settings/proxies`.
-4. `@metobe/core/ai`: фабрика по `kind`, `fetch` из `core/net`, Яндекс (итоги S3), кеш и сброс по Redis `config:changed`.
+4. `@metobe/core/ai`: фабрика по `kind`, `fetch` из `core/net`, кеш и сброс по Redis `config:changed`. Яндекс (итоги S3): полный URI `gpt://<folder>/<model>/latest`, ключ как Bearer, без `OpenAI-Project`, обёртка `yandexFetch` поверх `fetch` из `core/net` (взять из `spikes/S3-S7-openai-compatible/yandex-fetch.ts` и покрыть тестом на записанных потоках). Ollama (итоги S7) — обычный `openai-compatible`.
 5. Discovery и seed-справочник: Яндекс, цены.
 6. UI настроек источников и моделей — прототип P7. Формы на TanStack Form + Zod, данные через TanStack Query.
    - **Проверить до экрана моделей:** ReUI `DataGrid` на TanStack Table v9 в прототипе не подхватывал новый `data` с теми же id строк — ячейки оставались старыми (цена, возможности). В прототипе обошли перемонтированием по отпечатку данных (`_p7/models-grid.tsx`); в продукте найти причину (как DataGrid ждёт обновления данных в v9) до того, как таблица пойдёт в работу.
