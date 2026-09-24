@@ -2,17 +2,18 @@
 
 import { ShellModes } from "../app-shell/shell-modes";
 import { Picker } from "../_shared/picker";
-import { SettingsModels } from "./settings-models";
-import { SettingsPanel } from "./settings-panel";
-import { ProvidersSettings } from "./settings-sections";
+import { PanelCompact } from "./panel/riff-compact";
+import { PanelInspector } from "./panel/riff-inspector";
+import { PanelTabs } from "./panel/riff-tabs";
 
-// P7: everyday provider and model settings, inside the chosen app shell («Режимы» → settings mode).
+// P7: everyday provider settings inside the chosen shell («Режимы» → settings). Chosen direction: «Панель»;
+// the variants riff on it. The earlier «Панель», «Разделы», «Модели» stay in settings-*.tsx for reference.
 const ProvidersPrototypePage = () => (
   <Picker
     variants={[
-      { Component: () => <ShellModes providers={<SettingsPanel embedded />} start="settings" />, name: "Панель" },
-      { Component: () => <ShellModes providers={<ProvidersSettings />} start="settings" />, name: "Разделы" },
-      { Component: () => <ShellModes providers={<SettingsModels embedded />} start="settings" />, name: "Модели" },
+      { Component: () => <ShellModes providers={<PanelTabs />} start="settings" />, name: "Вкладки" },
+      { Component: () => <ShellModes providers={<PanelInspector />} start="settings" />, name: "Инспектор" },
+      { Component: () => <ShellModes providers={<PanelCompact />} start="settings" />, name: "Компакт" },
     ]}
   />
 );

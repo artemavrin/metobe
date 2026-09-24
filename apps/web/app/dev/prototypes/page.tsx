@@ -39,7 +39,7 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
         title: "Онбординг",
       },
       {
-        description: "Экран на каждый день: «Панель», «Разделы», «Модели».",
+        description: "Внутри режима настроек. Выбрана «Панель», развиваем: «Вкладки», «Инспектор», «Компакт».",
         href: "/dev/prototypes/providers",
         icon: Server,
         status: "выбираем",
