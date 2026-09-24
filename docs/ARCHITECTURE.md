@@ -182,18 +182,20 @@ invitations; // email?, role, token_hash, expires_at, accepted_at
 
 ```ts
 sources; // kind: 'openai'|'anthropic'|'openai-compatible'|'yandex'|'gateway'
-// title, base_url, enabled; ключ — secrets (owner_type = 'source', purpose = 'api_key', §17)
+// title, logo? (своя картинка админа), base_url, enabled; ключ — secrets (owner_type = 'source', purpose = 'api_key', §17)
+// health jsonb — последняя настоящая проверка: state, checked_at, latency_ms, error
 // options jsonb — Zod discriminated union по kind:
 //   yandex: folderId
 // proxy_mode: 'auto' | 'direct' | 'proxy', proxy_id? (§18)
 providers; // кто сделал модель: openai, anthropic, google, alibaba, deepseek, xai, yandex… (D29)
-// slug, title, logo — ключ встроенного значка или своя картинка в S3; title и logo правит админ, синк не перетирает
-models; // source_id, provider_id, model_id, title, enabled, default_access
+// slug, title, logo — ключ встроенного значка или своя картинка в S3; title и logo правит админ,
+// edited = true — синк их больше не перетирает; slug 'other' — для неузнанных
+models; // source_id (CASCADE), provider_id (RESTRICT), model_id, title, enabled (по умолчанию false), default_access, released_at
 // context_window, capabilities jsonb,
 // capabilities_source: 'discovered' | 'seed' | 'manual'
 // price_input / price_output / price_cached — за 1M токенов, price_currency
 // used_for_titles
-model_runs; // chat_id (SET NULL), user_id, model_id,
+model_runs; // chat_id (SET NULL, ключ появится с таблицей чатов), user_id (SET NULL), model_id (SET NULL),
 // input / output / cached tokens, cost, currency, latency_ms, status
 ```
 
