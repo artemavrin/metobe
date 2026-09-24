@@ -5,7 +5,7 @@
   "home": {
     "signedInAs": "Signed in as {email}",
     "signOut": "Sign out",
-    "region": "Language and region"
+    "settings": "Settings"
   },
   "login": {
     "title": "Sign in to Metobe",
@@ -41,10 +41,13 @@
     "timeZone": "Time zone",
     "weekStart": "First day of the week",
     "dateFormat": "Date format",
-    "preview": "Now: {date}, {time}",
-    "save": "Save",
-    "saved": "Saved",
-    "back": "Back"
+    "languageSection": "Language",
+    "dateTimeSection": "Date and time",
+    "languageHint": "Interface, emails and system replies",
+    "timeZoneHint": "Automatic follows your browser; agent schedules use it too",
+    "weekStartHint": "Calendars and weekly reports",
+    "dateFormatHint": "Numeric dates; dates in words follow the language",
+    "now": "now {date}, {time}"
   },
   "email": {
     "signIn": {
@@ -60,5 +63,92 @@
     "claimed": "The administrator has already been created.",
     "noUser": "There is no user {email}. Invite them first.",
     "loginLink": "Sign-in link for {email}: {link}\n  Valid for 10 minutes."
+  },
+  "settings": {
+    "title": "Settings",
+    "back": "Chat",
+    "escHint": "Esc",
+    "search": "Find a setting",
+    "nothing": "Nothing found",
+    "admin": "Administration",
+    "open": "Open menu",
+    "wip": {
+      "title": "In the works",
+      "description": "The section comes in one of the next versions."
+    },
+    "groups": {
+      "account": "Account",
+      "models": "Models",
+      "tools": "Tools",
+      "team": "Team",
+      "system": "System"
+    },
+    "sections": {
+      "appearance": {
+        "label": "Appearance",
+        "hint": "Light, dark or as in the system"
+      },
+      "region": {
+        "label": "Language and region",
+        "hint": "Language, time zone, first day of the week, date format"
+      },
+      "sources": {
+        "label": "Sources",
+        "hint": "Who gives access to models: keys, routes, health"
+      },
+      "providers": {
+        "label": "Providers",
+        "hint": "Who made the models: names and logos in the chat"
+      },
+      "connections": {
+        "label": "Connections",
+        "hint": "MCP servers and services for tools"
+      },
+      "skills": {
+        "label": "Skills",
+        "hint": "Ready instructions and abilities for the model"
+      },
+      "search": {
+        "label": "Search",
+        "hint": "Web search for models and agents"
+      },
+      "users": {
+        "label": "Users",
+        "hint": "Invitations, roles, who can do what"
+      },
+      "access": {
+        "label": "Access",
+        "hint": "Who can use which models and connections"
+      },
+      "proxies": {
+        "label": "Proxies",
+        "hint": "Ways out to the internet: set up once, tick what goes through"
+      },
+      "mail": {
+        "label": "Mail",
+        "hint": "SMTP for sign-in and notification emails"
+      },
+      "storage": {
+        "label": "Storage",
+        "hint": "Files and attachments in S3"
+      },
+      "about": {
+        "label": "About",
+        "hint": "Version, updates, master key"
+      }
+    },
+    "appearance": {
+      "title": "Appearance",
+      "description": "The interface theme. Changes only for you, right away.",
+      "theme": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "As in the system"
+    },
+    "roles": {
+      "superuser": "Owner",
+      "admin": "Admin",
+      "user": "Member"
+    }
   }
 }
