@@ -11,6 +11,7 @@
   "dependencies": {
     "@metobe/contracts": "workspace:*",
     "@metobe/db": "workspace:*",
+    "@metobe/i18n": "workspace:*",
     "better-auth": "^1.7.5",
     "drizzle-orm": "^0.45.3",
     "nodemailer": "^10.0.10",

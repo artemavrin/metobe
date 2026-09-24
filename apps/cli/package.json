@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@metobe/core": "workspace:*",
-    "@metobe/db": "workspace:*"
+    "@metobe/db": "workspace:*",
+    "@metobe/i18n": "workspace:*"
   },
   "devDependencies": {
     "@metobe/tsconfig": "workspace:*",

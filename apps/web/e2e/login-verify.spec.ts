@@ -29,5 +29,7 @@ test("typing six digits submits the code", async ({ page }) => {
   await page.locator("input[name=code]").click();
   await page.keyboard.type("111111");
 
-  await expect(page.getByText("Код неверный или устарел")).toBeVisible();
+  await expect(
+    page.getByText("The code is wrong or has expired")
+  ).toBeVisible();
 });

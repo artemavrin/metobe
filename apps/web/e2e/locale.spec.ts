@@ -1,0 +1,52 @@
+import { expect, test } from "@playwright/test";
+
+// D31: the language comes from the `locale` cookie, then Accept-Language, then English.
+
+test("an English browser gets English", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.getByText("Sign in to Metobe")).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+});
+
+test.describe("a Russian browser", () => {
+  test.use({ locale: "ru-RU" });
+
+  test("gets Russian without choosing anything", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.getByText("Вход в Metobe")).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+  });
+});
+
+test("the picker switches the language and it sticks across reloads", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/login");
+  await page.getByRole("combobox", { name: "Language" }).click();
+  await page.getByRole("option", { name: "Русский" }).click();
+
+  // The server action sets the cookie; the page re-renders on the server in Russian.
+  await expect(page.getByText("Вход в Metobe")).toBeVisible();
+  const cookies = await context.cookies();
+  expect(cookies.find((c) => c.name === "locale")?.value).toBe("ru");
+
+  await page.reload();
+  await expect(page.getByText("Вход в Metobe")).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+});
+
+test("the browser reports its time zone once", async ({ browser }) => {
+  const context = await browser.newContext({ timezoneId: "Asia/Tokyo" });
+  const page = await context.newPage();
+  await page.goto("/login");
+  // Next URL-encodes cookie values and decodes them when the server reads them.
+  await expect
+    .poll(async () => {
+      const cookies = await context.cookies();
+      const tz = cookies.find((c) => c.name === "tz")?.value;
+      return tz && decodeURIComponent(tz);
+    })
+    .toBe("Asia/Tokyo");
+  await context.close();
+});

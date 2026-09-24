@@ -38,12 +38,17 @@ export const buildAuthOptions = ({
     session: { expiresIn: 30 * DAY_SECONDS, updateAge: DAY_SECONDS },
     user: {
       additionalFields: {
+        // Regional preferences (D31). Null means «automatic»: the language and zone of the browser.
+        dateFormat: { input: false, required: false, type: "string" },
+        locale: { input: false, required: false, type: "string" },
         role: {
           defaultValue: "user",
           input: false,
           required: true,
           type: "string",
         },
+        timeZone: { input: false, required: false, type: "string" },
+        weekStart: { input: false, required: false, type: "number" },
       },
     },
   }) satisfies BetterAuthOptions;
