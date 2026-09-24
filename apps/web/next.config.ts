@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -12,7 +13,9 @@ const nextConfig: NextConfig = {
     "@metobe/core",
     "@metobe/contracts",
     "@metobe/db",
+    "@metobe/i18n",
   ],
 };
 
-export default nextConfig;
+// Points next-intl at i18n/request.ts, where the language is resolved per request.
+export default createNextIntlPlugin()(nextConfig);

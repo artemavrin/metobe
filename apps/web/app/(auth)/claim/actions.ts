@@ -2,20 +2,16 @@
 
 import { claimFormSchema } from "@metobe/contracts/auth";
 import { redeemClaimToken } from "@metobe/core/claim";
+import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { getAuth } from "@/lib/auth";
+import { translateIssue } from "@/lib/validation";
 
 export interface ClaimState {
   error?: string;
 }
-
-const reasons = {
-  "already-claimed": "Администратор уже создан. Войдите через страницу входа.",
-  "invalid-token":
-    "Ссылка недействительна или устарела. Выпустите новую: docker compose exec app metobe claim-link",
-};
 
 export const claim = async (
   _: ClaimState,
@@ -27,11 +23,19 @@ export const claim = async (
     token: form.get("token"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message };
+    return { error: await translateIssue(parsed.error.issues[0]?.message) };
   }
   const result = await redeemClaimToken(parsed.data);
   if (!result.ok) {
-    return { error: reasons[result.reason] };
+    const t = await getTranslations("claim");
+    return {
+      error:
+        result.reason === "already-claimed"
+          ? t("alreadyClaimed")
+          : t("invalidToken", {
+              command: "docker compose exec app metobe claim-link",
+            }),
+    };
   }
   // The claim link itself is the proof: sign the new superuser in without sending email.
   const otp = await getAuth().api.createVerificationOTP({

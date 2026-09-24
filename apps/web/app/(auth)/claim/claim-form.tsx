@@ -8,6 +8,7 @@ import {
   FieldLabel,
 } from "@metobe/ui/components/field";
 import { Input } from "@metobe/ui/components/input";
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 
 import { claim } from "./actions";
@@ -18,21 +19,22 @@ export const ClaimForm = ({ token }: { token: string }) => {
     claim,
     {}
   );
+  const t = useTranslations("claim");
   return (
     <form action={action}>
       <input name="token" type="hidden" value={token} />
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="name">Как вас зовут</FieldLabel>
+          <FieldLabel htmlFor="name">{t("name")}</FieldLabel>
           <Input autoComplete="name" autoFocus id="name" name="name" />
         </Field>
         <Field data-invalid={Boolean(state.error)}>
-          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <FieldLabel htmlFor="email">{t("email")}</FieldLabel>
           <Input autoComplete="email" id="email" name="email" type="email" />
           {state.error && <FieldError>{state.error}</FieldError>}
         </Field>
         <Button disabled={pending} type="submit">
-          Создать аккаунт
+          {t("create")}
         </Button>
       </FieldGroup>
     </form>

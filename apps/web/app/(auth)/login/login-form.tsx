@@ -13,6 +13,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@metobe/ui/components/input-otp";
+import { useTranslations } from "next-intl";
 import { useActionState, useRef, useState } from "react";
 
 import { sendCode, verifyCode } from "./actions";
@@ -31,6 +32,7 @@ export const CodeForm = ({
     verifyCode,
     {}
   );
+  const t = useTranslations("login");
   const formRef = useRef<HTMLFormElement>(null);
   // input-otp is always controlled internally, so the value lives here rather than in defaultValue.
   const [code, setCode] = useState(initialCode);
@@ -39,7 +41,7 @@ export const CodeForm = ({
       <input name="email" type="hidden" value={email} />
       <FieldGroup>
         <Field data-invalid={Boolean(state.error)}>
-          <FieldLabel htmlFor="code">Код из письма для {email}</FieldLabel>
+          <FieldLabel htmlFor="code">{t("codeLabel", { email })}</FieldLabel>
           <InputOTP
             autoFocus
             onChange={setCode}
@@ -58,7 +60,7 @@ export const CodeForm = ({
           {state.error && <FieldError>{state.error}</FieldError>}
         </Field>
         <Button disabled={pending} type="submit">
-          Войти
+          {t("signIn")}
         </Button>
       </FieldGroup>
     </form>
@@ -70,13 +72,11 @@ export const LoginForm = ({ mailConfigured }: { mailConfigured: boolean }) => {
     sendCode,
     { sent: false }
   );
+  const t = useTranslations("login");
 
   if (!mailConfigured) {
     return (
-      <p className="text-muted-foreground text-sm">
-        Вход по почте ещё не настроен. Попросите у администратора ссылку для
-        входа.
-      </p>
+      <p className="text-muted-foreground text-sm">{t("mailNotConfigured")}</p>
     );
   }
   if (state.sent && state.email) {
@@ -86,7 +86,7 @@ export const LoginForm = ({ mailConfigured }: { mailConfigured: boolean }) => {
     <form action={action}>
       <FieldGroup>
         <Field data-invalid={Boolean(state.error)}>
-          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <FieldLabel htmlFor="email">{t("email")}</FieldLabel>
           <Input
             aria-invalid={Boolean(state.error)}
             autoComplete="email"
@@ -98,7 +98,7 @@ export const LoginForm = ({ mailConfigured }: { mailConfigured: boolean }) => {
           {state.error && <FieldError>{state.error}</FieldError>}
         </Field>
         <Button disabled={pending} type="submit">
-          Получить ссылку для входа
+          {t("send")}
         </Button>
       </FieldGroup>
     </form>

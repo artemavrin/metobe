@@ -4,14 +4,16 @@ import { getEnv } from "@metobe/core/env";
 import { buildLoginLink } from "@metobe/core/login-link";
 import { findUserByEmail } from "@metobe/core/users";
 import { runMigrations } from "@metobe/db/migrate";
+import { getTranslator, localeFromEnv } from "@metobe/i18n/translator";
+
+// Admin-facing output follows the container's LANG; English when it is unset.
+const t = await getTranslator(localeFromEnv(process.env.LANG));
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   "claim-link": async () => {
     const link = await issueClaimLink();
     console.log(
-      link
-        ? `\n  Создайте аккаунт администратора: ${link}\n  Ссылка одноразовая и действует 24 часа.\n`
-        : "Администратор уже создан."
+      link ? `\n  ${t("cli.claimLink", { link })}\n` : t("cli.claimed")
     );
   },
   "login-link": async ([email]) => {
@@ -19,13 +21,13 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       throw new Error("usage: login-link <email>");
     }
     if (!(await findUserByEmail(email))) {
-      throw new Error(`Пользователя ${email} нет. Сначала пригласите его.`);
+      throw new Error(t("cli.noUser", { email }));
     }
     const code = await createAuth().api.createVerificationOTP({
       body: { email, type: "sign-in" },
     });
     console.log(
-      `\n  Ссылка для входа ${email}: ${buildLoginLink(email, code)}\n  Действует 10 минут.\n`
+      `\n  ${t("cli.loginLink", { email, link: buildLoginLink(email, code) })}\n`
     );
   },
   migrate: async () => {

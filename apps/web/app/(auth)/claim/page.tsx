@@ -6,7 +6,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@metobe/ui/components/card";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+
+import { LanguageSelect } from "@/components/language-select";
 
 import { ClaimForm } from "./claim-form";
 
@@ -18,15 +21,14 @@ const ClaimPage = async ({
 }) => {
   const { token = "" } = await searchParams;
   const claimed = await hasSuperuser();
+  const t = await getTranslations("claim");
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
+    <main className="relative flex min-h-dvh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Аккаунт администратора</CardTitle>
+          <CardTitle>{t("title")}</CardTitle>
           <CardDescription>
-            {claimed
-              ? "Администратор уже создан."
-              : "Первый шаг после установки. Пароль не нужен."}
+            {claimed ? t("claimed") : t("first")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -35,13 +37,14 @@ const ClaimPage = async ({
               className="text-primary text-sm underline-offset-4 hover:underline"
               href="/login"
             >
-              Перейти ко входу
+              {t("toLogin")}
             </Link>
           ) : (
             <ClaimForm token={token} />
           )}
         </CardContent>
       </Card>
+      <LanguageSelect className="absolute top-4 right-4" />
     </main>
   );
 };
