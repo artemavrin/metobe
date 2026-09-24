@@ -241,8 +241,8 @@ export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: {
             ))}
           </div>
           <div className="flex items-center justify-between gap-2 border-t pt-3">
-            <Button onClick={() => file.current?.click()} size="sm" variant="outline">
-              <ImageUp /> Загрузить своё
+            <Button onClick={() => file.current?.click()} size="sm" title="Или вставьте из буфера, или перетащите файл сюда" variant="outline">
+              <ImageUp /> Загрузить своё <Kbd className="ml-1">⌘V</Kbd>
             </Button>
             <Button
               onClick={() => {
@@ -262,9 +262,6 @@ export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: {
             ref={file}
             type="file"
           />
-          <span className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
-            Или вставьте картинку <Kbd>⌘V</Kbd>, или перетащите сюда. Лучше квадрат, PNG или SVG.
-          </span>
         </div>
       </PopoverContent>
     </Popover>
