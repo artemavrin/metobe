@@ -9,6 +9,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarHeader,
   SidebarInset,
   SidebarMenuAction,
   SidebarMenuSub,
@@ -19,6 +20,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import { ChevronLeft, ChevronsUpDown, Plus, Search } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useState } from "react";
 
 import { SettingsPage } from "../../app-shell/content";
@@ -296,45 +298,75 @@ export const LayoutSwitcher = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) =>
 };
 
 // --- 4. Погружение: entering a list section, the sidebar itself becomes that section's list; «‹ Настройки» goes back ---
+// Levels slide like a stack: forward — the old level leaves left, the new one arrives from the right; back — mirrored.
+// Both overlap for a moment with a 2px blur to read as one motion. Each level's header is pinned above its scroll.
+
+const EASE = [0.23, 1, 0.32, 1] as const;
+const levelMotion = (reduce: boolean) => ({
+  animate: "center",
+  exit: "exit",
+  initial: "enter",
+  transition: { duration: 0.2, ease: EASE },
+  variants: {
+    center: { filter: "blur(0px)", opacity: 1, transform: "translateX(0px)" },
+    enter: (dir: number) => ({ filter: reduce ? "blur(0px)" : "blur(2px)", opacity: 0, transform: `translateX(${reduce ? 0 : dir * 16}px)` }),
+    exit: (dir: number) => ({ filter: reduce ? "blur(0px)" : "blur(2px)", opacity: 0, transform: `translateX(${reduce ? 0 : -dir * 16}px)` }),
+  },
+});
 
 export const LayoutDrill = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
   const { m, q, setQ } = useLayout(s, ctx);
   const [drilled, setDrilled] = useState(true);
+  const [dir, setDir] = useState(1);
+  const reduce = Boolean(useReducedMotion());
   const inside = Boolean(m && drilled);
+  const go = (next: boolean) => {
+    setDir(next ? 1 : -1);
+    setDrilled(next);
+  };
   const onSection = (id: typeof ctx.section) => {
     ctx.onSection(id);
-    setDrilled(true);
+    if (isListSection(id)) go(true);
   };
+  const motionProps = levelMotion(reduce);
   return (
     <Shell
       ctx={ctx}
       sidebar={
-        inside && m ? (
-          <SidebarContent className="v3-slide-in" key="inside">
-            <SidebarGroup className="gap-1 pt-2">
-              <div className="flex h-8 items-center justify-between">
-                <Button className="-ml-1" onClick={() => setDrilled(false)} size="sm" variant="ghost">
-                  <ChevronLeft /> Настройки
-                </Button>
-                <AddButton m={m} />
-              </div>
-              <div className="px-2 pt-1 pb-2">
-                <h1 className="text-sm font-semibold">{m.title}</h1>
-                <p className="text-muted-foreground text-xs">{m.meta}</p>
-              </div>
-              <SidebarGroupContent>
-                <EntryList m={m} size={28} />
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-        ) : (
-          <>
-            <SettingsTop onBack={ctx.onBack} q={q} setQ={setQ} />
-            <SidebarContent className={m ? "v3-slide-back" : undefined} key="menu">
-              <SettingsMenu onSection={onSection} q={q} section={ctx.section} />
-            </SidebarContent>
-          </>
-        )
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <AnimatePresence custom={dir} initial={false}>
+            <motion.div className="absolute inset-0 flex flex-col" custom={dir} key={inside ? `in:${ctx.section}` : "menu"} {...motionProps}>
+              {inside && m ? (
+                <>
+                  <SidebarHeader className="shrink-0">
+                    <div className="flex h-8 items-center justify-between gap-2">
+                      <Button className="-ml-1" onClick={() => go(false)} size="sm" variant="ghost">
+                        <ChevronLeft /> Настройки
+                      </Button>
+                      <AddButton m={m} />
+                    </div>
+                    <div className="px-2 pt-1">
+                      <h1 className="text-sm font-semibold">{m.title}</h1>
+                      <p className="text-muted-foreground text-xs">{m.meta}</p>
+                    </div>
+                  </SidebarHeader>
+                  <div className="min-h-0 flex-1 overflow-y-auto pt-1">
+                    <EntryList m={m} size={28} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="shrink-0">
+                    <SettingsTop onBack={ctx.onBack} q={q} setQ={setQ} />
+                  </div>
+                  <SidebarContent>
+                    <SettingsMenu onSection={onSection} q={q} section={ctx.section} />
+                  </SidebarContent>
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       }
     >
       <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? m.detail : <SettingsPage section={ctx.section} />}</Scroll>
@@ -342,4 +374,3 @@ export const LayoutDrill = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
     </Shell>
   );
 };
-
