@@ -26,9 +26,9 @@ const HomePage = async () => {
       </p>
       <Link
         className="text-primary text-sm underline-offset-4 hover:underline"
-        href="/settings/region"
+        href="/settings"
       >
-        {t("region")}
+        {t("settings")}
       </Link>
       <form action={signOut}>
         <Button type="submit" variant="outline">
