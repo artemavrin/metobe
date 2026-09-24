@@ -52,7 +52,7 @@ export const Row = ({
       </div>
       {!editor && (
         <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 md:max-w-[60%] md:justify-start">
-          <div className="min-w-0">{children}</div>
+          <div className="min-w-0 flex-1 md:flex-none">{children}</div>
           {action}
         </div>
       )}

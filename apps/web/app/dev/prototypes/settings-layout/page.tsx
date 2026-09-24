@@ -8,7 +8,7 @@ import { LayoutCanvas, LayoutDrill, LayoutNested, LayoutSwitcher } from "../prov
 import { MOTION_CSS } from "../providers/v3/motion";
 import { type Settings, useSettings } from "../providers/v3/state";
 
-// Where the list of a list → detail settings section (sources, providers, proxies) lives in the «Режимы» shell.
+// Where the list of a list → detail settings section lives in the «Режимы» shell. Chosen: «Погружение» (P7).
 const withShell = (Layout: ComponentType<{ s: Settings; ctx: SettingsCtx }>) => {
   const Variant = () => {
     const s = useSettings();
@@ -25,10 +25,10 @@ const withShell = (Layout: ComponentType<{ s: Settings; ctx: SettingsCtx }>) => 
 const SettingsLayoutPrototypePage = () => (
   <Picker
     variants={[
+      { Component: withShell(LayoutDrill), name: "Погружение" },
       { Component: withShell(LayoutCanvas), name: "Холст" },
       { Component: withShell(LayoutNested), name: "Вложенное меню" },
       { Component: withShell(LayoutSwitcher), name: "Переключатель" },
-      { Component: withShell(LayoutDrill), name: "Погружение" },
     ]}
   />
 );

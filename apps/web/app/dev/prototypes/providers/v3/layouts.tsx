@@ -29,8 +29,18 @@ import { settingsItem } from "../../app-shell/data";
 import { AccountFooter, type SettingsCtx, SettingsMenu, SettingsPageFrame, SettingsTop } from "../../app-shell/shell-modes";
 import { NO_AUTOFILL } from "../../_p7/shared";
 import { useListHighlight } from "./parts";
+import { AppearancePage } from "./appearance-page";
+import { RegionPage } from "./region-page";
 import { isListSection, type SectionModel, useSections } from "./sections";
 import type { Settings } from "./state";
+
+/** Sections without a list: the user's «Язык и регион», or the placeholder for screens of later stages. */
+const OtherPage = ({ section }: { section: SettingsCtx["section"] }) =>
+  section === "region" || section === "appearance" ? (
+    <SettingsPageFrame>{section === "region" ? <RegionPage /> : <AppearancePage />}</SettingsPageFrame>
+  ) : (
+    <SettingsPage section={section} />
+  );
 
 const Shell = ({ ctx, variant = "floating", sidebar, children }: { ctx: SettingsCtx; variant?: "floating" | "inset"; sidebar: ReactNode; children: ReactNode }) => (
   <SidebarProvider className={cn("animate-in fade-in duration-200 ease-out", variant === "inset" && "bg-sidebar")}>
@@ -136,7 +146,7 @@ export const LayoutCanvas = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
         </div>
       ) : (
         <Scroll k={ctx.section}>
-          <SettingsPage section={ctx.section} />
+          <OtherPage section={ctx.section} />
         </Scroll>
       )}
     </Shell>
@@ -185,7 +195,7 @@ export const LayoutNested = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
         </>
       }
     >
-      <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <SettingsPage section={ctx.section} />}</Scroll>
+      <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <OtherPage section={ctx.section} />}</Scroll>
       {m?.extra}
     </Shell>
   );
@@ -292,7 +302,7 @@ export const LayoutSwitcher = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) =>
         </div>
       ) : (
         <Scroll k={ctx.section}>
-          <SettingsPage section={ctx.section} />
+          <OtherPage section={ctx.section} />
         </Scroll>
       )}
     </Shell>
@@ -366,6 +376,7 @@ const MobileSettings = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
               </MobileHeader>
               <div className="min-h-0 flex-1 overflow-y-auto py-2">
                 <SettingsMenu
+                  drills={isListSection}
                   onSection={(id) => {
                     ctx.onSection(id);
                     setDir(1);
@@ -399,7 +410,7 @@ const MobileSettings = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
           {level === 2 && (
             <>
               <MobileHeader back={m ? m.title : "Настройки"} onBack={() => to(m ? 1 : 0)} small={m ? (current?.title ?? m.title) : title} />
-              <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <SettingsPage section={ctx.section} />}</Scroll>
+              <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <OtherPage section={ctx.section} />}</Scroll>
             </>
           )}
         </motion.div>
@@ -457,7 +468,7 @@ const DesktopDrill = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
                     <SettingsTop onBack={ctx.onBack} q={q} setQ={setQ} />
                   </div>
                   <SidebarContent>
-                    <SettingsMenu onSection={onSection} q={q} section={ctx.section} />
+                    <SettingsMenu drills={isListSection} onSection={onSection} q={q} section={ctx.section} />
                   </SidebarContent>
                 </>
               )}
@@ -466,7 +477,7 @@ const DesktopDrill = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
         </div>
       }
     >
-      <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <SettingsPage section={ctx.section} />}</Scroll>
+      <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <OtherPage section={ctx.section} />}</Scroll>
       {m?.extra}
     </Shell>
   );

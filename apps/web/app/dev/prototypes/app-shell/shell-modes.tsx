@@ -19,8 +19,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@metobe/ui/components/sidebar";
-import { ArrowLeft, Search, Settings, SquarePen } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, ChevronRight, Search, Settings, SquarePen } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
 
 import { NO_AUTOFILL } from "../_p7/shared";
 import { AccountMenu, ChatHome, ChatThread, SettingsPage, SoonPage, UserAvatar } from "./content";
@@ -182,35 +182,47 @@ export const SettingsMenu = ({
   q,
   below,
   action,
+  drills,
 }: {
   section: SettingsSection;
   onSection: (s: SettingsSection) => void;
   q: string;
   below?: (id: SettingsSection) => React.ReactNode;
   action?: (id: SettingsSection) => React.ReactNode;
+  /** Items that open a list rather than a screen get a chevron. */
+  drills?: (id: SettingsSection) => boolean;
 }) => {
   const groups = SETTINGS.map((g) => ({ ...g, items: g.items.filter((i) => `${i.label} ${i.hint}`.toLowerCase().includes(q.toLowerCase())) })).filter(
     (g) => g.items.length
   );
   return (
     <>
-      {groups.map((g) => (
-        <SidebarGroup className="py-1" key={g.title}>
-          <SidebarGroupLabel>{g.title}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {g.items.map((item) => (
-                <SidebarMenuItem key={item.id}>
-                  <SidebarMenuButton isActive={section === item.id} onClick={() => onSection(item.id)}>
-                    <item.icon /> <span>{item.label}</span>
-                  </SidebarMenuButton>
-                  {action?.(item.id)}
-                  {below?.(item.id)}
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      {groups.map((g, i) => (
+        <Fragment key={g.title}>
+          {/* The user's own settings come first; the service's settings start under a divider (admins only). */}
+          {g.scope === "admin" && groups[i - 1]?.scope !== "admin" && (
+            <div className="px-4 pt-3 pb-1">
+              <div className="border-sidebar-border border-t pt-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Администрирование</div>
+            </div>
+          )}
+          <SidebarGroup className="py-1">
+            <SidebarGroupLabel>{g.title}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {g.items.map((item) => (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton isActive={section === item.id} onClick={() => onSection(item.id)}>
+                      <item.icon /> <span>{item.label}</span>
+                      {drills?.(item.id) && <ChevronRight className="text-muted-foreground ml-auto size-3.5" />}
+                    </SidebarMenuButton>
+                    {action?.(item.id)}
+                    {below?.(item.id)}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </Fragment>
       ))}
       {!groups.length && <p className="text-muted-foreground px-4 py-2 text-sm">Ничего не нашлось</p>}
     </>

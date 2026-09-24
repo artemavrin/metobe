@@ -1,5 +1,7 @@
 // App shell prototype data: navigation, chat history, the user. Chat titles are illustrative.
 import {
+  Languages,
+  Palette,
   Bell,
   Bot,
   Factory,
@@ -17,6 +19,8 @@ import {
 } from "lucide-react";
 
 export type SettingsSection =
+  | "appearance"
+  | "region"
   | "providers"
   | "vendors"
   | "proxies"
@@ -31,12 +35,24 @@ export type SettingsSection =
 
 export type View = { kind: "chat"; id?: string } | { kind: "agents" } | { kind: "inbox" } | { kind: "settings"; section: SettingsSection };
 
-export const SETTINGS: { title: string; items: { id: SettingsSection; label: string; icon: typeof Server; hint: string }[] }[] = [
+/** `user` — every user's own settings; `admin` — the service, shown to admins only. */
+export type SettingsScope = "user" | "admin";
+
+export const SETTINGS: { title: string; scope: SettingsScope; items: { id: SettingsSection; label: string; icon: typeof Server; hint: string }[] }[] = [
+  {
+    items: [
+      { hint: "Светлая, тёмная или как в системе", icon: Palette, id: "appearance", label: "Внешний вид" },
+      { hint: "Язык, часовой пояс, первый день недели, формат даты", icon: Languages, id: "region", label: "Язык и регион" },
+    ],
+    scope: "user",
+    title: "Аккаунт",
+  },
   {
     items: [
       { hint: "Кто даёт доступ к моделям: ключи, маршруты, здоровье", icon: Server, id: "providers", label: "Источники" },
       { hint: "Кто сделал модели: названия и логотипы в чате", icon: Factory, id: "vendors", label: "Провайдеры" },
     ],
+    scope: "admin",
     title: "Модели",
   },
   {
@@ -45,6 +61,7 @@ export const SETTINGS: { title: string; items: { id: SettingsSection; label: str
       { hint: "Готовые инструкции и умения для модели", icon: Sparkles, id: "skills", label: "Скиллы" },
       { hint: "Поиск в интернете для моделей и агентов", icon: Search, id: "search", label: "Поиск" },
     ],
+    scope: "admin",
     title: "Инструменты",
   },
   {
@@ -52,6 +69,7 @@ export const SETTINGS: { title: string; items: { id: SettingsSection; label: str
       { hint: "Приглашения, роли, кто что может", icon: Users, id: "users", label: "Пользователи" },
       { hint: "Кому какие модели и подключения доступны", icon: Shield, id: "access", label: "Доступы" },
     ],
+    scope: "admin",
     title: "Команда",
   },
   {
@@ -61,6 +79,7 @@ export const SETTINGS: { title: string; items: { id: SettingsSection; label: str
       { hint: "Файлы и вложения в S3", icon: HardDrive, id: "storage", label: "Хранилище" },
       { hint: "Версия, обновления, мастер-ключ", icon: Info, id: "about", label: "О системе" },
     ],
+    scope: "admin",
     title: "Система",
   },
 ];

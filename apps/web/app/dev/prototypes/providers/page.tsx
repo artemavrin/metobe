@@ -16,7 +16,7 @@ import { SettingsV3 } from "./v3";
 const ProvidersPrototypePage = () => (
   <Picker
     variants={[
-      { Component: SettingsV3, name: "Два раздела" },
+      { Component: SettingsV3, name: "Погружение" },
       { Component: () => <ShellModes providers={<Panel2 />} start="settings" />, name: "Панель" },
       { Component: () => <ShellModes providers={<WowDeck />} start="settings" />, name: "Колода" },
       { Component: () => <ShellModes providers={<WowMap />} start="settings" />, name: "Схема" },
