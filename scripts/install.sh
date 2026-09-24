@@ -96,7 +96,7 @@ else
     echo "APP_PORT=$METOBE_PORT"
     echo "BETTER_AUTH_URL=$METOBE_URL"
     echo "BETTER_AUTH_SECRET=$(secret)"
-    echo "# Encrypts provider keys and connection secrets. Losing it makes them unrecoverable."
+    echo "# Encrypts source keys and connection secrets. Losing it makes them unrecoverable."
     echo "SECRETS_KEY=$(secret)"
     if [ -n "${METOBE_DATABASE_URL:-}" ]; then
       echo "APP_DATABASE_URL=$METOBE_DATABASE_URL"
@@ -109,7 +109,7 @@ else
   } > .env
   say
   say "${yellow}Сохраните SECRETS_KEY из файла .env в надёжном месте.${off}"
-  say "${dim}Без него ключи провайдеров и пароли подключений не восстановить даже из бэкапа.${off}"
+  say "${dim}Без него ключи источников и пароли подключений не восстановить даже из бэкапа.${off}"
 fi
 
 # --- image and start -------------------------------------------------------------------------------
