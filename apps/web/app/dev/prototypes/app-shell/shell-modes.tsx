@@ -154,7 +154,7 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
  * so a new section can't drift wider or narrower than the rest.
  */
 export const SettingsPageFrame = ({ children }: { children: React.ReactNode }) => (
-  <div className="animate-in fade-in slide-in-from-bottom-1.5 fill-mode-both mx-auto flex w-full max-w-4xl flex-col gap-8 px-10 pt-8 pb-24 text-sm duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:slide-in-from-bottom-0">
+  <div className="animate-in fade-in slide-in-from-bottom-1.5 fill-mode-both mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pt-4 pb-24 text-sm md:gap-8 md:px-10 md:pt-8 duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:slide-in-from-bottom-0">
     {children}
   </div>
 );

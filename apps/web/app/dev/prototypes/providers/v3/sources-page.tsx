@@ -127,7 +127,7 @@ const HealthPill = ({ p, s }: { p: PanelProvider; s: Settings }) => {
         render={
           <button
             className={cn(
-              "hover:bg-muted inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
+              "hover:bg-muted inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
               st.tone === "error" && "border-destructive/30 text-destructive"
             )}
             type="button"
@@ -173,9 +173,9 @@ const RouteField = ({ p, s }: { p: PanelProvider; s: Settings }) => {
           ? "Всегда через этот прокси, домены не учитываются"
           : "Всегда напрямую, даже если домен отмечен у прокси";
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col gap-1 md:items-end">
       <Select onValueChange={(v) => s.panel.setRoute(p.kind, String(v))} value={p.routeMode}>
-        <SelectTrigger className="w-72">
+        <SelectTrigger className="w-full md:w-72">
           <SelectValue>
             {p.routeMode === "auto" ? (
               <span className="flex items-center gap-1.5">
@@ -218,7 +218,7 @@ const RouteField = ({ p, s }: { p: PanelProvider; s: Settings }) => {
           )}
         </SelectContent>
       </Select>
-      <span className="text-muted-foreground text-right text-xs">{why}</span>
+      <span className="text-muted-foreground text-xs md:text-right">{why}</span>
     </div>
   );
 };
@@ -316,7 +316,7 @@ export const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
 
   return (
     <>
-      <header className="flex items-start justify-between gap-6">
+      <header className="flex flex-wrap items-start justify-between gap-4 md:gap-6">
         <div className="flex items-center gap-4">
           <LogoPicker hosts label={brand.title} onPick={(logo) => s.setSourceOverride(p.kind, { logo })} size={48} value={brand.logo} />
           <div className="flex flex-col gap-1.5">
@@ -330,7 +330,7 @@ export const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
               placeholder={spec.title}
               value={name}
             />
-            <div className="flex items-center gap-2 px-1.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5">
               <HealthPill p={p} s={s} />
               <span className="text-muted-foreground text-xs">{spec.blurb}</span>
             </div>
@@ -558,7 +558,7 @@ const ModelRow = ({ m, on, onToggle }: { m: Model; on: boolean; onToggle: (v: bo
   const id = `m-${m.id}`;
   return (
     <li>
-      <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 py-2.5 pr-4 pl-12" htmlFor={id}>
+      <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 py-2.5 pr-4 pl-4 md:pl-12" htmlFor={id}>
         <span className={cn("v3-tone flex min-w-0 flex-1 items-center gap-2", !on && "text-muted-foreground")}>
           <span className="truncate font-medium">{m.title}</span>
           {isNew(m) && (
@@ -570,7 +570,7 @@ const ModelRow = ({ m, on, onToggle }: { m: Model; on: boolean; onToggle: (v: bo
         <span className="hidden md:inline-flex">
           <CapIcons caps={m.caps} />
         </span>
-        <span className="text-muted-foreground w-14 text-right text-xs tabular-nums">{fmtContext(m.context)}</span>
+        <span className="text-muted-foreground hidden w-14 text-right text-xs tabular-nums sm:inline">{fmtContext(m.context)}</span>
         <span className="text-muted-foreground w-28 text-right text-xs tabular-nums">{fmtPrice(m)}</span>
         <Switch checked={on} id={id} onCheckedChange={onToggle} size="sm" />
       </label>

@@ -45,13 +45,13 @@ export const Row = ({
   editor?: ReactNode;
 }) => (
   <div className="px-4 py-3">
-    <div className="flex min-h-8 items-center gap-6">
+    <div className="flex min-h-8 flex-col gap-2 md:flex-row md:items-center md:gap-6">
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="font-medium">{label}</span>
         {hint && <span className="text-muted-foreground text-xs">{hint}</span>}
       </div>
       {!editor && (
-        <div className="flex max-w-[60%] min-w-0 shrink-0 items-center gap-3">
+        <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 md:max-w-[60%] md:justify-start">
           <div className="min-w-0">{children}</div>
           {action}
         </div>
@@ -64,8 +64,8 @@ export const Row = ({
 /** The open state of an editable row: a full-width field, then cancel and the primary action; an error under it. */
 export const RowEditor = ({ field, error, onCancel, primary }: { field: ReactNode; error?: ReactNode; onCancel?: () => void; primary: ReactNode }) => (
   <div className="flex flex-col gap-1.5">
-    <div className="flex items-center gap-2">
-      <div className="min-w-0 flex-1">{field}</div>
+    <div className="flex flex-wrap items-center justify-end gap-2 md:flex-nowrap">
+      <div className="min-w-0 basis-full md:flex-1 md:basis-auto">{field}</div>
       {onCancel && (
         <Button onClick={onCancel} size="sm" variant="ghost">
           Отмена

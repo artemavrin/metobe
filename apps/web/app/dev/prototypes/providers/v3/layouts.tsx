@@ -18,12 +18,14 @@ import {
   SidebarProvider,
 } from "@metobe/ui/components/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { useIsMobile } from "@metobe/ui/hooks/use-mobile";
 import { cn } from "@metobe/ui/lib/utils";
 import { ChevronLeft, ChevronsUpDown, Plus, Search } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useState } from "react";
 
 import { SettingsPage } from "../../app-shell/content";
+import { settingsItem } from "../../app-shell/data";
 import { AccountFooter, type SettingsCtx, SettingsMenu, SettingsPageFrame, SettingsTop } from "../../app-shell/shell-modes";
 import { NO_AUTOFILL } from "../../_p7/shared";
 import { useListHighlight } from "./parts";
@@ -314,7 +316,102 @@ const levelMotion = (reduce: boolean) => ({
   },
 });
 
-export const LayoutDrill = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
+/** Pinned header of a phone level: back names where it goes; a big title, or a small centred one on a screen that has its own. */
+const MobileHeader = ({ back, onBack, children, action, small }: { back: string; onBack: () => void; children?: ReactNode; action?: ReactNode; small?: string }) => (
+  <header className={cn("bg-background/95 flex shrink-0 flex-col gap-1 border-b px-2 pt-2 backdrop-blur", children ? "pb-3" : "pb-2")}>
+    <div className="relative flex h-9 items-center justify-between">
+      <Button className="relative z-10" onClick={onBack} size="sm" variant="ghost">
+        <ChevronLeft /> {back}
+      </Button>
+      {small && <span className="pointer-events-none absolute inset-x-24 truncate text-center text-sm font-semibold">{small}</span>}
+      {action}
+    </div>
+    {children && <div className="px-3">{children}</div>}
+  </header>
+);
+
+/**
+ * Phones: no sidebar — the whole screen is the stack «Настройки → раздел → экран», with the same slide and a pinned
+ * header whose back button names where it goes.
+ */
+const MobileSettings = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
+  const { m, q, setQ } = useLayout(s, ctx);
+  const [level, setLevel] = useState<0 | 1 | 2>(0);
+  const [dir, setDir] = useState(1);
+  const reduce = Boolean(useReducedMotion());
+  const to = (next: 0 | 1 | 2) => {
+    setDir(next > level ? 1 : -1);
+    setLevel(next);
+  };
+  const title = settingsItem(ctx.section).label;
+  const current = m?.entries.find((e) => e.id === m.activeId);
+  return (
+    <SidebarProvider className="relative h-dvh overflow-hidden">
+      <AnimatePresence custom={dir} initial={false}>
+        <motion.div className="bg-background absolute inset-0 flex flex-col" custom={dir} key={`${level}:${level > 0 ? ctx.section : ""}`} {...levelMotion(reduce)}>
+          {level === 0 && (
+            <>
+              <MobileHeader back="Чат" onBack={ctx.onBack}>
+                <h1 className="text-xl font-semibold tracking-tight">Настройки</h1>
+                <div className="relative mt-2">
+                  <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+                  <input
+                    {...NO_AUTOFILL}
+                    className="bg-muted/50 h-9 w-full rounded-lg pr-3 pl-8 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Найти настройку"
+                    value={q}
+                  />
+                </div>
+              </MobileHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto py-2">
+                <SettingsMenu
+                  onSection={(id) => {
+                    ctx.onSection(id);
+                    setDir(1);
+                    setLevel(isListSection(id) ? 1 : 2);
+                  }}
+                  q={q}
+                  section={ctx.section}
+                />
+              </div>
+            </>
+          )}
+          {level === 1 && m && (
+            <>
+              <MobileHeader action={<AddButton m={m} />} back="Настройки" onBack={() => to(0)}>
+                <h1 className="text-xl font-semibold tracking-tight">{m.title}</h1>
+                <p className="text-muted-foreground text-xs">{m.meta}</p>
+              </MobileHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto pt-2">
+                <EntryList
+                  m={{
+                    ...m,
+                    select: (id) => {
+                      m.select(id);
+                      to(2);
+                    },
+                  }}
+                />
+              </div>
+            </>
+          )}
+          {level === 2 && (
+            <>
+              <MobileHeader back={m ? m.title : "Настройки"} onBack={() => to(m ? 1 : 0)} small={m ? (current?.title ?? m.title) : title} />
+              <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <SettingsPage section={ctx.section} />}</Scroll>
+            </>
+          )}
+        </motion.div>
+      </AnimatePresence>
+      {m?.extra}
+    </SidebarProvider>
+  );
+};
+
+export const LayoutDrill = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => (useIsMobile() ? <MobileSettings ctx={ctx} s={s} /> : <DesktopDrill ctx={ctx} s={s} />);
+
+const DesktopDrill = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
   const { m, q, setQ } = useLayout(s, ctx);
   const [drilled, setDrilled] = useState(true);
   const [dir, setDir] = useState(1);

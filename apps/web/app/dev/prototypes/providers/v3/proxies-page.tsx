@@ -144,7 +144,7 @@ const CheckPill = ({ x }: { x: ProxyEntry }) => {
         render={
           <button
             className={cn(
-              "hover:bg-muted inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
+              "hover:bg-muted inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
               st.tone === "error" && "border-destructive/30 text-destructive"
             )}
             type="button"
@@ -200,7 +200,7 @@ export const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; o
 
   return (
     <>
-      <header className="flex items-start justify-between gap-6">
+      <header className="flex flex-wrap items-start justify-between gap-4 md:gap-6">
         <div className="flex items-center gap-4">
           <ProxyMark pop={!checkedAtOpen.current} size={48} x={x} />
           <div className="flex flex-col gap-1.5">
@@ -213,7 +213,7 @@ export const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; o
               onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
               value={name}
             />
-            <div className="flex items-center gap-2 px-1.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5">
               <CheckPill x={x} />
               {x.health.state === "ok" && <span className="text-muted-foreground font-mono text-xs">выход {x.health.ip}</span>}
             </div>

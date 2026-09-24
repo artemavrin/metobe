@@ -102,7 +102,7 @@ export const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
   const on = rows.filter((r) => r.on).length;
   return (
     <>
-      <header className="grid grid-cols-[auto_1fr_280px] items-center gap-6">
+      <header className="grid grid-cols-[auto_1fr] items-center gap-4 md:grid-cols-[auto_1fr_280px] md:gap-6">
         <LogoPicker label={p.title} onPick={(logo) => s.setOverride(p.slug, { logo })} value={p.logo} />
         <div className="flex flex-col gap-1">
           <Input
@@ -118,7 +118,7 @@ export const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
             {on} из {p.models.length} моделей в чате{renamed && " · название изменено"}
           </span>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="col-span-2 flex flex-col gap-1.5 md:col-span-1">
           <span className="text-muted-foreground text-xs">Как видно в чате</span>
           <ChatPreview p={p} />
         </div>
@@ -145,9 +145,9 @@ export const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
                   </span>
                   <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
                     <BrandLogo label={s.sourceOf(source).title} logo={s.sourceOf(source).logo} size={16} tile={false} />
-                    {s.sourceOf(source).title}
+                    <span className="hidden sm:inline">{s.sourceOf(source).title}</span>
                   </span>
-                  <span className="text-muted-foreground w-14 text-right text-xs tabular-nums">{fmtContext(m.context)}</span>
+                  <span className="text-muted-foreground hidden w-14 text-right text-xs tabular-nums sm:inline">{fmtContext(m.context)}</span>
                   <span className="text-muted-foreground w-28 text-right text-xs tabular-nums">{fmtPrice(m)}</span>
                   <Switch
                     checked={Boolean(src?.models.has(m.id))}
