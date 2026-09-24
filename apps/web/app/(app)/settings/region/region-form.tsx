@@ -22,15 +22,29 @@ import { saveRegion } from "@/lib/prefs-actions";
 import type { RegionState } from "@/lib/prefs-actions";
 
 // 1 Jan 2024 was a Monday: ISO weekday n falls on 2024-01-n.
+const capitalize = (text: string, locale: string) =>
+  text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
 const weekdayName = (locale: string, day: WeekStart) =>
-  new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday: "long" }).format(
-    new Date(Date.UTC(2024, 0, day))
+  capitalize(
+    new Intl.DateTimeFormat(locale, {
+      timeZone: "UTC",
+      weekday: "long",
+    }).format(new Date(Date.UTC(2024, 0, day))),
+    locale
   );
 
 // The zone and the minute need no live updates here, so the subscription is a no-op.
 const unsubscribe = (): void => undefined;
 const noSubscribe = () => unsubscribe;
 const SAMPLE = new Date(Date.UTC(2026, 8, 24, 15, 30));
+
+/** The automatic option names only its value; a quiet tag says it follows the language or the browser. */
+const Auto = ({ label, tag }: { label: string; tag: string }) => (
+  <span className="flex w-full items-center justify-between gap-3">
+    {label}
+    <span className="text-muted-foreground text-xs">{tag}</span>
+  </span>
+);
 
 export const RegionForm = ({
   locale,
@@ -69,19 +83,18 @@ export const RegionForm = ({
   const sample = (f: DateFormat) =>
     formatNumericDate(SAMPLE, { dateFormat: f, locale: lang, timeZone: "UTC" });
   const labels: Record<DateFormat, string> = {
-    auto: t("dateFormatAuto", { example: sample("auto") }),
+    auto: sample("auto"),
     dmy: sample("dmy"),
     mdy: sample("mdy"),
     ymd: sample("ymd"),
   };
   const weekLabel = (v: string) =>
-    v === "auto"
-      ? t("weekStartAuto", { day: weekdayName(lang, defaultWeekStart(lang)) })
-      : weekdayName(lang, Number(v) as WeekStart);
+    weekdayName(
+      lang,
+      v === "auto" ? defaultWeekStart(lang) : (Number(v) as WeekStart)
+    );
   const zoneLabel = (v: string) =>
-    v === "auto"
-      ? t("timeZoneAuto", { zone: browserZone || "…" })
-      : v.replaceAll("_", " ");
+    (v === "auto" ? browserZone || "…" : v).replaceAll("_", " ");
 
   return (
     <form action={action}>
@@ -116,12 +129,16 @@ export const RegionForm = ({
               <SelectValue>{zoneLabel(zone)}</SelectValue>
             </SelectTrigger>
             <SelectContent className="max-h-80">
-              <SelectItem value="auto">{zoneLabel("auto")}</SelectItem>
-              {timeZones.map((z) => (
-                <SelectItem key={z} value={z}>
-                  {zoneLabel(z)}
-                </SelectItem>
-              ))}
+              <SelectItem value="auto">
+                <Auto label={zoneLabel("auto")} tag={t("auto")} />
+              </SelectItem>
+              {timeZones
+                .filter((z) => z !== browserZone || z === zone)
+                .map((z) => (
+                  <SelectItem key={z} value={z}>
+                    {zoneLabel(z)}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </Field>
@@ -136,11 +153,22 @@ export const RegionForm = ({
               <SelectValue>{weekLabel(week)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {["auto", ...weekStarts.map(String)].map((v) => (
-                <SelectItem key={v} value={v}>
-                  {weekLabel(v)}
-                </SelectItem>
-              ))}
+              {["auto", ...weekStarts.map(String)]
+                .filter(
+                  (v) =>
+                    v === "auto" ||
+                    v === week ||
+                    v !== String(defaultWeekStart(lang))
+                )
+                .map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v === "auto" ? (
+                      <Auto label={weekLabel(v)} tag={t("auto")} />
+                    ) : (
+                      weekLabel(v)
+                    )}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </Field>
@@ -155,11 +183,19 @@ export const RegionForm = ({
               <SelectValue>{labels[date]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {dateFormats.map((f) => (
-                <SelectItem key={f} value={f}>
-                  {labels[f]}
-                </SelectItem>
-              ))}
+              {dateFormats
+                .filter(
+                  (f) => f === "auto" || f === date || labels[f] !== labels.auto
+                )
+                .map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {f === "auto" ? (
+                      <Auto label={labels[f]} tag={t("auto")} />
+                    ) : (
+                      labels[f]
+                    )}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </Field>
