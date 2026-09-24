@@ -113,7 +113,7 @@ export const copy = (o: Onboarding): { title: string; description: string } => {
   switch (o.step) {
     case "pick":
       return o.connected.length
-        ? { description: "В чате модели всех провайдеров будут в одном списке.", title: "Какого провайдера добавим?" }
+        ? { description: "В чате модели всех источников будут в одном списке.", title: "Какой источник добавим?" }
         : {
             description: "Чат откроется, как только появится хотя бы одна модель. Остальное можно добавить позже.",
             title: "Откуда брать модели?",
@@ -309,7 +309,7 @@ const DoneBody = ({ o }: { o: Onboarding }) => (
       <MessageSquare /> Открыть чат
     </Button>
     <Button className="h-10" onClick={() => o.setStep("pick")} variant="ghost">
-      <Plus /> Подключить ещё провайдера
+      <Plus /> Подключить ещё источник
     </Button>
   </div>
 );

@@ -3,8 +3,13 @@
 // Pieces shared by the settings sections: section and settings rows, an edit-in-place value, a list row.
 import { Button } from "@purr/ui/components/button";
 import { Input } from "@purr/ui/components/input";
+import { Kbd } from "@purr/ui/components/kbd";
+import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
 import { cn } from "@purr/ui/lib/utils";
-import { type ReactNode, useState } from "react";
+import { ImageUp, RotateCcw } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+
+import { BrandLogo, LOGOS } from "../../_p7/brand";
 
 import { NO_AUTOFILL } from "../../_p7/shared";
 
@@ -147,3 +152,122 @@ export const ListRow = ({ active, onClick, media, title, sub, trail }: { active:
     {trail}
   </button>
 );
+
+/** Click the logo to change it: the built-in set (servers first for sources), an uploaded image, or back to automatic. */
+export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: { value: string | undefined; label: string; onPick: (logo: string | undefined) => void; size?: number; hosts?: boolean }) => {
+  const file = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [over, setOver] = useState(false);
+  const take = (f: File | null | undefined) => {
+    if (!f?.type.startsWith("image/")) return false;
+    const reader = new FileReader();
+    reader.onload = () => {
+      onPick(String(reader.result));
+      setOpen(false);
+    };
+    reader.readAsDataURL(f);
+    return true;
+  };
+  // While the picker is open, ⌘V / Ctrl+V takes an image from the clipboard (a copied file, a screenshot, or SVG markup).
+  useEffect(() => {
+    if (!open) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = [...(e.clipboardData?.items ?? [])];
+      const img = items.find((i) => i.kind === "file" && i.type.startsWith("image/"));
+      if (img && take(img.getAsFile())) return e.preventDefault();
+      const text = e.clipboardData?.getData("text/plain").trim() ?? "";
+      if (text.startsWith("<svg")) {
+        e.preventDefault();
+        onPick(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`);
+        setOpen(false);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  });
+  return (
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger
+        render={
+          <button
+            aria-label="Сменить логотип"
+            className="group relative rounded-[28%] transition-transform duration-150 ease-out active:scale-[0.97]"
+            type="button"
+          />
+        }
+      >
+        <BrandLogo label={label} logo={value} size={size} />
+        <span className="bg-foreground/35 text-background absolute inset-0 backdrop-blur-[2px] flex items-center justify-center rounded-[28%] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          <ImageUp className="size-5" />
+        </span>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80">
+        <div
+          className={cn("relative flex flex-col gap-3", over && "[&>*]:opacity-30")}
+          onDragLeave={() => setOver(false)}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            take(e.dataTransfer.files[0]);
+          }}
+        >
+          {over && (
+            <span className="border-primary text-primary pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium opacity-100!">
+              Отпустите, чтобы поставить
+            </span>
+          )}
+          <span className="text-sm font-medium">Логотип</span>
+          <div className="grid grid-cols-7 gap-1.5">
+            {Object.entries(LOGOS)
+              .sort(([, a], [, b]) => (hosts ? Number(Boolean(b.host)) - Number(Boolean(a.host)) : Number(Boolean(a.host)) - Number(Boolean(b.host))))
+              .map(([slug, l]) => (
+              <button
+                aria-label={l.label}
+                className={cn("rounded-lg p-1 transition-colors", value === slug ? "bg-muted ring-primary ring-2" : "hover:bg-muted")}
+                key={slug}
+                onClick={() => {
+                  onPick(slug);
+                  setOpen(false);
+                }}
+                title={l.label}
+                type="button"
+              >
+                <BrandLogo label={l.label} logo={slug} size={28} />
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t pt-3">
+            <Button onClick={() => file.current?.click()} size="sm" variant="outline">
+              <ImageUp /> Загрузить своё
+            </Button>
+            <Button
+              onClick={() => {
+                onPick(undefined);
+                setOpen(false);
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              <RotateCcw /> Автоматически
+            </Button>
+          </div>
+          <input
+            accept="image/png,image/svg+xml,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => take(e.target.files?.[0])}
+            ref={file}
+            type="file"
+          />
+          <span className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
+            Или вставьте картинку <Kbd>⌘V</Kbd>, или перетащите сюда. Лучше квадрат, PNG или SVG.
+          </span>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+

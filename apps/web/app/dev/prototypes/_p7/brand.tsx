@@ -12,7 +12,7 @@ import deepseek from "@lobehub/icons-static-svg/icons/deepseek-color.svg";
 import gemini from "@lobehub/icons-static-svg/icons/gemini-color.svg";
 import grok from "@lobehub/icons-static-svg/icons/grok.svg";
 import inception from "@lobehub/icons-static-svg/icons/inception.svg";
-import kimi from "@lobehub/icons-static-svg/icons/kimi-color.svg";
+import kimi from "@lobehub/icons-static-svg/icons/kimi.svg";
 import longcat from "@lobehub/icons-static-svg/icons/longcat-color.svg";
 import meta from "@lobehub/icons-static-svg/icons/meta-color.svg";
 import minimax from "@lobehub/icons-static-svg/icons/minimax-color.svg";
@@ -24,6 +24,18 @@ import perplexity from "@lobehub/icons-static-svg/icons/perplexity-color.svg";
 import vercel from "@lobehub/icons-static-svg/icons/vercel.svg";
 import yandex from "@lobehub/icons-static-svg/icons/yandex.svg";
 import zhipu from "@lobehub/icons-static-svg/icons/zhipu-color.svg";
+import azure from "@lobehub/icons-static-svg/icons/azure-color.svg";
+import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg";
+import deepinfra from "@lobehub/icons-static-svg/icons/deepinfra-color.svg";
+import fireworks from "@lobehub/icons-static-svg/icons/fireworks-color.svg";
+import groq from "@lobehub/icons-static-svg/icons/groq.svg";
+import huggingface from "@lobehub/icons-static-svg/icons/huggingface-color.svg";
+import lmstudio from "@lobehub/icons-static-svg/icons/lmstudio.svg";
+import nvidia from "@lobehub/icons-static-svg/icons/nvidia-color.svg";
+import openrouter from "@lobehub/icons-static-svg/icons/openrouter.svg";
+import together from "@lobehub/icons-static-svg/icons/together-color.svg";
+import vllm from "@lobehub/icons-static-svg/icons/vllm-color.svg";
+import xinference from "@lobehub/icons-static-svg/icons/xinference-color.svg";
 import { cn } from "@purr/ui/lib/utils";
 
 import type { ProviderKind } from "./mock";
@@ -32,8 +44,8 @@ type Asset = { src: string } | string;
 type Logo = { src: string; mono: boolean };
 const L = (a: Asset, mono = false): Logo => ({ mono, src: typeof a === "string" ? a : a.src });
 
-/** Built-in logo set: what the admin can pick from for a provider. */
-export const LOGOS: Record<string, Logo & { label: string }> = {
+/** Built-in logo set: what the admin can pick from. `host` marks servers and services that serve models (sources). */
+export const LOGOS: Record<string, Logo & { label: string; host?: boolean }> = {
   alibaba: { ...L(alibaba), label: "Qwen" },
   anthropic: { ...L(claude), label: "Claude" },
   "anthropic-mono": { ...L(anthropicMono, true), label: "Anthropic" },
@@ -47,7 +59,7 @@ export const LOGOS: Record<string, Logo & { label: string }> = {
   meta: { ...L(meta), label: "Meta" },
   minimax: { ...L(minimax), label: "MiniMax" },
   mistral: { ...L(mistral), label: "Mistral" },
-  moonshot: { ...L(kimi), label: "Kimi" },
+  moonshot: { ...L(kimi, true), label: "Kimi" },
   nova: { ...L(nova), label: "Amazon Nova" },
   ollama: { ...L(ollama, true), label: "Ollama" },
   openai: { ...L(openai, true), label: "OpenAI" },
@@ -56,7 +68,40 @@ export const LOGOS: Record<string, Logo & { label: string }> = {
   xai: { ...L(grok, true), label: "Grok" },
   yandex: { ...L(yandex, true), label: "Яндекс" },
   zai: { ...L(zhipu), label: "GLM" },
+  // servers and services
+  azure: { ...L(azure), host: true, label: "Azure" },
+  cloudflare: { ...L(cloudflare), host: true, label: "Cloudflare" },
+  deepinfra: { ...L(deepinfra), host: true, label: "DeepInfra" },
+  fireworks: { ...L(fireworks), host: true, label: "Fireworks" },
+  groq: { ...L(groq, true), host: true, label: "Groq" },
+  huggingface: { ...L(huggingface), host: true, label: "Hugging Face" },
+  lmstudio: { ...L(lmstudio, true), host: true, label: "LM Studio" },
+  nvidia: { ...L(nvidia), host: true, label: "NVIDIA" },
+  openrouter: { ...L(openrouter, true), host: true, label: "OpenRouter" },
+  together: { ...L(together), host: true, label: "Together" },
+  vllm: { ...L(vllm), host: true, label: "vLLM" },
+  xinference: { ...L(xinference), host: true, label: "Xinference" },
 };
+for (const k of ["ollama", "vercel", "anthropic-mono", "yandex"]) (LOGOS[k] as { host?: boolean }).host = true;
+
+/** An OpenAI-compatible server says nothing about itself: guess from the base URL, otherwise no logo (a letter). */
+const HOST_HINTS: [string, string][] = [
+  ["ollama", "ollama"],
+  ["lmstudio", "lmstudio"],
+  ["vllm", "vllm"],
+  ["openrouter", "openrouter"],
+  ["together", "together"],
+  ["groq", "groq"],
+  ["deepinfra", "deepinfra"],
+  ["fireworks", "fireworks"],
+  ["huggingface", "huggingface"],
+  ["hf.space", "huggingface"],
+  ["nvidia", "nvidia"],
+  ["xinference", "xinference"],
+  ["azure", "azure"],
+  ["cloudflare", "cloudflare"],
+];
+export const guessHostLogo = (url: string | undefined) => HOST_HINTS.find(([hint]) => (url ?? "").toLowerCase().includes(hint))?.[1];
 
 /** Model vendor name (as discovery reports it) → provider slug. */
 const VENDOR_SLUG: Record<string, string> = {
@@ -84,7 +129,7 @@ export const providerSlug = (vendor: string) => VENDOR_SLUG[vendor] ?? vendor.to
 
 export const SOURCE_LOGO: Record<ProviderKind, string> = {
   anthropic: "anthropic-mono",
-  compatible: "ollama",
+  compatible: "",
   gateway: "vercel",
   openai: "openai",
   yandex: "yandex",

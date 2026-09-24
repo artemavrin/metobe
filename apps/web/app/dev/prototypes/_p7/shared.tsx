@@ -8,6 +8,7 @@ import { Braces, Brain, Eye, Globe, Route, Wrench } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type Caps, PROXIES, type ProviderKind, type ProviderSpec, type Proxy } from "./mock";
+import { BrandLogo, SOURCE_LOGO } from "./brand";
 
 // --- connection check simulation ------------------------------------------------------------------
 
@@ -160,8 +161,12 @@ const MARKS: Record<ProviderKind, { glyph: string; className: string }> = {
 };
 
 /** Provider identity: a ReUI IconTile with a letter mark (no brand logos). */
+const MARK_PX = { default: 40, lg: 48, sm: 32, xl: 56, xs: 24 } as const;
+
+/** A source's logo; the OpenAI-compatible kind has no brand of its own, so it keeps the `{}` glyph. */
 export const ProviderMark = ({ kind, size = "sm" }: { kind: ProviderKind; size?: "xs" | "sm" | "default" | "lg" | "xl" }) => {
   const m = MARKS[kind];
+  if (SOURCE_LOGO[kind]) return <BrandLogo label={m.glyph} logo={SOURCE_LOGO[kind]} size={MARK_PX[size]} />;
   return (
     <IconTile aria-hidden className={cn("font-semibold tracking-tight", m.className)} size={size} variant="solid">
       <span className={cn(size === "xs" ? "text-[10px]" : size === "lg" || size === "xl" ? "text-lg" : "text-sm")}>{m.glyph}</span>

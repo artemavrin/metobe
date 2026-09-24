@@ -3,17 +3,18 @@
 // «Источники»: who gives access to models. Calm list → detail: a list with live health, a detail page with the check
 // as an object, connection as settings rows, models grouped by provider with logos, a danger zone at the end.
 import { Button } from "@purr/ui/components/button";
+import { Input } from "@purr/ui/components/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@purr/ui/components/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@purr/ui/components/select";
 import { Badge } from "@purr/ui/components/reui/badge";
 import { Switch } from "@purr/ui/components/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
 import { cn } from "@purr/ui/lib/utils";
-import { ChevronDown, Plus, Search } from "lucide-react";
+import { ChevronDown, Network, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { BrandLogo, SOURCE_LOGO } from "../../_p7/brand";
+import { BrandLogo } from "../../_p7/brand";
 import { ConnectDialog } from "../../_p7/connect-dialog";
 import { byNewest, fmtContext, fmtPrice, isNew, type Model, providerBy } from "../../_p7/mock";
 import { CapIcons, NO_AUTOFILL } from "../../_p7/shared";
@@ -24,8 +25,8 @@ import {
   RecheckButton,
   visibleInChat,
 } from "../panel/common";
-import { EditRow, Row, Section } from "./parts";
-import { COUNTRY, type Settings } from "./state";
+import { EditRow, LogoPicker, Row, Section } from "./parts";
+import { COUNTRY, type ProxyEntry, type Settings } from "./state";
 
 /** Round-trip of the last check, deterministic per source (the real app stores the last check result). */
 const latencyOf = (p: PanelProvider, s: Settings) => {
@@ -76,9 +77,9 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
                 onClick={() => panel.setSelected(x.kind)}
                 type="button"
               >
-                <BrandLogo label={providerBy(x.kind).title} logo={SOURCE_LOGO[x.kind]} size={32} />
+                <BrandLogo label={s.sourceOf(x.kind).title} logo={s.sourceOf(x.kind).logo} size={32} />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-medium">{providerBy(x.kind).title}</span>
+                  <span className="truncate font-medium">{s.sourceOf(x.kind).title}</span>
                   <span className={cn("flex items-center gap-1.5 truncate text-xs", st.tone === "error" ? "text-destructive" : "text-muted-foreground")}>
                     <span className={cn("size-1.5 shrink-0 rounded-full", st.dot)} />
                     {st.text}
@@ -150,59 +151,93 @@ const HealthPill = ({ p, s }: { p: PanelProvider; s: Settings }) => {
 /** The source's side of «what goes through which proxy» (ARCH §18): the same field the proxy page edits. */
 const RouteField = ({ p, s }: { p: PanelProvider; s: Settings }) => {
   const route = s.routeOf(p);
-  const flag = (c?: string) => (c ? COUNTRY[c]?.flag : undefined);
-  const via = (x: Settings["proxies"][number]) => `${x.title}${x.health.state === "ok" ? ` · ${flag(x.health.country) ?? x.health.country} ${x.health.latency} мс` : ""}`;
+  const ready = s.proxies.filter((x) => x.address);
+  const mark = (x: ProxyEntry) => (x.health.state === "ok" ? (COUNTRY[x.health.country]?.flag ?? "") : "");
   const why =
     route.why === "domain"
-      ? `Идёт через «${route.proxy?.title}»: домен ${route.domain} отмечен у этого прокси`
+      ? `Домен ${route.domain} отмечен у «${route.proxy?.title}»`
       : route.why === "auto-direct"
-        ? "Идёт напрямую: ни у одного прокси нет его домена"
+        ? "Ни у одного прокси нет его домена"
         : route.why === "explicit"
           ? "Всегда через этот прокси, домены не учитываются"
           : "Всегда напрямую, даже если домен отмечен у прокси";
   return (
     <div className="flex flex-col gap-1">
       <Select onValueChange={(v) => s.panel.setRoute(p.kind, String(v))} value={p.routeMode}>
-        <SelectTrigger className="w-80">
+        <SelectTrigger className="w-72">
           <SelectValue>
-            {p.routeMode === "auto"
-              ? `Авто · ${route.proxy ? `через ${route.proxy.title}` : "напрямую"}`
-              : p.routeMode === "direct"
-                ? "Только напрямую"
-                : `Через ${route.proxy ? via(route.proxy) : "удалённый прокси"}`}
+            {p.routeMode === "auto" ? (
+              <span className="flex items-center gap-1.5">
+                Авто <span className="text-muted-foreground">·</span>
+                {route.proxy ? `${mark(route.proxy)} ${route.proxy.title}` : "напрямую"}
+              </span>
+            ) : p.routeMode === "direct" ? (
+              "Напрямую"
+            ) : route.proxy ? (
+              `${mark(route.proxy)} ${route.proxy.title}`
+            ) : (
+              "Удалённый прокси"
+            )}
           </SelectValue>
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="auto">Авто — по доменам прокси</SelectItem>
-          <SelectItem value="direct">Только напрямую</SelectItem>
-          {s.proxies
-            .filter((x) => x.address)
-            .map((x) => (
-              <SelectItem key={x.id} value={x.id}>
-                Через {via(x)}
-              </SelectItem>
-            ))}
+        <SelectContent className="min-w-72">
+          <SelectItem value="auto">
+            <span className="flex flex-col">
+              Авто
+              <span className="text-muted-foreground text-xs">по доменам, отмеченным у прокси</span>
+            </span>
+          </SelectItem>
+          <SelectItem value="direct">Напрямую</SelectItem>
+          {ready.length > 0 && (
+            <>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>Прокси</SelectLabel>
+                {ready.map((x) => (
+                  <SelectItem key={x.id} value={x.id}>
+                    <span className="flex w-full items-center gap-2">
+                      <span className="w-5 text-center">{mark(x) || <Network className="text-muted-foreground size-3.5" />}</span>
+                      <span className="flex-1">{x.title}</span>
+                      {x.health.state === "ok" && <span className="text-muted-foreground text-xs tabular-nums">{x.health.latency} мс</span>}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </>
+          )}
         </SelectContent>
       </Select>
       <span className="text-muted-foreground text-xs">{why}</span>
     </div>
   );
 };
+
 const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
   const { panel } = s;
   const spec = providerBy(p.kind);
   const broken = p.health.state === "error";
   const off = p.enabled === false;
   const [keyOpen, setKeyOpen] = useState(broken);
+  const brand = s.sourceOf(p.kind);
+  const [name, setName] = useState(brand.title);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
       <header className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-4">
-          <BrandLogo label={spec.title} logo={SOURCE_LOGO[p.kind]} size={48} />
+          <LogoPicker hosts label={brand.title} onPick={(logo) => s.setSourceOverride(p.kind, { logo })} size={48} value={brand.logo} />
           <div className="flex flex-col gap-1.5">
-            <h1 className="text-xl font-semibold tracking-tight">{spec.title}</h1>
-            <div className="flex items-center gap-2">
+            <Input
+              {...NO_AUTOFILL}
+              aria-label="Название источника"
+              className="hover:border-border focus-visible:border-ring h-auto border-transparent bg-transparent px-1.5 py-0 text-xl font-semibold tracking-tight shadow-none md:text-xl dark:bg-transparent"
+              onBlur={() => s.setSourceOverride(p.kind, { title: name.trim() || undefined })}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+              placeholder={spec.title}
+              value={name}
+            />
+            <div className="flex items-center gap-2 px-1.5">
               <HealthPill p={p} s={s} />
               <span className="text-muted-foreground text-xs">{spec.blurb}</span>
             </div>
@@ -250,7 +285,11 @@ const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
             hint="Хранится зашифрованным"
             label="Ключ"
           >
-            <span className={cn("font-mono", broken && "text-destructive")}>••••{p.keyTail}</span>
+            {p.keyTail ? (
+              <span className={cn("font-mono", broken && "text-destructive")}>••••{p.keyTail}</span>
+            ) : (
+              <span className="text-muted-foreground">без ключа</span>
+            )}
           </Row>
           {keyOpen && (
             <div className="animate-in fade-in slide-in-from-top-1 fill-mode-both bg-muted/30 px-4 py-4 duration-200 ease-out">

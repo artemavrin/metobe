@@ -16,7 +16,7 @@ import { ConnectForm, ProviderList } from "./connect";
 import { type ProviderKind, providerBy } from "./mock";
 import { ProviderMark, type RouteChoice } from "./shared";
 
-export type Connected = { kind: ProviderKind; models: Set<string>; route: RouteChoice; fresh?: boolean };
+export type Connected = { kind: ProviderKind; models: Set<string>; route: RouteChoice; fresh?: boolean; extra?: string };
 
 /** Settings start from a lived-in state: OpenAI behind the corporate proxy, Yandex direct. */
 export const seedConnected = (): Connected[] => [
@@ -48,9 +48,9 @@ export const ConnectDialog = ({
   };
 
   const done = useCallback(
-    (route: RouteChoice) => {
+    (route: RouteChoice, extra?: string) => {
       if (!kind) return;
-      onConnected({ fresh: true, kind, models: new Set(), route });
+      onConnected({ extra, fresh: true, kind, models: new Set(), route });
       onOpenChange(false);
       setKind(null);
     },
@@ -73,7 +73,7 @@ export const ConnectDialog = ({
               footer={({ busy }) => (
                 <DialogFooter className="sm:justify-between">
                   <Button disabled={busy} onClick={() => setKind(null)} type="button" variant="ghost">
-                    <ArrowLeft /> Другой провайдер
+                    <ArrowLeft /> Другой источник
                   </Button>
                   <Button disabled={busy} type="submit">
                     Проверить и подключить
@@ -88,8 +88,8 @@ export const ConnectDialog = ({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Подключить провайдера</DialogTitle>
-              <DialogDescription>Ключ проверим сразу. Если провайдер недоступен напрямую — подберём прокси.</DialogDescription>
+              <DialogTitle>Подключить источник</DialogTitle>
+              <DialogDescription>Ключ проверим сразу. Если источник недоступен напрямую — подберём прокси.</DialogDescription>
             </DialogHeader>
             <ProviderList connected={connected} onPick={setKind} size="sm" />
           </>

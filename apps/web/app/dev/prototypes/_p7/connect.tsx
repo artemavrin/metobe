@@ -153,7 +153,7 @@ export const ConnectForm = ({
   onSwitchProvider,
 }: {
   kind: ProviderKind;
-  onDone: (route: RouteChoice) => void;
+  onDone: (route: RouteChoice, extra?: string) => void;
   footer?: (state: { busy: boolean }) => React.ReactNode;
   large?: boolean;
   /** Proxies already configured. A fresh install has none. */
@@ -171,8 +171,8 @@ export const ConnectForm = ({
   const blockedFlow = conn.phase === "blocked" || (conn.phase === "probing" && !proxies.length);
 
   useEffect(() => {
-    if (conn.phase === "done") onDone(conn.route);
-  }, [conn.phase, conn.route, onDone]);
+    if (conn.phase === "done") onDone(conn.route, extra || undefined);
+  }, [conn.phase, conn.route, extra, onDone]);
 
   const fillSample = () => {
     if (kind !== "compatible") setKey(SAMPLE_KEYS[kind]);
@@ -257,7 +257,7 @@ export const ConnectForm = ({
           <AlertTitle>Ключ подошёл, но {spec.title} из этой сети не отвечает</AlertTitle>
           <AlertDescription>
             Похоже на гео-блок. Укажите прокси — через него пойдёт только {spec.title}, остальное напрямую. Или подключите
-            провайдера, который доступен отсюда.
+            источник, который доступен отсюда.
           </AlertDescription>
           <div className="col-start-2 mt-3 flex flex-col gap-2">
             <InputGroup>
@@ -297,7 +297,7 @@ export const ConnectForm = ({
               </Button>
               {onSwitchProvider && (
                 <Button disabled={conn.phase === "probing"} onClick={onSwitchProvider} size="sm" type="button" variant="ghost">
-                  <ArrowLeftRight /> Другой провайдер
+                  <ArrowLeftRight /> Другой источник
                 </Button>
               )}
             </div>

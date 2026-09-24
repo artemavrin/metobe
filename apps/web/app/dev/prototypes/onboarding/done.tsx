@@ -94,7 +94,7 @@ const Summary = ({ o }: { o: Onboarding }) => {
             ))}
           </div>
           <Button className="text-muted-foreground w-fit" onClick={() => o.setStep("pick")} size="sm" variant="ghost">
-            <Plus /> Подключить ещё провайдера
+            <Plus /> Подключить ещё источник
           </Button>
         </div>
       </FramePanel>
@@ -205,7 +205,7 @@ const Compose = ({ o }: { o: Onboarding }) => {
             ))}
           </span>
           <Button className="text-muted-foreground" onClick={() => o.setStep("pick")} size="sm" variant="ghost">
-            <Plus /> Ещё провайдер
+            <Plus /> Ещё источник
           </Button>
         </div>
       </FramePanel>
@@ -231,7 +231,7 @@ const Actions = ({ o, primary = "Открыть чат" }: { o: Onboarding; prim
       {primary} <ArrowRight />
     </Button>
     <Button className="text-muted-foreground w-fit self-center" onClick={() => o.setStep("pick")} size="sm" variant="ghost">
-      <Plus /> Подключить ещё провайдера
+      <Plus /> Подключить ещё источник
     </Button>
   </div>
 );

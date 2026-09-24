@@ -11,9 +11,10 @@ import { cn } from "@purr/ui/lib/utils";
 import { ArrowUp, ChevronDown, ImageUp, RotateCcw } from "lucide-react";
 import { useRef, useState } from "react";
 
-import { BrandLogo, LOGOS, SOURCE_LOGO } from "../../_p7/brand";
+import { BrandLogo } from "../../_p7/brand";
 import { byNewest, fmtContext, fmtPrice, isNew, providerBy } from "../../_p7/mock";
 import { NO_AUTOFILL } from "../../_p7/shared";
+import { LogoPicker } from "./parts";
 import type { ProviderInfo, Settings } from "./state";
 
 export const ProvidersPage = ({ s }: { s: Settings }) => {
@@ -47,7 +48,7 @@ export const ProvidersPage = ({ s }: { s: Settings }) => {
                   <span className="text-muted-foreground flex items-center gap-1 truncate text-xs">
                     через
                     {sources.map((k) => (
-                      <BrandLogo key={k} label={providerBy(k).title} logo={SOURCE_LOGO[k]} size={14} tile={false} />
+                      <BrandLogo key={k} label={s.sourceOf(k).title} logo={s.sourceOf(k).logo} size={14} tile={false} />
                     ))}
                   </span>
                 </span>
@@ -62,83 +63,6 @@ export const ProvidersPage = ({ s }: { s: Settings }) => {
       </aside>
       <main className="min-w-0 flex-1 overflow-y-auto">{current && <ProviderDetail key={current.slug} p={current} s={s} />}</main>
     </div>
-  );
-};
-
-const LogoPicker = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
-  const file = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger
-        render={
-          <button
-            aria-label="Сменить логотип"
-            className="group relative rounded-[28%] transition-transform duration-150 ease-out active:scale-[0.97]"
-            type="button"
-          />
-        }
-      >
-        <BrandLogo label={p.title} logo={p.logo} size={64} />
-        <span className="bg-foreground/35 text-background absolute inset-0 backdrop-blur-[2px] flex items-center justify-center rounded-[28%] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-          <ImageUp className="size-5" />
-        </span>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
-        <div className="flex flex-col gap-3">
-          <span className="text-sm font-medium">Логотип провайдера</span>
-          <div className="grid grid-cols-7 gap-1.5">
-            {Object.entries(LOGOS).map(([slug, l]) => (
-              <button
-                aria-label={l.label}
-                className={cn("rounded-lg p-1 transition-colors", p.logo === slug ? "bg-muted ring-primary ring-2" : "hover:bg-muted")}
-                key={slug}
-                onClick={() => {
-                  s.setOverride(p.slug, { logo: slug });
-                  setOpen(false);
-                }}
-                title={l.label}
-                type="button"
-              >
-                <BrandLogo label={l.label} logo={slug} size={28} />
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center justify-between gap-2 border-t pt-3">
-            <Button onClick={() => file.current?.click()} size="sm" variant="outline">
-              <ImageUp /> Загрузить своё
-            </Button>
-            <Button
-              onClick={() => {
-                s.setOverride(p.slug, { logo: undefined });
-                setOpen(false);
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              <RotateCcw /> Как было
-            </Button>
-          </div>
-          <input
-            accept="image/png,image/svg+xml,image/jpeg,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              const reader = new FileReader();
-              reader.onload = () => {
-                s.setOverride(p.slug, { logo: String(reader.result) });
-                setOpen(false);
-              };
-              reader.readAsDataURL(f);
-            }}
-            ref={file}
-            type="file"
-          />
-          <span className="text-muted-foreground text-xs">PNG или SVG, квадрат. В продукте файл ляжет в S3.</span>
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 };
 
@@ -170,7 +94,7 @@ const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
       <header className="grid grid-cols-[auto_1fr_280px] items-center gap-6">
-        <LogoPicker p={p} s={s} />
+        <LogoPicker label={p.title} onPick={(logo) => s.setOverride(p.slug, { logo })} value={p.logo} />
         <div className="flex flex-col gap-1">
           <Input
             {...NO_AUTOFILL}
@@ -211,8 +135,8 @@ const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
                     )}
                   </span>
                   <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                    <BrandLogo label={providerBy(source).title} logo={SOURCE_LOGO[source]} size={16} tile={false} />
-                    {providerBy(source).title}
+                    <BrandLogo label={s.sourceOf(source).title} logo={s.sourceOf(source).logo} size={16} tile={false} />
+                    {s.sourceOf(source).title}
                   </span>
                   <span className="text-muted-foreground w-14 text-right text-xs tabular-nums">{fmtContext(m.context)}</span>
                   <span className="text-muted-foreground w-28 text-right text-xs tabular-nums">{fmtPrice(m)}</span>

@@ -4,7 +4,7 @@
 // and proxies (ways out to the internet, set up once and used where needed — ARCH §18).
 import { useMemo, useState } from "react";
 
-import { providerSlug } from "../../_p7/brand";
+import { guessHostLogo, providerSlug, SOURCE_LOGO } from "../../_p7/brand";
 import { type Model, type ProviderKind, providerBy, SAMPLE_KEYS } from "../../_p7/mock";
 import { type PanelProvider, seedPanel, usePanel } from "../panel/common";
 
@@ -102,6 +102,7 @@ export const useSettings = () => {
   const panel = usePanel(seed);
   const [overrides, setOverrides] = useState<Record<string, ProviderOverride>>({});
   const [proxies, setProxies] = useState<ProxyEntry[]>(seedProxies);
+  const [sourceOverrides, setSourceOverrides] = useState<Partial<Record<ProviderKind, ProviderOverride>>>({});
 
   const providers = useMemo(() => {
     const map = new Map<string, ProviderInfo>();
@@ -122,6 +123,14 @@ export const useSettings = () => {
     return { logo: overrides[slug]?.logo ?? slug, slug, title: overrides[slug]?.title ?? m.vendor };
   };
   const setOverride = (slug: string, o: ProviderOverride) => setOverrides((all) => ({ ...all, [slug]: { ...all[slug], ...o } }));
+
+  /** Name and logo of a source: the admin's choice, else the kind's logo; a compatible server is guessed from its URL. */
+  const sourceOf = (kind: ProviderKind) => {
+    const o = sourceOverrides[kind];
+    const auto = kind === "compatible" ? guessHostLogo(panel.list.find((x) => x.kind === kind)?.extra) : SOURCE_LOGO[kind];
+    return { auto, logo: o?.logo ?? auto, title: o?.title ?? providerBy(kind).title };
+  };
+  const setSourceOverride = (kind: ProviderKind, o: ProviderOverride) => setSourceOverrides((all) => ({ ...all, [kind]: { ...all[kind], ...o } }));
 
   /** ARCH §18: an explicit choice wins; on «Авто» the most specific matching domain picks the proxy; otherwise direct. */
   const routeOf = (p: PanelProvider): Route => {
@@ -156,7 +165,7 @@ export const useSettings = () => {
     setProxies((all) => all.filter((x) => x.id !== id));
   };
 
-  return { addProxy, checkProxy, overrides, panel, patchProxy, providerOf, providers, proxies, removeProxy, routeOf, setOverride };
+  return { addProxy, checkProxy, overrides, panel, patchProxy, providerOf, providers, proxies, removeProxy, routeOf, setOverride, setSourceOverride, sourceOf };
 };
 
 export type Settings = ReturnType<typeof useSettings>;

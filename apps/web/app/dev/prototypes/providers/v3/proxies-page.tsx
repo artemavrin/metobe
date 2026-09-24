@@ -23,7 +23,7 @@ import { cn } from "@purr/ui/lib/utils";
 import { Network, Plus, RefreshCw, X } from "lucide-react";
 import { useState } from "react";
 
-import { BrandLogo, SOURCE_LOGO } from "../../_p7/brand";
+import { BrandLogo } from "../../_p7/brand";
 import { providerBy } from "../../_p7/mock";
 import { NO_AUTOFILL } from "../../_p7/shared";
 import { Sparkline } from "../panel/common";
@@ -98,7 +98,7 @@ export const ProxiesPage = ({ s }: { s: Settings }) => {
                     {s.panel.list
                       .filter((p) => s.routeOf(p).proxy?.id === x.id)
                       .map((p) => (
-                        <BrandLogo className="ring-background ring-2" key={p.kind} label={providerBy(p.kind).title} logo={SOURCE_LOGO[p.kind]} size={20} />
+                        <BrandLogo className="ring-background ring-2" key={p.kind} label={s.sourceOf(p.kind).title} logo={s.sourceOf(p.kind).logo} size={20} />
                       ))}
                   </span>
                 }
@@ -284,9 +284,9 @@ const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemove
             const id = `via-${x.id}-${p.kind}`;
             return (
               <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 px-4 py-2.5" htmlFor={id} key={p.kind}>
-                <BrandLogo label={providerBy(p.kind).title} logo={SOURCE_LOGO[p.kind]} size={28} />
+                <BrandLogo label={s.sourceOf(p.kind).title} logo={s.sourceOf(p.kind).logo} size={28} />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className={cn("font-medium", !mine && "text-muted-foreground")}>{providerBy(p.kind).title}</span>
+                  <span className={cn("font-medium", !mine && "text-muted-foreground")}>{s.sourceOf(p.kind).title}</span>
                   <span className="text-muted-foreground text-xs">
                     <span className="font-mono">{SOURCE_HOST[p.kind]}</span> · {note}
                   </span>
@@ -356,7 +356,7 @@ const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemove
           <span className="flex flex-col">
             <span className="font-medium">Удалить «{x.title}»</span>
             <span className="text-muted-foreground text-xs">
-              {through.length ? `${through.map((p) => providerBy(p.kind).title).join(", ")} пойдут напрямую — проверьте, что они доступны из этой сети.` : "Сейчас через него ничего не ходит."}
+              {through.length ? `${through.map((p) => s.sourceOf(p.kind).title).join(", ")} пойдут напрямую — проверьте, что они доступны из этой сети.` : "Сейчас через него ничего не ходит."}
             </span>
           </span>
           <Dialog>
@@ -366,7 +366,7 @@ const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemove
                 <DialogTitle>Удалить «{x.title}»?</DialogTitle>
                 <DialogDescription>
                   {through.length
-                    ? `Через него ходят: ${through.map((p) => providerBy(p.kind).title).join(", ")}. Они пойдут напрямую и могут перестать отвечать.`
+                    ? `Через него ходят: ${through.map((p) => s.sourceOf(p.kind).title).join(", ")}. Они пойдут напрямую и могут перестать отвечать.`
                     : "Через него ничего не ходит."}
                 </DialogDescription>
               </DialogHeader>

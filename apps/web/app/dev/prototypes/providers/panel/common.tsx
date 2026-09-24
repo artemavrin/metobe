@@ -114,7 +114,7 @@ export const usePanel = (seed: () => PanelProvider[] = seedPanel) => {
   const add = (c: Connected) => {
     setList((all) => [
       ...all.filter((p) => p.kind !== c.kind),
-      { ...c, health: { checked: "только что", state: "ok" }, keyTail: SAMPLE_KEYS[c.kind].slice(-4), routeMode: c.route.kind === "direct" ? "auto" : c.route.proxy.id },
+      { ...c, extra: c.extra ?? (c.kind === "yandex" ? "b1g8f2k4m9q1r7t3v5x0" : c.kind === "compatible" ? SAMPLE_KEYS.compatible : undefined), health: { checked: "только что", state: "ok" }, keyTail: c.kind === "compatible" ? "" : SAMPLE_KEYS[c.kind].slice(-4), routeMode: c.route.kind === "direct" ? "auto" : c.route.proxy.id },
     ]);
     setSelected(c.kind);
   };
