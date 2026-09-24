@@ -27,14 +27,53 @@ export const Section = ({ title, meta, action, children }: { title: string; meta
   </section>
 );
 
-export const Row = ({ label, hint, children, action }: { label: string; hint?: string; children: ReactNode; action?: ReactNode }) => (
-  <div className="grid min-h-14 grid-cols-[180px_1fr_auto] items-center gap-4 px-4 py-3">
-    <div className="flex flex-col">
-      <span className="font-medium">{label}</span>
-      {hint && <span className="text-muted-foreground text-xs">{hint}</span>}
+/**
+ * A settings row: label and hint take the free width on the left, the value and its action sit on the right.
+ * With `editor`, the row opens downward instead: the field gets the whole row width, actions sit beside it.
+ */
+export const Row = ({
+  label,
+  hint,
+  children,
+  action,
+  editor,
+}: {
+  label: string;
+  hint?: string;
+  children?: ReactNode;
+  action?: ReactNode;
+  editor?: ReactNode;
+}) => (
+  <div className="px-4 py-3">
+    <div className="flex min-h-8 items-center gap-6">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="font-medium">{label}</span>
+        {hint && <span className="text-muted-foreground text-xs">{hint}</span>}
+      </div>
+      {!editor && (
+        <div className="flex max-w-[60%] min-w-0 shrink-0 items-center gap-3">
+          <div className="min-w-0">{children}</div>
+          {action}
+        </div>
+      )}
     </div>
-    <div className="min-w-0">{children}</div>
-    <div>{action}</div>
+    {editor && <div className="v3-appear mt-3">{editor}</div>}
+  </div>
+);
+
+/** The open state of an editable row: a full-width field, then cancel and the primary action; an error under it. */
+export const RowEditor = ({ field, error, onCancel, primary }: { field: ReactNode; error?: ReactNode; onCancel?: () => void; primary: ReactNode }) => (
+  <div className="flex flex-col gap-1.5">
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">{field}</div>
+      {onCancel && (
+        <Button onClick={onCancel} size="sm" variant="ghost">
+          Отмена
+        </Button>
+      )}
+      {primary}
+    </div>
+    {error && <span className="v3-appear text-destructive text-xs">{error}</span>}
   </div>
 );
 
@@ -81,56 +120,53 @@ export const EditRow = ({
   return (
     <Row
       action={
+        <Button
+          onClick={() => {
+            setDraft(value);
+            setOpen(true);
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          Изменить
+        </Button>
+      }
+      editor={
         open ? (
-          <span className="flex gap-1">
-            {value && (
-              <Button onClick={cancel} size="sm" variant="ghost">
-                Отмена
+          <RowEditor
+            error={tried && problem}
+            field={
+              <Input
+                {...NO_AUTOFILL}
+                aria-invalid={tried && Boolean(problem)}
+                aria-label={label}
+                autoFocus
+                className={cn(mono && "font-mono")}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") save();
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    cancel();
+                  }
+                }}
+                placeholder={placeholder}
+                value={draft}
+              />
+            }
+            onCancel={value ? cancel : undefined}
+            primary={
+              <Button onClick={save} size="sm">
+                Сохранить
               </Button>
-            )}
-            <Button onClick={save} size="sm">
-              Сохранить
-            </Button>
-          </span>
-        ) : (
-          <Button
-            onClick={() => {
-              setDraft(value);
-              setOpen(true);
-            }}
-            size="sm"
-            variant="ghost"
-          >
-            Изменить
-          </Button>
-        )
+            }
+          />
+        ) : undefined
       }
       hint={hint}
       label={label}
     >
-      {open ? (
-        <div className="flex flex-col gap-1">
-          <Input
-            {...NO_AUTOFILL}
-            aria-invalid={tried && Boolean(problem)}
-            autoFocus
-            className={cn("v3-appear max-w-md", mono && "font-mono")}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") {
-                e.stopPropagation();
-                cancel();
-              }
-            }}
-            placeholder={placeholder}
-            value={draft}
-          />
-          {tried && problem && <span className="v3-appear text-destructive text-xs">{problem}</span>}
-        </div>
-      ) : (
-        (display ?? <span className={cn("truncate", mono && "font-mono")}>{value || <span className="text-muted-foreground">не задан</span>}</span>)
-      )}
+      {display ?? <span className={cn("truncate", mono && "font-mono")}>{value || <span className="text-muted-foreground">не задан</span>}</span>}
     </Row>
   );
 };

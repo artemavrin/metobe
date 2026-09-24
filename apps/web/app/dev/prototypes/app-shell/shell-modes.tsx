@@ -149,6 +149,16 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
   </SidebarProvider>
 );
 
+/**
+ * The page frame of every settings screen: one width, one rhythm, one entrance. Screens render only their content,
+ * so a new section can't drift wider or narrower than the rest.
+ */
+export const SettingsPageFrame = ({ children }: { children: React.ReactNode }) => (
+  <div className="animate-in fade-in slide-in-from-bottom-1.5 fill-mode-both mx-auto flex w-full max-w-4xl flex-col gap-8 px-10 pt-8 pb-24 text-sm duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:slide-in-from-bottom-0">
+    {children}
+  </div>
+);
+
 /** Top of the settings sidebar: back to the chat, Esc hint, search. */
 export const SettingsTop = ({ onBack, q, setQ }: { onBack: () => void; q: string; setQ: (q: string) => void }) => (
   <SidebarHeader>

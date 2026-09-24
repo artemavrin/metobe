@@ -24,7 +24,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useState } from "react";
 
 import { SettingsPage } from "../../app-shell/content";
-import { AccountFooter, type SettingsCtx, SettingsMenu, SettingsTop } from "../../app-shell/shell-modes";
+import { AccountFooter, type SettingsCtx, SettingsMenu, SettingsPageFrame, SettingsTop } from "../../app-shell/shell-modes";
 import { NO_AUTOFILL } from "../../_p7/shared";
 import { useListHighlight } from "./parts";
 import { isListSection, type SectionModel, useSections } from "./sections";
@@ -129,7 +129,7 @@ export const LayoutCanvas = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
               <EntryList m={m} />
             </div>
           </div>
-          <Scroll k={`${ctx.section}:${m.activeId}`}>{m.detail}</Scroll>
+          <Scroll k={`${ctx.section}:${m.activeId}`}><SettingsPageFrame>{m.detail}</SettingsPageFrame></Scroll>
           {m.extra}
         </div>
       ) : (
@@ -183,7 +183,7 @@ export const LayoutNested = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
         </>
       }
     >
-      <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? m.detail : <SettingsPage section={ctx.section} />}</Scroll>
+      <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <SettingsPage section={ctx.section} />}</Scroll>
       {m?.extra}
     </Shell>
   );
@@ -285,7 +285,7 @@ export const LayoutSwitcher = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) =>
               <AddButton m={m} />
             </span>
           </header>
-          <Scroll k={`${ctx.section}:${m.activeId}`}>{m.detail}</Scroll>
+          <Scroll k={`${ctx.section}:${m.activeId}`}><SettingsPageFrame>{m.detail}</SettingsPageFrame></Scroll>
           {m.extra}
         </div>
       ) : (
@@ -369,7 +369,7 @@ export const LayoutDrill = ({ s, ctx }: { s: Settings; ctx: SettingsCtx }) => {
         </div>
       }
     >
-      <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? m.detail : <SettingsPage section={ctx.section} />}</Scroll>
+      <Scroll k={`${ctx.section}:${m?.activeId}`}>{m ? <SettingsPageFrame>{m.detail}</SettingsPageFrame> : <SettingsPage section={ctx.section} />}</Scroll>
       {m?.extra}
     </Shell>
   );

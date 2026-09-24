@@ -2,9 +2,11 @@
 
 // «Источники»: who gives access to models. Calm list → detail: a list with live health, a detail page with the check
 // as an object, connection as settings rows, models grouped by provider with logos, a danger zone at the end.
+import { SettingsPageFrame } from "../../app-shell/shell-modes";
 import { Button } from "@metobe/ui/components/button";
 import { Input } from "@metobe/ui/components/input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Spinner } from "@metobe/ui/components/spinner";
 import { Popover, PopoverContent, PopoverTrigger } from "@metobe/ui/components/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@metobe/ui/components/select";
 import { Badge } from "@metobe/ui/components/reui/badge";
@@ -16,16 +18,15 @@ import { useMemo, useState } from "react";
 
 import { BrandLogo } from "../../_p7/brand";
 import { ConnectDialog } from "../../_p7/connect-dialog";
-import { byNewest, fmtContext, fmtPrice, isNew, type Model, providerBy } from "../../_p7/mock";
-import { CapIcons, NO_AUTOFILL } from "../../_p7/shared";
+import { byNewest, fmtContext, fmtPrice, isNew, type Model, providerBy, SAMPLE_KEYS } from "../../_p7/mock";
+import { CapIcons, MASKED, NO_AUTOFILL } from "../../_p7/shared";
 import {
   DisconnectButton,
-  KeyField,
   type PanelProvider,
   RecheckButton,
   visibleInChat,
 } from "../panel/common";
-import { EditRow, LIST_PANEL, LogoPicker, Row, Section, useListHighlight } from "./parts";
+import { EditRow, LIST_PANEL, LogoPicker, Row, RowEditor, Section, useListHighlight } from "./parts";
 import { COUNTRY, type ProxyEntry, type Settings } from "./state";
 
 /** Round-trip of the last check, deterministic per source (the real app stores the last check result). */
@@ -96,7 +97,11 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
         </nav>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto">{p && <SourceDetail key={p.kind} p={p} s={s} />}</main>
+      <main className="min-w-0 flex-1 overflow-y-auto">{p && (
+          <SettingsPageFrame key={p.kind}>
+            <SourceDetail p={p} s={s} />
+          </SettingsPageFrame>
+        )}</main>
       <ConnectDialog connected={panel.list.map((x) => x.kind)} onConnected={panel.add} onOpenChange={setDialog} open={dialog} />
     </div>
   );
@@ -168,7 +173,7 @@ const RouteField = ({ p, s }: { p: PanelProvider; s: Settings }) => {
           ? "Всегда через этот прокси, домены не учитываются"
           : "Всегда напрямую, даже если домен отмечен у прокси";
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col items-end gap-1">
       <Select onValueChange={(v) => s.panel.setRoute(p.kind, String(v))} value={p.routeMode}>
         <SelectTrigger className="w-72">
           <SelectValue>
@@ -213,8 +218,90 @@ const RouteField = ({ p, s }: { p: PanelProvider; s: Settings }) => {
           )}
         </SelectContent>
       </Select>
-      <span className="text-muted-foreground text-xs">{why}</span>
+      <span className="text-muted-foreground text-right text-xs">{why}</span>
     </div>
+  );
+};
+
+/**
+ * The key, replaced in place like any other value: «Заменить» turns the masked tail into a field; Enter checks and
+ * saves, Esc cancels. The old key stays until the new one passes a real request.
+ */
+const KeyRow = ({ p, s, broken, open, onOpenChange }: { p: PanelProvider; s: Settings; broken: boolean; open: boolean; onOpenChange: (v: boolean) => void }) => {
+  const [key, setKey] = useState("");
+  const [failed, setFailed] = useState(false);
+  const checking = p.health.state === "checking";
+  const spec = providerBy(p.kind);
+  const close = () => {
+    setKey("");
+    setFailed(false);
+    onOpenChange(false);
+  };
+  const submit = async () => {
+    if (!key.trim() || checking) return;
+    const ok = await s.panel.replaceKey(p.kind, key);
+    setFailed(!ok);
+    if (ok) close();
+  };
+  return (
+    <Row
+      action={
+        <Button onClick={() => onOpenChange(true)} size="sm" variant="ghost">
+          Заменить
+        </Button>
+      }
+      editor={
+        open ? (
+          <RowEditor
+            error={failed && "Ключ не подошёл — старый остаётся в силе"}
+            field={
+              <InputGroup>
+                <InputGroupInput
+                  {...NO_AUTOFILL}
+                  aria-invalid={failed || undefined}
+                  aria-label="Новый ключ"
+                  autoFocus
+                  className={cn("font-mono", key && MASKED)}
+                  disabled={checking}
+                  onChange={(e) => {
+                    setKey(e.target.value);
+                    setFailed(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void submit();
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      close();
+                    }
+                  }}
+                  placeholder={spec.keyPlaceholder}
+                  value={key}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton disabled={checking} onClick={() => setKey(SAMPLE_KEYS[p.kind])} size="xs">
+                    Пример
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+            }
+            onCancel={checking ? undefined : close}
+            primary={
+              <Button disabled={checking || !key.trim()} onClick={() => void submit()} size="sm">
+                {checking && <Spinner className="size-3.5" />} Проверить
+              </Button>
+            }
+          />
+        ) : undefined
+      }
+      hint={open ? `Сейчас ••••${p.keyTail}. Старый ключ работает, пока новый не пройдёт проверку` : "Хранится зашифрованным"}
+      label="Ключ"
+    >
+      {p.keyTail ? (
+        <span className={cn("font-mono", broken && "text-destructive")}>••••{p.keyTail}</span>
+      ) : (
+        <span className="text-muted-foreground">без ключа</span>
+      )}
+    </Row>
   );
 };
 
@@ -228,7 +315,7 @@ export const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
   const [name, setName] = useState(brand.title);
 
   return (
-    <div className="v3-enter mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <>
       <header className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-4">
           <LogoPicker hosts label={brand.title} onPick={(logo) => s.setSourceOverride(p.kind, { logo })} size={48} value={brand.logo} />
@@ -282,28 +369,7 @@ export const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
 
       <Section title="Подключение">
         <div className="divide-y rounded-lg border">
-          <Row
-            action={
-              <Button onClick={() => setKeyOpen((v) => !v)} size="sm" variant="ghost">
-                {keyOpen ? "Отмена" : "Заменить"}
-              </Button>
-            }
-            hint="Хранится зашифрованным"
-            label="Ключ"
-          >
-            {p.keyTail ? (
-              <span className={cn("font-mono", broken && "text-destructive")}>••••{p.keyTail}</span>
-            ) : (
-              <span className="text-muted-foreground">без ключа</span>
-            )}
-          </Row>
-          {keyOpen && (
-            <div className="animate-in fade-in slide-in-from-top-1 fill-mode-both bg-muted/30 px-4 py-4 duration-200 ease-out">
-              <div className="ml-[196px] max-w-md">
-                <KeyField onDone={() => setKeyOpen(false)} p={p} panel={panel} />
-              </div>
-            </div>
-          )}
+          <KeyRow broken={broken} onOpenChange={setKeyOpen} open={keyOpen} p={p} s={s} />
           {spec.extraField && (
             <EditRow
               check={(v) => (p.kind === "yandex" && !v.startsWith("b1g") ? "ID каталога начинается с b1g — скопируйте его в консоли Yandex Cloud" : null)}
@@ -332,7 +398,7 @@ export const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
           <DisconnectButton p={p} panel={panel} />
         </div>
       </Section>
-    </div>
+    </>
   );
 };
 

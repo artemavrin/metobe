@@ -2,6 +2,7 @@
 
 // «Провайдеры»: who made the models. Name and logo are what users see in the chat's model picker; the admin can
 // rename a provider and change its logo (built-in set or an uploaded image). Models come from any source.
+import { SettingsPageFrame } from "../../app-shell/shell-modes";
 import { Button } from "@metobe/ui/components/button";
 import { Input } from "@metobe/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@metobe/ui/components/popover";
@@ -65,7 +66,11 @@ export const ProvidersPage = ({ s }: { s: Settings }) => {
           })}
         </nav>
       </aside>
-      <main className="min-w-0 flex-1 overflow-y-auto">{current && <ProviderDetail key={current.slug} p={current} s={s} />}</main>
+      <main className="min-w-0 flex-1 overflow-y-auto">{current && (
+          <SettingsPageFrame key={current.slug}>
+            <ProviderDetail p={current} s={s} />
+          </SettingsPageFrame>
+        )}</main>
     </div>
   );
 };
@@ -96,7 +101,7 @@ export const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
   const rows = [...p.models].sort((a, b) => byNewest(a.model, b.model));
   const on = rows.filter((r) => r.on).length;
   return (
-    <div className="v3-enter mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <>
       <header className="grid grid-cols-[auto_1fr_280px] items-center gap-6">
         <LogoPicker label={p.title} onPick={(logo) => s.setOverride(p.slug, { logo })} value={p.logo} />
         <div className="flex flex-col gap-1">
@@ -160,6 +165,6 @@ export const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
           Одна модель может приходить через несколько источников — например, Claude по ключу Anthropic и через AI Gateway. Переключатель включает её в конкретном источнике.
         </p>
       </section>
-    </div>
+    </>
   );
 };

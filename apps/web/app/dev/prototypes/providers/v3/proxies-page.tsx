@@ -3,6 +3,7 @@
 // «Прокси» (ARCH §18): ways out to the internet, set up once and used where needed. Same list → detail as sources:
 // the check is an object (external IP, country, latency), and «what goes through me» edits the same field the
 // source's «Маршрут» shows — sources ticked explicitly, plus domains for everything on «Авто».
+import { SettingsPageFrame } from "../../app-shell/shell-modes";
 import { Button } from "@metobe/ui/components/button";
 import {
   Dialog,
@@ -117,12 +118,9 @@ export const ProxiesPage = ({ s }: { s: Settings }) => {
       </aside>
       <main className="min-w-0 flex-1 overflow-y-auto">
         {current && (
-          <ProxyDetail
-            key={current.id}
-            onRemoved={() => setSelected(s.proxies.find((x) => x.id !== current.id)?.id ?? null)}
-            s={s}
-            x={current}
-          />
+          <SettingsPageFrame key={current.id}>
+            <ProxyDetail onRemoved={() => setSelected(s.proxies.find((x) => x.id !== current.id)?.id ?? null)} s={s} x={current} />
+          </SettingsPageFrame>
         )}
       </main>
     </div>
@@ -201,7 +199,7 @@ export const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; o
   };
 
   return (
-    <div className="v3-enter mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <>
       <header className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-4">
           <ProxyMark pop={!checkedAtOpen.current} size={48} x={x} />
@@ -396,6 +394,6 @@ export const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; o
           </Dialog>
         </div>
       </Section>
-    </div>
+    </>
   );
 };
