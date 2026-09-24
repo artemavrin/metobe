@@ -11,8 +11,10 @@ import { Row, Section } from "./parts";
 
 const unsubscribe = (): void => undefined;
 const noSubscribe = () => unsubscribe;
-const weekday = (locale: string, day: WeekStart) =>
-  new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday: "long" }).format(new Date(Date.UTC(2024, 0, day)));
+const weekday = (locale: string, day: WeekStart) => {
+  const name = new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday: "long" }).format(new Date(Date.UTC(2024, 0, day)));
+  return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1);
+};
 const SAMPLE = new Date(Date.UTC(2026, 8, 24, 15, 30));
 const ZONES = ["Europe/Moscow", "Europe/Berlin", "Europe/London", "Asia/Tokyo", "America/New_York", "UTC"];
 
@@ -22,9 +24,19 @@ const Pick = ({ value, onChange, items, label }: { value: string; onChange: (v: 
       <SelectValue>{label(value)}</SelectValue>
     </SelectTrigger>
     <SelectContent>
-      {items.map(([v, l]) => (
+      {/* An explicit option equal to what «авто» gives now is a duplicate — hidden unless it is the current choice. */}
+      {items
+        .filter(([v, l]) => v === "auto" || v === value || l !== items.find(([a]) => a === "auto")?.[1])
+        .map(([v, l]) => (
         <SelectItem key={v} value={v}>
-          {l}
+          {v === "auto" ? (
+            <span className="flex w-full items-center justify-between gap-3">
+              {l}
+              <span className="text-muted-foreground text-xs">авто</span>
+            </span>
+          ) : (
+            l
+          )}
         </SelectItem>
       ))}
     </SelectContent>
@@ -40,9 +52,10 @@ export const RegionPage = () => {
   const minute = useSyncExternalStore(noSubscribe, () => Math.floor(Date.now() / 60_000), () => null);
   const tz = zone === "auto" ? browserZone || "UTC" : zone;
   const sample = (f: DateFormat) => formatNumericDate(SAMPLE, { dateFormat: f, locale: lang, timeZone: "UTC" });
-  const dateLabel = (f: string) => (f === "auto" ? `Как в языке — ${sample("auto")}` : sample(f as DateFormat));
-  const weekLabel = (v: string) => (v === "auto" ? `Как в языке — ${weekday("ru", defaultWeekStart(lang))}` : weekday("ru", Number(v) as WeekStart));
-  const zoneLabel = (v: string) => (v === "auto" ? `Автоматически — ${browserZone || "…"}` : v.replaceAll("_", " "));
+  // The automatic option shows only its value; the list tags it «авто».
+  const dateLabel = (f: string) => sample(f as DateFormat);
+  const weekLabel = (v: string) => weekday("ru", v === "auto" ? defaultWeekStart(lang) : (Number(v) as WeekStart));
+  const zoneLabel = (v: string) => (v === "auto" ? browserZone || "…" : v).replaceAll("_", " ");
   const now = minute === null ? null : new Date(minute * 60_000);
 
   return (
