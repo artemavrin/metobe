@@ -1,13 +1,13 @@
 "use client";
 
-import { Badge } from "@purr/ui/components/reui/badge";
-import { DataGrid, dataGridFeatures, type DataGridFeatures } from "@purr/ui/components/reui/data-grid/data-grid";
-import { DataGridScrollArea } from "@purr/ui/components/reui/data-grid/data-grid-scroll-area";
-import { DataGridTable, DataGridTableRowSelect, DataGridTableRowSelectAll } from "@purr/ui/components/reui/data-grid/data-grid-table";
-import { Switch } from "@purr/ui/components/switch";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { DataGrid, dataGridFeatures, type DataGridFeatures } from "@metobe/ui/components/reui/data-grid/data-grid";
+import { DataGridScrollArea } from "@metobe/ui/components/reui/data-grid/data-grid-scroll-area";
+import { DataGridTable, DataGridTableRowSelect, DataGridTableRowSelectAll } from "@metobe/ui/components/reui/data-grid/data-grid-table";
+import { Switch } from "@metobe/ui/components/switch";
 import { type ColumnDef, type RowSelectionState, useTable } from "@tanstack/react-table";
 import { useMemo } from "react";
-import { cn } from "@purr/ui/lib/utils";
+import { cn } from "@metobe/ui/lib/utils";
 
 import { fmtContext, fmtPrice, isNew, type Model, type ProviderKind, providerBy } from "./mock";
 import { CapIcons, ProviderMark } from "./shared";

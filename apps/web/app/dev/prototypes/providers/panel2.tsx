@@ -2,14 +2,14 @@
 
 // «Панель 2»: the panel's structure (providers | provider) in the onboarding's look — soft page, raised cards,
 // a status row on top, facts you can act on, models as calm rows that open in place.
-import { Button } from "@purr/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Frame, FrameDescription, FrameFooter, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
-import { Separator } from "@purr/ui/components/separator";
-import { Switch } from "@purr/ui/components/switch";
-import { ToggleGroup, ToggleGroupItem } from "@purr/ui/components/toggle-group";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Frame, FrameDescription, FrameFooter, FrameHeader, FramePanel, FrameTitle } from "@metobe/ui/components/reui/frame";
+import { Separator } from "@metobe/ui/components/separator";
+import { Switch } from "@metobe/ui/components/switch";
+import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
+import { cn } from "@metobe/ui/lib/utils";
 import { Braces, Brain, ChevronDown, Eye, KeyRound, Plus, Search, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 

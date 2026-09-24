@@ -1,5 +1,5 @@
 # Builds the image from this checkout instead of pulling the release image.
-# Used by install.sh with PURR_BUILD=1 (CI e2e) and when a pull is impossible.
+# Used by install.sh with METOBE_BUILD=1 (CI e2e) and when a pull is impossible.
 services:
   app:
     build:

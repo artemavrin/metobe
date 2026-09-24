@@ -1,7 +1,7 @@
 "use client";
 
 // Direction «Классика»: one collapsible sidebar — new chat, history, agents, and settings as a tree in the same column.
-import { Badge } from "@purr/ui/components/reui/badge";
+import { Badge } from "@metobe/ui/components/reui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -21,7 +21,7 @@ import {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
-} from "@purr/ui/components/sidebar";
+} from "@metobe/ui/components/sidebar";
 import { ChevronRight, ChevronsUpDown, Settings, SquarePen } from "lucide-react";
 import { useState } from "react";
 
@@ -42,7 +42,7 @@ export const ShellClassic = () => {
             <SidebarMenuItem>
               <SidebarMenuButton className="font-semibold" size="lg">
                 <span className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg text-sm">P</span>
-                Purr
+                Metobe
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>

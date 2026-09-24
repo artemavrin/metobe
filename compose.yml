@@ -1,15 +1,15 @@
-name: purr
+name: metobe
 
 services:
   app:
     # Published release image; docker/compose.build.yml adds a source build for development and CI.
-    image: ${PURR_IMAGE:-ghcr.io/artemavrin/purr:latest}
+    image: ${METOBE_IMAGE:-ghcr.io/artemavrin/metobe:latest}
     restart: unless-stopped
     env_file:
       - path: .env
         required: false
     environment: &app-env
-      DATABASE_URL: ${APP_DATABASE_URL:-postgres://${POSTGRES_USER:-purr}:${POSTGRES_PASSWORD:-purr}@postgres:5432/${POSTGRES_DB:-purr}}
+      DATABASE_URL: ${APP_DATABASE_URL:-postgres://${POSTGRES_USER:-metobe}:${POSTGRES_PASSWORD:-metobe}@postgres:5432/${POSTGRES_DB:-metobe}}
       REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
@@ -27,7 +27,7 @@ services:
       start_period: 20s
 
   worker:
-    image: ${PURR_IMAGE:-ghcr.io/artemavrin/purr:latest}
+    image: ${METOBE_IMAGE:-ghcr.io/artemavrin/metobe:latest}
     command: ["worker"]
     restart: unless-stopped
     env_file:
@@ -44,9 +44,9 @@ services:
     profiles: ["db"]
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-purr}
-      POSTGRES_USER: ${POSTGRES_USER:-purr}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-purr}
+      POSTGRES_DB: ${POSTGRES_DB:-metobe}
+      POSTGRES_USER: ${POSTGRES_USER:-metobe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-metobe}
     volumes:
       - postgres:/var/lib/postgresql
     healthcheck:

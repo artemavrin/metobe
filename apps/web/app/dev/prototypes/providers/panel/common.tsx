@@ -1,7 +1,7 @@
 "use client";
 
 // Shared pieces of the «Панель» riffs: provider state with health, the providers column, key / route / danger blocks.
-import { Button } from "@purr/ui/components/button";
+import { Button } from "@metobe/ui/components/button";
 import {
   Dialog,
   DialogClose,
@@ -11,16 +11,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@purr/ui/components/dialog";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@purr/ui/components/field";
-import { Input } from "@purr/ui/components/input";
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@purr/ui/components/input-group";
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@purr/ui/components/item";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@purr/ui/components/select";
-import { Spinner } from "@purr/ui/components/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
-import { cn } from "@purr/ui/lib/utils";
+} from "@metobe/ui/components/dialog";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@metobe/ui/components/field";
+import { Input } from "@metobe/ui/components/input";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@metobe/ui/components/item";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@metobe/ui/components/select";
+import { Spinner } from "@metobe/ui/components/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { cn } from "@metobe/ui/lib/utils";
 import { Check, KeyRound, Plus, RefreshCw, Unplug } from "lucide-react";
 import { useState } from "react";
 

@@ -1,12 +1,12 @@
 "use client";
 
 // Pieces shared by the settings sections: section and settings rows, an edit-in-place value, a list row.
-import { Button } from "@purr/ui/components/button";
-import { Input } from "@purr/ui/components/input";
-import { Kbd } from "@purr/ui/components/kbd";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { Input } from "@metobe/ui/components/input";
+import { Kbd } from "@metobe/ui/components/kbd";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@metobe/ui/components/popover";
+import { cn } from "@metobe/ui/lib/utils";
 import { ImageUp, RotateCcw } from "lucide-react";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 

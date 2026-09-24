@@ -1,16 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Badge } from "@purr/ui/components/reui/badge"
+import { Badge } from "@metobe/ui/components/reui/badge"
 import {
   DataGrid,
   dataGridFeatures,
   type DataGridFeatures,
-} from "@purr/ui/components/reui/data-grid/data-grid"
-import { DataGridColumnHeader } from "@purr/ui/components/reui/data-grid/data-grid-column-header"
-import { DataGridPagination } from "@purr/ui/components/reui/data-grid/data-grid-pagination"
-import { DataGridScrollArea } from "@purr/ui/components/reui/data-grid/data-grid-scroll-area"
-import { DataGridTable } from "@purr/ui/components/reui/data-grid/data-grid-table"
+} from "@metobe/ui/components/reui/data-grid/data-grid"
+import { DataGridColumnHeader } from "@metobe/ui/components/reui/data-grid/data-grid-column-header"
+import { DataGridPagination } from "@metobe/ui/components/reui/data-grid/data-grid-pagination"
+import { DataGridScrollArea } from "@metobe/ui/components/reui/data-grid/data-grid-scroll-area"
+import { DataGridTable } from "@metobe/ui/components/reui/data-grid/data-grid-table"
 import {
   ColumnDef,
   PaginationState,
@@ -22,8 +22,8 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from "@purr/ui/components/avatar"
-import { Button } from "@purr/ui/components/button"
+} from "@metobe/ui/components/avatar"
+import { Button } from "@metobe/ui/components/button"
 import {
   Card,
   CardAction,
@@ -31,16 +31,16 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@purr/ui/components/card"
-import { Input } from "@purr/ui/components/input"
+} from "@metobe/ui/components/card"
+import { Input } from "@metobe/ui/components/input"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@purr/ui/components/select"
-import { Skeleton } from "@purr/ui/components/skeleton"
+} from "@metobe/ui/components/select"
+import { Skeleton } from "@metobe/ui/components/skeleton"
 import { XIcon } from "lucide-react"
 
 interface IData {

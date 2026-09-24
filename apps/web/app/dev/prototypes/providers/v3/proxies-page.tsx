@@ -3,7 +3,7 @@
 // «Прокси» (ARCH §18): ways out to the internet, set up once and used where needed. Same list → detail as sources:
 // the check is an object (external IP, country, latency), and «what goes through me» edits the same field the
 // source's «Маршрут» shows — sources ticked explicitly, plus domains for everything on «Авто».
-import { Button } from "@purr/ui/components/button";
+import { Button } from "@metobe/ui/components/button";
 import {
   Dialog,
   DialogClose,
@@ -13,13 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@purr/ui/components/dialog";
-import { Input } from "@purr/ui/components/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@purr/ui/components/select";
-import { Switch } from "@purr/ui/components/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
-import { cn } from "@purr/ui/lib/utils";
+} from "@metobe/ui/components/dialog";
+import { Input } from "@metobe/ui/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@metobe/ui/components/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@metobe/ui/components/select";
+import { Switch } from "@metobe/ui/components/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { cn } from "@metobe/ui/lib/utils";
 import { Network, Plus, RefreshCw, X } from "lucide-react";
 import { useRef, useState } from "react";
 

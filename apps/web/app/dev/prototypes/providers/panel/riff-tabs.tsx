@@ -1,12 +1,12 @@
 "use client";
 
 // Riff «Вкладки»: the provider page splits into Модели / Подключение / Расход.
-import { Button } from "@purr/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Alert, AlertDescription, AlertTitle } from "@purr/ui/components/reui/alert";
-import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@purr/ui/components/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@purr/ui/components/toggle-group";
+import { Button } from "@metobe/ui/components/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Alert, AlertDescription, AlertTitle } from "@metobe/ui/components/reui/alert";
+import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@metobe/ui/components/reui/frame";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@metobe/ui/components/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
 import { CircleAlert, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 

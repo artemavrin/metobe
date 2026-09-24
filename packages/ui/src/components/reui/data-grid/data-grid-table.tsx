@@ -22,18 +22,18 @@ import {
   getDataGridCellSelectionCellAttrs,
   toDataGridDomId,
   useDataGrid,
-} from "@purr/ui/components/reui/data-grid/data-grid"
+} from "@metobe/ui/components/reui/data-grid/data-grid"
 import type {
   DataGridFeatures,
   DataGridTableInstance,
-} from "@purr/ui/components/reui/data-grid/data-grid"
+} from "@metobe/ui/components/reui/data-grid/data-grid"
 import { flexRender, Subscribe } from "@tanstack/react-table"
 import type { Cell, Column, Header, Row, Table } from "@tanstack/react-table"
 import { cn } from "cn"
 
-import { Button } from "@purr/ui/components/button"
-import { Checkbox } from "@purr/ui/components/checkbox"
-import { Spinner } from "@purr/ui/components/spinner"
+import { Button } from "@metobe/ui/components/button"
+import { Checkbox } from "@metobe/ui/components/checkbox"
+import { Spinner } from "@metobe/ui/components/spinner"
 import { PlusIcon } from "lucide-react"
 
 // Static spacing lookups; called once per cell, so they stay plain string

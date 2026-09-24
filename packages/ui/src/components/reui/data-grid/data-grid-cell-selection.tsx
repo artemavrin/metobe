@@ -8,18 +8,18 @@ import type {
   RefObject,
 } from "react"
 import { createPortal } from "react-dom"
-import { useDataGrid } from "@purr/ui/components/reui/data-grid/data-grid"
+import { useDataGrid } from "@metobe/ui/components/reui/data-grid/data-grid"
 import type {
   DataGridCellChange,
   DataGridCellRejection,
   DataGridCellsChangeDetails,
   DataGridColumnCellEdit,
   DataGridTableInstance,
-} from "@purr/ui/components/reui/data-grid/data-grid"
+} from "@metobe/ui/components/reui/data-grid/data-grid"
 import { Subscribe } from "@tanstack/react-table"
 
 import { cn } from "cn"
-import { Button } from "@purr/ui/components/button"
+import { Button } from "@metobe/ui/components/button"
 
 /** Where a finished edit sends the focused cell, or null to stay. */
 type DataGridEditorAdvance = "down" | "up" | "right" | "left" | null

@@ -1,5 +1,5 @@
 import "server-only";
-import { createAuth } from "@purr/core/auth";
+import { createAuth } from "@metobe/core/auth";
 import { nextCookies } from "better-auth/next-js";
 
 let instance: ReturnType<typeof createAuth> | undefined;

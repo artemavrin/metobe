@@ -2,10 +2,10 @@
 
 // «Доска»: living provider cards — a health pulse, the route in miniature, a week of usage, model chips.
 // A card expands in place into the full provider (a shared-layout morph) and folds back.
-import { Button } from "@purr/ui/components/button";
-import { Alert, AlertDescription, AlertTitle } from "@purr/ui/components/reui/alert";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { Alert, AlertDescription, AlertTitle } from "@metobe/ui/components/reui/alert";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { cn } from "@metobe/ui/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, CircleAlert, Minimize2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -49,7 +49,7 @@ const Pulse = ({ p }: { p: PanelProvider }) => (
 
 const MiniRoute = ({ p }: { p: PanelProvider }) => (
   <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-    Purr
+    Metobe
     <span className={cn("h-px w-5", p.health.state === "error" ? "bg-destructive/60" : "bg-primary/50")} />
     <span className={cn("rounded-full border px-1.5 py-0.5 text-[10px]", p.route.kind === "proxy" && "border-info/40 text-info")}>{routeLabel(p)}</span>
     <span className={cn("h-px w-5", p.health.state === "error" ? "bg-destructive/60" : "bg-primary/50")} />

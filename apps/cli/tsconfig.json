@@ -1,5 +1,5 @@
 {
-  "extends": "@purr/tsconfig/node.json",
+  "extends": "@metobe/tsconfig/node.json",
   "compilerOptions": { "module": "ESNext", "moduleResolution": "Bundler" },
   "include": ["src", "tsup.config.ts"]
 }

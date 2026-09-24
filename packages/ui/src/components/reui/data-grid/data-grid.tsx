@@ -13,7 +13,7 @@ import {
   mergeDataGridI18n,
   type DataGridI18nConfig,
   type DataGridI18nOverrides,
-} from "@purr/ui/components/reui/data-grid/data-grid-i18n"
+} from "@metobe/ui/components/reui/data-grid/data-grid-i18n"
 import {
   cellSelectionFeature,
   columnFacetingFeature,

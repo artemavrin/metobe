@@ -1,4 +1,4 @@
-import { TooltipProvider } from "@purr/ui/components/tooltip";
+import { TooltipProvider } from "@metobe/ui/components/tooltip";
 import { notFound } from "next/navigation";
 
 // Prototypes stay here while we build; local development only.

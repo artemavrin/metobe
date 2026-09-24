@@ -1,5 +1,5 @@
 import "server-only";
-import { user } from "@purr/db/schema/auth";
+import { user } from "@metobe/db/schema/auth";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "./db";

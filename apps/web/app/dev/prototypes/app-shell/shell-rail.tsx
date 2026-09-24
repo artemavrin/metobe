@@ -1,9 +1,9 @@
 "use client";
 
 // Direction «Две зоны»: an icon rail switches areas, a second panel shows that area's navigation.
-import { Button } from "@purr/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Badge } from "@purr/ui/components/reui/badge";
+import { Button } from "@metobe/ui/components/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Badge } from "@metobe/ui/components/reui/badge";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -12,9 +12,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-} from "@purr/ui/components/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
-import { cn } from "@purr/ui/lib/utils";
+} from "@metobe/ui/components/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { cn } from "@metobe/ui/lib/utils";
 import { PanelLeft, Search, Settings, SquarePen } from "lucide-react";
 import { useState } from "react";
 

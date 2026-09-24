@@ -1,5 +1,5 @@
 {
-  "name": "@purr/contracts",
+  "name": "@metobe/contracts",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,7 +12,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@purr/tsconfig": "workspace:*",
+    "@metobe/tsconfig": "workspace:*",
     "typescript": "^5"
   }
 }

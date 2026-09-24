@@ -1,7 +1,7 @@
 "use server";
 
-import { emailSchema, verifyFormSchema } from "@purr/contracts/auth";
-import { findUserByEmail } from "@purr/core/users";
+import { emailSchema, verifyFormSchema } from "@metobe/contracts/auth";
+import { findUserByEmail } from "@metobe/core/users";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 

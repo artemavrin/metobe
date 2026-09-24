@@ -1,7 +1,7 @@
 "use server";
 
-import { claimFormSchema } from "@purr/contracts/auth";
-import { redeemClaimToken } from "@purr/core/claim";
+import { claimFormSchema } from "@metobe/contracts/auth";
+import { redeemClaimToken } from "@metobe/core/claim";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -14,7 +14,7 @@ export interface ClaimState {
 const reasons = {
   "already-claimed": "Администратор уже создан. Войдите через страницу входа.",
   "invalid-token":
-    "Ссылка недействительна или устарела. Выпустите новую: docker compose exec app purr claim-link",
+    "Ссылка недействительна или устарела. Выпустите новую: docker compose exec app metobe claim-link",
 };
 
 export const claim = async (

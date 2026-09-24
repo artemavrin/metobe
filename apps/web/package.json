@@ -1,5 +1,5 @@
 {
-  "name": "@purr/web",
+  "name": "@metobe/web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "@lobehub/icons-static-svg": "^1.95.1",
-    "@purr/contracts": "workspace:*",
-    "@purr/core": "workspace:*",
-    "@purr/ui": "workspace:*",
+    "@metobe/contracts": "workspace:*",
+    "@metobe/core": "workspace:*",
+    "@metobe/ui": "workspace:*",
     "@tanstack/react-table": "^9.2.4",
     "agentation": "^3.1.2",
     "better-auth": "^1.7.5",
@@ -26,8 +26,8 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@metobe/tsconfig": "workspace:*",
     "@playwright/test": "^1.63.0",
-    "@purr/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

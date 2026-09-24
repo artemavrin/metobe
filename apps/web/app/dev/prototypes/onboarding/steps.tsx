@@ -1,9 +1,9 @@
 "use client";
 
 // Onboarding content shared by the layouts: the flow is chosen ("Шаги"), the layouts differ only in chrome.
-import { Button } from "@purr/ui/components/button";
-import { Checkbox } from "@purr/ui/components/checkbox";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
+import { Button } from "@metobe/ui/components/button";
+import { Checkbox } from "@metobe/ui/components/checkbox";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
 import {
   Item,
   ItemActions,
@@ -12,12 +12,12 @@ import {
   ItemGroup,
   ItemMedia,
   ItemTitle,
-} from "@purr/ui/components/item";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@purr/ui/components/select";
-import { ToggleGroup, ToggleGroupItem } from "@purr/ui/components/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
-import { cn } from "@purr/ui/lib/utils";
+} from "@metobe/ui/components/item";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@metobe/ui/components/select";
+import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
+import { cn } from "@metobe/ui/lib/utils";
 import { Brain, Eye, MessageSquare, Plus, Search, Wrench } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -322,9 +322,9 @@ export const stepSummary = (o: Onboarding, id: Exclude<Step, "done">) => {
   return c ? nModels(c.models.size) : "";
 };
 
-export const PurrMark = ({ className }: { className?: string }) => (
+export const MetobeMark = ({ className }: { className?: string }) => (
   <span className={cn("flex items-center gap-2 text-sm font-semibold", className)}>
     <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs">P</span>
-    Purr
+    Metobe
   </span>
 );

@@ -1,12 +1,12 @@
 "use client";
 
-import { Button } from "@purr/ui/components/button";
-import { ChartBar as BarChartExample } from "@purr/ui/components/examples/c-chart-2";
-import { Pattern as AreaChartExample } from "@purr/ui/components/examples/c-chart-13";
-import { Pattern as LineChartExample } from "@purr/ui/components/examples/c-chart-17";
-import { Pattern as DonutChartExample } from "@purr/ui/components/examples/c-chart-19";
-import { Pattern as DataGridExample } from "@purr/ui/components/examples/c-data-grid-34";
-import { Badge } from "@purr/ui/components/reui/badge";
+import { Button } from "@metobe/ui/components/button";
+import { ChartBar as BarChartExample } from "@metobe/ui/components/examples/c-chart-2";
+import { Pattern as AreaChartExample } from "@metobe/ui/components/examples/c-chart-13";
+import { Pattern as LineChartExample } from "@metobe/ui/components/examples/c-chart-17";
+import { Pattern as DonutChartExample } from "@metobe/ui/components/examples/c-chart-19";
+import { Pattern as DataGridExample } from "@metobe/ui/components/examples/c-data-grid-34";
+import { Badge } from "@metobe/ui/components/reui/badge";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 
@@ -34,7 +34,7 @@ export const Showcase = () => {
     <main className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-10">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">Витрина Purr</h1>
+          <h1 className="text-2xl font-semibold">Витрина Metobe</h1>
           <p className="text-muted-foreground text-sm">
             ReUI + shadcn, графики ReUI на recharts. Только в режиме разработки.
           </p>

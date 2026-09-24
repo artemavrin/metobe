@@ -14,8 +14,8 @@
     "components": "@/components",
     "hooks": "@/hooks",
     "lib": "@/lib",
-    "utils": "@purr/ui/lib/utils",
-    "ui": "@purr/ui/components"
+    "utils": "@metobe/ui/lib/utils",
+    "ui": "@metobe/ui/components"
   },
   "rtl": false,
   "menuColor": "default",

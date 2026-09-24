@@ -1,1 +1,1 @@
-export { default } from "@purr/ui/postcss.config";
+export { default } from "@metobe/ui/postcss.config";

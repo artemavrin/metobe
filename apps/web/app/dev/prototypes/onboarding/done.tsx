@@ -2,15 +2,15 @@
 
 // The last onboarding screen, three directions: what you got ("Итог"), start right away ("Сразу в чат"),
 // a moment of joy ("Праздник").
-import { Button } from "@purr/ui/components/button";
-import { Confetti, type ConfettiRef } from "@purr/ui/components/confetti";
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@purr/ui/components/input-group";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@purr/ui/components/item";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
-import { IconTile } from "@purr/ui/components/reui/icon-tile";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@purr/ui/components/select";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { Confetti, type ConfettiRef } from "@metobe/ui/components/confetti";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@metobe/ui/components/input-group";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@metobe/ui/components/item";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@metobe/ui/components/reui/frame";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@metobe/ui/components/select";
+import { cn } from "@metobe/ui/lib/utils";
 import { ArrowRight, ArrowUp, ChevronRight, Plug, Plus, Sparkles, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -33,7 +33,7 @@ const Summary = ({ o }: { o: Onboarding }) => {
   return (
     <>
       <FrameHeader className="gap-1 pt-4!">
-        <FrameTitle className="text-xl">Purr готов к работе</FrameTitle>
+        <FrameTitle className="text-xl">Metobe готов к работе</FrameTitle>
         <FrameDescription>
           В чате {nModels(list.length)}. Провайдеров и модели можно поменять в настройках в любой момент.
         </FrameDescription>
@@ -346,7 +346,7 @@ const CelebrateConfetti = ({ o, mode }: { o: Onboarding; mode: ConfettiMode }) =
         )}
       <FrameHeader className="celebrate items-center gap-2 pt-10! pb-6! text-center">
         <FrameTitle className="text-3xl tracking-tight" ref={title} style={{ animation: "title-in 450ms cubic-bezier(0.23,1,0.32,1) 80ms both" }}>
-          Purr готов
+          Metobe готов
         </FrameTitle>
         <FrameDescription className="max-w-sm" style={{ animation: "title-in 450ms cubic-bezier(0.23,1,0.32,1) 180ms both" }}>
           {modelNames(o)} {enabledModels(o).length === 1 ? "ждёт" : "ждут"} первого вопроса. Всё остальное — в настройках, когда понадобится.

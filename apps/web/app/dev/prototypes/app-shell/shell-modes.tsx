@@ -1,9 +1,9 @@
 "use client";
 
 // Direction «Режимы»: the chat keeps a light floating sidebar; settings are a separate admin mode with its own layout.
-import { Button } from "@purr/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Kbd } from "@purr/ui/components/kbd";
+import { Button } from "@metobe/ui/components/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Kbd } from "@metobe/ui/components/kbd";
 import {
   Sidebar,
   SidebarContent,
@@ -18,8 +18,8 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
-} from "@purr/ui/components/sidebar";
-import { cn } from "@purr/ui/lib/utils";
+} from "@metobe/ui/components/sidebar";
+import { cn } from "@metobe/ui/lib/utils";
 import { ArrowLeft, Search, Settings, SquarePen } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -67,7 +67,7 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
         <div className="flex h-8 items-center px-1">
           <span className="flex items-center gap-2 text-sm font-semibold">
             <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs">P</span>
-            Purr
+            Metobe
           </span>
         </div>
         <SidebarMenu>

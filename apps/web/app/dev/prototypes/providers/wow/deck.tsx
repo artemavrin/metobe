@@ -2,12 +2,12 @@
 
 // «Колода»: the onboarding's language for everyday settings. Each provider is a card in a deck; ← → deal the next
 // one, «Подключение» flips the card to its back (key, route, disconnect). The last card connects a new provider.
-import { Button } from "@purr/ui/components/button";
-import { Alert, AlertDescription, AlertTitle } from "@purr/ui/components/reui/alert";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@purr/ui/components/reui/frame";
-import { Separator } from "@purr/ui/components/separator";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { Alert, AlertDescription, AlertTitle } from "@metobe/ui/components/reui/alert";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@metobe/ui/components/reui/frame";
+import { Separator } from "@metobe/ui/components/separator";
+import { cn } from "@metobe/ui/lib/utils";
 import { ArrowLeft, ArrowRight, CircleAlert, Plus, RotateCw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 

@@ -7,7 +7,7 @@ export default defineConfig({
     options.conditions = ["react-server"];
   },
   format: "esm",
-  noExternal: [/^@purr\//u],
+  noExternal: [/^@metobe\//u],
   platform: "node",
   target: "node22",
 });

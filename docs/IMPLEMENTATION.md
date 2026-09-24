@@ -46,36 +46,36 @@ Turborepo + pnpm workspaces. Пакеты — «just-in-time»: экспорти
 
 | package | Что внутри | Где выполняется | Кто использует |
 | --- | --- | --- | --- |
-| `@purr/ui` | дизайн-система: ReUI и shadcn в стиле ReUI, токены и тема, общий CSS, мелкие общие компоненты. **Без бизнес-логики и запросов к данным** | браузер | web |
-| `@purr/contracts` | Zod-схемы и типы, общие для клиента и сервера: тело `POST /api/chat`, тип `ChatMessage` (наши data-части и тулы), спеки виджетов, поля коннекторов для форм, DTO API | везде, без Node-зависимостей | web (клиент и сервер), core |
-| `@purr/db` | Drizzle: схема по агрегатам, миграции, клиент | сервер | core, cli |
-| `@purr/core` | серверный домен, subpath-экспорты: `/secrets`, `/net`, `/ai`, `/chat`, `/mcp`, `/connectors`, `/search`, `/agents`, `/queries`, `/env`. Импортирует `server-only`, ничего из `next/*` | сервер | web (серверная часть), worker, cli |
-| `@purr/emails` | react-email шаблоны и `render` | сервер | core |
-| `@purr/tsconfig` | общие tsconfig: base, nextjs, node | — | все |
+| `@metobe/ui` | дизайн-система: ReUI и shadcn в стиле ReUI, токены и тема, общий CSS, мелкие общие компоненты. **Без бизнес-логики и запросов к данным** | браузер | web |
+| `@metobe/contracts` | Zod-схемы и типы, общие для клиента и сервера: тело `POST /api/chat`, тип `ChatMessage` (наши data-части и тулы), спеки виджетов, поля коннекторов для форм, DTO API | везде, без Node-зависимостей | web (клиент и сервер), core |
+| `@metobe/db` | Drizzle: схема по агрегатам, миграции, клиент | сервер | core, cli |
+| `@metobe/core` | серверный домен, subpath-экспорты: `/secrets`, `/net`, `/ai`, `/chat`, `/mcp`, `/connectors`, `/search`, `/agents`, `/queries`, `/env`. Импортирует `server-only`, ничего из `next/*` | сервер | web (серверная часть), worker, cli |
+| `@metobe/emails` | react-email шаблоны и `render` | сервер | core |
+| `@metobe/tsconfig` | общие tsconfig: base, nextjs, node | — | все |
 
 Ultracite, knip и turbo настраиваются в корне, отдельный пакет конфига линтера не нужен.
 
 **Граф зависимостей** — только сверху вниз:
 
 ```
-apps/web     → @purr/ui, @purr/contracts, @purr/core
-apps/worker  → @purr/core
-apps/cli     → @purr/core, @purr/db (миграции)
-@purr/core   → @purr/db, @purr/contracts, @purr/emails
-@purr/ui     → (только react, ReUI, radix/base-ui)
+apps/web     → @metobe/ui, @metobe/contracts, @metobe/core
+apps/worker  → @metobe/core
+apps/cli     → @metobe/core, @metobe/db (миграции)
+@metobe/core   → @metobe/db, @metobe/contracts, @metobe/emails
+@metobe/ui     → (только react, ReUI, radix/base-ui)
 ```
 
 Правила, которые держат границы (проверяются knip и ревью):
 
-1. **Приложения не импортируют `@purr/db` напрямую.** Запросы живут в `@purr/core/queries`, иначе web и worker разъедутся в том, как читают одни и те же данные. Исключение — `apps/cli` для миграций.
-2. **`@purr/ui` не знает о домене.** Компонент «карточка вызова тула» или «виджет графика» — это домен, его место в `apps/web/modules/*`. В `ui` лежат кнопки, поля, таблица, диалоги, графики как примитивы.
-3. **`@purr/contracts` изоморфен.** Никаких `node:*`, драйверов и секретов: его импортирует браузер.
-4. **`@purr/core` — только сервер.** Каждый модуль начинается с `import 'server-only'`, чтобы случайный импорт из клиентского компонента падал на сборке, а не утекал в бандл. Этот пакет бросает ошибку вне условия экспорта `react-server`, поэтому `worker` и `cli` запускаются с `--conditions=react-server`, а `tsup` бандлит их с тем же условием — проверено на скелете.
+1. **Приложения не импортируют `@metobe/db` напрямую.** Запросы живут в `@metobe/core/queries`, иначе web и worker разъедутся в том, как читают одни и те же данные. Исключение — `apps/cli` для миграций.
+2. **`@metobe/ui` не знает о домене.** Компонент «карточка вызова тула» или «виджет графика» — это домен, его место в `apps/web/modules/*`. В `ui` лежат кнопки, поля, таблица, диалоги, графики как примитивы.
+3. **`@metobe/contracts` изоморфен.** Никаких `node:*`, драйверов и секретов: его импортирует браузер.
+4. **`@metobe/core` — только сервер.** Каждый модуль начинается с `import 'server-only'`, чтобы случайный импорт из клиентского компонента падал на сборке, а не утекал в бандл. Этот пакет бросает ошибку вне условия экспорта `react-server`, поэтому `worker` и `cli` запускаются с `--conditions=react-server`, а `tsup` бандлит их с тем же условием — проверено на скелете.
 
 **Чего не выносим и почему:**
 
 - **Рендер чата** (диспетчер parts, карточки тулов, composer, виджеты) остаётся в `apps/web/modules/chat`: потребитель один, а логика завязана на `useChat`. Вынесем, если появится второе приложение.
-- **`@purr/ai`, `@purr/mcp`, `@purr/connectors` отдельными пакетами** — не нужны: у них одни и те же потребители (web и worker), дробление добавило бы только конфигов. Границы внутри `core` задают subpath-экспорты. Делим, когда у части появится свой потребитель или тяжёлая зависимость, которая мешает остальным.
+- **`@metobe/ai`, `@metobe/mcp`, `@metobe/connectors` отдельными пакетами** — не нужны: у них одни и те же потребители (web и worker), дробление добавило бы только конфигов. Границы внутри `core` задают subpath-экспорты. Делим, когда у части появится свой потребитель или тяжёлая зависимость, которая мешает остальным.
 
 **UI в монорепо:**
 
@@ -116,12 +116,12 @@ docs/
 ### M1. Скелет и установка
 
 1. `scaffold-nextjs`, фазы 1–2 и 4–6: `create-next-app`, Agentation, Ultracite, Turborepo. Фаза 3 (Blode) заменяется на `shadcn init` в стиле ReUI и подключение реестра `@reui` в `components.json`. Фаза 7 (GitHub и Vercel) не выполняется, фаза 8 (favicon, OG) — в M7. Скилл ставит всё через npm, у нас pnpm: команды переводятся на `pnpm`.
-2. ✓ Каркас приложений `apps/worker`, `apps/cli` и пакетов `@purr/ui`, `@purr/contracts`, `@purr/db`, `@purr/core`, `@purr/tsconfig` (§2). `@purr/emails` — в M6, вместе с первым письмом: пустой пакет не заводим. Проверено: `server-only` в Node работает с `--conditions=react-server` (tsx в dev, tsup бандлит с тем же условием). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
+2. ✓ Каркас приложений `apps/worker`, `apps/cli` и пакетов `@metobe/ui`, `@metobe/contracts`, `@metobe/db`, `@metobe/core`, `@metobe/tsconfig` (§2). `@metobe/emails` — в M6, вместе с первым письмом: пустой пакет не заводим. Проверено: `server-only` в Node работает с `--conditions=react-server` (tsx в dev, tsup бандлит с тем же условием). `shadcn init` — в монорежиме, примитивы ставятся в `packages/ui`. `turbo.json`: `dev`, `build`, `check-types`, `test`.
 3. Drizzle: клиент, `drizzle.config.ts`, схема `system_settings`, `users`, `claim_tokens`, `invitations`. Better Auth CLI генерирует свои таблицы.
 4. ✓ Better Auth 1.7 без паролей (D17). Используется **один** плагин — `email-otp`: «магическая ссылка» — это URL `/login/verify?email&code` с тем же кодом, поэтому в письме ссылка и код совпадают, а claim, приглашения и `cli login-link` работают через тот же механизм (`auth.api.createVerificationOTP` выпускает код без отправки письма). Вход — POST из server action: почтовые сканеры, открывающие ссылки, код не сжигают. Публичная регистрация закрыта (`disableSignUp`), код хранится хэшем, 10 минут, 5 попыток. Схема auth-таблиц генерируется официальным CLI `auth` (пакет `auth`, бывший `@better-auth/cli`). Rate limit на запрос кода — в M6 вместе с Redis: server actions вызывают `auth.api` напрямую, минуя HTTP-лимитер Better Auth. Claim-ссылка создаёт сессию суперюзера. `proxy.ts` проверяет только cookie, полная проверка — в layout группы `(app)`. В dev-профиль compose добавляется Mailpit, чтобы письма со ссылками было видно локально.
-5. ✓ `docker/Dockerfile`: один образ на Node 24 (web по умолчанию, `worker`, CLI `purr` внутри контейнера), standalone-сборка Next с `outputFileTracingRoot` на корень монорепо, пользователь не root, `pnpm install --ignore-scripts` (корневой `prepare` с lefthook требует git). Compose-файлы: `compose.yml` в корне — установка, только готовый образ, наружу смотрит только приложение; `docker/compose.build.yml` — сборка из исходников; `docker/compose.dev.yml` — порты баз на `127.0.0.1` и Mailpit, подключается через `COMPOSE_FILE` в dev `.env`, поэтому в репозитории хватает просто `docker compose …`. `GET /api/health`. Сборка web не требует env: Better Auth создаётся лениво, а страницы с сессией становятся динамическими.
-6. ✓ `entrypoint.sh` → `purr migrate`: мигратор `drizzle-orm` под `pg_advisory_lock` (в standalone-образе нет `drizzle-kit`) → `cli seed` → `cli claim-link`. Если задан `HTTPS_PROXY` / `ALL_PROXY` и прокси ещё нет — запись создаётся на шаге M2, когда появится таблица `proxies`.
-7. ✓ **Установщик одной командой:** `curl -fsSL https://github.com/artemavrin/purr/releases/latest/download/install.sh | bash`. Ставит в `./purr` (`PURR_DIR` — другая папка): скачивает `compose.yml` своей версии, задаёт вопросы с умолчаниями (адрес, порт, встроенная или своя БД, прокси, SMTP; при `curl | bash` читает ответы из `/dev/tty`, а docker-команды отрезаны от stdin, иначе съедят остаток скрипта — e2e поэтому запускает установщик через stdin), пишет `.env` с правами 600 и сгенерированными секретами, скачивает образ `ghcr.io/artemavrin/purr:<версия>`, поднимает стек и печатает claim-ссылку. **Повторный запуск той же команды в той же папке — обновление** до последнего релиза, `.env` и секреты не трогаются. Из git-репозитория скрипт ставит этот репозиторий (`PURR_BUILD=1` — собрать образ из исходников, так работает e2e в CI). Неинтерактивно — `PURR_YES=1` и `PURR_*`: префикс нарочно, чтобы глобальный `HTTPS_PROXY` из шелла не утёк в контейнеры.
+5. ✓ `docker/Dockerfile`: один образ на Node 24 (web по умолчанию, `worker`, CLI `metobe` внутри контейнера), standalone-сборка Next с `outputFileTracingRoot` на корень монорепо, пользователь не root, `pnpm install --ignore-scripts` (корневой `prepare` с lefthook требует git). Compose-файлы: `compose.yml` в корне — установка, только готовый образ, наружу смотрит только приложение; `docker/compose.build.yml` — сборка из исходников; `docker/compose.dev.yml` — порты баз на `127.0.0.1` и Mailpit, подключается через `COMPOSE_FILE` в dev `.env`, поэтому в репозитории хватает просто `docker compose …`. `GET /api/health`. Сборка web не требует env: Better Auth создаётся лениво, а страницы с сессией становятся динамическими.
+6. ✓ `entrypoint.sh` → `metobe migrate`: мигратор `drizzle-orm` под `pg_advisory_lock` (в standalone-образе нет `drizzle-kit`) → `cli seed` → `cli claim-link`. Если задан `HTTPS_PROXY` / `ALL_PROXY` и прокси ещё нет — запись создаётся на шаге M2, когда появится таблица `proxies`.
+7. ✓ **Установщик одной командой:** `curl -fsSL https://github.com/artemavrin/metobe/releases/latest/download/install.sh | bash`. Ставит в `./metobe` (`METOBE_DIR` — другая папка): скачивает `compose.yml` своей версии, задаёт вопросы с умолчаниями (адрес, порт, встроенная или своя БД, прокси, SMTP; при `curl | bash` читает ответы из `/dev/tty`, а docker-команды отрезаны от stdin, иначе съедят остаток скрипта — e2e поэтому запускает установщик через stdin), пишет `.env` с правами 600 и сгенерированными секретами, скачивает образ `ghcr.io/artemavrin/metobe:<версия>`, поднимает стек и печатает claim-ссылку. **Повторный запуск той же команды в той же папке — обновление** до последнего релиза, `.env` и секреты не трогаются. Из git-репозитория скрипт ставит этот репозиторий (`METOBE_BUILD=1` — собрать образ из исходников, так работает e2e в CI). Неинтерактивно — `METOBE_YES=1` и `METOBE_*`: префикс нарочно, чтобы глобальный `HTTPS_PROXY` из шелла не утёк в контейнеры.
 
    **Релизы — release-please** по conventional commits: поддерживает PR «Release vX.Y.Z» с версией и CHANGELOG. `feat`/`fix` дают релиз, `docs`/`chore` — нет. После слияния PR релиз создаётся черновиком с тегом, CI собирает образ под `amd64` и `arm64` на нативных раннерах, публикует теги `X.Y.Z`, `X.Y`, `latest`, прикладывает `install.sh` (с зашитой версией) и `compose.yml` и только потом публикует релиз — `latest` до этого момента указывает на предыдущий. Образ собирается только при релизе; правки одной документации CI не запускают.
 
@@ -130,17 +130,17 @@ docs/
 
 ### M2. Источники и модели
 
-1. `@purr/core/secrets`: AES-256-GCM, AAD, canary при старте, `use()`, маски, `purr secrets:rotate`.
+1. `@metobe/core/secrets`: AES-256-GCM, AAD, canary при старте, `use()`, маски, `metobe secrets:rotate`.
 2. Схема `providers`, `providers`, `models`, `model_runs`, `secrets`.
-3. `@purr/core/net`: прокси, маршрутизация (явный выбор у объекта → домены прокси → напрямую), dispatcher'ы HTTP и SOCKS5 по итогам S4, проверка прокси, автоподбор прокси при недоступном источнике, закрепление IP для трафика с SSRF-защитой, импорт `HTTPS_PROXY` / `ALL_PROXY` в запись прокси при первом старте. Схема `proxies`, `proxy_domains`, поля `proxy_mode` / `proxy_id` у объектов, UI `/settings/proxies`.
-4. `@purr/core/ai`: фабрика по `kind`, `fetch` из `core/net`, Яндекс (итоги S3), кеш и сброс по Redis `config:changed`.
+3. `@metobe/core/net`: прокси, маршрутизация (явный выбор у объекта → домены прокси → напрямую), dispatcher'ы HTTP и SOCKS5 по итогам S4, проверка прокси, автоподбор прокси при недоступном источнике, закрепление IP для трафика с SSRF-защитой, импорт `HTTPS_PROXY` / `ALL_PROXY` в запись прокси при первом старте. Схема `proxies`, `proxy_domains`, поля `proxy_mode` / `proxy_id` у объектов, UI `/settings/proxies`.
+4. `@metobe/core/ai`: фабрика по `kind`, `fetch` из `core/net`, Яндекс (итоги S3), кеш и сброс по Redis `config:changed`.
 5. Discovery и seed-справочник: Яндекс, цены.
 6. UI настроек источников и моделей — прототип P7. Формы на TanStack Form + Zod, данные через TanStack Query.
    - **Проверить до экрана моделей:** ReUI `DataGrid` на TanStack Table v9 в прототипе не подхватывал новый `data` с теми же id строк — ячейки оставались старыми (цена, возможности). В прототипе обошли перемонтированием по отпечатку данных (`_p7/models-grid.tsx`); в продукте найти причину (как DataGrid ждёт обновления данных в v9) до того, как таблица пойдёт в работу.
    - **Онбординг первого входа — решён** (`/dev/prototypes/onboarding`). Три шага: источник → ключ → модели, в карточке «Колода»: за ней выглядывают оставшиеся шаги. Сверху строка навигации («←», «Шаг 2 · Ключ», точки прогресса) и еле заметный делитель под ней.
    - **Ключ:** поле без автозаполнения (§17.6 ARCH). Проверка идёт этапами «ключ → маршрут → модели». Если источник недоступен напрямую, а прокси ещё нет, пользователь вводит адрес прокси прямо в форме или выбирает другого источника (§18.3 ARCH).
    - **Модели:** ничего не отмечено заранее; сортировка по дате выпуска, бейдж «новая». Для длинных списков — поиск, фильтр по провайдеру и возможностям, «выбрать показанные», список фиксированной высоты (§7.1 ARCH).
-   - **Финал:** «Purr готов», до трёх моделей по именам, дальше «X, Y и ещё N моделей». Конфетти — Magic UI Confetti (`@purr/ui/components/confetti`), пресет «Залп»: два выстрела из-за заголовка, цвета темы, canvas порталом в `body`, `disableForReducedMotion`. Кнопки «Открыть чат» и «Подключить ещё источника».
+   - **Финал:** «Metobe готов», до трёх моделей по именам, дальше «X, Y и ещё N моделей». Конфетти — Magic UI Confetti (`@metobe/ui/components/confetti`), пресет «Залп»: два выстрела из-за заголовка, цвета темы, canvas порталом в `body`, `disableForReducedMotion`. Кнопки «Открыть чат» и «Подключить ещё источника».
 
 ### M3. Ядро чата
 
@@ -152,21 +152,21 @@ docs/
 ### M4. Подключения, MCP, поиск
 
 1. Схема `catalog_items`, `connections`, `search_backends`.
-2. `@purr/core/mcp`: `@ai-sdk/mcp`, allowlist, префиксы, `approval_policy`.
-3. `@purr/core/connectors`: `email` (nodemailer, пресеты, `verify`), `http_api` (авторизация, генерация тулов из OpenAPI), SSRF-guard для своих подключений.
+2. `@metobe/core/mcp`: `@ai-sdk/mcp`, allowlist, префиксы, `approval_policy`.
+3. `@metobe/core/connectors`: `email` (nodemailer, пресеты, `verify`), `http_api` (авторизация, генерация тулов из OpenAPI), SSRF-guard для своих подключений.
 4. `request_connection` + форма в ленте + `POST /api/connections`. Предупреждение о пароле в composer.
 5. `web_search` / `web_fetch` на SearXNG, `source-url`-части, карточка источников.
 6. UI каталога, «Мои подключения», карточки вызовов тулов и подтверждения — прототипы P4, P8.
 
 ### M5. Генеративный UI
 
-1. Реестр виджетов (`chart`, `table`, `metrics`) — схемы в `@purr/contracts`, компоненты в `apps/web/modules/widgets` поверх примитивов `@purr/ui`.
+1. Реестр виджетов (`chart`, `table`, `metrics`) — схемы в `@metobe/contracts`, компоненты в `apps/web/modules/widgets` поверх примитивов `@metobe/ui`.
 2. `toModelOutput` + `sourceRef` (итоги S5), фолбэк на невалидный спек.
 3. ReUI Data Grid и графики по итогам S2.
 
 ### M6. Пользователи
 
-Роли, приглашение по ссылке (сама создаёт сессию), SMTP в настройках с тестовым письмом, одноразовая ссылка для входа от админа (в интерфейсе и `purr login-link`), rate limit в Redis.
+Роли, приглашение по ссылке (сама создаёт сессию), SMTP в настройках с тестовым письмом, одноразовая ссылка для входа от админа (в интерфейсе и `metobe login-link`), rate limit в Redis.
 
 ### M7. Полировка UX
 
@@ -185,7 +185,7 @@ docs/
 **Смена пресета shadcn** (`apply --preset <код>`) — только из `apps/web`: из `packages/ui` CLI не находит фреймворк. После `apply` вручную:
 
 - вернуть `apps/web/app/layout.tsx`: пресет вписывает шрифт с `subsets: ['latin']`, без кириллицы;
-- удалить созданный `apps/web/lib/utils.ts`: `cn()` берётся из `@purr/ui/lib/utils`;
+- удалить созданный `apps/web/lib/utils.ts`: `cn()` берётся из `@metobe/ui/lib/utils`;
 - если сменился стиль (например, `nova` → `mira`), переставить компоненты ReUI из `packages/ui` с `--overwrite`, чтобы они совпали со стилем;
 - `pnpm fix`: `globals.css` пишется без форматирования.
 
@@ -193,4 +193,4 @@ docs/
 
 - `turbo check-types`, `ultracite check`, `vitest` — зелёные, иначе этап не закрыт.
 - Критерий «Готово, когда» из PLAN проверяется руками в браузере, на чистой установке через `install.sh`.
-- Чистая логика (`@purr/core`, `@purr/contracts`, `modules/*/model`) покрывается тестами рядом с файлом. Компоненты — по необходимости.
+- Чистая логика (`@metobe/core`, `@metobe/contracts`, `modules/*/model`) покрывается тестами рядом с файлом. Компоненты — по необходимости.

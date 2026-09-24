@@ -2,11 +2,11 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties, ReactNode } from "react"
-import { useDataGrid } from "@purr/ui/components/reui/data-grid/data-grid"
+import { useDataGrid } from "@metobe/ui/components/reui/data-grid/data-grid"
 import type {
   DataGridFeatures,
   DataGridTableInstance,
-} from "@purr/ui/components/reui/data-grid/data-grid"
+} from "@metobe/ui/components/reui/data-grid/data-grid"
 import {
   DataGridTableAddRow,
   DataGridTableBase,
@@ -27,7 +27,7 @@ import {
   getDataGridTableRowSections,
   getPinningStyles,
   hasDataGridTableRightPinnedColumns,
-} from "@purr/ui/components/reui/data-grid/data-grid-table"
+} from "@metobe/ui/components/reui/data-grid/data-grid-table"
 import { flexRender } from "@tanstack/react-table"
 import type { Column, Row, Table } from "@tanstack/react-table"
 import { useVirtualizer } from "@tanstack/react-virtual"
@@ -38,7 +38,7 @@ import type {
 } from "@tanstack/react-virtual"
 
 import { cn } from "cn"
-import { Spinner } from "@purr/ui/components/spinner"
+import { Spinner } from "@metobe/ui/components/spinner"
 
 type DataGridTableVirtualScrollElements = {
   containerElement: HTMLDivElement | null

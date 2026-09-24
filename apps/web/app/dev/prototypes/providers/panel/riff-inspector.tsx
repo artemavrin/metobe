@@ -2,15 +2,15 @@
 
 // Riff «Инспектор»: the models table takes the width; a model opens in an inspector on the right,
 // provider connection lives in a sheet.
-import { Button } from "@purr/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
-import { Alert, AlertDescription, AlertTitle } from "@purr/ui/components/reui/alert";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Frame, FramePanel } from "@purr/ui/components/reui/frame";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@purr/ui/components/sheet";
-import { Switch } from "@purr/ui/components/switch";
-import { ToggleGroup, ToggleGroupItem } from "@purr/ui/components/toggle-group";
-import { cn } from "@purr/ui/lib/utils";
+import { Button } from "@metobe/ui/components/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
+import { Alert, AlertDescription, AlertTitle } from "@metobe/ui/components/reui/alert";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Frame, FramePanel } from "@metobe/ui/components/reui/frame";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@metobe/ui/components/sheet";
+import { Switch } from "@metobe/ui/components/switch";
+import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
+import { cn } from "@metobe/ui/lib/utils";
 import { CircleAlert, Plug, RotateCcw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 

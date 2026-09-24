@@ -1,9 +1,9 @@
 {
-  "extends": "@purr/tsconfig/nextjs.json",
+  "extends": "@metobe/tsconfig/nextjs.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./*"],
-      "@purr/ui/*": ["../../packages/ui/src/*"]
+      "@metobe/ui/*": ["../../packages/ui/src/*"]
     },
     "plugins": [{ "name": "next" }]
   },

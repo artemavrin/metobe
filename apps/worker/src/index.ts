@@ -1,4 +1,4 @@
-import { checkHealth } from "@purr/core/health";
+import { checkHealth } from "@metobe/core/health";
 
 // Periodic DB check keeps the process alive until BullMQ workers hold the event loop.
 const keepAlive = setInterval(async () => {

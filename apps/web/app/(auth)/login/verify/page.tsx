@@ -3,7 +3,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "@purr/ui/components/card";
+} from "@metobe/ui/components/card";
 
 import { CodeForm } from "../login-form";
 
@@ -18,7 +18,7 @@ const VerifyPage = async ({
     <main className="flex min-h-dvh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Вход в Purr</CardTitle>
+          <CardTitle>Вход в Metobe</CardTitle>
         </CardHeader>
         <CardContent>
           <CodeForm email={email} initialCode={code} />

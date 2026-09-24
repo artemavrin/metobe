@@ -1,11 +1,11 @@
-import { hasSuperuser } from "@purr/core/claim";
+import { hasSuperuser } from "@metobe/core/claim";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@purr/ui/components/card";
+} from "@metobe/ui/components/card";
 import Link from "next/link";
 
 import { ClaimForm } from "./claim-form";

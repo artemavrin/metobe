@@ -1,5 +1,5 @@
-import "@purr/ui/globals.css";
-import { cn } from "@purr/ui/lib/utils";
+import "@metobe/ui/globals.css";
+import { cn } from "@metobe/ui/lib/utils";
 import { Agentation } from "agentation";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -17,7 +17,7 @@ const fontMono = Geist_Mono({
 
 export const metadata: Metadata = {
   description: "Self-hosted AI-рабочее место",
-  title: "Purr",
+  title: "Metobe",
 };
 
 const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (

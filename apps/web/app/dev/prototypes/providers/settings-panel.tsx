@@ -1,8 +1,8 @@
 "use client";
 
 // Direction: master–detail — providers list on the left, the selected provider with its models table on the right.
-import { Button } from "@purr/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
+import { Button } from "@metobe/ui/components/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
 import {
   Item,
   ItemContent,
@@ -10,12 +10,12 @@ import {
   ItemGroup,
   ItemMedia,
   ItemTitle,
-} from "@purr/ui/components/item";
-import { Alert, AlertAction, AlertDescription } from "@purr/ui/components/reui/alert";
-import { Badge } from "@purr/ui/components/reui/badge";
-import { Frame, FramePanel } from "@purr/ui/components/reui/frame";
-import { ToggleGroup, ToggleGroupItem } from "@purr/ui/components/toggle-group";
-import { cn } from "@purr/ui/lib/utils";
+} from "@metobe/ui/components/item";
+import { Alert, AlertAction, AlertDescription } from "@metobe/ui/components/reui/alert";
+import { Badge } from "@metobe/ui/components/reui/badge";
+import { Frame, FramePanel } from "@metobe/ui/components/reui/frame";
+import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
+import { cn } from "@metobe/ui/lib/utils";
 import { Boxes, Mail, MessageSquare, Network, Plus, RefreshCw, Search, Server, Sparkles, Users } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -48,7 +48,7 @@ export const SettingsPanel = ({ embedded = false }: { embedded?: boolean }) => {
     <div className={cn("bg-background flex text-sm", embedded ? "h-full min-h-0" : "h-dvh")}>
       {!embedded && (
       <aside className="bg-sidebar flex w-56 shrink-0 flex-col gap-1 border-r p-2">
-        <div className="flex h-10 items-center px-2 font-semibold">Purr</div>
+        <div className="flex h-10 items-center px-2 font-semibold">Metobe</div>
         <Button className="justify-start" variant="ghost">
           <MessageSquare /> Чат
           <Badge className="ml-auto" size="sm" variant="secondary">

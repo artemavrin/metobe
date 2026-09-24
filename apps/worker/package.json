@@ -1,5 +1,5 @@
 {
-  "name": "@purr/worker",
+  "name": "@metobe/worker",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,10 +9,10 @@
     "start": "node --conditions=react-server dist/index.js"
   },
   "dependencies": {
-    "@purr/core": "workspace:*"
+    "@metobe/core": "workspace:*"
   },
   "devDependencies": {
-    "@purr/tsconfig": "workspace:*",
+    "@metobe/tsconfig": "workspace:*",
     "@types/node": "^20",
     "tsup": "^8",
     "tsx": "^4",

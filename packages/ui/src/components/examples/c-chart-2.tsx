@@ -1,7 +1,7 @@
 "use client"
 
 import { CSSProperties } from "react"
-import { Badge } from "@purr/ui/components/reui/badge"
+import { Badge } from "@metobe/ui/components/reui/badge"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 
 import {
@@ -10,13 +10,13 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@purr/ui/components/card"
+} from "@metobe/ui/components/card"
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@purr/ui/components/chart"
+} from "@metobe/ui/components/chart"
 import { TrendingUpIcon } from "lucide-react"
 
 const chartData = [

@@ -1,8 +1,8 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
-import { user } from "@purr/db/schema/auth";
-import { claimTokens } from "@purr/db/schema/claim";
+import { user } from "@metobe/db/schema/auth";
+import { claimTokens } from "@metobe/db/schema/claim";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
