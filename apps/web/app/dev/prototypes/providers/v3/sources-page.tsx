@@ -5,6 +5,7 @@
 import { Button } from "@purr/ui/components/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@purr/ui/components/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@purr/ui/components/select";
 import { Badge } from "@purr/ui/components/reui/badge";
 import { Switch } from "@purr/ui/components/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
@@ -21,19 +22,22 @@ import {
   KeyField,
   type PanelProvider,
   RecheckButton,
-  RouteSelect,
   visibleInChat,
 } from "../panel/common";
-import type { Settings } from "./state";
+import { EditRow, Row, Section } from "./parts";
+import { COUNTRY, type Settings } from "./state";
 
 /** Round-trip of the last check, deterministic per source (the real app stores the last check result). */
-const latencyOf = (p: PanelProvider) => (p.kind === "yandex" ? 180 : p.kind === "compatible" ? 40 : 260) + (p.route.kind === "proxy" ? p.route.proxy.latency : 0);
+const latencyOf = (p: PanelProvider, s: Settings) => {
+  const via = s.routeOf(p).proxy;
+  return (p.kind === "yandex" ? 180 : p.kind === "compatible" ? 40 : 260) + (via?.health.state === "ok" ? via.health.latency : 0);
+};
 
-const statusOf = (p: PanelProvider) => {
+const statusOf = (p: PanelProvider, s: Settings) => {
   if (p.enabled === false) return { dot: "bg-muted-foreground/40", text: "Выключен", tone: "muted" as const };
   if (p.health.state === "checking") return { dot: "bg-warning animate-pulse", text: "Проверяем…", tone: "muted" as const };
   if (p.health.state === "error") return { dot: "bg-destructive", text: "Ключ отозван", tone: "error" as const };
-  return { dot: "bg-success", text: `Работает · ${latencyOf(p)} мс`, tone: "muted" as const };
+  return { dot: "bg-success", text: `Работает · ${latencyOf(p, s)} мс`, tone: "muted" as const };
 };
 
 export const SourcesPage = ({ s }: { s: Settings }) => {
@@ -60,7 +64,7 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
         </div>
         <nav className="flex flex-col gap-0.5 px-2 pb-4">
           {panel.list.map((x) => {
-            const st = statusOf(x);
+            const st = statusOf(x, s);
             const active = x.kind === p?.kind;
             return (
               <button
@@ -93,8 +97,9 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
   );
 };
 
-const HealthPill = ({ p }: { p: PanelProvider }) => {
-  const st = statusOf(p);
+const HealthPill = ({ p, s }: { p: PanelProvider; s: Settings }) => {
+  const st = statusOf(p, s);
+  const route = s.routeOf(p);
   const spec = providerBy(p.kind);
   const lines =
     p.health.state === "error"
@@ -104,7 +109,7 @@ const HealthPill = ({ p }: { p: PanelProvider }) => {
         ]
       : [
           ["GET /v1/models", `200 · ${spec.models.length + spec.hiddenCount} моделей`],
-          ["Пробный запрос, 1 токен", `200 · ${latencyOf(p)} мс`],
+          ["Пробный запрос, 1 токен", `200 · ${latencyOf(p, s)} мс`],
         ];
   return (
     <Popover>
@@ -120,7 +125,7 @@ const HealthPill = ({ p }: { p: PanelProvider }) => {
         }
       >
         <span className={cn("size-1.5 rounded-full", st.dot)} />
-        {p.health.state === "ok" ? `OK · ${latencyOf(p)} мс · ${p.health.checked}` : p.health.state === "error" ? `Ошибка · ${p.health.since}` : st.text}
+        {p.health.state === "ok" ? `OK · ${latencyOf(p, s)} мс · ${p.health.checked}` : p.health.state === "error" ? `Ошибка · ${p.health.since}` : st.text}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96">
         <div className="flex flex-col gap-3 text-sm">
@@ -133,7 +138,7 @@ const HealthPill = ({ p }: { p: PanelProvider }) => {
               </div>
             ))}
             <dt className="text-muted-foreground">Маршрут</dt>
-            <dd>{p.route.kind === "direct" ? "напрямую" : `через ${p.route.proxy.title} · ${p.route.proxy.country}`}</dd>
+            <dd>{route.proxy ? `через ${route.proxy.title}` : "напрямую"}</dd>
           </dl>
           <span className="text-muted-foreground text-xs">Проверяем настоящим запросом, а не форматом ключа: зелёный статус значит, что чат ответит.</span>
         </div>
@@ -142,30 +147,47 @@ const HealthPill = ({ p }: { p: PanelProvider }) => {
   );
 };
 
-const Section = ({ title, meta, action, children }: { title: string; meta?: string; action?: React.ReactNode; children: React.ReactNode }) => (
-  <section className="flex flex-col gap-3">
-    <div className="flex items-end justify-between gap-3">
-      <h2 className="text-sm font-semibold">
-        {title}
-        {meta && <span className="text-muted-foreground ml-2 font-normal">{meta}</span>}
-      </h2>
-      {action}
+/** The source's side of «what goes through which proxy» (ARCH §18): the same field the proxy page edits. */
+const RouteField = ({ p, s }: { p: PanelProvider; s: Settings }) => {
+  const route = s.routeOf(p);
+  const flag = (c?: string) => (c ? COUNTRY[c]?.flag : undefined);
+  const via = (x: Settings["proxies"][number]) => `${x.title}${x.health.state === "ok" ? ` · ${flag(x.health.country) ?? x.health.country} ${x.health.latency} мс` : ""}`;
+  const why =
+    route.why === "domain"
+      ? `Идёт через «${route.proxy?.title}»: домен ${route.domain} отмечен у этого прокси`
+      : route.why === "auto-direct"
+        ? "Идёт напрямую: ни у одного прокси нет его домена"
+        : route.why === "explicit"
+          ? "Всегда через этот прокси, домены не учитываются"
+          : "Всегда напрямую, даже если домен отмечен у прокси";
+  return (
+    <div className="flex flex-col gap-1">
+      <Select onValueChange={(v) => s.panel.setRoute(p.kind, String(v))} value={p.routeMode}>
+        <SelectTrigger className="w-80">
+          <SelectValue>
+            {p.routeMode === "auto"
+              ? `Авто · ${route.proxy ? `через ${route.proxy.title}` : "напрямую"}`
+              : p.routeMode === "direct"
+                ? "Только напрямую"
+                : `Через ${route.proxy ? via(route.proxy) : "удалённый прокси"}`}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="auto">Авто — по доменам прокси</SelectItem>
+          <SelectItem value="direct">Только напрямую</SelectItem>
+          {s.proxies
+            .filter((x) => x.address)
+            .map((x) => (
+              <SelectItem key={x.id} value={x.id}>
+                Через {via(x)}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+      <span className="text-muted-foreground text-xs">{why}</span>
     </div>
-    {children}
-  </section>
-);
-
-const Row = ({ label, hint, children, action }: { label: string; hint?: string; children: React.ReactNode; action?: React.ReactNode }) => (
-  <div className="grid grid-cols-[180px_1fr_auto] items-center gap-4 px-4 py-3">
-    <div className="flex flex-col">
-      <span className="font-medium">{label}</span>
-      {hint && <span className="text-muted-foreground text-xs">{hint}</span>}
-    </div>
-    <div className="min-w-0">{children}</div>
-    <div>{action}</div>
-  </div>
-);
-
+  );
+};
 const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
   const { panel } = s;
   const spec = providerBy(p.kind);
@@ -181,7 +203,7 @@ const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
           <div className="flex flex-col gap-1.5">
             <h1 className="text-xl font-semibold tracking-tight">{spec.title}</h1>
             <div className="flex items-center gap-2">
-              <HealthPill p={p} />
+              <HealthPill p={p} s={s} />
               <span className="text-muted-foreground text-xs">{spec.blurb}</span>
             </div>
           </div>
@@ -238,12 +260,18 @@ const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
             </div>
           )}
           {spec.extraField && (
-            <Row hint={spec.extraField.hint} label={spec.extraField.label}>
-              <span className="font-mono">{p.kind === "yandex" ? "b1g8f2k4m9q1r7t3v5x0" : "http://ollama:11434/v1"}</span>
-            </Row>
+            <EditRow
+              check={(v) => (p.kind === "yandex" && !v.startsWith("b1g") ? "ID каталога начинается с b1g — скопируйте его в консоли Yandex Cloud" : null)}
+              hint={spec.extraField.hint}
+              key={p.extra}
+              label={spec.extraField.label}
+              onSave={(v) => void panel.setExtra(p.kind, v)}
+              placeholder={spec.extraField.placeholder}
+              value={p.extra ?? ""}
+            />
           )}
-          <Row hint="Как запросы выходят в интернет" label="Маршрут">
-            <RouteSelect className="w-72" p={p} panel={panel} />
+          <Row hint="Прокси заводятся в «Системе → Прокси»" label="Маршрут">
+            <RouteField p={p} s={s} />
           </Row>
         </div>
       </Section>
@@ -353,16 +381,6 @@ const ModelsSection = ({ s, p }: { s: Settings; p: PanelProvider }) => {
 
   return (
     <Section
-      action={
-        <span className="flex gap-1">
-          <Button onClick={() => setGroup(shown.map((m) => m.id), true)} size="xs" variant="ghost">
-            Включить показанные
-          </Button>
-          <Button onClick={() => setGroup(shown.map((m) => m.id), false)} size="xs" variant="ghost">
-            Выключить
-          </Button>
-        </span>
-      }
       meta={`${p.models.size} из ${spec.models.length} в чате`}
       title="Модели"
     >
@@ -395,8 +413,7 @@ const ModelsSection = ({ s, p }: { s: Settings; p: PanelProvider }) => {
           const onCount = g.models.filter((m) => p.models.has(m.id)).length;
           return (
             <div className="border-b last:border-b-0" key={g.info.slug}>
-              {multi && (
-                <div className="bg-muted/40 flex items-center gap-2.5 px-4 py-2">
+              <div className="bg-muted/40 flex items-center gap-2.5 px-4 py-2">
                   <BrandLogo label={g.info.title} logo={g.info.logo} size={22} />
                   <span className="font-medium">{g.info.title}</span>
                   <span className="text-muted-foreground text-xs tabular-nums">
@@ -410,10 +427,10 @@ const ModelsSection = ({ s, p }: { s: Settings; p: PanelProvider }) => {
                     size="sm"
                   />
                 </div>
-              )}
+              
               <ul className="divide-y">
                 {list.map((m) => (
-                  <ModelRow key={m.id} m={m} multi={multi} on={p.models.has(m.id)} onToggle={(v) => panel.toggleModel(p.kind, m.id, v)} s={s} />
+                  <ModelRow key={m.id} m={m} on={p.models.has(m.id)} onToggle={(v) => panel.toggleModel(p.kind, m.id, v)} />
                 ))}
               </ul>
             </div>
@@ -426,13 +443,11 @@ const ModelsSection = ({ s, p }: { s: Settings; p: PanelProvider }) => {
   );
 };
 
-const ModelRow = ({ m, on, onToggle, multi, s }: { m: Model; on: boolean; onToggle: (v: boolean) => void; multi: boolean; s: Settings }) => {
-  const info = s.providerOf(m);
+const ModelRow = ({ m, on, onToggle }: { m: Model; on: boolean; onToggle: (v: boolean) => void }) => {
   const id = `m-${m.id}`;
   return (
     <li>
-      <label className={cn("hover:bg-muted/30 flex cursor-pointer items-center gap-3 py-2.5 pr-4", multi ? "pl-12" : "pl-4")} htmlFor={id}>
-        {!multi && <BrandLogo label={info.title} logo={info.logo} size={22} />}
+      <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 py-2.5 pr-4 pl-12" htmlFor={id}>
         <span className={cn("flex min-w-0 flex-1 items-center gap-2", !on && "text-muted-foreground")}>
           <span className="truncate font-medium">{m.title}</span>
           {isNew(m) && (

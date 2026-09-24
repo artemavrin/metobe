@@ -2,7 +2,6 @@
 import {
   Bell,
   Bot,
-  Boxes,
   Factory,
   HardDrive,
   Info,
@@ -20,7 +19,6 @@ import {
 export type SettingsSection =
   | "providers"
   | "vendors"
-  | "models"
   | "proxies"
   | "connections"
   | "skills"
@@ -38,8 +36,6 @@ export const SETTINGS: { title: string; items: { id: SettingsSection; label: str
     items: [
       { hint: "Кто даёт доступ к моделям: ключи, маршруты, здоровье", icon: Server, id: "providers", label: "Источники" },
       { hint: "Кто сделал модели: названия и логотипы в чате", icon: Factory, id: "vendors", label: "Провайдеры" },
-      { hint: "Все модели всех провайдеров: цены, возможности, доступ", icon: Boxes, id: "models", label: "Модели" },
-      { hint: "Что через какой прокси ходит", icon: Network, id: "proxies", label: "Прокси" },
     ],
     title: "Модели",
   },
@@ -60,6 +56,7 @@ export const SETTINGS: { title: string; items: { id: SettingsSection; label: str
   },
   {
     items: [
+      { hint: "Выходы в интернет: завести один раз, отмечать, что через них ходит", icon: Network, id: "proxies", label: "Прокси" },
       { hint: "SMTP для писем со входом и уведомлений", icon: Mail, id: "mail", label: "Почта" },
       { hint: "Файлы и вложения в S3", icon: HardDrive, id: "storage", label: "Хранилище" },
       { hint: "Версия, обновления, мастер-ключ", icon: Info, id: "about", label: "О системе" },

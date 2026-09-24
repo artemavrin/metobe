@@ -31,7 +31,7 @@ import { MASKED, NO_AUTOFILL, ProviderMark, type RouteChoice } from "../../_p7/s
 // --- state ----------------------------------------------------------------------------------------
 
 export type Health = { state: "ok"; checked: string } | { state: "error"; message: string; since: string } | { state: "checking" };
-export type PanelProvider = Connected & { health: Health; keyTail: string; routeMode: "auto" | "direct" | string; enabled?: boolean };
+export type PanelProvider = Connected & { health: Health; keyTail: string; routeMode: "auto" | "direct" | string; enabled?: boolean; extra?: string };
 
 const proxy = PROXIES[0] as (typeof PROXIES)[number];
 
@@ -55,6 +55,7 @@ export const seedPanel = (): PanelProvider[] => [
   {
     health: { checked: "5 мин назад", state: "ok" },
     keyTail: SAMPLE_KEYS.yandex.slice(-4),
+    extra: "b1g8f2k4m9q1r7t3v5x0",
     kind: "yandex",
     models: new Set(["aliceai-llm", "yandexgpt-5.1"]),
     route: { kind: "direct" },
@@ -118,10 +119,23 @@ export const usePanel = (seed: () => PanelProvider[] = seedPanel) => {
     setSelected(c.kind);
   };
 
+  /** The source's extra field (Yandex folder id, compatible base URL): stored, then the source is checked again. */
+  const setExtra = async (kind: ProviderKind, value: string) => {
+    patch(kind, (p) => ({ ...p, extra: value, health: { state: "checking" } }));
+    await wait(900);
+    const ok = kind === "yandex" ? value.startsWith("b1g") : /^https?:\/\//.test(value);
+    patch(kind, (p) => ({
+      ...p,
+      health: ok
+        ? { checked: "только что", state: "ok" }
+        : { message: kind === "yandex" ? "Каталог не найден: Yandex AI Studio отвечает 403 PERMISSION_DENIED." : "По этому адресу API не отвечает.", since: "только что", state: "error" },
+    }));
+  };
+
   /** Switch a source off without dropping its key. */
   const setEnabled = (kind: ProviderKind, enabled: boolean) => patch(kind, (p) => ({ ...p, enabled }));
 
-  return { add, current, list, recheck, remove, replaceKey, selected, setEnabled, setModels, setRoute, setSelected, toggleModel };
+  return { add, current, list, recheck, remove, replaceKey, selected, setEnabled, setExtra, setModels, setRoute, setSelected, toggleModel };
 };
 
 export type Panel = ReturnType<typeof usePanel>;
