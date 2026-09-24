@@ -65,7 +65,16 @@ const getSnapshot = () => {
 };
 
 /** Drops cached proxies and dispatchers; called after any proxy change (and on Redis `config:changed`). */
+const listeners = new Set<() => void>();
+/** Whoever bakes a fetch into something long-lived (AI providers) rebuilds it when routes change. */
+export const onNetChange = (listener: () => void) => {
+  listeners.add(listener);
+};
+
 export const invalidateNet = () => {
+  for (const listener of listeners) {
+    listener();
+  }
   snapshot = undefined;
   for (const d of dispatchers.values()) {
     void d.close();
