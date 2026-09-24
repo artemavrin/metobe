@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/artemavrin/metobe/compare/v0.1.1...v0.2.0) (2026-09-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* existing installs must rename PURR_* to METOBE_* in .env and set COMPOSE_PROJECT_NAME=purr plus POSTGRES_DB/USER/PASSWORD to the old values to keep their volumes and database (see DECISIONS D30).
+
+### Features
+
+* rename the project to Metobe ([#4](https://github.com/artemavrin/metobe/issues/4)) ([4669309](https://github.com/artemavrin/metobe/commit/4669309d97e0ad57880486fbfabeb783f3ffbd21))
+
+
+### Bug Fixes
+
+* provider list keeps its order and selection when models are toggled ([c09e5d8](https://github.com/artemavrin/metobe/commit/c09e5d8fe5ead71d513ee7bb36bd759e683b53bd))
+
 ## [0.1.1](https://github.com/artemavrin/purr/compare/v0.1.0...v0.1.1) (2026-09-23)
 
 
