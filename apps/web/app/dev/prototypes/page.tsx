@@ -39,7 +39,7 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
         title: "Онбординг",
       },
       {
-        description: "Внутри режима настроек. Выбрана «Панель», развиваем: «Вкладки», «Инспектор», «Компакт».",
+        description: "Внутри режима настроек. Ищем «вау»: «Колода», «Схема», «Доска»; рядом варианты «Панели».",
         href: "/dev/prototypes/providers",
         icon: Server,
         status: "выбираем",
