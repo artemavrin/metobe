@@ -34,7 +34,7 @@ const latencyOf = (p: PanelProvider, s: Settings) => {
   return (p.kind === "yandex" ? 180 : p.kind === "compatible" ? 40 : 260) + (via?.health.state === "ok" ? via.health.latency : 0);
 };
 
-const statusOf = (p: PanelProvider, s: Settings) => {
+export const statusOf = (p: PanelProvider, s: Settings) => {
   if (p.enabled === false) return { dot: "bg-muted-foreground/40", text: "Выключен", tone: "muted" as const };
   if (p.health.state === "checking") return { dot: "bg-warning animate-pulse", text: "Проверяем…", tone: "muted" as const };
   if (p.health.state === "error") return { dot: "bg-destructive", text: "Ключ отозван", tone: "error" as const };
@@ -218,7 +218,7 @@ const RouteField = ({ p, s }: { p: PanelProvider; s: Settings }) => {
   );
 };
 
-const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
+export const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
   const { panel } = s;
   const spec = providerBy(p.kind);
   const broken = p.health.state === "error";

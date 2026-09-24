@@ -37,7 +37,7 @@ const TYPES: { id: ProxyType; label: string; hint: string }[] = [
   { hint: "DNS разрешается на стороне прокси — когда блокируют и DNS", id: "socks5h", label: "SOCKS5h" },
 ];
 
-const status = (x: ProxyEntry) => {
+export const proxyStatus = (x: ProxyEntry) => {
   const h = x.health;
   if (h.state === "ok") return { dot: "bg-success", text: `${COUNTRY[h.country]?.name ?? h.country} · ${h.latency} мс`, tone: "muted" as const };
   if (h.state === "error") return { dot: "bg-destructive", text: "Не отвечает", tone: "error" as const };
@@ -46,7 +46,7 @@ const status = (x: ProxyEntry) => {
 };
 
 /** Country flag on a tile; a network glyph until the first check tells where the proxy exits. */
-const ProxyMark = ({ x, size = 32, pop = false }: { x: ProxyEntry; size?: number; pop?: boolean }) => (
+export const ProxyMark = ({ x, size = 32, pop = false }: { x: ProxyEntry; size?: number; pop?: boolean }) => (
   <span
     className="bg-background inline-flex shrink-0 items-center justify-center rounded-[28%] shadow-[0_0_0_1px_rgba(0,0,0,0.07),0_1px_2px_-1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"
     style={{ fontSize: size * 0.55, height: size, width: size }}
@@ -60,8 +60,8 @@ const ProxyMark = ({ x, size = 32, pop = false }: { x: ProxyEntry; size?: number
 );
 
 export const ProxiesPage = ({ s }: { s: Settings }) => {
-  const [selected, setSelected] = useState<string | null>(null);
-  const current = s.proxies.find((x) => x.id === selected) ?? s.proxies[0];
+  const current = s.currentProxy;
+  const setSelected = s.setSelectedProxy;
   const list = useListHighlight(current?.id, s.proxies.length);
   return (
     <div className="flex h-full min-h-0 text-sm">
@@ -81,7 +81,7 @@ export const ProxiesPage = ({ s }: { s: Settings }) => {
         <nav className="relative flex flex-col gap-0.5 px-2 pb-4" ref={list.ref}>
           {list.highlight}
           {s.proxies.map((x) => {
-            const st = status(x);
+            const st = proxyStatus(x);
             return (
               <ListRow
                 active={x.id === current?.id}
@@ -131,7 +131,7 @@ export const ProxiesPage = ({ s }: { s: Settings }) => {
 
 const CheckPill = ({ x }: { x: ProxyEntry }) => {
   const h = x.health;
-  const st = status(x);
+  const st = proxyStatus(x);
   const label =
     h.state === "ok"
       ? `OK · ${h.latency} мс · ${h.checked}`
@@ -184,7 +184,7 @@ const CheckPill = ({ x }: { x: ProxyEntry }) => {
   );
 };
 
-const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemoved: () => void }) => {
+export const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemoved: () => void }) => {
   const [name, setName] = useState(x.title);
   const [domain, setDomain] = useState("");
   // Was it already checked when the page opened? Then the flag is just there; a first check makes it pop in.

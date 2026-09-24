@@ -16,7 +16,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@metobe/ui/components/item";
-import { ChevronRight, LayoutDashboard, PanelsTopLeft, Rocket, Server } from "lucide-react";
+import { ChevronRight, Columns3, LayoutDashboard, PanelsTopLeft, Rocket, Server } from "lucide-react";
 import Link from "next/link";
 
 type Entry = {
@@ -44,6 +44,13 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
         icon: Server,
         status: "выбираем",
         title: "Источники, провайдеры и модели",
+      },
+      {
+        description: "Где живёт список источников, провайдеров и прокси в оболочке «Режимы»: холст, вложенное меню, переключатель, погружение.",
+        href: "/dev/prototypes/settings-layout",
+        icon: Columns3,
+        status: "выбираем",
+        title: "Раскладка настроек",
       },
     ],
     title: "P7 · Провайдеры и модели",

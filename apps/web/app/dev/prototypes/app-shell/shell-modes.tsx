@@ -31,11 +31,15 @@ type ChatView = { id?: string } | { area: "agents" | "inbox" };
 /** `start` and `providers` let other prototypes open the shell right in settings with their own providers page. */
 type Pages = Partial<Record<SettingsSection, React.ReactNode>>;
 
+/** What a custom settings layout gets from the shell. */
+export type SettingsCtx = { section: SettingsSection; onSection: (s: SettingsSection) => void; onBack: () => void };
+
 export const ShellModes = ({
   start = "chat",
   providers,
   pages,
-}: { start?: "chat" | "settings"; providers?: React.ReactNode; pages?: Pages } = {}) => {
+  settings,
+}: { start?: "chat" | "settings"; providers?: React.ReactNode; pages?: Pages; settings?: (ctx: SettingsCtx) => React.ReactNode } = {}) => {
   const [mode, setMode] = useState<"chat" | "settings">(start);
   const [chat, setChat] = useState<ChatView>({});
   const [section, setSection] = useState<SettingsSection>("providers");
@@ -54,6 +58,8 @@ export const ShellModes = ({
 
   return mode === "chat" ? (
     <ChatMode chat={chat} onChat={setChat} onSettings={() => setMode("settings")} />
+  ) : settings ? (
+    settings({ onBack: () => setMode("chat"), onSection: setSection, section })
   ) : (
     <SettingsMode onBack={() => setMode("chat")} onSection={setSection} pages={{ providers, ...pages }} section={section} />
   );
@@ -67,7 +73,7 @@ const Brand = () => (
 );
 
 /** The same account row in both modes: the shell stays one app, only the menu changes. */
-const AccountFooter = ({ onSettings, inSettings = false }: { onSettings: () => void; inSettings?: boolean }) => (
+export const AccountFooter = ({ onSettings, inSettings = false }: { onSettings: () => void; inSettings?: boolean }) => (
   <SidebarFooter className="flex-row items-center gap-1">
     <AccountMenu
       onSettings={onSettings}
@@ -143,6 +149,64 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
   </SidebarProvider>
 );
 
+/** Top of the settings sidebar: back to the chat, Esc hint, search. */
+export const SettingsTop = ({ onBack, q, setQ }: { onBack: () => void; q: string; setQ: (q: string) => void }) => (
+  <SidebarHeader>
+    <div className="flex h-8 items-center justify-between gap-2">
+      <Button className="-ml-1" onClick={onBack} size="sm" variant="ghost">
+        <ArrowLeft /> Чат
+      </Button>
+      <Kbd className="text-muted-foreground">Esc</Kbd>
+    </div>
+    <div className="relative">
+      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
+      <SidebarInput {...NO_AUTOFILL} className="pl-8" onChange={(e) => setQ(e.target.value)} placeholder="Найти настройку" value={q} />
+    </div>
+  </SidebarHeader>
+);
+
+/** The settings sections by group. `below` renders under a section item (e.g. its entries as a sub-menu). */
+export const SettingsMenu = ({
+  section,
+  onSection,
+  q,
+  below,
+  action,
+}: {
+  section: SettingsSection;
+  onSection: (s: SettingsSection) => void;
+  q: string;
+  below?: (id: SettingsSection) => React.ReactNode;
+  action?: (id: SettingsSection) => React.ReactNode;
+}) => {
+  const groups = SETTINGS.map((g) => ({ ...g, items: g.items.filter((i) => `${i.label} ${i.hint}`.toLowerCase().includes(q.toLowerCase())) })).filter(
+    (g) => g.items.length
+  );
+  return (
+    <>
+      {groups.map((g) => (
+        <SidebarGroup className="py-1" key={g.title}>
+          <SidebarGroupLabel>{g.title}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {g.items.map((item) => (
+                <SidebarMenuItem key={item.id}>
+                  <SidebarMenuButton isActive={section === item.id} onClick={() => onSection(item.id)}>
+                    <item.icon /> <span>{item.label}</span>
+                  </SidebarMenuButton>
+                  {action?.(item.id)}
+                  {below?.(item.id)}
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
+      {!groups.length && <p className="text-muted-foreground px-4 py-2 text-sm">Ничего не нашлось</p>}
+    </>
+  );
+};
+
 const SettingsMode = ({
   section,
   onSection,
@@ -155,42 +219,12 @@ const SettingsMode = ({
   pages?: Pages;
 }) => {
   const [q, setQ] = useState("");
-  const groups = SETTINGS.map((g) => ({ ...g, items: g.items.filter((i) => `${i.label} ${i.hint}`.toLowerCase().includes(q.toLowerCase())) })).filter(
-    (g) => g.items.length
-  );
   return (
     <SidebarProvider className="animate-in fade-in duration-200 ease-out">
       <Sidebar variant="floating">
-        <SidebarHeader>
-          <div className="flex h-8 items-center justify-between gap-2">
-            <Button className="-ml-1" onClick={onBack} size="sm" variant="ghost">
-              <ArrowLeft /> Чат
-            </Button>
-            <Kbd className="text-muted-foreground">Esc</Kbd>
-          </div>
-          <div className="relative">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
-            <SidebarInput {...NO_AUTOFILL} className="pl-8" onChange={(e) => setQ(e.target.value)} placeholder="Найти настройку" value={q} />
-          </div>
-        </SidebarHeader>
+        <SettingsTop onBack={onBack} q={q} setQ={setQ} />
         <SidebarContent>
-          {groups.map((g) => (
-            <SidebarGroup className="py-1" key={g.title}>
-              <SidebarGroupLabel>{g.title}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {g.items.map((item) => (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton isActive={section === item.id} onClick={() => onSection(item.id)} tooltip={item.hint}>
-                        <item.icon /> <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
-          {!groups.length && <p className="text-muted-foreground px-4 py-2 text-sm">Ничего не нашлось</p>}
+          <SettingsMenu onSection={onSection} q={q} section={section} />
         </SidebarContent>
         <AccountFooter inSettings onSettings={() => undefined} />
       </Sidebar>

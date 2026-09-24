@@ -18,8 +18,8 @@ import { LIST_PANEL, LogoPicker, useListHighlight } from "./parts";
 import type { ProviderInfo, Settings } from "./state";
 
 export const ProvidersPage = ({ s }: { s: Settings }) => {
-  const [selected, setSelected] = useState(() => s.providers[0]?.slug ?? null);
-  const current = s.providers.find((p) => p.slug === selected) ?? s.providers[0];
+  const current = s.currentProvider;
+  const setSelected = s.setSelectedProvider;
   const list = useListHighlight(current?.slug, s.providers.length);
   return (
     <div className="flex h-full min-h-0 text-sm">
@@ -90,7 +90,7 @@ const ChatPreview = ({ p }: { p: ProviderInfo }) => {
   );
 };
 
-const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
+export const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
   const [name, setName] = useState(p.title);
   const renamed = Boolean(s.overrides[p.slug]?.title);
   const rows = [...p.models].sort((a, b) => byNewest(a.model, b.model));

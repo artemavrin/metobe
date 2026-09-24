@@ -102,6 +102,8 @@ export const useSettings = () => {
   const panel = usePanel(seed);
   const [overrides, setOverrides] = useState<Record<string, ProviderOverride>>({});
   const [proxies, setProxies] = useState<ProxyEntry[]>(seedProxies);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [selectedProxy, setSelectedProxy] = useState<string | null>(null);
   const [sourceOverrides, setSourceOverrides] = useState<Partial<Record<ProviderKind, ProviderOverride>>>({});
 
   const providers = useMemo(() => {
@@ -166,7 +168,16 @@ export const useSettings = () => {
     setProxies((all) => all.filter((x) => x.id !== id));
   };
 
-  return { addProxy, checkProxy, overrides, panel, patchProxy, providerOf, providers, proxies, removeProxy, routeOf, setOverride, setSourceOverride, sourceOf };
+  // Selection lives here so every layout of the settings (column, menu, switcher…) shares it.
+  const currentProvider = providers.find((p) => p.slug === selectedProvider) ?? providers[0];
+  const currentProxy = proxies.find((x) => x.id === selectedProxy) ?? proxies[0];
+
+  return {
+    currentProvider,
+    currentProxy,
+    setSelectedProvider,
+    setSelectedProxy,
+    addProxy, checkProxy, overrides, panel, patchProxy, providerOf, providers, proxies, removeProxy, routeOf, setOverride, setSourceOverride, sourceOf };
 };
 
 export type Settings = ReturnType<typeof useSettings>;
