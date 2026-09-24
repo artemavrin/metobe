@@ -13,9 +13,14 @@
     "email": "Email",
     "send": "Get a sign-in link",
     "mailNotConfigured": "Email sign-in isn't set up yet. Ask your administrator for a sign-in link.",
-    "codeLabel": "Code from the email sent to {email}",
     "signIn": "Sign in",
-    "codeInvalid": "The code is wrong or has expired. Request a new one."
+    "codeInvalid": "The code is wrong or has expired. Request a new one.",
+    "codeTitle": "Code from the email",
+    "sentTo": "We sent a link and a code to",
+    "orLink": "Or just open the link from the email.",
+    "otherEmail": "Use a different email",
+    "resend": "Send again",
+    "resendIn": "Send again in {seconds}s"
   },
   "claim": {
     "title": "Administrator account",
@@ -27,6 +32,30 @@
     "create": "Create account",
     "alreadyClaimed": "The administrator has already been created. Sign in on the sign-in page.",
     "invalidToken": "The link is invalid or has expired. Issue a new one: {command}"
+  },
+  "authBrand": {
+    "taglines": {
+      "routine": {
+        "title": "Less routine, more done",
+        "text": "Drafts, digging through material, searching and checking — Metobe takes the routine, you keep what matters."
+      },
+      "stronger": {
+        "title": "A little stronger every day",
+        "text": "Understand, write, check, decide — an assistant is by your side in any task."
+      },
+      "secondMind": {
+        "title": "A second mind for your work",
+        "text": "Think out loud, ask, try things — Metobe helps turn a thought into a result."
+      },
+      "moreInDay": {
+        "title": "Do more in the same day",
+        "text": "Answers, ideas and drafts in minutes — so there is time left for the work only you can do."
+      },
+      "team": {
+        "title": "Your team at its best",
+        "text": "Everyone on the team gets a strong assistant — and the whole team moves faster."
+      }
+    }
   },
   "validation": {
     "email": "Enter a valid email",

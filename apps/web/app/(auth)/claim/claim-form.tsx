@@ -1,15 +1,11 @@
 "use client";
 
-import { Button } from "@metobe/ui/components/button";
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@metobe/ui/components/field";
+import { Field, FieldError, FieldLabel } from "@metobe/ui/components/field";
 import { Input } from "@metobe/ui/components/input";
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+
+import { SubmitButton } from "@/components/auth/submit-button";
 
 import { claim } from "./actions";
 import type { ClaimState } from "./actions";
@@ -21,22 +17,32 @@ export const ClaimForm = ({ token }: { token: string }) => {
   );
   const t = useTranslations("claim");
   return (
-    <form action={action}>
+    <form action={action} className="flex flex-col gap-4" noValidate>
       <input name="token" type="hidden" value={token} />
-      <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="name">{t("name")}</FieldLabel>
-          <Input autoComplete="name" autoFocus id="name" name="name" />
-        </Field>
-        <Field data-invalid={Boolean(state.error)}>
-          <FieldLabel htmlFor="email">{t("email")}</FieldLabel>
-          <Input autoComplete="email" id="email" name="email" type="email" />
-          {state.error && <FieldError>{state.error}</FieldError>}
-        </Field>
-        <Button disabled={pending} type="submit">
-          {t("create")}
-        </Button>
-      </FieldGroup>
+      <Field>
+        <FieldLabel htmlFor="name">{t("name")}</FieldLabel>
+        <Input
+          autoComplete="name"
+          autoFocus
+          className="h-10"
+          id="name"
+          name="name"
+        />
+      </Field>
+      <Field data-invalid={Boolean(state.error)}>
+        <FieldLabel htmlFor="email">{t("email")}</FieldLabel>
+        <Input
+          aria-invalid={Boolean(state.error)}
+          autoComplete="email"
+          className="h-10"
+          id="email"
+          inputMode="email"
+          name="email"
+          type="email"
+        />
+        {state.error && <FieldError>{state.error}</FieldError>}
+      </Field>
+      <SubmitButton pending={pending}>{t("create")}</SubmitButton>
     </form>
   );
 };
