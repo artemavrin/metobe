@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/too
 import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
 import { cn } from "@purr/ui/lib/utils";
 import { ImageUp, RotateCcw } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { BrandLogo, LOGOS } from "../../_p7/brand";
 
@@ -135,13 +135,43 @@ export const EditRow = ({
   );
 };
 
+/**
+ * The selected-row background of a list → detail sidebar, sliding to the new row (spatial consistency: the detail
+ * came from here). Rows mark themselves with data-active; the first placement doesn't slide.
+ */
+export const useListHighlight = (activeKey: string | undefined, count: number) => {
+  const ref = useRef<HTMLElement>(null);
+  const [box, setBox] = useState<{ y: number; h: number } | null>(null);
+  const [ready, setReady] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-measure when the selection or the rows change
+  useLayoutEffect(() => {
+    const el = ref.current?.querySelector<HTMLElement>('[data-active="true"]');
+    setBox(el ? { h: el.offsetHeight, y: el.offsetTop } : null);
+  }, [activeKey, count]);
+  useEffect(() => {
+    if (box && !ready) requestAnimationFrame(() => setReady(true));
+  }, [box, ready]);
+  const highlight = box ? (
+    <span
+      aria-hidden
+      className={cn(
+        "bg-muted pointer-events-none absolute inset-x-2 top-0 rounded-lg",
+        ready && "transition-transform duration-200 ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transition-none"
+      )}
+      style={{ height: box.h, transform: `translateY(${box.y}px)` }}
+    />
+  ) : null;
+  return { highlight, ref };
+};
+
 /** One row of a list → detail sidebar. */
 export const ListRow = ({ active, onClick, media, title, sub, trail }: { active: boolean; onClick: () => void; media: ReactNode; title: ReactNode; sub: ReactNode; trail?: ReactNode }) => (
   <button
     className={cn(
-      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] motion-reduce:active:scale-100",
-      active ? "bg-muted" : "hover:bg-muted/50"
+      "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] motion-reduce:active:scale-100",
+      !active && "hover:bg-muted/50"
     )}
+    data-active={active}
     onClick={onClick}
     type="button"
   >

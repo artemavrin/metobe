@@ -25,7 +25,7 @@ import {
   RecheckButton,
   visibleInChat,
 } from "../panel/common";
-import { EditRow, LogoPicker, Row, Section } from "./parts";
+import { EditRow, LogoPicker, Row, Section, useListHighlight } from "./parts";
 import { COUNTRY, type ProxyEntry, type Settings } from "./state";
 
 /** Round-trip of the last check, deterministic per source (the real app stores the last check result). */
@@ -46,6 +46,7 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
   const [dialog, setDialog] = useState(false);
   const p = panel.current;
   const inChat = panel.list.reduce((a, x) => a + visibleInChat(x), 0);
+  const list = useListHighlight(p?.kind, panel.list.length);
   return (
     <div className="flex h-full min-h-0 text-sm">
       <aside className="flex w-80 shrink-0 flex-col border-r">
@@ -63,7 +64,8 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
             <TooltipContent>Подключить источник</TooltipContent>
           </Tooltip>
         </div>
-        <nav className="flex flex-col gap-0.5 px-2 pb-4">
+        <nav className="relative flex flex-col gap-0.5 px-2 pb-4" ref={list.ref}>
+          {list.highlight}
           {panel.list.map((x) => {
             const st = statusOf(x, s);
             const active = x.kind === p?.kind;
@@ -71,8 +73,10 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
               <button
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 ease-out active:scale-[0.99]",
-                  active ? "bg-muted" : "hover:bg-muted/50"
+                  "relative",
+                  !active && "hover:bg-muted/50"
                 )}
+                data-active={active}
                 key={x.kind}
                 onClick={() => panel.setSelected(x.kind)}
                 type="button"
@@ -224,7 +228,7 @@ const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
   const [name, setName] = useState(brand.title);
 
   return (
-    <div className="v3-appear mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <div className="v3-enter mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
       <header className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-4">
           <LogoPicker hosts label={brand.title} onPick={(logo) => s.setSourceOverride(p.kind, { logo })} size={48} value={brand.logo} />

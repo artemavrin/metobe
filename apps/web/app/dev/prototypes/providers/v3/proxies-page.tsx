@@ -27,7 +27,7 @@ import { BrandLogo } from "../../_p7/brand";
 import { providerBy } from "../../_p7/mock";
 import { NO_AUTOFILL } from "../../_p7/shared";
 import { Sparkline } from "../panel/common";
-import { EditRow, ListRow, Row, Section } from "./parts";
+import { EditRow, ListRow, Row, Section, useListHighlight } from "./parts";
 import { COUNTRY, type ProxyEntry, type ProxyType, type Settings, SOURCE_HOST } from "./state";
 
 const TYPES: { id: ProxyType; label: string; hint: string }[] = [
@@ -62,6 +62,7 @@ const ProxyMark = ({ x, size = 32, pop = false }: { x: ProxyEntry; size?: number
 export const ProxiesPage = ({ s }: { s: Settings }) => {
   const [selected, setSelected] = useState<string | null>(null);
   const current = s.proxies.find((x) => x.id === selected) ?? s.proxies[0];
+  const list = useListHighlight(current?.id, s.proxies.length);
   return (
     <div className="flex h-full min-h-0 text-sm">
       <aside className="flex w-80 shrink-0 flex-col border-r">
@@ -77,7 +78,8 @@ export const ProxiesPage = ({ s }: { s: Settings }) => {
             <TooltipContent>Добавить прокси</TooltipContent>
           </Tooltip>
         </div>
-        <nav className="flex flex-col gap-0.5 px-2 pb-4">
+        <nav className="relative flex flex-col gap-0.5 px-2 pb-4" ref={list.ref}>
+          {list.highlight}
           {s.proxies.map((x) => {
             const st = status(x);
             return (
@@ -199,7 +201,7 @@ const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemove
   };
 
   return (
-    <div className="v3-appear mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <div className="v3-enter mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
       <header className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-4">
           <ProxyMark pop={!checkedAtOpen.current} size={48} x={x} />

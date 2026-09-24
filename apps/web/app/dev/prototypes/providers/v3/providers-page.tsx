@@ -14,12 +14,13 @@ import { useRef, useState } from "react";
 import { BrandLogo } from "../../_p7/brand";
 import { byNewest, fmtContext, fmtPrice, isNew, providerBy } from "../../_p7/mock";
 import { NO_AUTOFILL } from "../../_p7/shared";
-import { LogoPicker } from "./parts";
+import { LogoPicker, useListHighlight } from "./parts";
 import type { ProviderInfo, Settings } from "./state";
 
 export const ProvidersPage = ({ s }: { s: Settings }) => {
   const [selected, setSelected] = useState(() => s.providers[0]?.slug ?? null);
   const current = s.providers.find((p) => p.slug === selected) ?? s.providers[0];
+  const list = useListHighlight(current?.slug, s.providers.length);
   return (
     <div className="flex h-full min-h-0 text-sm">
       <aside className="flex w-80 shrink-0 flex-col border-r">
@@ -27,7 +28,8 @@ export const ProvidersPage = ({ s }: { s: Settings }) => {
           <h1 className="text-base font-semibold">Провайдеры</h1>
           <p className="text-muted-foreground text-xs">Кто сделал модели. Логотип и название видны в выборе модели в чате.</p>
         </div>
-        <nav className="flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2 pb-4">
+        <nav className="relative flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2 pb-4" ref={list.ref}>
+          {list.highlight}
           {s.providers.map((p) => {
             const on = p.models.filter((m) => m.on).length;
             const sources = [...new Set(p.models.map((m) => m.source))];
@@ -36,8 +38,10 @@ export const ProvidersPage = ({ s }: { s: Settings }) => {
               <button
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 ease-out active:scale-[0.99]",
-                  active ? "bg-muted" : "hover:bg-muted/50"
+                  "relative",
+                  !active && "hover:bg-muted/50"
                 )}
+                data-active={active}
                 key={p.slug}
                 onClick={() => setSelected(p.slug)}
                 type="button"
@@ -92,7 +96,7 @@ const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
   const rows = [...p.models].sort((a, b) => byNewest(a.model, b.model));
   const on = rows.filter((r) => r.on).length;
   return (
-    <div className="v3-appear mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <div className="v3-enter mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
       <header className="grid grid-cols-[auto_1fr_280px] items-center gap-6">
         <LogoPicker label={p.title} onPick={(logo) => s.setOverride(p.slug, { logo })} value={p.logo} />
         <div className="flex flex-col gap-1">
