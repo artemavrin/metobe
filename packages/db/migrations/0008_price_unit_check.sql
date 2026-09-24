@@ -1,0 +1,1 @@
+ALTER TABLE "models" ADD CONSTRAINT "models_price_unit" CHECK ("models"."price_unit_tokens" is null or "models"."price_unit_tokens" > 0);
