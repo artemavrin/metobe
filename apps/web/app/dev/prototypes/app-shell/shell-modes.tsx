@@ -2,7 +2,6 @@
 
 // Direction «Режимы»: the chat keeps a light floating sidebar; settings are a separate admin mode with its own layout.
 import { Button } from "@metobe/ui/components/button";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@metobe/ui/components/input-group";
 import { Kbd } from "@metobe/ui/components/kbd";
 import {
   Sidebar,
@@ -12,6 +11,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarInput,
   SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
@@ -19,7 +19,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@metobe/ui/components/sidebar";
-import { cn } from "@metobe/ui/lib/utils";
 import { ArrowLeft, Search, Settings, SquarePen } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -60,15 +59,42 @@ export const ShellModes = ({
   );
 };
 
+const Brand = () => (
+  <span className="flex items-center gap-2 text-sm font-semibold">
+    <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs">M</span>
+    Metobe
+  </span>
+);
+
+/** The same account row in both modes: the shell stays one app, only the menu changes. */
+const AccountFooter = ({ onSettings, inSettings = false }: { onSettings: () => void; inSettings?: boolean }) => (
+  <SidebarFooter className="flex-row items-center gap-1">
+    <AccountMenu
+      onSettings={onSettings}
+      trigger={
+        <SidebarMenuButton className="flex-1" size="lg">
+          <UserAvatar className="size-8" />
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate font-medium">{USER.name}</span>
+            <span className="text-muted-foreground truncate text-xs">{USER.role}</span>
+          </span>
+        </SidebarMenuButton>
+      }
+    />
+    {!inSettings && (
+      <Button aria-label="Настройки" onClick={onSettings} size="icon" title="Настройки (⌘,)" variant="ghost">
+        <Settings />
+      </Button>
+    )}
+  </SidebarFooter>
+);
+
 const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: ChatView) => void; onSettings: () => void }) => (
   <SidebarProvider className="animate-in fade-in duration-200 ease-out">
     <Sidebar variant="floating">
       <SidebarHeader>
         <div className="flex h-8 items-center px-1">
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs">P</span>
-            Metobe
-          </span>
+          <Brand />
         </div>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -104,23 +130,7 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="flex-row items-center gap-1">
-        <AccountMenu
-          onSettings={onSettings}
-          trigger={
-            <SidebarMenuButton className="flex-1" size="lg">
-              <UserAvatar className="size-8" />
-              <span className="flex min-w-0 flex-col leading-tight">
-                <span className="truncate font-medium">{USER.name}</span>
-                <span className="text-muted-foreground truncate text-xs">{USER.role}</span>
-              </span>
-            </SidebarMenuButton>
-          }
-        />
-        <Button aria-label="Настройки" onClick={onSettings} size="icon" title="Настройки (⌘,)" variant="ghost">
-          <Settings />
-        </Button>
-      </SidebarFooter>
+      <AccountFooter onSettings={onSettings} />
     </Sidebar>
     <SidebarInset className="min-h-0">
       <header className="flex h-12 shrink-0 items-center gap-2 px-3">
@@ -149,52 +159,46 @@ const SettingsMode = ({
     (g) => g.items.length
   );
   return (
-    <div className="bg-muted/30 animate-in fade-in slide-in-from-bottom-2 flex h-dvh flex-col duration-200 ease-out">
-      <header className="bg-background flex h-14 shrink-0 items-center gap-3 border-b px-4">
-        <Button onClick={onBack} size="sm" variant="ghost">
-          <ArrowLeft /> Чат
-        </Button>
-        <span className="bg-border h-5 w-px" />
-        <span className="text-sm font-semibold">Настройки</span>
-        <span className="text-muted-foreground hidden text-xs md:inline">
-          <Kbd>Esc</Kbd> — вернуться
-        </span>
-        <div className="ml-auto flex items-center gap-3">
-          <InputGroup className="w-72">
-            <InputGroupAddon>
-              <Search />
-            </InputGroupAddon>
-            <InputGroupInput {...NO_AUTOFILL} onChange={(e) => setQ(e.target.value)} placeholder="Найти настройку" value={q} />
-          </InputGroup>
-          <UserAvatar className="size-8" />
-        </div>
-      </header>
-      <div className="flex min-h-0 flex-1">
-        <nav className="bg-background flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-r p-3">
+    <SidebarProvider className="animate-in fade-in duration-200 ease-out">
+      <Sidebar variant="floating">
+        <SidebarHeader>
+          <div className="flex h-8 items-center justify-between gap-2">
+            <Button className="-ml-1" onClick={onBack} size="sm" variant="ghost">
+              <ArrowLeft /> Чат
+            </Button>
+            <Kbd className="text-muted-foreground">Esc</Kbd>
+          </div>
+          <div className="relative">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
+            <SidebarInput {...NO_AUTOFILL} className="pl-8" onChange={(e) => setQ(e.target.value)} placeholder="Найти настройку" value={q} />
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
           {groups.map((g) => (
-            <div className="flex flex-col gap-0.5" key={g.title}>
-              <span className="text-muted-foreground px-2 pb-1 text-xs font-medium">{g.title}</span>
-              {g.items.map((item) => (
-                <button
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition-colors duration-150 ease-out [&_svg]:size-4",
-                    section === item.id ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                  )}
-                  key={item.id}
-                  onClick={() => onSection(item.id)}
-                  type="button"
-                >
-                  <item.icon /> {item.label}
-                </button>
-              ))}
-            </div>
+            <SidebarGroup className="py-1" key={g.title}>
+              <SidebarGroupLabel>{g.title}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {g.items.map((item) => (
+                    <SidebarMenuItem key={item.id}>
+                      <SidebarMenuButton isActive={section === item.id} onClick={() => onSection(item.id)} tooltip={item.hint}>
+                        <item.icon /> <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           ))}
-          {!groups.length && <p className="text-muted-foreground px-2 text-sm">Ничего не нашлось</p>}
-        </nav>
-        <main className="bg-background min-w-0 flex-1 overflow-y-auto" key={section}>
+          {!groups.length && <p className="text-muted-foreground px-4 py-2 text-sm">Ничего не нашлось</p>}
+        </SidebarContent>
+        <AccountFooter inSettings onSettings={() => undefined} />
+      </Sidebar>
+      <SidebarInset className="min-h-0 overflow-hidden">
+        <main className="flex h-dvh min-h-0 min-w-0 flex-col overflow-y-auto" key={section}>
           {pages?.[section] ?? <SettingsPage section={section} />}
         </main>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 };
