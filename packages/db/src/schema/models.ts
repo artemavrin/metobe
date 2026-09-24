@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { proxies } from "./proxies";
 
 // ARCH §5.2, D29: a source gives access (key, route, health), a provider made the model (name and logo in chat).
 
@@ -44,8 +45,10 @@ export const sources = pgTable(
     /** Admin's logo; null — the kind's own (or guessed from the base URL for openai-compatible). */
     logo: text("logo"),
     options: jsonb("options").$type<SourceOptions>().notNull(),
-    /** A proxy by id when proxy_mode is 'proxy'; the foreign key arrives with the proxies table (M2 step 3). */
-    proxyId: uuid("proxy_id"),
+    /** The proxy when proxy_mode is 'proxy'. Deleting the proxy clears it; core also switches the source to direct. */
+    proxyId: uuid("proxy_id").references(() => proxies.id, {
+      onDelete: "set null",
+    }),
     proxyMode: text("proxy_mode").$type<ProxyMode>().notNull().default("auto"),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
