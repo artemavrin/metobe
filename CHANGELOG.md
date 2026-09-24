@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/artemavrin/purr/compare/v0.1.1...v0.1.2) (2026-09-24)
+
+
+### Bug Fixes
+
+* provider list keeps its order and selection when models are toggled ([c09e5d8](https://github.com/artemavrin/purr/commit/c09e5d8fe5ead71d513ee7bb36bd759e683b53bd))
+
 ## [0.1.1](https://github.com/artemavrin/purr/compare/v0.1.0...v0.1.1) (2026-09-23)
 
 
