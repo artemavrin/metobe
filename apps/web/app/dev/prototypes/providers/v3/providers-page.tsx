@@ -52,7 +52,7 @@ export const ProvidersPage = ({ s }: { s: Settings }) => {
                     ))}
                   </span>
                 </span>
-                <span className={cn("text-xs tabular-nums", on ? "" : "text-muted-foreground")}>
+                <span className={cn("v3-tone text-xs tabular-nums", on ? "" : "text-muted-foreground")}>
                   {on}
                   <span className="text-muted-foreground">/{p.models.length}</span>
                 </span>
@@ -92,7 +92,7 @@ const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
   const rows = [...p.models].sort((a, b) => byNewest(a.model, b.model));
   const on = rows.filter((r) => r.on).length;
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <div className="v3-appear mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
       <header className="grid grid-cols-[auto_1fr_280px] items-center gap-6">
         <LogoPicker label={p.title} onPick={(logo) => s.setOverride(p.slug, { logo })} value={p.logo} />
         <div className="flex flex-col gap-1">
@@ -126,7 +126,7 @@ const ProviderDetail = ({ p, s }: { p: ProviderInfo; s: Settings }) => {
             return (
               <li key={`${source}:${m.id}`}>
                 <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 px-4 py-2.5" htmlFor={id}>
-                  <span className={cn("flex min-w-0 flex-1 items-center gap-2", !visible && "text-muted-foreground")}>
+                  <span className={cn("v3-tone flex min-w-0 flex-1 items-center gap-2", !visible && "text-muted-foreground")}>
                     <span className="truncate font-medium">{m.title}</span>
                     {isNew(m) && (
                       <Badge size="sm" variant="info-light">

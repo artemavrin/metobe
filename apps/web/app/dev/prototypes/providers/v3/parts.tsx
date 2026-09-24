@@ -4,6 +4,7 @@
 import { Button } from "@purr/ui/components/button";
 import { Input } from "@purr/ui/components/input";
 import { Kbd } from "@purr/ui/components/kbd";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@purr/ui/components/popover";
 import { cn } from "@purr/ui/lib/utils";
 import { ImageUp, RotateCcw } from "lucide-react";
@@ -113,7 +114,7 @@ export const EditRow = ({
             {...NO_AUTOFILL}
             aria-invalid={tried && Boolean(problem)}
             autoFocus
-            className={cn("max-w-md", mono && "font-mono")}
+            className={cn("v3-appear max-w-md", mono && "font-mono")}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") save();
@@ -125,7 +126,7 @@ export const EditRow = ({
             placeholder={placeholder}
             value={draft}
           />
-          {tried && problem && <span className="text-destructive text-xs">{problem}</span>}
+          {tried && problem && <span className="v3-appear text-destructive text-xs">{problem}</span>}
         </div>
       ) : (
         (display ?? <span className={cn("truncate", mono && "font-mono")}>{value || <span className="text-muted-foreground">не задан</span>}</span>)
@@ -138,7 +139,7 @@ export const EditRow = ({
 export const ListRow = ({ active, onClick, media, title, sub, trail }: { active: boolean; onClick: () => void; media: ReactNode; title: ReactNode; sub: ReactNode; trail?: ReactNode }) => (
   <button
     className={cn(
-      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-[background-color,transform] duration-150 ease-out active:scale-[0.99]",
+      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] motion-reduce:active:scale-100",
       active ? "bg-muted" : "hover:bg-muted/50"
     )}
     onClick={onClick}
@@ -158,11 +159,17 @@ export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: {
   const file = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [over, setOver] = useState(false);
+  // Bumped on each pick: the new logo pops in. Opening a detail page doesn't bump, so navigation stays still.
+  const [bump, setBump] = useState(0);
+  const pick = (logo: string | undefined) => {
+    onPick(logo);
+    setBump((n) => n + 1);
+  };
   const take = (f: File | null | undefined) => {
     if (!f?.type.startsWith("image/")) return false;
     const reader = new FileReader();
     reader.onload = () => {
-      onPick(String(reader.result));
+      pick(String(reader.result));
       setOpen(false);
     };
     reader.readAsDataURL(f);
@@ -178,7 +185,7 @@ export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: {
       const text = e.clipboardData?.getData("text/plain").trim() ?? "";
       if (text.startsWith("<svg")) {
         e.preventDefault();
-        onPick(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`);
+        pick(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`);
         setOpen(false);
       }
     };
@@ -196,7 +203,9 @@ export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: {
           />
         }
       >
-        <BrandLogo label={label} logo={value} size={size} />
+        <span className={cn("block", bump > 0 && "v3-pop")} key={bump}>
+          <BrandLogo label={label} logo={value} size={size} />
+        </span>
         <span className="bg-foreground/35 text-background absolute inset-0 backdrop-blur-[2px] flex items-center justify-center rounded-[28%] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
           <ImageUp className="size-5" />
         </span>
@@ -216,7 +225,7 @@ export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: {
           }}
         >
           {over && (
-            <span className="border-primary text-primary pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium opacity-100!">
+            <span className="v3-appear border-primary text-primary pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium opacity-100!">
               Отпустите, чтобы поставить
             </span>
           )}
@@ -227,10 +236,10 @@ export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: {
               .map(([slug, l]) => (
               <button
                 aria-label={l.label}
-                className={cn("rounded-lg p-1 transition-colors", value === slug ? "bg-muted ring-primary ring-2" : "hover:bg-muted")}
+                className={cn("v3-press rounded-lg p-1", value === slug ? "bg-muted ring-primary ring-2" : "hover:bg-muted")}
                 key={slug}
                 onClick={() => {
-                  onPick(slug);
+                  pick(slug);
                   setOpen(false);
                 }}
                 title={l.label}
@@ -244,16 +253,24 @@ export const LogoPicker = ({ value, label, onPick, size = 64, hosts = false }: {
             <Button onClick={() => file.current?.click()} size="sm" title="Или вставьте из буфера, или перетащите файл сюда" variant="outline">
               <ImageUp /> Загрузить своё <Kbd className="ml-1">⌘V</Kbd>
             </Button>
-            <Button
-              onClick={() => {
-                onPick(undefined);
-                setOpen(false);
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              <RotateCcw /> Автоматически
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-label="Вернуть автоматический логотип"
+                    onClick={() => {
+                      pick(undefined);
+                      setOpen(false);
+                    }}
+                    size="icon-sm"
+                    variant="ghost"
+                  />
+                }
+              >
+                <RotateCcw />
+              </TooltipTrigger>
+              <TooltipContent>Вернуть автоматический</TooltipContent>
+            </Tooltip>
           </div>
           <input
             accept="image/png,image/svg+xml,image/jpeg,image/webp"

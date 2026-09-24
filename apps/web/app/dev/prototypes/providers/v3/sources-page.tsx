@@ -81,7 +81,7 @@ export const SourcesPage = ({ s }: { s: Settings }) => {
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate font-medium">{s.sourceOf(x.kind).title}</span>
                   <span className={cn("flex items-center gap-1.5 truncate text-xs", st.tone === "error" ? "text-destructive" : "text-muted-foreground")}>
-                    <span className={cn("size-1.5 shrink-0 rounded-full", st.dot)} />
+                    <span className={cn("v3-dot size-1.5 shrink-0 rounded-full", st.dot)} />
                     {st.text}
                   </span>
                 </span>
@@ -125,8 +125,10 @@ const HealthPill = ({ p, s }: { p: PanelProvider; s: Settings }) => {
           />
         }
       >
-        <span className={cn("size-1.5 rounded-full", st.dot)} />
-        {p.health.state === "ok" ? `OK · ${latencyOf(p, s)} мс · ${p.health.checked}` : p.health.state === "error" ? `Ошибка · ${p.health.since}` : st.text}
+        <span className={cn("v3-dot size-1.5 rounded-full", st.dot)} />
+        <span className="v3-appear" key={p.health.state}>
+          {p.health.state === "ok" ? `OK · ${latencyOf(p, s)} мс · ${p.health.checked}` : p.health.state === "error" ? `Ошибка · ${p.health.since}` : st.text}
+      </span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96">
         <div className="flex flex-col gap-3 text-sm">
@@ -222,7 +224,7 @@ const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
   const [name, setName] = useState(brand.title);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <div className="v3-appear mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
       <header className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-4">
           <LogoPicker hosts label={brand.title} onPick={(logo) => s.setSourceOverride(p.kind, { logo })} size={48} value={brand.logo} />
@@ -253,7 +255,7 @@ const SourceDetail = ({ s, p }: { s: Settings; p: PanelProvider }) => {
       </header>
 
       {(broken || off) && (
-        <div className={cn("flex items-center justify-between gap-4 rounded-lg border px-4 py-3", broken ? "border-destructive/25 bg-destructive/5" : "bg-muted/40")}>
+        <div className={cn("v3-drop-in flex items-center justify-between gap-4 rounded-lg border px-4 py-3", broken ? "border-destructive/25 bg-destructive/5" : "bg-muted/40")}>
           <span className="flex flex-col">
             <span className="font-medium">{broken ? "Модели этого источника скрыты из чата" : "Источник выключен"}</span>
             <span className="text-muted-foreground text-xs">
@@ -487,7 +489,7 @@ const ModelRow = ({ m, on, onToggle }: { m: Model; on: boolean; onToggle: (v: bo
   return (
     <li>
       <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 py-2.5 pr-4 pl-12" htmlFor={id}>
-        <span className={cn("flex min-w-0 flex-1 items-center gap-2", !on && "text-muted-foreground")}>
+        <span className={cn("v3-tone flex min-w-0 flex-1 items-center gap-2", !on && "text-muted-foreground")}>
           <span className="truncate font-medium">{m.title}</span>
           {isNew(m) && (
             <Badge size="sm" variant="info-light">

@@ -21,7 +21,7 @@ import { Switch } from "@purr/ui/components/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@purr/ui/components/tooltip";
 import { cn } from "@purr/ui/lib/utils";
 import { Network, Plus, RefreshCw, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { BrandLogo } from "../../_p7/brand";
 import { providerBy } from "../../_p7/mock";
@@ -46,13 +46,13 @@ const status = (x: ProxyEntry) => {
 };
 
 /** Country flag on a tile; a network glyph until the first check tells where the proxy exits. */
-const ProxyMark = ({ x, size = 32 }: { x: ProxyEntry; size?: number }) => (
+const ProxyMark = ({ x, size = 32, pop = false }: { x: ProxyEntry; size?: number; pop?: boolean }) => (
   <span
     className="bg-background inline-flex shrink-0 items-center justify-center rounded-[28%] shadow-[0_0_0_1px_rgba(0,0,0,0.07),0_1px_2px_-1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"
     style={{ fontSize: size * 0.55, height: size, width: size }}
   >
     {x.health.state === "ok" && COUNTRY[x.health.country] ? (
-      COUNTRY[x.health.country]?.flag
+      <span className={pop ? "v3-pop" : undefined}>{COUNTRY[x.health.country]?.flag}</span>
     ) : (
       <Network className="text-muted-foreground" style={{ height: size * 0.5, width: size * 0.5 }} />
     )}
@@ -88,7 +88,7 @@ export const ProxiesPage = ({ s }: { s: Settings }) => {
                 onClick={() => setSelected(x.id)}
                 sub={
                   <span className={cn("flex items-center gap-1.5", st.tone === "error" && "text-destructive")}>
-                    <span className={cn("size-1.5 shrink-0 rounded-full", st.dot)} />
+                    <span className={cn("v3-dot size-1.5 shrink-0 rounded-full", st.dot)} />
                     {TYPES.find((t) => t.id === x.type)?.label} · {st.text}
                   </span>
                 }
@@ -151,8 +151,10 @@ const CheckPill = ({ x }: { x: ProxyEntry }) => {
           />
         }
       >
-        <span className={cn("size-1.5 rounded-full", st.dot)} />
-        {label}
+        <span className={cn("v3-dot size-1.5 rounded-full", st.dot)} />
+        <span className="v3-appear" key={h.state}>
+          {label}
+        </span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96">
         <div className="flex flex-col gap-3 text-sm">
@@ -183,6 +185,8 @@ const CheckPill = ({ x }: { x: ProxyEntry }) => {
 const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemoved: () => void }) => {
   const [name, setName] = useState(x.title);
   const [domain, setDomain] = useState("");
+  // Was it already checked when the page opened? Then the flag is just there; a first check makes it pop in.
+  const checkedAtOpen = useRef(x.health.state === "ok");
   const fresh = !x.address;
   const typeInfo = TYPES.find((t) => t.id === x.type);
   const total = x.day.reduce((a, b) => a + b, 0);
@@ -195,10 +199,10 @@ const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemove
   };
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
+    <div className="v3-appear mx-auto flex max-w-4xl flex-col gap-8 px-10 pt-8 pb-24">
       <header className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-4">
-          <ProxyMark size={48} x={x} />
+          <ProxyMark pop={!checkedAtOpen.current} size={48} x={x} />
           <div className="flex flex-col gap-1.5">
             <Input
               {...NO_AUTOFILL}
@@ -286,7 +290,7 @@ const ProxyDetail = ({ s, x, onRemoved }: { s: Settings; x: ProxyEntry; onRemove
               <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 px-4 py-2.5" htmlFor={id} key={p.kind}>
                 <BrandLogo label={s.sourceOf(p.kind).title} logo={s.sourceOf(p.kind).logo} size={28} />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className={cn("font-medium", !mine && "text-muted-foreground")}>{s.sourceOf(p.kind).title}</span>
+                  <span className={cn("v3-tone font-medium", !mine && "text-muted-foreground")}>{s.sourceOf(p.kind).title}</span>
                   <span className="text-muted-foreground text-xs">
                     <span className="font-mono">{SOURCE_HOST[p.kind]}</span> · {note}
                   </span>
