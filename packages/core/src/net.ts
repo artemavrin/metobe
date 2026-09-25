@@ -130,6 +130,59 @@ export const fetchFor = async (
   );
 };
 
+/**
+ * A fetch straight through one saved proxy (or directly, for `null`), whatever the routes say — for trying a route
+ * before choosing it (adding a source, ARCH §18.3).
+ */
+export const fetchThrough = async (
+  proxyId: string | null
+): Promise<typeof fetch> => {
+  if (!proxyId) {
+    return fetchWith(dispatcherFor("direct", directAgent));
+  }
+  const { configs } = await getSnapshot();
+  const config = configs.get(proxyId);
+  if (!config) {
+    throw new Error(`proxy ${proxyId} is not configured`);
+  }
+  return fetchWith(
+    dispatcherFor(`${proxyId}:plain`, () => proxyDispatcher(config))
+  );
+};
+
+/** Enabled proxies, in the order they were added: the order auto-pick tries them in. */
+export const enabledProxies = () => {
+  const { db } = getDb();
+  return db
+    .select({ id: proxies.id, title: proxies.title })
+    .from(proxies)
+    .where(eq(proxies.enabled, true))
+    .orderBy(proxies.createdAt);
+};
+
+/** Saves a proxy (its password as a secret), bound to nothing: what goes through it is set elsewhere. */
+export const addProxy = async (config: ProxyConfig, title = config.host) => {
+  const { db } = getDb();
+  const [row] = await db
+    .insert(proxies)
+    .values({
+      host: config.host,
+      port: config.port,
+      title,
+      type: config.type,
+      username: config.username,
+    })
+    .returning({ id: proxies.id });
+  if (!row) {
+    throw new Error("proxy was not saved");
+  }
+  if (config.password) {
+    await setSecret({ id: row.id, type: "proxy" }, "password", config.password);
+  }
+  invalidateNet();
+  return row.id;
+};
+
 /** Where the check goes through the proxy: it answers with the exit IP and its country. */
 export const IP_ECHO_URL = "https://ipinfo.io/json";
 
@@ -191,22 +244,6 @@ export const importEnvProxy = async (env: NodeJS.ProcessEnv = process.env) => {
     return null;
   }
   const config = parseProxyUrl(value);
-  const [row] = await db
-    .insert(proxies)
-    .values({
-      host: config.host,
-      port: config.port,
-      title: config.host,
-      type: config.type,
-      username: config.username,
-    })
-    .returning({ id: proxies.id });
-  if (!row) {
-    return null;
-  }
-  if (config.password) {
-    await setSecret({ id: row.id, type: "proxy" }, "password", config.password);
-  }
-  invalidateNet();
-  return { host: config.host, id: row.id, type: config.type };
+  const id = await addProxy(config);
+  return { host: config.host, id, type: config.type };
 };

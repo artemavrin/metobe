@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { capabilitiesSchema, sourceOptionsSchema } from "./models";
+import {
+  capabilitiesSchema,
+  sourceInputSchema,
+  sourceOptionsSchema,
+} from "./models";
 
 describe("source options", () => {
   it("requires a real Yandex folder id", () => {
@@ -36,5 +40,49 @@ describe("capabilities", () => {
     });
     expect(parsed.reasoning).toBeNull();
     expect(parsed.structured).toBe(false);
+  });
+});
+
+const messages = (input: unknown) =>
+  sourceInputSchema.safeParse(input).error?.issues.map((i) => i.message);
+
+describe("source input", () => {
+  it("needs a key everywhere but on OpenAI-compatible servers", () => {
+    expect(messages({ kind: "openai", options: { kind: "openai" } })).toEqual([
+      "apiKey",
+    ]);
+    expect(
+      messages({
+        baseUrl: "http://ollama:11434/v1",
+        kind: "openai-compatible",
+        options: { kind: "openai-compatible" },
+      })
+    ).toBeUndefined();
+  });
+
+  it("needs an http(s) address for an OpenAI-compatible server", () => {
+    expect(
+      messages({
+        kind: "openai-compatible",
+        options: { kind: "openai-compatible" },
+      })
+    ).toEqual(["baseUrl"]);
+    expect(
+      messages({
+        baseUrl: "ollama:11434",
+        kind: "openai-compatible",
+        options: { kind: "openai-compatible" },
+      })
+    ).toEqual(["baseUrl"]);
+  });
+
+  it("keeps options of the same kind", () => {
+    expect(
+      messages({
+        apiKey: "sk-x",
+        kind: "openai",
+        options: { kind: "anthropic" },
+      })
+    ).toEqual(["options"]);
   });
 });

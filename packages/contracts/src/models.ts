@@ -29,12 +29,57 @@ export type SourceOptions = z.infer<typeof sourceOptionsSchema>;
 export const proxyModes = ["auto", "direct", "proxy"] as const;
 export type ProxyMode = (typeof proxyModes)[number];
 
+/** A new source as the admin types it; the title falls back to the kind's name, a key is optional only for
+ * OpenAI-compatible servers (Ollama needs none). Messages are «validation» keys (D31). */
+export const sourceInputSchema = z
+  .object({
+    apiKey: z.string().trim().max(4096).optional(),
+    baseUrl: z
+      .string()
+      .trim()
+      .regex(/^https?:\/\/\S+$/u, "baseUrl")
+      .optional(),
+    kind: sourceKindSchema,
+    options: sourceOptionsSchema,
+    title: z.string().trim().max(100).optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.options.kind !== input.kind) {
+      ctx.addIssue({ code: "custom", message: "options", path: ["options"] });
+    }
+    if (input.kind === "openai-compatible" && !input.baseUrl) {
+      ctx.addIssue({ code: "custom", message: "baseUrl", path: ["baseUrl"] });
+    }
+    if (input.kind !== "openai-compatible" && !input.apiKey) {
+      ctx.addIssue({ code: "custom", message: "apiKey", path: ["apiKey"] });
+    }
+  });
+export type SourceInput = z.infer<typeof sourceInputSchema>;
+
+/**
+ * Why a check failed, as a code the UI turns into «what happened + why + what to do» (ARCH UX §4):
+ * `auth` — 401/403, the key; `not-found` — 404, the address; `unreachable` — no answer, a dropped connection or a
+ * body that stops mid-way (DPI); `http` — any other status; `invalid` — an answer that is not a model list.
+ */
+export const sourceFailures = [
+  "auth",
+  "not-found",
+  "unreachable",
+  "http",
+  "invalid",
+] as const;
+export type SourceFailure = (typeof sourceFailures)[number];
+
 /** The last real check of a source: a request, not a key-format check (ARCH §7). */
 export const sourceHealthSchema = z.object({
   checkedAt: z.iso.datetime(),
   error: z.string().optional(),
   latencyMs: z.number().int().nonnegative().optional(),
+  /** Set when `state` is `error`. */
+  reason: z.enum(sourceFailures).optional(),
   state: z.enum(["ok", "error"]),
+  /** The HTTP status behind `auth` / `not-found` / `http`. */
+  status: z.number().int().optional(),
 });
 export type SourceHealth = z.infer<typeof sourceHealthSchema>;
 

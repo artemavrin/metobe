@@ -1,10 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 // D31: the language comes from the `locale` cookie, then Accept-Language, then English.
+// Headings, not text: after a refresh Next's route announcer repeats the h1 for screen readers.
 
 test("an English browser gets English", async ({ page }) => {
   await page.goto("/login");
-  await expect(page.getByText("Sign in to Metobe")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to Metobe" })
+  ).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
 });
 
@@ -13,7 +16,9 @@ test.describe("a Russian browser", () => {
 
   test("gets Russian without choosing anything", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByText("Вход в Metobe")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Вход в Metobe" })
+    ).toBeVisible();
     await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   });
 });
@@ -29,12 +34,16 @@ test("the picker switches the language and it sticks across reloads", async ({
     .click();
 
   // The server action sets the cookie; the page re-renders on the server in Russian.
-  await expect(page.getByText("Вход в Metobe")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Вход в Metobe" })
+  ).toBeVisible();
   const cookies = await context.cookies();
   expect(cookies.find((c) => c.name === "locale")?.value).toBe("ru");
 
   await page.reload();
-  await expect(page.getByText("Вход в Metobe")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Вход в Metobe" })
+  ).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
 });
 
