@@ -571,5 +571,55 @@
     "uploadHint": "Or paste from the clipboard, or drop a file here",
     "auto": "Back to automatic",
     "tooBig": "The file is over 256 KB — a logo needs far less."
+  },
+  "onboarding": {
+    "title": "Metobe setup",
+    "steps": {
+      "pick": "Source",
+      "key": "Key",
+      "models": "Models"
+    },
+    "stepOf": "Step {n} · {title}",
+    "progress": "Step {n} of {total}",
+    "finished": "Setup complete",
+    "back": "Back",
+    "settings": "You can change all of this later in settings",
+    "pick": {
+      "title": "Where should models come from?",
+      "text": "Chat opens as soon as there is at least one model. The rest can be added later.",
+      "moreTitle": "Which source shall we add?",
+      "moreText": "In chat, models from all sources share one list."
+    },
+    "key": {
+      "title": "{title} key",
+      "text": "{blurb}. We'll check the key right away."
+    },
+    "models": {
+      "title": "Found {count, plural, one {# model} other {# models}} for chat",
+      "empty": "{title} returned no models",
+      "emptyText": "Check that the key has access to models, or connect another source.",
+      "text": "Choose what people will see in chat. Newest first; the rest can be turned on later.",
+      "search": "Find a model",
+      "allMakers": "All providers",
+      "only": "Only with “{cap}”",
+      "selected": "{count} selected",
+      "selectShown": "Select shown · {count}",
+      "clear": "Clear all",
+      "nothing": "Nothing found",
+      "none": "Choose at least one model",
+      "enable": "Turn on {count, plural, one {# model} other {# models}}",
+      "enabling": "Turning on…"
+    },
+    "done": {
+      "title": "Metobe is ready",
+      "text": "{names} {count, plural, one {is} other {are}} waiting for the first question. Everything else is in settings, when you need it.",
+      "more": "{count, plural, one {# more model} other {# more models}}",
+      "chat": "Open chat",
+      "another": "Connect another source"
+    },
+    "notReady": {
+      "title": "Chat isn't set up yet",
+      "text": "An admin hasn't connected any models yet. Once they do, chat opens here."
+    }
   }
 }

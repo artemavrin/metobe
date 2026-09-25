@@ -112,3 +112,24 @@ export const getSource = async (id: string) => {
   };
 };
 export type SourceDetail = NonNullable<Awaited<ReturnType<typeof getSource>>>;
+
+/** Models in chat right now — on, in a source that is on and not failing — newest first; for the onboarding finish. */
+export const listChatModels = () => {
+  const { db } = getDb();
+  return db
+    .select({
+      id: models.id,
+      releasedAt: models.releasedAt,
+      title: models.title,
+    })
+    .from(models)
+    .innerJoin(sources, eq(sources.id, models.sourceId))
+    .where(
+      sql`${models.enabled} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
+    )
+    .orderBy(
+      sql`${models.releasedAt} desc nulls last`,
+      desc(models.createdAt),
+      asc(models.title)
+    );
+};

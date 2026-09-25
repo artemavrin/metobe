@@ -323,7 +323,7 @@ const enter = (i: number) => ({
   style: { animationDelay: `${Math.min(i, 12) * 35}ms` },
 });
 
-const KindList = ({
+export const KindList = ({
   connected,
   onPick,
 }: {
@@ -488,13 +488,76 @@ const RouteAlerts = ({
   );
 };
 
-const ConnectForm = ({
+const FormHeader = ({
+  baseUrl,
   kind,
+  title,
+}: {
+  baseUrl: string;
+  kind: SourceKind;
+  title: string;
+}) => {
+  const t = useTranslations("sources");
+  return (
+    <DialogHeader className="flex-row items-center gap-3">
+      <BrandLogo
+        label={title}
+        logo={sourceLogo({ baseUrl: baseUrl || null, kind, logo: null })}
+        size={36}
+      />
+      <div className="flex flex-col gap-0.5">
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{t(`kinds.${kind}.blurb`)}</DialogDescription>
+      </div>
+    </DialogHeader>
+  );
+};
+
+/** The dialog's footer with «Назад»; on a page, a full-width button alone. */
+const FormActions = ({
+  layout,
+  locked,
+  onBack,
+  phase,
+}: {
+  layout: "dialog" | "page";
+  locked: boolean;
+  onBack?: () => void;
+  phase: Phase;
+}) => {
+  const t = useTranslations("sources.connect");
+  if (layout === "page") {
+    return (
+      <Button className="mt-1 h-10" aria-disabled={locked} type="submit">
+        <SubmitLabel phase={phase} />
+      </Button>
+    );
+  }
+  return (
+    <DialogFooter className="sm:justify-between">
+      <Button disabled={locked} onClick={onBack} type="button" variant="ghost">
+        <ArrowLeft /> {t("back")}
+      </Button>
+      <Button className="min-w-44" aria-disabled={locked} type="submit">
+        <SubmitLabel phase={phase} />
+      </Button>
+    </DialogFooter>
+  );
+};
+
+/**
+ * The key form with its check. In the dialog it carries its own header and footer; on a page (onboarding) the
+ * page shows the source and the way back, so the form is just the fields and a full-width button.
+ */
+export const ConnectForm = ({
+  kind,
+  layout = "dialog",
   onBack,
   onDone,
 }: {
   kind: SourceKind;
-  onBack: () => void;
+  layout?: "dialog" | "page";
+  onBack?: () => void;
   onDone: (sourceId: string) => void;
 }) => {
   const t = useTranslations("sources");
@@ -595,17 +658,9 @@ const ConnectForm = ({
         }
       }}
     >
-      <DialogHeader className="flex-row items-center gap-3">
-        <BrandLogo
-          label={title}
-          logo={sourceLogo({ baseUrl: baseUrl || null, kind, logo: null })}
-          size={36}
-        />
-        <div className="flex flex-col gap-0.5">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{t(`kinds.${kind}.blurb`)}</DialogDescription>
-        </div>
-      </DialogHeader>
+      {layout === "dialog" && (
+        <FormHeader baseUrl={baseUrl} kind={kind} title={title} />
+      )}
 
       <FieldGroup>
         {kind === "yandex" && (
@@ -701,19 +756,12 @@ const ConnectForm = ({
         title={title}
       />
 
-      <DialogFooter className="sm:justify-between">
-        <Button
-          disabled={locked}
-          onClick={onBack}
-          type="button"
-          variant="ghost"
-        >
-          <ArrowLeft /> {t("connect.back")}
-        </Button>
-        <Button className="min-w-44" aria-disabled={locked} type="submit">
-          <SubmitLabel phase={phase} />
-        </Button>
-      </DialogFooter>
+      <FormActions
+        layout={layout}
+        locked={locked}
+        onBack={onBack}
+        phase={phase}
+      />
     </form>
   );
 };
