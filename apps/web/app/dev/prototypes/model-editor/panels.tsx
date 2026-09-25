@@ -25,7 +25,7 @@ const released = (d: string | null) =>
   d ? new Date(d).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "не сообщается";
 
 const Header = ({ m, facts = true }: { m: Model; facts?: boolean }) => (
-  <SheetHeader className="border-b">
+  <SheetHeader className="border-b px-5 py-4">
     <div className="flex items-center gap-3">
       <BrandLogo label={m.maker.title} logo={m.maker.logo} size={36} />
       <div className="min-w-0">
@@ -102,13 +102,21 @@ const PriceTable = ({ prices, onChange }: { prices: Prices | null; onChange: (p:
   );
 };
 
+const CAP_HINT = {
+  reasoning: "Думает перед ответом",
+  structured: "Отвечает строго по JSON-схеме",
+  tools: "Вызывает инструменты и MCP",
+  vision: "Понимает картинки во вложениях",
+};
+
+/** Rows like a settings list: name and a line of what it means on the left, the switch on the right. */
 const CapsList = ({ caps, onChange }: { caps: Caps; onChange: (c: Caps) => void }) => (
-  <div className="flex flex-col gap-2.5">
-    {CAPS.map(({ icon: Icon, key, label }) => (
-      <div className="flex items-center justify-between gap-3" key={key}>
-        <span className="flex items-center gap-2">
-          <Icon className="text-muted-foreground size-3.5" />
-          {label}
+  <div className="divide-y">
+    {CAPS.map(({ key, label }) => (
+      <div className="flex items-center justify-between gap-4 py-3 first:pt-0" key={key}>
+        <span className="flex min-w-0 flex-col">
+          <span className="font-medium">{label}</span>
+          <span className="text-muted-foreground text-xs">{CAP_HINT[key]}</span>
         </span>
         <Tri label={label} onChange={(v) => onChange({ ...caps, [key]: fromV(v) })} value={toV(caps[key])} />
       </div>
@@ -116,17 +124,13 @@ const CapsList = ({ caps, onChange }: { caps: Caps; onChange: (c: Caps) => void 
   </div>
 );
 
-const Footer = ({ dirty, onClose, reset }: { dirty: boolean; onClose: () => void; reset?: () => void }) => (
-  <SheetFooter className="flex-row items-center justify-end border-t">
-    {reset && (
-      <Button className="mr-auto" onClick={reset} size="sm" variant="ghost">
-        Как у источника
-      </Button>
-    )}
-    <Button onClick={onClose} variant="ghost">
-      Отмена
+/** Two equal buttons on a quiet band: «Сбросить» brings back what was there, «Сохранить» applies. */
+const Footer = ({ dirty, onClose, reset }: { dirty: boolean; onClose: () => void; reset: () => void }) => (
+  <SheetFooter className="bg-muted/50 mt-0 grid grid-cols-2 gap-3 border-t p-4">
+    <Button className="h-9" disabled={!dirty} onClick={reset} variant="outline">
+      Сбросить
     </Button>
-    <Button disabled={!dirty} onClick={onClose}>
+    <Button className="h-9" disabled={!dirty} onClick={onClose}>
       Сохранить
     </Button>
   </SheetFooter>
@@ -141,7 +145,7 @@ const Sections = ({ m, close }: { m: Model; close: () => void }) => {
   return (
     <>
       <Header m={m} />
-      <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-4">
+      <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-5 pt-5 pb-5">
         <section className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold">Возможности</h3>
           <CapsList caps={caps} onChange={setCaps} />
@@ -155,7 +159,14 @@ const Sections = ({ m, close }: { m: Model; close: () => void }) => {
           </p>
         </section>
       </div>
-      <Footer dirty={dirty} onClose={close} reset={dirty ? () => { setCaps(m.caps); setPrices(m.prices); } : undefined} />
+      <Footer
+        dirty={dirty}
+        onClose={close}
+        reset={() => {
+          setCaps(m.caps);
+          setPrices(m.prices);
+        }}
+      />
     </>
   );
 };
@@ -169,7 +180,7 @@ const TabbedPanel = ({ m, close }: { m: Model; close: () => void }) => {
   return (
     <>
       <Header facts={false} m={m} />
-      <Tabs className="flex min-h-0 flex-1 flex-col gap-4 px-4" defaultValue="caps">
+      <Tabs className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pt-4 pb-5" defaultValue="caps">
         <TabsList className="w-full">
           <TabsTrigger value="caps">Возможности</TabsTrigger>
           <TabsTrigger value="price">Цены</TabsTrigger>
@@ -198,7 +209,14 @@ const TabbedPanel = ({ m, close }: { m: Model; close: () => void }) => {
           </dl>
         </TabsContent>
       </Tabs>
-      <Footer dirty={dirty} onClose={close} />
+      <Footer
+        dirty={dirty}
+        onClose={close}
+        reset={() => {
+          setCaps(m.caps);
+          setPrices(m.prices);
+        }}
+      />
     </>
   );
 };
@@ -239,7 +257,7 @@ const RowsPanel = ({ m }: { m: Model }) => {
   return (
     <>
       <Header m={m} />
-      <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 pb-6">
+      <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 pt-5 pb-6">
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Возможности</h3>
@@ -316,7 +334,8 @@ const PanelHost = ({ content }: { content: (m: Model, close: () => void) => Reac
     <>
       <ModelsFrame models={MODELS} onOpen={setOpen} />
       <Sheet onOpenChange={(o) => !o && setOpen(null)} open={Boolean(open)}>
-        <SheetContent className="w-full sm:max-w-md">
+        {/* A floating drawer: inset from the edges, rounded, like a card over the page */}
+        <SheetContent className="gap-0 overflow-hidden rounded-2xl border shadow-xl data-[side=right]:inset-y-3 data-[side=right]:right-3 data-[side=right]:h-[calc(100%-1.5rem)] data-[side=right]:w-[calc(100%-1.5rem)] data-[side=right]:sm:max-w-md">
           {open && <div className="contents" key={open.id}>{content(open, () => setOpen(null))}</div>}
         </SheetContent>
       </Sheet>
