@@ -69,6 +69,8 @@ const GATEWAY_OWNER: Record<string, ProviderSlug> = {
 
 /** Model names by family, for sources that do not say who made a model (Yandex, OpenAI-compatible). */
 const NAME_RULES: [RegExp, ProviderSlug][] = [
+  // Before «llama»: NVIDIA's Llama fine-tunes (llama-3.1-nemotron) are theirs.
+  [/nemotron/u, "nvidia"],
   [/^(?:gpt-oss|gpt-|o\d|chatgpt)/u, "openai"],
   [/^claude/u, "anthropic"],
   [/^(?:gemini|gemma)/u, "google"],
