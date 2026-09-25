@@ -5,18 +5,8 @@ import { eq, sql } from "drizzle-orm";
 
 import { baseUrlOf } from "./ai-build";
 import { getDb } from "./db";
-import {
-  fromAnthropic,
-  fromCompatible,
-  fromGateway,
-  fromOpenAI,
-  fromYandex,
-} from "./discovery-map";
-import type {
-  AnthropicModel,
-  DiscoveredModel,
-  OllamaShow,
-} from "./discovery-map";
+import { fetchModelList, GATEWAY_MODELS_URL } from "./discovery-fetch";
+import type { DiscoveredModel } from "./discovery-map";
 import { PROVIDERS } from "./discovery-rules";
 import { fetchFor } from "./net";
 import { withSecret } from "./secrets";
@@ -24,161 +14,21 @@ import { withSecret } from "./secrets";
 // Discovery (ARCH §5.2): each source's own model list, enriched from the seed, written without touching what the
 // admin decided — which models are on, who may use them, capabilities set by hand, providers renamed.
 
-/** The Gateway's catalogue is public and lives outside its inference endpoint. */
-const GATEWAY_MODELS_URL = "https://ai-gateway.vercel.sh/v1/models";
+export { DiscoveryError } from "./discovery-fetch";
 
-/** A failed list request, with the status the UI turns into a human message (401 → key, 403 → rights, …). */
-export class DiscoveryError extends Error {
-  readonly status?: number;
-
-  constructor(message: string, status?: number) {
-    super(message);
-    this.name = "DiscoveryError";
-    this.status = status;
-  }
-}
-
-const getJson = async <T>(
-  fetch: typeof globalThis.fetch,
-  url: string,
-  headers: Record<string, string>
-): Promise<T> => {
-  const res = await fetch(url, {
-    headers: { accept: "application/json", ...headers },
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) {
-    throw new DiscoveryError(
-      `${new URL(url).host} answered ${res.status}`,
-      res.status
-    );
-  }
-  return (await res.json()) as T;
-};
-
-/**
- * When an OpenAI-compatible server is Ollama, its native `/api/show` states each model's capabilities and context.
- * Anything else answers 404 on the first try and is left as «unknown». Four requests at a time.
- */
-const ollamaShows = async (
-  fetch: typeof globalThis.fetch,
-  base: string,
-  ids: string[],
-  headers: Record<string, string>
-) => {
-  const shows = new Map<string, OllamaShow>();
-  const origin = base.replace(/\/v1$/u, "");
-  const show = async (model: string) => {
-    const res = await fetch(`${origin}/api/show`, {
-      body: JSON.stringify({ model }),
-      headers: { "content-type": "application/json", ...headers },
-      method: "POST",
-      signal: AbortSignal.timeout(10_000),
-    });
-    return res.ok ? ((await res.json()) as OllamaShow) : null;
-  };
-  const [first, ...rest] = ids;
-  if (!first) {
-    return shows;
-  }
-  const probe = await show(first).catch(() => null);
-  if (!probe?.capabilities) {
-    return shows;
-  }
-  shows.set(first, probe);
-  for (let i = 0; i < rest.length; i += 4) {
-    const batch = rest.slice(i, i + 4);
-    // oxlint-disable-next-line no-await-in-loop -- deliberate: four requests at a time, not all at once
-    const answers = await Promise.all(
-      batch.map((id) => show(id).catch(() => null))
-    );
-    for (const [k, id] of batch.entries()) {
-      const answer = answers[k];
-      if (answer) {
-        shows.set(id, answer);
-      }
-    }
-  }
-  return shows;
-};
-
-/** The source's current model list, mapped to our shape. */
+/** The saved source's current model list: its key from secrets, its route from core/net. */
 export const listSourceModels = async (
   source: Source
 ): Promise<DiscoveredModel[]> => {
-  const base = baseUrlOf(source.kind, source.baseUrl).replace(/\/$/u, "");
   const listUrl =
-    source.kind === "gateway" ? GATEWAY_MODELS_URL : `${base}/models`;
+    source.kind === "gateway"
+      ? GATEWAY_MODELS_URL
+      : `${baseUrlOf(source.kind, source.baseUrl)}/models`;
   const [apiKey, fetch] = await Promise.all([
     withSecret({ id: source.id, type: "source" }, "api_key", (v) => v),
     fetchFor({ mode: source.proxyMode, proxyId: source.proxyId }, listUrl),
   ]);
-  const bearer: Record<string, string> = apiKey
-    ? { authorization: `Bearer ${apiKey}` }
-    : {};
-
-  switch (source.kind) {
-    case "gateway": {
-      const { data } = await getJson<{
-        data: Parameters<typeof fromGateway>[0];
-      }>(fetch, listUrl, {});
-      return fromGateway(data);
-    }
-    case "openai": {
-      const { data } = await getJson<{
-        data: { id: string; created?: number }[];
-      }>(fetch, listUrl, bearer);
-      return fromOpenAI(data);
-    }
-    case "anthropic": {
-      // Paged: has_more / last_id.
-      const all: AnthropicModel[] = [];
-      let after: string | undefined;
-      do {
-        // oxlint-disable-next-line no-await-in-loop -- a cursor: the next page needs this page's last_id
-        const page = await getJson<{
-          data: typeof all;
-          has_more: boolean;
-          last_id?: string;
-        }>(
-          fetch,
-          `${listUrl}?limit=1000${after ? `&after_id=${encodeURIComponent(after)}` : ""}`,
-          { "anthropic-version": "2023-06-01", "x-api-key": apiKey ?? "" }
-        );
-        all.push(...page.data);
-        after = page.has_more ? page.last_id : undefined;
-      } while (after);
-      return fromAnthropic(all);
-    }
-    case "yandex": {
-      const { data } = await getJson<{ data: { id: string }[] }>(
-        fetch,
-        listUrl,
-        bearer
-      );
-      return fromYandex(data);
-    }
-    case "openai-compatible": {
-      const { data } = await getJson<{ data: { id: string }[] }>(
-        fetch,
-        listUrl,
-        bearer
-      );
-      return fromCompatible(
-        data,
-        await ollamaShows(
-          fetch,
-          base,
-          data.map((m) => m.id),
-          bearer
-        )
-      );
-    }
-    default: {
-      const unknown: never = source.kind;
-      throw new Error(`unknown source kind ${String(unknown)}`);
-    }
-  }
+  return fetchModelList(source, apiKey, fetch);
 };
 
 /** Creates missing providers from the seed; existing ones — renamed or re-logoed by the admin — stay as they are. */
