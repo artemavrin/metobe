@@ -51,7 +51,7 @@ const Menu = ({
 }: {
   admin: boolean;
   query: string;
-  onDrill: () => void;
+  onDrill: (id: SettingsSectionId) => void;
 }) => {
   const t = useTranslations("settings");
   const pathname = usePathname();
@@ -101,7 +101,7 @@ const Menu = ({
                     onClick={() => {
                       // A list section opens its list in the sidebar itself; a screen closes the sheet.
                       if (item.kind === "list") {
-                        onDrill();
+                        onDrill(id);
                       } else if (isMobile) {
                         setOpenMobile(false);
                       }
@@ -189,16 +189,21 @@ export const SettingsShell = ({
   const reduce = Boolean(useReducedMotion());
   const [query, setQuery] = useState("");
   const section = currentId(pathname);
-  const list = lists[section as SettingsSectionId];
   // Inside a list section the sidebar shows its list; «‹ Настройки» shows the menu without leaving the page.
   const [drilled, setDrilled] = useState(true);
   const [dir, setDir] = useState(1);
+  // The section being opened from the menu: its list shows at once, not the previous page's list until the
+  // navigation lands.
+  const [opening, setOpening] = useState<string | null>(null);
   const [seenSection, setSeenSection] = useState(section);
   if (seenSection !== section) {
     setSeenSection(section);
+    setOpening(null);
     setDir(1);
     setDrilled(true);
   }
+  const shownSection = opening ?? section;
+  const list = lists[shownSection as SettingsSectionId];
   const inside = Boolean(list) && drilled;
   const go = (next: boolean) => {
     setDir(next ? 1 : -1);
@@ -228,12 +233,16 @@ export const SettingsShell = ({
             <motion.div
               className="absolute inset-0 flex flex-col"
               custom={dir}
-              key={inside ? `list:${section}` : "menu"}
+              key={inside ? `list:${shownSection}` : "menu"}
               {...levelMotion(reduce)}
             >
               {inside && list ? (
                 <SettingsListLevel
-                  activeId={currentEntry(pathname)}
+                  activeId={
+                    shownSection === section
+                      ? currentEntry(pathname)
+                      : undefined
+                  }
                   list={list}
                   onBack={() => go(false)}
                 />
@@ -266,7 +275,10 @@ export const SettingsShell = ({
                   <SidebarContent>
                     <Menu
                       admin={admin}
-                      onDrill={() => go(true)}
+                      onDrill={(id) => {
+                        setOpening(id);
+                        go(true);
+                      }}
                       query={query}
                     />
                   </SidebarContent>

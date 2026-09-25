@@ -183,7 +183,8 @@
       "superuser": "Owner",
       "admin": "Admin",
       "user": "Member"
-    }
+    },
+    "listSearch": "Find in the list"
   },
   "sources": {
     "title": "Sources",

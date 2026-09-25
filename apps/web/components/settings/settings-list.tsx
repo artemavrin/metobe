@@ -1,14 +1,18 @@
 "use client";
 
 import { Button } from "@metobe/ui/components/button";
-import { SidebarHeader, useSidebar } from "@metobe/ui/components/sidebar";
+import {
+  SidebarHeader,
+  SidebarInput,
+  useSidebar,
+} from "@metobe/ui/components/sidebar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, Plus, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -18,6 +22,9 @@ import type { SettingsList } from "@/lib/settings-lists";
 
 // The list level of the settings sidebar (P7 «Погружение»): the section's entries, with the selected row's background
 // sliding to the new row — the detail came from here.
+
+/** Lists longer than this get a search. */
+const SEARCH_FROM = 6;
 
 const DOT: Record<SettingsList["entries"][number]["state"], string> = {
   error: "bg-destructive",
@@ -70,7 +77,13 @@ export const SettingsListLevel = ({
 }) => {
   const t = useTranslations("settings");
   const { isMobile, setOpenMobile } = useSidebar();
-  const { highlight, ref } = useListHighlight(activeId, list.entries.length);
+  // Long lists (providers, proxies) get a search; it resets with the section, since the level remounts.
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const entries = q
+    ? list.entries.filter((e) => e.title.toLowerCase().includes(q))
+    : list.entries;
+  const { highlight, ref } = useListHighlight(activeId, entries.length);
   const close = () => isMobile && setOpenMobile(false);
   return (
     <>
@@ -103,11 +116,31 @@ export const SettingsListLevel = ({
           <h1 className="text-sm font-semibold">{list.title}</h1>
           <p className="text-muted-foreground text-xs">{list.meta}</p>
         </div>
+        {list.entries.length > SEARCH_FROM && (
+          <div className="relative">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
+            <SidebarInput
+              aria-label={t("listSearch")}
+              autoComplete="off"
+              className="pl-8"
+              data-1p-ignore
+              data-lpignore="true"
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("listSearch")}
+              value={query}
+            />
+          </div>
+        )}
       </SidebarHeader>
       <div className="min-h-0 flex-1 overflow-y-auto pt-1">
         <nav className="relative flex flex-col gap-0.5 px-2 pb-3" ref={ref}>
           {highlight}
-          {list.entries.map((e) => {
+          {entries.length === 0 && (
+            <p className="text-muted-foreground px-2.5 py-2 text-sm">
+              {t("nothing")}
+            </p>
+          )}
+          {entries.map((e) => {
             const active = e.id === activeId;
             return (
               <Link
