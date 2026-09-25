@@ -39,6 +39,7 @@ import {
   Braces,
   Brain,
   ChevronDown,
+  ChevronRight,
   Eye,
   RefreshCw,
   Search,
@@ -489,6 +490,20 @@ export const SourceModels = ({
   const [query, setQuery] = useState("");
   const [onlyOn, setOnlyOn] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // Makers fold for a long list; a search or a maker chip opens every group it matches, so nothing found hides.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const filtering = query.trim() !== "" || picked.size > 0;
+  const isCollapsed = (id: string) => !filtering && collapsed.has(id);
+  const collapse = (id: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   const pick = (id: string) =>
     setPicked((current) => {
       const next = new Set(current);
@@ -637,19 +652,33 @@ export const SourceModels = ({
             return (
               <div className="border-b last:border-b-0" key={provider.id}>
                 <div className="bg-muted/40 sticky top-0 z-[1] flex items-center gap-2.5 px-4 py-2 backdrop-blur">
-                  <BrandLogo
-                    label={provider.title}
-                    logo={provider.logo ?? undefined}
-                    size={22}
-                  />
-                  <span className="font-medium">{provider.title}</span>
-                  <span className="text-muted-foreground text-xs tabular-nums">
-                    {on} / {models.length}
-                  </span>
+                  <button
+                    aria-expanded={!isCollapsed(provider.id)}
+                    className="-ml-1.5 flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-0.5 pl-1.5 text-left"
+                    onClick={() => collapse(provider.id)}
+                    type="button"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "text-muted-foreground size-3.5 shrink-0 transition-transform duration-150 ease-out motion-reduce:transition-none",
+                        !isCollapsed(provider.id) && "rotate-90"
+                      )}
+                    />
+                    <BrandLogo
+                      label={provider.title}
+                      logo={provider.logo ?? undefined}
+                      size={22}
+                    />
+                    <span className="truncate font-medium">
+                      {provider.title}
+                    </span>
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {on} / {models.length}
+                    </span>
+                  </button>
                   <Switch
                     aria-label={t("models.all", { provider: provider.title })}
                     checked={on === models.length}
-                    className="ml-auto"
                     onCheckedChange={(next) =>
                       toggle(
                         models.map((m) => m.id),
@@ -659,76 +688,78 @@ export const SourceModels = ({
                     size="sm"
                   />
                 </div>
-                <ul className="divide-y">
-                  {models.map((m) => {
-                    const price = priceLabel(m);
-                    const context = contextLabel(m.contextWindow);
-                    return (
-                      <li key={m.id}>
-                        <div className="flex items-center gap-3 py-2 pr-4 pl-4 md:pl-12">
-                          <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <span
-                              className={cn(
-                                "truncate font-medium transition-colors duration-150",
-                                !enabled.has(m.id) && "text-muted-foreground"
+                {!isCollapsed(provider.id) && (
+                  <ul className="divide-y">
+                    {models.map((m) => {
+                      const price = priceLabel(m);
+                      const context = contextLabel(m.contextWindow);
+                      return (
+                        <li key={m.id}>
+                          <div className="flex items-center gap-3 py-2 pr-4 pl-4 md:pl-12">
+                            <span className="flex min-w-0 flex-1 items-center gap-2">
+                              <span
+                                className={cn(
+                                  "truncate font-medium transition-colors duration-150",
+                                  !enabled.has(m.id) && "text-muted-foreground"
+                                )}
+                                title={m.modelId}
+                              >
+                                {m.title}
+                              </span>
+                              {isNew(m.releasedAt) && (
+                                <Badge size="sm" variant="info-light">
+                                  {t("models.new")}
+                                </Badge>
                               )}
-                              title={m.modelId}
-                            >
-                              {m.title}
                             </span>
-                            {isNew(m.releasedAt) && (
-                              <Badge size="sm" variant="info-light">
-                                {t("models.new")}
-                              </Badge>
+                            <Caps
+                              model={m}
+                              onOpen={() =>
+                                setEditing(editing === m.id ? null : m.id)
+                              }
+                            />
+                            {context && (
+                              <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">
+                                {context}
+                              </span>
                             )}
-                          </span>
-                          <Caps
-                            model={m}
-                            onOpen={() =>
-                              setEditing(editing === m.id ? null : m.id)
-                            }
-                          />
-                          {context && (
-                            <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">
-                              {context}
-                            </span>
+                            <button
+                              className="text-muted-foreground hover:text-foreground w-32 truncate text-right text-xs tabular-nums transition-colors duration-150"
+                              onClick={() =>
+                                setEditing(editing === m.id ? null : m.id)
+                              }
+                              title={
+                                price
+                                  ? `${price} ${t("models.perMillion")}`
+                                  : t("models.price")
+                              }
+                              type="button"
+                            >
+                              {price ?? t("models.noPrice")}
+                            </button>
+                            <Switch
+                              aria-label={m.title}
+                              checked={enabled.has(m.id)}
+                              onCheckedChange={(next) => toggle([m.id], next)}
+                              size="sm"
+                            />
+                          </div>
+                          {editing === m.id && (
+                            <CapsEditor model={m} sourceId={sourceId} />
                           )}
-                          <button
-                            className="text-muted-foreground hover:text-foreground w-32 truncate text-right text-xs tabular-nums transition-colors duration-150"
-                            onClick={() =>
-                              setEditing(editing === m.id ? null : m.id)
-                            }
-                            title={
-                              price
-                                ? `${price} ${t("models.perMillion")}`
-                                : t("models.price")
-                            }
-                            type="button"
-                          >
-                            {price ?? t("models.noPrice")}
-                          </button>
-                          <Switch
-                            aria-label={m.title}
-                            checked={enabled.has(m.id)}
-                            onCheckedChange={(next) => toggle([m.id], next)}
-                            size="sm"
-                          />
-                        </div>
-                        {editing === m.id && (
-                          <CapsEditor model={m} sourceId={sourceId} />
-                        )}
-                        {editing === m.id && (
-                          <PricingEditor
-                            fromSource={detail.source.kind === "gateway"}
-                            model={m}
-                            onClose={() => setEditing(null)}
-                            sourceId={sourceId}
-                          />
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                          {editing === m.id && (
+                            <PricingEditor
+                              fromSource={detail.source.kind === "gateway"}
+                              model={m}
+                              onClose={() => setEditing(null)}
+                              sourceId={sourceId}
+                            />
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             );
           })}

@@ -16,7 +16,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@metobe/ui/components/item";
-import { ChevronRight, Columns3, LayoutDashboard, LogIn, PanelsTopLeft, Rocket, Server } from "lucide-react";
+import { ChevronRight, Columns3, SlidersHorizontal, LayoutDashboard, LogIn, PanelsTopLeft, Rocket, Server } from "lucide-react";
 import Link from "next/link";
 
 type Entry = {
@@ -57,6 +57,13 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
         icon: Server,
         status: "выбрано",
         title: "Источники, провайдеры и модели",
+      },
+      {
+        description: "Правка модели в источнике: возможности вручную и цены за любую единицу. Три направления: «Строки», «Панель», «Плотный».",
+        href: "/dev/prototypes/model-editor",
+        icon: SlidersHorizontal,
+        status: "выбираем",
+        title: "Редактор модели",
       },
       {
         description: "Выбрано «Погружение»: сайдбар уходит в список раздела, шапка закреплена; на телефоне — стек во весь экран. Рядом холст, вложенное меню, переключатель.",
