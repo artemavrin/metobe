@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { getSettingsViewer } from "@/lib/settings-access";
+import { getSettingsLists } from "@/lib/settings-lists";
 
 const initials = (name: string) =>
   name
@@ -16,6 +17,7 @@ const SettingsLayout = async ({ children }: { children: React.ReactNode }) => {
     getSettingsViewer(),
     getTranslations("settings.roles"),
   ]);
+  const lists = await getSettingsLists(admin);
   const name = user?.name || user?.email || "";
   const roleKey = role === "superuser" || role === "admin" ? role : "user";
   return (
@@ -34,6 +36,7 @@ const SettingsLayout = async ({ children }: { children: React.ReactNode }) => {
         </div>
       }
       admin={admin}
+      lists={lists}
     >
       {children}
     </SettingsShell>

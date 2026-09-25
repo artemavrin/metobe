@@ -60,7 +60,12 @@
   "validation": {
     "email": "Enter a valid email",
     "code": "The code is 6 digits",
-    "name": "What should we call you?"
+    "name": "What should we call you?",
+    "baseUrl": "An address starting with http:// or https://",
+    "apiKey": "Paste the key",
+    "folderId": "The folder ID starts with b1g — copy it from the Yandex Cloud console",
+    "decimal": "A number, such as 0.15 or 2.5",
+    "unitTokens": "A whole number of tokens above zero"
   },
   "region": {
     "title": "Language and region",
@@ -178,6 +183,226 @@
       "superuser": "Owner",
       "admin": "Admin",
       "user": "Member"
+    }
+  },
+  "sources": {
+    "title": "Sources",
+    "meta": "{sources, plural, one {# source} other {# sources}} · {models, plural, one {# model} other {# models}} in chat",
+    "add": "Connect a source",
+    "status": {
+      "ok": "Working",
+      "okLatency": "Working · {ms} ms",
+      "off": "Off",
+      "unchecked": "Not checked",
+      "auth": "Key rejected",
+      "notFound": "Address not found",
+      "unreachable": "Not answering",
+      "http": "Error {status}",
+      "invalid": "Not an API"
+    },
+    "empty": {
+      "title": "Connect your first source",
+      "text": "A source gives access to models: OpenAI, Anthropic, Yandex AI Studio, AI Gateway or your own server such as Ollama. We check the key right away."
+    },
+    "kinds": {
+      "openai": {
+        "title": "OpenAI",
+        "blurb": "GPT models over the OpenAI API"
+      },
+      "anthropic": {
+        "title": "Anthropic",
+        "blurb": "Claude models over the Anthropic API"
+      },
+      "gateway": {
+        "title": "Vercel AI Gateway",
+        "blurb": "One key — models from many providers"
+      },
+      "yandex": {
+        "title": "Yandex AI Studio",
+        "blurb": "Alice AI, YandexGPT and open models"
+      },
+      "openai-compatible": {
+        "title": "OpenAI-compatible",
+        "blurb": "Ollama, vLLM, LM Studio and other servers"
+      }
+    },
+    "connect": {
+      "title": "Connect a source",
+      "description": "We check the key right away. If the source can't be reached directly, we'll find a proxy.",
+      "connected": "connected",
+      "back": "Another source",
+      "submit": "Check and connect",
+      "apiKey": "API key",
+      "gatewayKey": "AI Gateway key",
+      "yandexKey": "Service account API key",
+      "compatibleKey": "Key, if the server needs one",
+      "optional": "optional",
+      "keyHint": "The key is encrypted and never shown in full again.",
+      "folder": "Folder ID",
+      "folderHint": "The folder in the Yandex Cloud console, starts with b1g",
+      "baseUrl": "API address",
+      "baseUrlHint": "For Ollama in compose — http://ollama:11434/v1",
+      "steps": {
+        "key": "Key",
+        "keyActive": "Asking {title}…",
+        "keyDone": "The key works",
+        "route": "Route",
+        "routeDirect": "Direct",
+        "routeProxy": "Through «{proxy}»",
+        "models": "Models",
+        "modelsActive": "Loading the list…",
+        "modelsDone": "{count, plural, one {# model} other {# models}}"
+      },
+      "proxyFound": {
+        "title": "{title} doesn't answer directly, but works through «{proxy}»",
+        "text": "Only {title} will go through the proxy; everything else stays direct.",
+        "yes": "Yes, use the proxy",
+        "no": "No"
+      },
+      "blocked": {
+        "title": "{title} doesn't answer from this network",
+        "text": "Looks like a geo-block or a filter. Enter a proxy — only {title} will go through it, everything else stays direct. Or connect a source reachable from here, such as AI Gateway.",
+        "proxy": "Proxy address",
+        "placeholder": "http://host:3128 or socks5://host:1080",
+        "check": "Check through the proxy"
+      },
+      "declined": {
+        "title": "{title} can't be reached directly",
+        "text": "Add a proxy in «System → Proxies» or connect a source that answers directly, such as AI Gateway."
+      }
+    },
+    "failure": {
+      "auth": {
+        "title": "{title} rejected the key",
+        "text": "Status {status}. Check that the key is copied in full, not revoked and has access to models."
+      },
+      "notFound": {
+        "title": "No API at this address",
+        "text": "Status 404. Check the address: it should lead to the model API and usually ends with /v1."
+      },
+      "unreachable": {
+        "title": "{title} is not answering",
+        "text": "No answer in 15 seconds, or the connection dropped. Check the address and the route."
+      },
+      "http": {
+        "title": "{title} answered with error {status}",
+        "text": "Looks like a problem on the service's side. Try again later; if it keeps happening, check its status."
+      },
+      "invalid": {
+        "title": "That's not a model API",
+        "text": "The answer doesn't look like a list of models. Check the address — it usually ends with /v1."
+      },
+      "proxyInvalid": {
+        "title": "That doesn't look like a proxy address",
+        "text": "For example http://user:pass@10.0.0.5:3128 or socks5://proxy.local:1080."
+      },
+      "proxyUnreachable": {
+        "title": "{title} doesn't answer through this proxy either",
+        "text": "Check the proxy's address and port, or try another one."
+      }
+    },
+    "detail": {
+      "name": "Source name",
+      "enabled": "On",
+      "recheck": "Check",
+      "checking": "Checking…",
+      "health": {
+        "ok": "OK · {ms} ms",
+        "error": "Error",
+        "never": "Never checked",
+        "last": "Last check",
+        "when": "When",
+        "result": "Result",
+        "route": "Route",
+        "direct": "direct",
+        "viaProxy": "through «{proxy}»",
+        "footnote": "We check with a real request, not the key's format: green means the source answers."
+      },
+      "broken": {
+        "title": "This source's models are hidden from chat",
+        "replaceKey": "Replace the key"
+      },
+      "off": {
+        "title": "The source is off",
+        "text": "Its models are hidden from chat. The key and settings are kept — turn it on when you need it.",
+        "on": "Turn on"
+      },
+      "connection": "Connection",
+      "key": "Key",
+      "keyStored": "Stored encrypted",
+      "noKey": "no key",
+      "replace": "Replace",
+      "newKey": "New key",
+      "keyNow": "Now {hint}. The old key keeps working until the new one passes the check.",
+      "keyRejected": "The key didn't work — the old one stays.",
+      "check": "Check",
+      "cancel": "Cancel",
+      "save": "Save",
+      "edit": "Change",
+      "notSet": "not set",
+      "configRejected": "The source didn't answer with this value — kept the previous one.",
+      "route": {
+        "label": "Route",
+        "hint": "Proxies are set up in «System → Proxies»",
+        "auto": "Auto",
+        "autoHint": "by the domains marked on proxies",
+        "direct": "Direct",
+        "proxies": "Proxies",
+        "autoVia": "Auto · through «{proxy}»",
+        "autoDirect": "Auto · direct",
+        "gone": "Deleted proxy",
+        "whyDomain": "The domain {domain} is marked on «{proxy}»",
+        "whyNoMatch": "No proxy has the domain {host}",
+        "whyProxy": "Always through this proxy, domains aside",
+        "whyDirect": "Always direct, even if a proxy has the domain",
+        "latency": "{ms} ms"
+      },
+      "models": {
+        "title": "Models",
+        "meta": "{on} of {total} in chat",
+        "search": "Model or id",
+        "inChat": "In chat",
+        "sync": "Refresh the list",
+        "syncing": "Refreshing…",
+        "synced": "List refreshed: {added, plural, =0 {nothing new} one {# new} other {# new}}",
+        "missing": "The source no longer lists: {list}. They stay until you turn them off.",
+        "empty": "No models yet — press «Refresh the list».",
+        "nothing": "Nothing found",
+        "all": "All {provider} models",
+        "new": "new",
+        "noPrice": "no price",
+        "perMillion": "per 1M",
+        "price": "Price",
+        "caps": {
+          "tools": "Tools",
+          "vision": "Images",
+          "reasoning": "Reasoning",
+          "structured": "Structured output",
+          "yes": "yes",
+          "no": "no",
+          "unknown": "not checked — we'll try and turn it off on error"
+        }
+      },
+      "pricing": {
+        "title": "Price of {model}",
+        "input": "Input",
+        "output": "Output",
+        "cacheRead": "Cache read",
+        "cacheWrite": "Cache write",
+        "unit": "Per how many tokens",
+        "currency": "Currency",
+        "hint": "As in the provider's price list: the price per the given number of tokens. Saved exactly as typed, no rounding.",
+        "clear": "Clear the price",
+        "fromSource": "The source reports this price; refreshing the list updates it."
+      },
+      "remove": {
+        "section": "Disconnect",
+        "title": "Disconnect {title}",
+        "hint": "The key is deleted and the models leave the chat. Chat history stays.",
+        "confirm": "Disconnect {title}?",
+        "text": "The key is deleted and {count, plural, one {# model leaves} other {# models leave}} the chat's model picker. Chat history with them stays. You can connect again at any time.",
+        "action": "Disconnect"
+      }
     }
   }
 }
