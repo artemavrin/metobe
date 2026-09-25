@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  capabilitiesSchema,
   pricingSchema,
   proxyModes,
   sourceInputSchema,
@@ -12,6 +13,7 @@ import {
   deleteSource,
   recheckSource,
   replaceSourceKey,
+  setModelCapabilities,
   setModelPricing,
   setModelsEnabled,
   setSourceRoute,
@@ -222,4 +224,22 @@ export const setPricing = async (
   await setModelPricing(sourceId, model, parsed.data);
   refresh();
   return { ok: true };
+};
+
+/** Capabilities set by hand (kept through syncs); `null` hands them back to the source and re-reads it. */
+export const setCapabilities = async (
+  id: string,
+  modelId: string,
+  raw: unknown
+) => {
+  await requireAdmin();
+  const sourceId = idSchema.parse(id);
+  const model = idSchema.parse(modelId);
+  if (raw === null) {
+    await setModelCapabilities(sourceId, model, null);
+    await syncSource(sourceId);
+  } else {
+    await setModelCapabilities(sourceId, model, capabilitiesSchema.parse(raw));
+  }
+  refresh();
 };

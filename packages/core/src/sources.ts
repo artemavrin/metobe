@@ -1,5 +1,6 @@
 import "server-only";
 import type {
+  Capabilities,
   Pricing,
   ProxyMode,
   SourceFailure,
@@ -385,6 +386,26 @@ export const setModelsEnabled = async (
     .update(models)
     .set({ enabled })
     .where(and(eq(models.sourceId, sourceId), inArray(models.id, modelIds)));
+};
+
+/**
+ * Capabilities set by hand win over what the source or the seed says; sync keeps them (ARCH §7.3). `null` hands
+ * the model back to the source — its own values return with the next sync.
+ */
+export const setModelCapabilities = async (
+  sourceId: string,
+  modelId: string,
+  capabilities: Capabilities | null
+) => {
+  const { db } = getDb();
+  await db
+    .update(models)
+    .set(
+      capabilities
+        ? { capabilities, capabilitiesSource: "manual" }
+        : { capabilitiesSource: "discovered" }
+    )
+    .where(and(eq(models.sourceId, sourceId), eq(models.id, modelId)));
 };
 
 /** Prices typed by the admin, per any number of tokens and exactly as typed (`core/pricing`); `null` clears them. */

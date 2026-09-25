@@ -387,7 +387,13 @@
           "structured": "Structured output",
           "yes": "yes",
           "no": "no",
-          "unknown": "not checked — we'll try and turn it off on error"
+          "unknown": "not checked — we'll try and turn it off on error",
+          "title": "Capabilities",
+          "edit": "Capabilities of {model}",
+          "manual": "set by hand",
+          "reset": "As the source says",
+          "unset": "unsure",
+          "hint": "Set by hand and kept when the list is refreshed. «Unsure» — we'll try and turn it off on error."
         },
         "more": "{count} more"
       },

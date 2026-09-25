@@ -26,6 +26,10 @@ import {
 import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
 import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@metobe/ui/components/toggle-group";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -46,7 +50,7 @@ import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { Section } from "@/components/settings/rows";
 
-import { setPricing, sync, toggleModels } from "./actions";
+import { setCapabilities, setPricing, sync, toggleModels } from "./actions";
 import type { PricingState } from "./actions";
 
 // A source's models (ARCH §7.1): nothing is on until the admin turns it on; newest first, «новая» for under 90 days;
@@ -100,10 +104,23 @@ const CAPS = [
 
 const CAP_ANSWER = { false: "no", null: "unknown", true: "yes" } as const;
 
-const Caps = ({ model }: { model: Model }) => {
+/** The four capabilities as icons; a click opens the model's editor, where they are set by hand. */
+const Caps = ({ model, onOpen }: { model: Model; onOpen: () => void }) => {
   const t = useTranslations("sources.detail.models.caps");
   return (
-    <span className="hidden items-center gap-1 md:inline-flex">
+    <button
+      aria-label={t("edit", { model: model.title })}
+      className="hover:bg-muted relative hidden items-center gap-1 rounded-md p-0.5 transition-colors duration-150 md:inline-flex"
+      onClick={onOpen}
+      type="button"
+    >
+      {model.capabilitiesSource === "manual" && (
+        <span
+          aria-hidden
+          className="bg-primary absolute -top-0.5 -right-0.5 size-1.5 rounded-full"
+          title={t("manual")}
+        />
+      )}
       {CAPS.map(({ icon: Icon, key }) => {
         const value = model.capabilities[key];
         return (
@@ -130,7 +147,83 @@ const Caps = ({ model }: { model: Model }) => {
           </Tooltip>
         );
       })}
-    </span>
+    </button>
+  );
+};
+
+type CapValue = "yes" | "no" | "unknown";
+const toValue = (v: boolean | null): CapValue => {
+  if (v === null) {
+    return "unknown";
+  }
+  return v ? "yes" : "no";
+};
+const fromValue = (v: CapValue) => (v === "unknown" ? null : v === "yes");
+
+/**
+ * Capabilities by hand: a change is saved at once and marks the model «manual», which syncs keep. «Как у
+ * источника» hands it back and re-reads the source.
+ */
+const CapsEditor = ({
+  model,
+  sourceId,
+}: {
+  model: Model;
+  sourceId: string;
+}) => {
+  const t = useTranslations("sources.detail.models.caps");
+  const [caps, setCaps] = useState(model.capabilities);
+  const [pending, start] = useTransition();
+  const change = (key: (typeof CAPS)[number]["key"], value: CapValue) => {
+    const next = { ...caps, [key]: fromValue(value) };
+    setCaps(next);
+    start(async () => {
+      await setCapabilities(sourceId, model.id, next);
+    });
+  };
+  return (
+    <div className="animate-in fade-in fill-mode-both bg-muted/30 flex flex-col gap-3 border-t px-4 py-3 duration-150 md:pl-12">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-medium">{t("title")}</span>
+        {model.capabilitiesSource === "manual" && (
+          <Button
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                await setCapabilities(sourceId, model.id, null);
+              })
+            }
+            size="sm"
+            variant="ghost"
+          >
+            {pending && <Spinner />}
+            {t("reset")}
+          </Button>
+        )}
+      </div>
+      <div className="flex max-w-lg flex-col gap-2">
+        {CAPS.map(({ icon: Icon, key }) => (
+          <div className="flex items-center justify-between gap-3" key={key}>
+            <span className="flex items-center gap-2 text-sm">
+              <Icon className="text-muted-foreground size-3.5" />
+              {t(key)}
+            </span>
+            <ToggleGroup
+              aria-label={t(key)}
+              onValueChange={(v) => v[0] && change(key, v[0] as CapValue)}
+              size="sm"
+              value={[toValue(caps[key])]}
+              variant="outline"
+            >
+              <ToggleGroupItem value="yes">{t("yes")}</ToggleGroupItem>
+              <ToggleGroupItem value="no">{t("no")}</ToggleGroupItem>
+              <ToggleGroupItem value="unknown">{t("unset")}</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        ))}
+      </div>
+      <p className="text-muted-foreground text-xs">{t("hint")}</p>
+    </div>
   );
 };
 
@@ -589,7 +682,12 @@ export const SourceModels = ({
                               </Badge>
                             )}
                           </span>
-                          <Caps model={m} />
+                          <Caps
+                            model={m}
+                            onOpen={() =>
+                              setEditing(editing === m.id ? null : m.id)
+                            }
+                          />
                           {context && (
                             <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">
                               {context}
@@ -616,6 +714,9 @@ export const SourceModels = ({
                             size="sm"
                           />
                         </div>
+                        {editing === m.id && (
+                          <CapsEditor model={m} sourceId={sourceId} />
+                        )}
                         {editing === m.id && (
                           <PricingEditor
                             fromSource={detail.source.kind === "gateway"}
