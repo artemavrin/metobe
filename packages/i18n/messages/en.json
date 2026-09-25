@@ -462,6 +462,107 @@
       "noPrice": "no price"
     }
   },
+  "proxies": {
+    "title": "Proxies",
+    "meta": "Everything goes direct by default",
+    "add": "Add a proxy",
+    "status": {
+      "unchecked": "Not checked",
+      "off": "Off",
+      "error": "Not answering",
+      "ms": "{ms} ms"
+    },
+    "empty": {
+      "title": "No proxies — everything goes direct",
+      "text": "A proxy helps when a provider can't be reached from your network. Only what you mark goes through it."
+    },
+    "types": {
+      "http": {
+        "label": "HTTP",
+        "hint": "An ordinary corporate proxy"
+      },
+      "https": {
+        "label": "HTTPS",
+        "hint": "The connection to the proxy itself is encrypted"
+      },
+      "socks5": {
+        "label": "SOCKS5",
+        "hint": "Names are resolved here"
+      },
+      "socks5h": {
+        "label": "SOCKS5h",
+        "hint": "Names are resolved on the proxy — when DNS is blocked too"
+      }
+    },
+    "new": {
+      "title": "New proxy",
+      "text": "An address like host:port, or the whole thing with a scheme and login — e.g. socks5://user:pass@host:1080. We check it right away.",
+      "create": "Save and check",
+      "checking": "Checking…"
+    },
+    "detail": {
+      "name": "Proxy name",
+      "recheck": "Check",
+      "checking": "Checking…",
+      "exit": "exit {ip}",
+      "pill": {
+        "ok": "OK · {ms} ms",
+        "error": "Not answering",
+        "never": "Not checked yet"
+      },
+      "check": {
+        "title": "Last check",
+        "when": "When",
+        "request": "Request",
+        "ip": "External IP",
+        "country": "Country",
+        "footnote": "The request goes through the proxy to a service that returns the IP: that shows where the traffic really exits."
+      },
+      "connection": "Connection",
+      "type": "Type",
+      "address": "Address",
+      "addressHint": "Checked right after saving",
+      "addressInvalid": "An address like host:port — for example, proxy.corp.local:3128",
+      "login": "Login",
+      "loginHint": "If the proxy asks for a login and password",
+      "noLogin": "no password",
+      "username": "Login",
+      "password": "Password",
+      "passwordKeep": "keep the current one",
+      "enabled": "On",
+      "enabledHint": "A proxy that is off is not used: sources on it go direct",
+      "through": "What goes through it",
+      "throughMeta": "{on} of {total, plural, one {# source} other {# sources}}",
+      "nothing": "nothing",
+      "note": {
+        "domain": "by the domain {domain}",
+        "explicit": "picked by the source",
+        "other": "now through «{proxy}»",
+        "direct": "direct only",
+        "auto": "direct"
+      },
+      "domains": "Domains",
+      "domainsHint": "Everything on «Auto» going to these addresses goes through this proxy. A domain covers its subdomains.",
+      "domainPlaceholder": "openai.com, Enter",
+      "domainRemove": "Remove {domain}",
+      "domainTaken": "The domain is on «{proxy}» already",
+      "remove": {
+        "section": "Delete",
+        "title": "Delete «{title}»",
+        "withSources": "{names} will go direct — check they can be reached from this network.",
+        "noSources": "Nothing goes through it now.",
+        "confirm": "Delete «{title}»?",
+        "confirmWith": "Going through it: {names}. They will go direct and may stop answering.",
+        "confirmNone": "Nothing goes through it.",
+        "action": "Delete",
+        "cancel": "Cancel"
+      },
+      "cancel": "Cancel",
+      "save": "Save",
+      "edit": "Change",
+      "domainInvalid": "A domain like openai.com — no scheme, path or port"
+    }
+  },
   "logoPicker": {
     "change": "Change the logo",
     "title": "Logo",

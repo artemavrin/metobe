@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { ProxyMark } from "@/components/proxy-mark";
 import type { SettingsList } from "@/lib/settings-lists";
 
 // The list level of the settings sidebar (P7 «Погружение»): the section's entries, with the selected row's background
@@ -155,7 +156,11 @@ export const SettingsListLevel = ({
                 key={e.id}
                 onClick={close}
               >
-                <BrandLogo label={e.title} logo={e.logo} size={28} />
+                {e.mark ? (
+                  <ProxyMark flag={e.mark.flag} size={28} />
+                ) : (
+                  <BrandLogo label={e.title} logo={e.logo} size={28} />
+                )}
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate font-medium">{e.title}</span>
                   <span

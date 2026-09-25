@@ -10,6 +10,7 @@ import {
   directAgent,
   fetchWith,
   isPublicAddress,
+  parseProxyAddress,
   parseProxyUrl,
   pinnedDirectAgent,
   proxyDispatcher,
@@ -127,5 +128,30 @@ describe("fetch through an HTTP proxy", () => {
         { pinned: true }
       )
     ).toThrow(/socks5h/u);
+  });
+});
+
+describe("proxy addresses as the admin types them", () => {
+  it("takes host:port with the picked type, or a full URL", () => {
+    expect(parseProxyAddress("proxy.corp.local:3128", "http")).toEqual({
+      host: "proxy.corp.local",
+      port: 3128,
+      type: "http",
+    });
+    expect(
+      parseProxyAddress(" socks5h://u:p@51.15.0.7:1080 ", "http")
+    ).toMatchObject({
+      host: "51.15.0.7",
+      password: "p",
+      port: 1080,
+      type: "socks5h",
+      username: "u",
+    });
+  });
+
+  it("refuses what is not an address", () => {
+    expect(parseProxyAddress("proxy.corp.local", "http")).toBeNull();
+    expect(parseProxyAddress("host:99999", "http")).toBeNull();
+    expect(parseProxyAddress("ftp://host:21", "http")).toBeNull();
   });
 });

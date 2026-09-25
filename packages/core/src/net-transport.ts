@@ -228,3 +228,24 @@ export const parseProxyUrl = (value: string): ProxyConfig => {
     username: url.username ? decodeURIComponent(url.username) : null,
   };
 };
+
+/** What the admin types for a proxy: `host:port` (with the type picked beside it), or a full URL with a scheme and
+ * credentials (`socks5://user:pass@host:1080`). Null when it is neither. */
+export const parseProxyAddress = (
+  value: string,
+  type: ProxyConfig["type"]
+): ProxyConfig | null => {
+  const text = value.trim();
+  if (text.includes("://")) {
+    try {
+      return parseProxyUrl(text);
+    } catch {
+      return null;
+    }
+  }
+  const groups = /^(?<host>[\w.-]+):(?<port>\d{2,5})$/u.exec(text)?.groups;
+  const port = Number(groups?.port);
+  return groups?.host && port > 0 && port < 65_536
+    ? { host: groups.host, port, type }
+    : null;
+};

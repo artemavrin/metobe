@@ -1,9 +1,11 @@
 import "server-only";
 import { listProviders } from "@metobe/core/providers";
+import { listProxies } from "@metobe/core/proxies";
 import { listSources } from "@metobe/core/sources-read";
 import type { SourceSummary } from "@metobe/core/sources-read";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
+import { flagOf } from "@/lib/proxy-flag";
 import type { SettingsSectionId } from "@/lib/settings-nav";
 import { sourceLogo } from "@/lib/source-logo";
 
@@ -15,6 +17,8 @@ export interface ListEntry {
   href: string;
   title: string;
   logo: string | undefined;
+  /** Instead of a logo: the exit country's flag (proxies), or a network mark when there is no country yet. */
+  mark?: { flag: string | null };
   /** The line under the title: the state in words. */
   sub: string;
   /** Drives the dot; `none` — no dot (lists without a state, such as providers). */
@@ -112,6 +116,47 @@ const providersList = async (): Promise<SettingsList> => {
   };
 };
 
+/** Proxies in the order they were added; each with its exit country, latency, or why it fails. */
+const proxiesList = async (): Promise<SettingsList> => {
+  const [rows, t, locale] = await Promise.all([
+    listProxies(),
+    getTranslations("proxies"),
+    getLocale(),
+  ]);
+  const countries = new Intl.DisplayNames([locale], { type: "region" });
+  return {
+    add: { href: "/settings/proxies/new", label: t("add") },
+    entries: rows.map((x) => {
+      const h = x.health;
+      const kind = x.type.toUpperCase();
+      let state: ListEntry["state"] = "unchecked";
+      let sub = `${kind} · ${t("status.unchecked")}`;
+      if (!x.enabled) {
+        state = "off";
+        sub = `${kind} · ${t("status.off")}`;
+      } else if (h?.state === "ok") {
+        state = "ok";
+        const where = h.country ? countries.of(h.country) : h.ip;
+        sub = `${kind} · ${[where, h.latencyMs === undefined ? null : t("status.ms", { ms: h.latencyMs })].filter(Boolean).join(" · ")}`;
+      } else if (h?.state === "error") {
+        state = "error";
+        sub = `${kind} · ${t("status.error")}`;
+      }
+      return {
+        href: `/settings/proxies/${x.id}`,
+        id: x.id,
+        logo: undefined,
+        mark: { flag: h?.state === "ok" ? flagOf(h.country) : null },
+        state,
+        sub,
+        title: x.title,
+      };
+    }),
+    meta: t("meta"),
+    title: t("title"),
+  };
+};
+
 /** The lists this viewer may open; the service's lists are for admins only. */
 export const getSettingsLists = async (
   admin: boolean
@@ -119,9 +164,10 @@ export const getSettingsLists = async (
   if (!admin) {
     return {};
   }
-  const [sources, providers] = await Promise.all([
+  const [sources, providers, proxies] = await Promise.all([
     sourcesList(),
     providersList(),
+    proxiesList(),
   ]);
-  return { providers, sources };
+  return { providers, proxies, sources };
 };
