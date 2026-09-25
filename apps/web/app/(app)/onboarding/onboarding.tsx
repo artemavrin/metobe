@@ -50,6 +50,13 @@ export const Onboarding = ({ step }: { step: OnboardingStep }) => {
   const router = useRouter();
   // Picking and the key are one page: the key step is the kind picked here.
   const [kind, setKind] = useState<SourceKind | null>(null);
+  // The page stays mounted across ?source / ?done, so a kind picked earlier would reopen its key step on the way
+  // back to picking («Подключить ещё источник», «←» from the models). A new step from the address starts clean.
+  const [from, setFrom] = useState(step.id);
+  if (from !== step.id) {
+    setFrom(step.id);
+    setKind(null);
+  }
   const current = step.id === "pick" && kind ? "key" : step.id;
   const finished = current === "done";
   const n = finished ? STEPS.length + 1 : STEPS.indexOf(current) + 1;
