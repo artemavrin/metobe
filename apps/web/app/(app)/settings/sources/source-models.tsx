@@ -10,6 +10,11 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@metobe/ui/components/input-group";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@metobe/ui/components/popover";
 import { Badge } from "@metobe/ui/components/reui/badge";
 import {
   Select,
@@ -26,7 +31,15 @@ import {
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
-import { Braces, Brain, Eye, RefreshCw, Search, Wrench } from "lucide-react";
+import {
+  Braces,
+  Brain,
+  ChevronDown,
+  Eye,
+  RefreshCw,
+  Search,
+  Wrench,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useOptimistic, useState, useTransition } from "react";
 
@@ -270,6 +283,113 @@ const PricingEditor = ({
   );
 };
 
+const CHIPS_SHOWN = 6;
+
+/**
+ * Makers of a source's models as chips, when there is more than one (the Gateway, Yandex, Ollama): the six with most
+ * models in a row, the rest behind «Ещё N». Several can be picked; picking again lets go.
+ */
+const ProviderChips = ({
+  models,
+  picked,
+  onPick,
+}: {
+  models: Model[];
+  picked: Set<string>;
+  onPick: (providerId: string) => void;
+}) => {
+  const t = useTranslations("sources.detail.models");
+  const counts = new Map<string, { provider: Model["provider"]; n: number }>();
+  for (const m of models) {
+    const entry = counts.get(m.provider.id) ?? { n: 0, provider: m.provider };
+    entry.n += 1;
+    counts.set(m.provider.id, entry);
+  }
+  if (counts.size < 2) {
+    return null;
+  }
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts a fresh copy; toSorted is past this project's ES target
+  const all = [...counts.values()].sort((a, b) => b.n - a.n);
+  const shown = all.slice(0, CHIPS_SHOWN);
+  const rest = all.slice(CHIPS_SHOWN);
+  const chip = ({ provider, n }: (typeof all)[number]) => (
+    <button
+      aria-pressed={picked.has(provider.id)}
+      className={cn(
+        "flex h-8 items-center gap-2 rounded-full border px-2.5 text-sm transition-colors duration-150 active:scale-[0.98]",
+        picked.has(provider.id)
+          ? "border-foreground/40 bg-muted"
+          : "hover:bg-muted/50"
+      )}
+      key={provider.id}
+      onClick={() => onPick(provider.id)}
+      type="button"
+    >
+      <BrandLogo
+        label={provider.title}
+        logo={provider.logo ?? undefined}
+        size={20}
+      />
+      {provider.title}
+      <span className="text-muted-foreground text-xs tabular-nums">{n}</span>
+    </button>
+  );
+  const restPicked = rest.filter((r) => picked.has(r.provider.id)).length;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {shown.map(chip)}
+      {rest.length > 0 && (
+        <Popover>
+          <PopoverTrigger
+            render={
+              <button
+                aria-label={t("more", { count: rest.length })}
+                className={cn(
+                  "flex h-8 items-center gap-1 rounded-full border px-2.5 text-sm transition-colors duration-150",
+                  restPicked > 0
+                    ? "border-foreground/40 bg-muted"
+                    : "hover:bg-muted/50"
+                )}
+                type="button"
+              />
+            }
+          >
+            {t("more", { count: rest.length })}
+            <ChevronDown className="text-muted-foreground size-3.5" />
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className="flex max-h-80 w-64 flex-col gap-1 overflow-y-auto p-1.5"
+          >
+            {rest.map(({ provider, n }) => (
+              <button
+                aria-pressed={picked.has(provider.id)}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-150",
+                  picked.has(provider.id) ? "bg-muted" : "hover:bg-muted/50"
+                )}
+                key={provider.id}
+                onClick={() => onPick(provider.id)}
+                type="button"
+              >
+                <BrandLogo
+                  label={provider.title}
+                  logo={provider.logo ?? undefined}
+                  size={20}
+                />
+                <span className="flex-1 truncate">{provider.title}</span>
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {n}
+                </span>
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
+};
+
 export const SourceModels = ({
   detail,
   dimmed,
@@ -281,6 +401,17 @@ export const SourceModels = ({
   const sourceId = detail.source.id;
   const [query, setQuery] = useState("");
   const [onlyOn, setOnlyOn] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const pick = (id: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   const [editing, setEditing] = useState<string | null>(null);
   const [syncing, startSync] = useTransition();
   const [syncNote, setSyncNote] = useState<string | null>(null);
@@ -311,6 +442,7 @@ export const SourceModels = ({
     const shown = detail.models.filter(
       (m) =>
         (!onlyOn || enabled.has(m.id)) &&
+        (picked.size === 0 || picked.has(m.provider.id)) &&
         (!q ||
           `${m.title} ${m.modelId} ${m.provider.title}`
             .toLowerCase()
@@ -329,7 +461,7 @@ export const SourceModels = ({
       byProvider.set(m.provider.id, group);
     }
     return [...byProvider.values()];
-  }, [detail.models, enabled, onlyOn, query]);
+  }, [detail.models, enabled, onlyOn, picked, query]);
 
   const runSync = () =>
     startSync(async () => {
@@ -371,6 +503,7 @@ export const SourceModels = ({
           {syncNote}
         </p>
       )}
+      <ProviderChips models={detail.models} onPick={pick} picked={picked} />
       {detail.models.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <InputGroup className="min-w-48 flex-1">

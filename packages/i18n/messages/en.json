@@ -388,7 +388,8 @@
           "yes": "yes",
           "no": "no",
           "unknown": "not checked — we'll try and turn it off on error"
-        }
+        },
+        "more": "{count} more"
       },
       "pricing": {
         "title": "Price of {model}",
