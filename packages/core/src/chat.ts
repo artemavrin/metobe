@@ -79,7 +79,14 @@ export const getChatModel = async (id: string) => {
     .select({
       capabilities: models.capabilities,
       id: models.id,
+      kind: sources.kind,
       modelId: models.modelId,
+      priceCacheRead: models.priceCacheRead,
+      priceCacheWrite: models.priceCacheWrite,
+      priceCurrency: models.priceCurrency,
+      priceInput: models.priceInput,
+      priceOutput: models.priceOutput,
+      priceUnitTokens: models.priceUnitTokens,
       sourceId: models.sourceId,
       title: models.title,
     })
