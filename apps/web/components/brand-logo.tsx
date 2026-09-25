@@ -15,25 +15,32 @@ import grok from "@lobehub/icons-static-svg/icons/grok.svg";
 import groq from "@lobehub/icons-static-svg/icons/groq.svg";
 import huggingface from "@lobehub/icons-static-svg/icons/huggingface-color.svg";
 import inception from "@lobehub/icons-static-svg/icons/inception.svg";
+import inferenceLogo from "@lobehub/icons-static-svg/icons/inference.svg";
 import kimi from "@lobehub/icons-static-svg/icons/kimi.svg";
 import lmstudio from "@lobehub/icons-static-svg/icons/lmstudio.svg";
 import longcat from "@lobehub/icons-static-svg/icons/longcat-color.svg";
 import meta from "@lobehub/icons-static-svg/icons/meta-color.svg";
 import minimax from "@lobehub/icons-static-svg/icons/minimax-color.svg";
 import mistral from "@lobehub/icons-static-svg/icons/mistral-color.svg";
+import morphLogo from "@lobehub/icons-static-svg/icons/morph-color.svg";
 import nova from "@lobehub/icons-static-svg/icons/nova-color.svg";
 import nvidia from "@lobehub/icons-static-svg/icons/nvidia-color.svg";
 import ollama from "@lobehub/icons-static-svg/icons/ollama.svg";
 import openai from "@lobehub/icons-static-svg/icons/openai.svg";
 import openrouter from "@lobehub/icons-static-svg/icons/openrouter.svg";
 import perplexity from "@lobehub/icons-static-svg/icons/perplexity-color.svg";
+import poolsideLogo from "@lobehub/icons-static-svg/icons/poolside-color.svg";
 // Logos of model providers (who made the model) and sources (who gives access), from @lobehub/icons-static-svg (MIT),
 // carried over from prototype P7.
 // Mono icons are drawn as a CSS mask in the text colour, so they follow the theme; colour icons are plain images.
 import alibaba from "@lobehub/icons-static-svg/icons/qwen-color.svg";
+import sakanaLogo from "@lobehub/icons-static-svg/icons/sakana-color.svg";
+import stepfunLogo from "@lobehub/icons-static-svg/icons/stepfun-color.svg";
+import tencentLogo from "@lobehub/icons-static-svg/icons/tencent-color.svg";
 import together from "@lobehub/icons-static-svg/icons/together-color.svg";
 import vercel from "@lobehub/icons-static-svg/icons/vercel.svg";
 import vllm from "@lobehub/icons-static-svg/icons/vllm-color.svg";
+import xiaomiLogo from "@lobehub/icons-static-svg/icons/xiaomimimo.svg";
 import xinference from "@lobehub/icons-static-svg/icons/xinference-color.svg";
 import yandex from "@lobehub/icons-static-svg/icons/yandex.svg";
 import zhipu from "@lobehub/icons-static-svg/icons/zhipu-color.svg";
@@ -66,22 +73,29 @@ export const LOGOS: Record<string, Logo & { label: string; host?: boolean }> = {
   groq: { ...L(groq, true), host: true, label: "Groq" },
   huggingface: { ...L(huggingface), host: true, label: "Hugging Face" },
   inception: { ...L(inception, true), label: "Inception" },
+  inference: { ...L(inferenceLogo, true), label: "Inference.net" },
   lmstudio: { ...L(lmstudio, true), host: true, label: "LM Studio" },
   meituan: { ...L(longcat), label: "LongCat" },
   meta: { ...L(meta), label: "Meta" },
   minimax: { ...L(minimax), label: "MiniMax" },
   mistral: { ...L(mistral), label: "Mistral" },
   moonshot: { ...L(kimi, true), label: "Kimi" },
+  morph: { ...L(morphLogo), label: "Morph" },
   nova: { ...L(nova), label: "Amazon Nova" },
   nvidia: { ...L(nvidia), host: true, label: "NVIDIA" },
   ollama: { ...L(ollama, true), label: "Ollama" },
   openai: { ...L(openai, true), label: "OpenAI" },
   openrouter: { ...L(openrouter, true), host: true, label: "OpenRouter" },
   perplexity: { ...L(perplexity), label: "Perplexity" },
+  poolside: { ...L(poolsideLogo), label: "Poolside" },
+  sakana: { ...L(sakanaLogo), label: "Sakana AI" },
+  stepfun: { ...L(stepfunLogo), label: "StepFun" },
+  tencent: { ...L(tencentLogo), label: "Tencent" },
   together: { ...L(together), host: true, label: "Together" },
   vercel: { ...L(vercel, true), label: "Vercel" },
   vllm: { ...L(vllm), host: true, label: "vLLM" },
   xai: { ...L(grok, true), label: "Grok" },
+  xiaomi: { ...L(xiaomiLogo, true), label: "Xiaomi MiMo" },
   xinference: { ...L(xinference), host: true, label: "Xinference" },
   yandex: { ...L(yandex, true), label: "Яндекс" },
   zai: { ...L(zhipu), label: "GLM" },

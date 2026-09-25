@@ -7,7 +7,7 @@ import { baseUrlOf } from "./ai-build";
 import { getDb } from "./db";
 import { fetchModelList, GATEWAY_MODELS_URL } from "./discovery-fetch";
 import type { DiscoveredModel } from "./discovery-map";
-import { PROVIDERS } from "./discovery-rules";
+import { PROVIDERS, titleOfSlug } from "./discovery-rules";
 import { fetchFor } from "./net";
 import { withSecret } from "./secrets";
 
@@ -31,14 +31,22 @@ export const listSourceModels = async (
   return fetchModelList(source, apiKey, fetch);
 };
 
-/** Creates missing providers from the seed; existing ones — renamed or re-logoed by the admin — stay as they are. */
+/**
+ * Creates missing providers: from the seed with its logo, or — for a maker the Gateway named that the seed does not
+ * know — with a title made from its name and no logo. Existing ones (renamed or re-logoed by the admin) stay.
+ */
 const ensureProviders = async (slugs: Set<string>) => {
   const { db } = getDb();
-  const seed = PROVIDERS.filter((p) => slugs.has(p.slug));
-  if (seed.length) {
+  const values = [...slugs].map((slug) => {
+    const seed = PROVIDERS.find((p) => p.slug === slug);
+    return seed
+      ? { logo: seed.logo, slug, title: seed.title }
+      : { logo: null, slug, title: titleOfSlug(slug) };
+  });
+  if (values.length) {
     await db
       .insert(providers)
-      .values(seed.map((p) => ({ logo: p.logo, slug: p.slug, title: p.title })))
+      .values(values)
       .onConflictDoNothing({ target: providers.slug });
   }
   const rows = await db
