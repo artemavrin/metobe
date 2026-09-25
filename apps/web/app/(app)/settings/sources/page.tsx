@@ -15,10 +15,20 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 // The section's own page: straight to the first source, or an honest empty state with the one thing to do.
-const SourcesPage = async () => {
-  const [first] = await listSources();
+const SourcesPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) => {
+  const [[first], { connect }] = await Promise.all([
+    listSources(),
+    searchParams,
+  ]);
   if (first) {
-    redirect(`/settings/sources/${first.id}`);
+    // The connect dialog opens over the first source, not lost in the redirect.
+    redirect(
+      `/settings/sources/${first.id}${connect === "1" ? "?connect=1" : ""}`
+    );
   }
   const t = await getTranslations("sources");
   return (

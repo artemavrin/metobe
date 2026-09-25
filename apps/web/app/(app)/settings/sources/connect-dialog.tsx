@@ -38,16 +38,6 @@ import {
   AlertTitle,
 } from "@metobe/ui/components/reui/alert";
 import { Badge } from "@metobe/ui/components/reui/badge";
-import {
-  Stepper,
-  StepperDescription,
-  StepperIndicator,
-  StepperItem,
-  StepperNav,
-  StepperSeparator,
-  StepperTitle,
-  StepperTrigger,
-} from "@metobe/ui/components/reui/stepper";
 import { SecretInput } from "@metobe/ui/components/secret-input";
 import { cn } from "@metobe/ui/lib/utils";
 import {
@@ -60,10 +50,12 @@ import {
   LoaderCircle,
   Network,
   Route,
+  TriangleAlert,
+  X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { sourceLogo } from "@/lib/source-logo";
@@ -99,10 +91,10 @@ const KEY_PLACEHOLDER: Record<SourceKind, string> = {
   yandex: "AQVN…",
 };
 
-/** Where the check stands; the step numbers are the stepper's. */
+/** Where the check stands. */
 type Phase =
   | { kind: "idle" }
-  | { kind: "checking"; proxyUrl?: string }
+  | { kind: "checking"; via?: "proxy" }
   | { kind: "proxy-found"; proxy: { id: string; title: string } }
   | { kind: "blocked"; error?: "proxy-invalid" | "proxy-unreachable" }
   | { kind: "declined" }
@@ -110,87 +102,203 @@ type Phase =
   | { kind: "done"; route: string | null; count: number }
   | { kind: "failed"; state: Extract<ConnectState, { status: "failed" }> };
 
-const stepOf = (phase: Phase) => {
+type StepState = "done" | "active" | "error" | "warn" | "idle";
+interface Step {
+  title: string;
+  state: StepState;
+  description?: string;
+}
+
+type TC = ReturnType<typeof useTranslations<"sources">>;
+
+const idle = (name: string): Step => ({ state: "idle", title: name });
+
+/**
+ * The steps «ключ → маршрут → модели», only once something went wrong: they show where the check stopped. A check
+ * that simply works shows none — the button's own spinner is enough.
+ */
+const stepsOf = (phase: Phase, t: TC, title: string): Step[] => {
+  const key = t("connect.steps.key");
+  const route = t("connect.steps.route");
+  const models = t("connect.steps.models");
   switch (phase.kind) {
-    case "checking": {
-      return 1;
+    case "failed": {
+      // Short here; the alert under the steps says what to do.
+      const short = {
+        auth: () => t("status.auth"),
+        http: () => t("status.http", { status: phase.state.httpStatus ?? "" }),
+        invalid: () => t("status.invalid"),
+        "not-found": () => t("status.notFound"),
+        unreachable: () => t("status.unreachable"),
+      }[phase.state.reason]();
+      return [
+        { description: short, state: "error", title: key },
+        idle(route),
+        idle(models),
+      ];
     }
-    case "proxy-found":
     case "blocked":
     case "declined": {
-      return 2;
+      const proxyError =
+        phase.kind === "blocked" && phase.error
+          ? failureText(t, phase.error, title).title
+          : t("connect.steps.routeFailed");
+      return [
+        {
+          description: t("connect.steps.keyUnknown"),
+          state: "warn",
+          title: key,
+        },
+        { description: proxyError, state: "error", title: route },
+        idle(models),
+      ];
     }
-    case "models": {
-      return 3;
+    case "proxy-found": {
+      return [
+        { description: t("connect.steps.keyDone"), state: "done", title: key },
+        {
+          description: t("connect.steps.routeFound", {
+            proxy: phase.proxy.title,
+          }),
+          state: "warn",
+          title: route,
+        },
+        idle(models),
+      ];
     }
+    case "checking": {
+      return phase.via
+        ? [
+            { state: "idle", title: key },
+            {
+              description: t("connect.steps.routeTrying"),
+              state: "active",
+              title: route,
+            },
+            idle(models),
+          ]
+        : [
+            {
+              description: t("connect.steps.keyActive", { title }),
+              state: "active",
+              title: key,
+            },
+            idle(route),
+            idle(models),
+          ];
+    }
+    case "models":
     case "done": {
-      return 4;
+      const via = phase.route
+        ? t("connect.steps.routeProxy", { proxy: phase.route })
+        : t("connect.steps.routeDirect");
+      return [
+        { description: t("connect.steps.keyDone"), state: "done", title: key },
+        { description: via, state: "done", title: route },
+        phase.kind === "done"
+          ? {
+              description: t("connect.steps.modelsDone", {
+                count: phase.count,
+              }),
+              state: "done",
+              title: models,
+            }
+          : {
+              description: t("connect.steps.modelsActive"),
+              state: "active",
+              title: models,
+            },
+      ];
     }
     default: {
-      return 0;
+      return [];
     }
   }
 };
 
-const Steps = ({ phase, title }: { phase: Phase; title: string }) => {
-  const t = useTranslations("sources.connect.steps");
-  const step = stepOf(phase);
-  const route =
-    phase.kind === "models" || phase.kind === "done" ? phase.route : null;
-  const steps = [
-    {
-      description: step === 1 ? t("keyActive", { title }) : t("keyDone"),
-      title: t("key"),
-    },
-    {
-      description: route ? t("routeProxy", { proxy: route }) : t("routeDirect"),
-      title: t("route"),
-    },
-    {
-      description:
-        phase.kind === "done"
-          ? t("modelsDone", { count: phase.count })
-          : t("modelsActive"),
-      title: t("models"),
-    },
-  ];
+const STEP_ICON: Record<StepState, string> = {
+  active: "border-foreground/20 text-foreground",
+  done: "border-success bg-success text-white",
+  error: "border-destructive bg-destructive text-white",
+  idle: "border-border text-muted-foreground",
+  warn: "border-warning bg-warning text-white",
+};
+
+/** The button tells the happy path by itself: checking → models → connected. */
+const SubmitLabel = ({ phase }: { phase: Phase }) => {
+  const t = useTranslations("sources.connect");
+  const label = {
+    checking: t("checking"),
+    done: t("done"),
+    models: t("loadingModels"),
+  }[phase.kind as "checking"];
   return (
-    <Stepper
-      indicators={{
-        completed: <Check className="size-3.5" />,
-        loading: <LoaderCircle className="size-3.5 animate-spin" />,
-      }}
-      orientation="vertical"
-      value={step}
+    <span
+      className="animate-in fade-in flex items-center gap-2 duration-150"
+      key={label ? phase.kind : "idle"}
     >
-      <StepperNav>
-        {steps.map((s, i) => (
-          <StepperItem
-            className="relative items-start not-last:flex-1"
-            key={s.title}
-            loading={phase.kind === "checking" || phase.kind === "models"}
-            step={i + 1}
-          >
-            <StepperTrigger className="pointer-events-none items-start gap-2.5 pb-6 last:pb-0">
-              <StepperIndicator className="data-[state=completed]:bg-success data-[state=completed]:text-white">
-                {i + 1}
-              </StepperIndicator>
-              <div className="mt-0.5 text-left">
-                <StepperTitle>{s.title}</StepperTitle>
-                {i + 1 <= step && (
-                  <StepperDescription>{s.description}</StepperDescription>
-                )}
-              </div>
-            </StepperTrigger>
-            {i < steps.length - 1 && (
-              <StepperSeparator className="group-data-[state=completed]/step:bg-success absolute inset-y-0 top-7 left-3 -order-1 m-0 -translate-x-1/2 group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-2rem)]" />
-            )}
-          </StepperItem>
-        ))}
-      </StepperNav>
-    </Stepper>
+      {phase.kind === "done" && <Check />}
+      {(phase.kind === "checking" || phase.kind === "models") && (
+        <LoaderCircle className="animate-spin" />
+      )}
+      {label ?? t("submit")}
+    </span>
   );
 };
+
+const Steps = ({ steps }: { steps: Step[] }) => (
+  <ol className="animate-in fade-in slide-in-from-top-1 fill-mode-both motion-reduce:slide-in-from-top-0 flex flex-col rounded-xl border p-4 duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]">
+    {steps.map((s, i) => (
+      <li className="relative flex gap-3 pb-5 last:pb-0" key={s.title}>
+        {i < steps.length - 1 && (
+          <span
+            aria-hidden
+            className={cn(
+              "absolute top-7 bottom-1 left-3 w-px -translate-x-1/2 transition-colors duration-200",
+              s.state === "done" ? "bg-success" : "bg-border"
+            )}
+          />
+        )}
+        <span
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium transition-colors duration-200",
+            STEP_ICON[s.state]
+          )}
+        >
+          {s.state === "done" && <Check className="size-3.5" />}
+          {s.state === "active" && (
+            <LoaderCircle className="size-3.5 animate-spin" />
+          )}
+          {s.state === "error" && <X className="size-3.5" />}
+          {s.state === "warn" && <TriangleAlert className="size-3" />}
+          {s.state === "idle" && i + 1}
+        </span>
+        <span className="flex min-w-0 flex-col pt-0.5">
+          <span
+            className={cn(
+              "text-sm font-medium",
+              s.state === "idle" && "text-muted-foreground"
+            )}
+          >
+            {s.title}
+          </span>
+          {s.description && (
+            <span
+              className={cn(
+                "text-xs",
+                s.state === "error"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              )}
+            >
+              {s.description}
+            </span>
+          )}
+        </span>
+      </li>
+    ))}
+  </ol>
+);
 
 /** What the route step shows once connected: the proxy that was agreed to or typed, else direct. */
 const routeTitle = (
@@ -205,6 +313,9 @@ const routeTitle = (
   }
   return null;
 };
+
+/** How long «Готово» stays on screen before the new source opens. */
+const DONE_HOLD_MS = 600;
 
 const enter = (i: number) => ({
   className:
@@ -393,7 +504,15 @@ const ConnectForm = ({
   const [baseUrl, setBaseUrl] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
-  const [, start] = useTransition();
+  // Steps appear once something went wrong and stay for the retry; a check that just works shows none.
+  const [shownSteps, setShownSteps] = useState(false);
+  const problem = ["failed", "blocked", "declined", "proxy-found"].includes(
+    phase.kind
+  );
+  if (problem && !shownSteps) {
+    setShownSteps(true);
+  }
+  const troubled = problem || (phase.kind !== "idle" && shownSteps);
   const busy = phase.kind === "checking" || phase.kind === "models";
 
   const input = (): SourceInput => ({
@@ -406,56 +525,56 @@ const ConnectForm = ({
         : ({ kind } as SourceInput["options"]),
   });
 
-  /** One round: check (and connect when it works), then pull the models. */
-  const run = (via?: { proxyId: string } | { proxyUrl: string }) =>
-    start(async () => {
-      setErrors({});
-      setPhase({
-        kind: "checking",
-        proxyUrl: via && "proxyUrl" in via ? via.proxyUrl : undefined,
-      });
-      const result = await connect(input(), via);
-      switch (result.status) {
-        case "invalid": {
-          setErrors(result.errors);
-          setPhase({ kind: "idle" });
-          return;
-        }
-        case "proxy-found": {
-          setPhase({ kind: "proxy-found", proxy: result.proxy });
-          return;
-        }
-        case "blocked": {
-          setPhase({ kind: "blocked" });
-          return;
-        }
-        case "proxy-failed": {
-          setPhase({
-            error:
-              result.reason === "invalid-url"
-                ? "proxy-invalid"
-                : "proxy-unreachable",
-            kind: "blocked",
-          });
-          return;
-        }
-        case "failed": {
-          setPhase({ kind: "failed", state: result });
-          return;
-        }
-        default: {
-          const route = routeTitle(via, phase);
-          setPhase({ kind: "models", route });
-          const synced = await sync(result.sourceId);
-          setPhase({
-            count: synced.ok ? synced.total : 0,
-            kind: "done",
-            route,
-          });
-          onDone(result.sourceId);
-        }
+  /**
+   * One round: check (and connect when it works), then pull the models. A plain async function, not a transition:
+   * updates inside a transition wait for its end, so the steps would only show once the server had answered.
+   */
+  const run = async (via?: { proxyId: string } | { proxyUrl: string }) => {
+    setErrors({});
+    setPhase(via ? { kind: "checking", via: "proxy" } : { kind: "checking" });
+    const result = await connect(input(), via);
+    switch (result.status) {
+      case "invalid": {
+        setErrors(result.errors);
+        setPhase({ kind: "idle" });
+        return;
       }
-    });
+      case "proxy-found": {
+        setPhase({ kind: "proxy-found", proxy: result.proxy });
+        return;
+      }
+      case "blocked": {
+        setPhase({ kind: "blocked" });
+        return;
+      }
+      case "proxy-failed": {
+        setPhase({
+          error:
+            result.reason === "invalid-url"
+              ? "proxy-invalid"
+              : "proxy-unreachable",
+          kind: "blocked",
+        });
+        return;
+      }
+      case "failed": {
+        setPhase({ kind: "failed", state: result });
+        return;
+      }
+      default: {
+        const route = routeTitle(via, phase);
+        setPhase({ kind: "models", route });
+        const synced = await sync(result.sourceId);
+        setPhase({
+          count: synced.ok ? synced.total : 0,
+          kind: "done",
+          route,
+        });
+        // Let the finished steps be seen before the source's page takes over.
+        setTimeout(() => onDone(result.sourceId), DONE_HOLD_MS);
+      }
+    }
+  };
 
   const failure =
     phase.kind === "failed"
@@ -468,7 +587,7 @@ const ConnectForm = ({
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        run();
+        void run();
       }}
     >
       <DialogHeader className="flex-row items-center gap-3">
@@ -557,10 +676,8 @@ const ConnectForm = ({
         </Field>
       </FieldGroup>
 
-      {phase.kind !== "idle" && phase.kind !== "failed" && (
-        <div className="rounded-xl border p-4">
-          <Steps phase={phase} title={title} />
-        </div>
+      {troubled && phase.kind !== "idle" && (
+        <Steps steps={stepsOf(phase, t, title)} />
       )}
 
       {failure && (
@@ -583,9 +700,12 @@ const ConnectForm = ({
         <Button disabled={busy} onClick={onBack} type="button" variant="ghost">
           <ArrowLeft /> {t("connect.back")}
         </Button>
-        <Button disabled={busy || phase.kind === "done"} type="submit">
-          {busy && <LoaderCircle className="animate-spin" />}
-          {t("connect.submit")}
+        <Button
+          className="min-w-44"
+          disabled={busy || phase.kind === "done"}
+          type="submit"
+        >
+          <SubmitLabel phase={phase} />
         </Button>
       </DialogFooter>
     </form>

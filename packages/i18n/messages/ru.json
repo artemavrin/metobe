@@ -251,7 +251,11 @@
         "routeProxy": "Через «{proxy}»",
         "models": "Модели",
         "modelsActive": "Загружаем список…",
-        "modelsDone": "{count, plural, one {# модель} few {# модели} other {# моделей}}"
+        "modelsDone": "{count, plural, one {# модель} few {# модели} other {# моделей}}",
+        "keyUnknown": "Не проверили — источник не ответил",
+        "routeFailed": "Напрямую не отвечает",
+        "routeFound": "Напрямую не отвечает, через «{proxy}» работает",
+        "routeTrying": "Пробуем через прокси…"
       },
       "proxyFound": {
         "title": "Напрямую {title} не отвечает, через «{proxy}» работает",
@@ -269,7 +273,10 @@
       "declined": {
         "title": "{title} напрямую недоступен",
         "text": "Добавьте прокси в «Системе → Прокси» или подключите источник, который отвечает напрямую, например AI Gateway."
-      }
+      },
+      "checking": "Проверяем…",
+      "loadingModels": "Загружаем модели…",
+      "done": "Подключено"
     },
     "failure": {
       "auth": {

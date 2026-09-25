@@ -251,7 +251,11 @@
         "routeProxy": "Through «{proxy}»",
         "models": "Models",
         "modelsActive": "Loading the list…",
-        "modelsDone": "{count, plural, one {# model} other {# models}}"
+        "modelsDone": "{count, plural, one {# model} other {# models}}",
+        "keyUnknown": "Not checked — the source didn't answer",
+        "routeFailed": "Doesn't answer directly",
+        "routeFound": "Doesn't answer directly, works through «{proxy}»",
+        "routeTrying": "Trying through the proxy…"
       },
       "proxyFound": {
         "title": "{title} doesn't answer directly, but works through «{proxy}»",
@@ -269,7 +273,10 @@
       "declined": {
         "title": "{title} can't be reached directly",
         "text": "Add a proxy in «System → Proxies» or connect a source that answers directly, such as AI Gateway."
-      }
+      },
+      "checking": "Checking…",
+      "loadingModels": "Loading models…",
+      "done": "Connected"
     },
     "failure": {
       "auth": {

@@ -71,7 +71,8 @@ const sourcesList = async (): Promise<SettingsList> => {
     getTranslations("sources"),
   ]);
   return {
-    add: { href: "/settings/sources?connect=1", label: t("add") },
+    // Opens over whatever source is open now.
+    add: { href: "?connect=1", label: t("add") },
     entries: rows.map((s) => ({
       count: modelsInChat(s),
       href: `/settings/sources/${s.id}`,

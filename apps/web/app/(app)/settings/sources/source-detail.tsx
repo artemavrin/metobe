@@ -36,7 +36,7 @@ import { cn } from "@metobe/ui/lib/utils";
 import { KeyRound, RefreshCw } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
@@ -410,14 +410,22 @@ const routeWhy = (
 const RouteRow = ({ detail, t }: { detail: Detail; t: T }) => {
   const { source, route, proxies } = detail;
   const [pending, start] = useTransition();
-  const value =
+  const saved =
     source.proxyMode === "proxy"
       ? (source.proxyId ?? "gone")
       : source.proxyMode;
+  // The pick shows at once; the recheck over the new route follows.
+  const [value, setPicked] = useOptimistic(saved);
+  const mode = value === "auto" || value === "direct" ? value : "proxy";
   const titleOf = (id: string | null | undefined) =>
     proxies.find((p) => p.id === id)?.title;
   const via = route.kind === "proxy" ? titleOf(route.proxyId) : undefined;
-  const shown = routeLabel(t, source, via, titleOf(source.proxyId));
+  const shown = routeLabel(
+    t,
+    { ...source, proxyMode: mode },
+    via,
+    titleOf(mode === "proxy" ? value : source.proxyId)
+  );
   const why = routeWhy(t, route, via, detail.host);
   return (
     <Row hint={t("detail.route.hint")} label={t("detail.route.label")}>
@@ -426,11 +434,12 @@ const RouteRow = ({ detail, t }: { detail: Detail; t: T }) => {
           disabled={pending}
           onValueChange={(next) =>
             start(async () => {
-              const mode =
+              setPicked(String(next));
+              const nextMode =
                 next === "auto" || next === "direct" ? next : "proxy";
               await setRoute(source.id, {
-                mode,
-                proxyId: mode === "proxy" ? String(next) : null,
+                mode: nextMode,
+                proxyId: nextMode === "proxy" ? String(next) : null,
               });
             })
           }
@@ -538,6 +547,13 @@ export const SourceDetail = ({ detail }: { detail: Detail }) => {
   const { source } = detail;
   const [checking, startCheck] = useTransition();
   const [, startToggle] = useTransition();
+  // The switch moves at once; the server's answer confirms it.
+  const [enabled, setOptimisticEnabled] = useOptimistic(source.enabled);
+  const toggleEnabled = (on: boolean) =>
+    startToggle(async () => {
+      setOptimisticEnabled(on);
+      await setEnabled(source.id, on);
+    });
   const [name, setName] = useState(source.title);
   const broken = source.health?.state === "error";
   const hasConfig =
@@ -583,12 +599,7 @@ export const SourceDetail = ({ detail }: { detail: Detail }) => {
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm">
             {t("detail.enabled")}
-            <Switch
-              checked={source.enabled}
-              onCheckedChange={(on) =>
-                startToggle(() => setEnabled(source.id, on))
-              }
-            />
+            <Switch checked={enabled} onCheckedChange={toggleEnabled} />
           </label>
           <Button
             disabled={checking}
@@ -606,7 +617,7 @@ export const SourceDetail = ({ detail }: { detail: Detail }) => {
         </div>
       </header>
 
-      {source.enabled ? (
+      {enabled ? (
         broken &&
         source.health?.reason && (
           <div className="border-destructive/25 bg-destructive/5 animate-in fade-in slide-in-from-top-1 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 duration-200">
@@ -647,7 +658,7 @@ export const SourceDetail = ({ detail }: { detail: Detail }) => {
             </p>
           </div>
           <Button
-            onClick={() => startToggle(() => setEnabled(source.id, true))}
+            onClick={() => toggleEnabled(true)}
             size="sm"
             variant="outline"
           >
@@ -664,7 +675,7 @@ export const SourceDetail = ({ detail }: { detail: Detail }) => {
         </Rows>
       </Section>
 
-      <SourceModels detail={detail} dimmed={!source.enabled || broken} />
+      <SourceModels detail={detail} dimmed={!enabled || broken} />
 
       <RemoveSection detail={detail} t={t} />
     </>
