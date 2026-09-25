@@ -26,14 +26,43 @@ export const PROVIDERS = [
   { logo: "arcee", slug: "arcee", title: "Arcee" },
   { logo: "inception", slug: "inception", title: "Inception" },
   { logo: "yandex", slug: "yandex", title: "Яндекс" },
+  { logo: "nvidia", slug: "nvidia", title: "NVIDIA" },
+  { logo: "tencent", slug: "tencent", title: "Tencent" },
+  { logo: "xiaomi", slug: "xiaomi", title: "Xiaomi" },
+  { logo: "stepfun", slug: "stepfun", title: "StepFun" },
+  { logo: "sakana", slug: "sakana", title: "Sakana AI" },
+  { logo: "poolside", slug: "poolside", title: "Poolside" },
+  { logo: "morph", slug: "morph", title: "Morph" },
+  { logo: "fireworks", slug: "fireworks", title: "Fireworks" },
+  { logo: "inference", slug: "inference-net", title: "Inference.net" },
+  { logo: null, slug: "inclusionai", title: "inclusionAI" },
+  { logo: null, slug: "thinkingmachines", title: "Thinking Machines" },
   { logo: null, slug: "other", title: "Другие" },
 ] as const;
-export type ProviderSlug = (typeof PROVIDERS)[number]["slug"];
+/** A built-in provider's slug, or a maker the Gateway named that the seed does not know yet. */
+export type ProviderSlug = string;
 const KNOWN = new Set<string>(PROVIDERS.map((p) => p.slug));
+
+/** A provider slug from a maker's name as the Gateway spells it: `Inference Net` → `inference-net`. */
+const slugOf = (name: string) =>
+  name
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, "-")
+    .replaceAll(/^-|-$/gu, "") || "other";
+
+/** A title for a maker the seed does not know: `inference-net` → `Inference Net`. */
+export const titleOfSlug = (slug: string) =>
+  slug
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 
 /** AI Gateway's `owned_by` values that differ from our slugs. */
 const GATEWAY_OWNER: Record<string, ProviderSlug> = {
+  "arcee-ai": "arcee",
   moonshotai: "moonshot",
+  // Grok moved under SpaceX AI in the Gateway's catalogue.
+  spacexai: "xai",
   "z-ai": "zai",
   zai: "zai",
 };
@@ -73,7 +102,8 @@ export const providerSlugFor = (
   if (kind === "gateway") {
     const owner =
       GATEWAY_OWNER[ownedBy ?? ""] ?? ownedBy ?? modelId.split("/")[0] ?? "";
-    return (KNOWN.has(owner) ? owner : "other") as ProviderSlug;
+    // The Gateway names the maker itself: an unknown one becomes its own provider, not «Другие».
+    return KNOWN.has(owner) ? owner : slugOf(owner);
   }
   // `library/qwen3:8b`, `Qwen/Qwen3-8B` → the model part, lower-cased.
   const name = (modelId.split("/").at(-1) ?? modelId).toLowerCase();

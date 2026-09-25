@@ -73,6 +73,7 @@ export const getSource = async (id: string) => {
     db
       .select({
         capabilities: models.capabilities,
+        capabilitiesSource: models.capabilitiesSource,
         contextWindow: models.contextWindow,
         enabled: models.enabled,
         id: models.id,

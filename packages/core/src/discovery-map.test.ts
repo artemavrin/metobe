@@ -46,11 +46,16 @@ describe("AI Gateway", () => {
       type: "embedding",
     },
     { id: "moonshotai/kimi-k2", owned_by: "moonshotai", type: "language" },
+    { id: "spacexai/grok-4", owned_by: "spacexai", type: "language" },
+    { id: "quiverai/arrow-1", owned_by: "quiverai", type: "language" },
   ]);
 
   it("keeps language models only and reads the maker from owned_by", () => {
     expect(rest.map((m) => [m.modelId, m.provider])).toEqual([
       ["moonshotai/kimi-k2", "moonshot"],
+      // Grok is listed under SpaceX AI; a maker we don't know stays itself rather than «Другие».
+      ["spacexai/grok-4", "xai"],
+      ["quiverai/arrow-1", "quiverai"],
     ]);
   });
 
@@ -209,7 +214,12 @@ describe("rules", () => {
     );
     expect(providerSlugFor("openai-compatible", "llama3.3:70b")).toBe("meta");
     expect(providerSlugFor("gateway", "zai/glm-4.7", "zai")).toBe("zai");
-    expect(providerSlugFor("gateway", "newco/model", "newco")).toBe("other");
+    // The Gateway names the maker: an unknown one is kept as itself, not folded into «Другие».
+    expect(providerSlugFor("gateway", "newco/model", "newco")).toBe("newco");
+    expect(providerSlugFor("gateway", "x/model", "Inference Net")).toBe(
+      "inference-net"
+    );
+    expect(providerSlugFor("openai-compatible", "mystery-7b")).toBe("other");
   });
 
   it("tells OpenAI chat models from the rest", () => {

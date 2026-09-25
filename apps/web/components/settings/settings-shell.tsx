@@ -19,12 +19,15 @@ import {
   useSidebar,
 } from "@metobe/ui/components/sidebar";
 import { ArrowLeft, ChevronRight, Search } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
+import { SettingsListLevel } from "@/components/settings/settings-list";
+import type { SettingsLists } from "@/lib/settings-lists";
 import { findSection, SETTINGS_NAV } from "@/lib/settings-nav";
 import type { SettingsSectionId } from "@/lib/settings-nav";
 
@@ -38,8 +41,18 @@ const NO_AUTOFILL = {
 } as const;
 
 const currentId = (pathname: string) => pathname.split("/")[2] ?? "";
+/** The entry open inside a list section: /settings/<section>/<entry>. */
+const currentEntry = (pathname: string) => pathname.split("/")[3];
 
-const Menu = ({ admin, query }: { admin: boolean; query: string }) => {
+const Menu = ({
+  admin,
+  query,
+  onDrill,
+}: {
+  admin: boolean;
+  query: string;
+  onDrill: () => void;
+}) => {
   const t = useTranslations("settings");
   const pathname = usePathname();
   const active = currentId(pathname);
@@ -85,7 +98,14 @@ const Menu = ({ admin, query }: { admin: boolean; query: string }) => {
                 <SidebarMenuItem key={id}>
                   <SidebarMenuButton
                     isActive={active === id}
-                    onClick={() => isMobile && setOpenMobile(false)}
+                    onClick={() => {
+                      // A list section opens its list in the sidebar itself; a screen closes the sheet.
+                      if (item.kind === "list") {
+                        onDrill();
+                      } else if (isMobile) {
+                        setOpenMobile(false);
+                      }
+                    }}
                     render={<Link href={`/settings/${id}`} />}
                   >
                     <item.icon />
@@ -105,20 +125,47 @@ const Menu = ({ admin, query }: { admin: boolean; query: string }) => {
 };
 
 /** On phones the sidebar is a sheet behind this bar, the same as in the chat. */
-const MobileBar = () => {
+const MobileBar = ({ lists }: { lists: SettingsLists }) => {
   const t = useTranslations("settings");
-  const id = currentId(usePathname());
+  const pathname = usePathname();
+  const id = currentId(pathname);
+  const entry = lists[id as SettingsSectionId]?.entries.find(
+    (e) => e.id === currentEntry(pathname)
+  );
+  const section = findSection(id)
+    ? t(`sections.${id as SettingsSectionId}.label`)
+    : t("title");
   return (
     <header className="bg-background/95 sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b px-3 backdrop-blur md:hidden">
       <SidebarTrigger aria-label={t("open")} />
       <span className="truncate text-sm font-semibold">
-        {findSection(id)
-          ? t(`sections.${id as SettingsSectionId}.label`)
-          : t("title")}
+        {entry?.title ?? section}
       </span>
     </header>
   );
 };
+
+// Levels slide like a stack (P7 «Погружение»): forward — the menu leaves left and the list comes from the right;
+// back — mirrored; both overlap for a moment under a 2px blur so they read as one motion.
+const levelMotion = (reduce: boolean) => ({
+  animate: "center",
+  exit: "exit",
+  initial: "enter",
+  transition: { duration: 0.2, ease: [0.23, 1, 0.32, 1] as const },
+  variants: {
+    center: { filter: "blur(0px)", opacity: 1, transform: "translateX(0px)" },
+    enter: (dir: number) => ({
+      filter: reduce ? "blur(0px)" : "blur(2px)",
+      opacity: 0,
+      transform: `translateX(${reduce ? 0 : dir * 16}px)`,
+    }),
+    exit: (dir: number) => ({
+      filter: reduce ? "blur(0px)" : "blur(2px)",
+      opacity: 0,
+      transform: `translateX(${reduce ? 0 : -dir * 16}px)`,
+    }),
+  },
+});
 
 /**
  * Settings are a mode of the same shell as the chat: a floating sidebar with the settings menu and the account row.
@@ -127,15 +174,36 @@ const MobileBar = () => {
 export const SettingsShell = ({
   admin,
   account,
+  lists,
   children,
 }: {
   admin: boolean;
   account: ReactNode;
+  /** Lists of the list sections this viewer may open (lib/settings-lists). */
+  lists: SettingsLists;
   children: ReactNode;
 }) => {
   const t = useTranslations("settings");
   const router = useRouter();
+  const pathname = usePathname();
+  const reduce = Boolean(useReducedMotion());
   const [query, setQuery] = useState("");
+  const section = currentId(pathname);
+  const list = lists[section as SettingsSectionId];
+  // Inside a list section the sidebar shows its list; «‹ Настройки» shows the menu without leaving the page.
+  const [drilled, setDrilled] = useState(true);
+  const [dir, setDir] = useState(1);
+  const [seenSection, setSeenSection] = useState(section);
+  if (seenSection !== section) {
+    setSeenSection(section);
+    setDir(1);
+    setDrilled(true);
+  }
+  const inside = Boolean(list) && drilled;
+  const go = (next: boolean) => {
+    setDir(next ? 1 : -1);
+    setDrilled(next);
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -155,40 +223,64 @@ export const SettingsShell = ({
   return (
     <SidebarProvider>
       <Sidebar variant="floating">
-        <SidebarHeader>
-          <div className="flex h-8 items-center justify-between gap-2">
-            <Link
-              className="hover:bg-sidebar-accent -ml-1 flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium"
-              href="/"
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <AnimatePresence custom={dir} initial={false}>
+            <motion.div
+              className="absolute inset-0 flex flex-col"
+              custom={dir}
+              key={inside ? `list:${section}` : "menu"}
+              {...levelMotion(reduce)}
             >
-              <ArrowLeft className="size-4" /> {t("back")}
-            </Link>
-            <Kbd className="text-muted-foreground hidden md:inline-flex">
-              {t("escHint")}
-            </Kbd>
-          </div>
-          <div className="relative">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
-            <SidebarInput
-              {...NO_AUTOFILL}
-              aria-label={t("search")}
-              className="pl-8"
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("search")}
-              value={query}
-            />
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
-          <Menu admin={admin} query={query} />
-        </SidebarContent>
+              {inside && list ? (
+                <SettingsListLevel
+                  activeId={currentEntry(pathname)}
+                  list={list}
+                  onBack={() => go(false)}
+                />
+              ) : (
+                <>
+                  <SidebarHeader className="shrink-0">
+                    <div className="flex h-8 items-center justify-between gap-2">
+                      <Link
+                        className="hover:bg-sidebar-accent -ml-1 flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium"
+                        href="/"
+                      >
+                        <ArrowLeft className="size-4" /> {t("back")}
+                      </Link>
+                      <Kbd className="text-muted-foreground hidden md:inline-flex">
+                        {t("escHint")}
+                      </Kbd>
+                    </div>
+                    <div className="relative">
+                      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
+                      <SidebarInput
+                        {...NO_AUTOFILL}
+                        aria-label={t("search")}
+                        className="pl-8"
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder={t("search")}
+                        value={query}
+                      />
+                    </div>
+                  </SidebarHeader>
+                  <SidebarContent>
+                    <Menu
+                      admin={admin}
+                      onDrill={() => go(true)}
+                      query={query}
+                    />
+                  </SidebarContent>
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
         <SidebarFooter>{account}</SidebarFooter>
       </Sidebar>
       <SidebarInset className="min-h-0">
-        <MobileBar />
-        <main className="min-h-0 flex-1 overflow-y-auto text-sm">
-          {children}
-        </main>
+        <MobileBar lists={lists} />
+        {/* SidebarInset is the page's <main>; this is only its scroll area */}
+        <div className="min-h-0 flex-1 overflow-y-auto text-sm">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

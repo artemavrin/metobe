@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 
-// The first screen of settings; admins will land on sources once that screen exists (M2 step 6b).
-const SettingsIndex = () => redirect("/settings/appearance");
+import { getSettingsViewer } from "@/lib/settings-access";
+
+// The first screen of settings: admins land on sources (no sources — no chat, ARCH §2.2), everyone else on their own.
+const SettingsIndex = async () => {
+  const { admin } = await getSettingsViewer();
+  redirect(admin ? "/settings/sources" : "/settings/appearance");
+};
 
 export default SettingsIndex;

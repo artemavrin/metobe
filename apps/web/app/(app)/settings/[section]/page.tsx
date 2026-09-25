@@ -5,6 +5,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@metobe/ui/components/empty";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
 import { getTranslations } from "next-intl/server";
 
 import { requireSection } from "@/lib/settings-access";
@@ -26,7 +27,11 @@ const SectionPlaceholder = async ({
     <div className="flex min-h-[60dvh] items-center justify-center px-6">
       <Empty>
         <EmptyHeader>
-          <EmptyMedia variant="icon">{Icon && <Icon />}</EmptyMedia>
+          <EmptyMedia>
+            <IconTile size="lg" variant="frame">
+              {Icon && <Icon />}
+            </IconTile>
+          </EmptyMedia>
           <EmptyTitle>
             {t(`sections.${section as SettingsSectionId}.label`)}
           </EmptyTitle>
