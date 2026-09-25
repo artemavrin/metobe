@@ -34,8 +34,8 @@ interface NavGroup {
 export const SETTINGS_NAV = [
   {
     items: [
-      { icon: Palette, id: "appearance", kind: "screen" },
       { icon: Languages, id: "region", kind: "screen" },
+      { icon: Palette, id: "appearance", kind: "screen" },
     ],
     key: "account",
     scope: "user",
