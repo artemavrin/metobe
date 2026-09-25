@@ -16,7 +16,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@metobe/ui/components/item";
-import { ChevronRight, Columns3, LayoutDashboard, PanelsTopLeft, Rocket, Server } from "lucide-react";
+import { ChevronRight, Columns3, LayoutDashboard, LogIn, PanelsTopLeft, Rocket, Server } from "lucide-react";
 import Link from "next/link";
 
 type Entry = {
@@ -28,6 +28,19 @@ type Entry = {
 };
 
 const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
+  {
+    description: "Первое, что видит человек: вход по коду и ссылке из письма",
+    entries: [
+      {
+        description: "Выбрано и в продукте: «· срез» — диагональ, точки снизу, ротация роликов и текстов. Рядом остальные варианты и первый раунд.",
+        href: "/dev/prototypes/login",
+        icon: LogIn,
+        status: "выбрано",
+        title: "Страница входа",
+      },
+    ],
+    title: "Вход",
+  },
   {
     description: "Первый вход, провайдеры, модели и прокси — M2",
     entries: [

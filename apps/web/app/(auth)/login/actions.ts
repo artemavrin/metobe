@@ -15,6 +15,8 @@ export interface SendCodeState {
   email?: string;
   error?: string;
   sent: boolean;
+  /** When the code went out: a new value restarts the code step (resend) and its cooldown. */
+  sentAt?: number;
 }
 export interface VerifyState {
   error?: string;
@@ -41,16 +43,19 @@ export const sendCode = async (
     const prefs = await getPrefs();
     await sendSignInCode(email, code, prefs.locale);
   }
-  return { email, sent: true };
+  return { email, sent: true, sentAt: Date.now() };
 };
 
+/** `email` is bound on the client rather than sent as a form field: a hidden email next to the code makes password
+ * managers take the form for a login and offer to fill it. */
 export const verifyCode = async (
+  email: string,
   _: VerifyState,
   form: FormData
 ): Promise<VerifyState> => {
   const parsed = verifyFormSchema.safeParse({
     code: form.get("code"),
-    email: form.get("email"),
+    email,
   });
   if (!parsed.success) {
     return { error: await translateIssue(parsed.error.issues[0]?.message) };

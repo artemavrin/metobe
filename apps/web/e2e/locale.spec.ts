@@ -23,8 +23,10 @@ test("the picker switches the language and it sticks across reloads", async ({
   context,
 }) => {
   await page.goto("/login");
-  await page.getByRole("combobox", { name: "Language" }).click();
-  await page.getByRole("option", { name: "Русский" }).click();
+  await page
+    .getByRole("group", { name: "Language" })
+    .getByRole("button", { name: "Русский" })
+    .click();
 
   // The server action sets the cookie; the page re-renders on the server in Russian.
   await expect(page.getByText("Вход в Metobe")).toBeVisible();

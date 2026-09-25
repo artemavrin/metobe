@@ -18,7 +18,7 @@ test("code from a login link is prefilled without React input warnings", async (
   // React reports the controlled/uncontrolled mismatch during hydration, after the first paint.
   await page.waitForLoadState("networkidle");
 
-  await expect(page.locator("input[name=code]")).toHaveValue("123456");
+  await expect(page.getByLabel("Code from the email")).toHaveValue("123456");
   expect(
     errors.filter((error) => error.includes("both value and defaultValue"))
   ).toEqual([]);
@@ -26,7 +26,7 @@ test("code from a login link is prefilled without React input warnings", async (
 
 test("typing six digits submits the code", async ({ page }) => {
   await page.goto(`/login/verify?email=${encodeURIComponent(email)}`);
-  await page.locator("input[name=code]").click();
+  await page.getByLabel("Code from the email").click();
   await page.keyboard.type("111111");
 
   await expect(

@@ -19,6 +19,8 @@ ENV NODE_ENV=production \
 RUN addgroup -S metobe && adduser -S metobe -G metobe
 COPY --from=build --chown=metobe:metobe /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=metobe:metobe /repo/apps/web/.next/static ./apps/web/.next/static
+# Standalone output leaves public/ out; the sign-in clips and posters live there.
+COPY --from=build --chown=metobe:metobe /repo/apps/web/public ./apps/web/public
 COPY --from=build --chown=metobe:metobe /repo/apps/cli/dist ./cli
 COPY --from=build --chown=metobe:metobe /repo/apps/worker/dist ./worker
 COPY --from=build --chown=metobe:metobe /repo/packages/db/migrations ./migrations
