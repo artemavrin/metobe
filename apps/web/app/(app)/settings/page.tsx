@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { SETTINGS_NAV } from "@/lib/settings-nav";
 
-// The first screen of settings: admins land on sources (no sources — no chat, ARCH §2.2), everyone else on their own.
-const SettingsIndex = async () => {
-  const { admin } = await getSettingsViewer();
-  redirect(admin ? "/settings/sources" : "/settings/appearance");
+// The first screen of settings is the menu's first item — the same for everyone, and it follows the menu's order.
+const SettingsIndex = () => {
+  const first = SETTINGS_NAV[0]?.items[0]?.id ?? "region";
+  redirect(`/settings/${first}`);
 };
 
 export default SettingsIndex;
