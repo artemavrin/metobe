@@ -251,10 +251,16 @@ export const SourceModels = ({
   const [query, setQuery] = useState("");
   const [onlyOn, setOnlyOn] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  // Makers fold for a long list; a search or a maker chip opens every group it matches, so nothing found hides.
+  // Makers fold for a long list. A new search or maker pick opens every group once, so nothing found hides;
+  // after that groups fold as usual, filter or not.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const filtering = query.trim() !== "" || picked.size > 0;
-  const isCollapsed = (id: string) => !filtering && collapsed.has(id);
+  const filterKey = `${query.trim()}|${[...picked].join(",")}`;
+  const [seenFilter, setSeenFilter] = useState(filterKey);
+  if (seenFilter !== filterKey) {
+    setSeenFilter(filterKey);
+    setCollapsed(new Set());
+  }
+  const isCollapsed = (id: string) => collapsed.has(id);
   const collapse = (id: string) =>
     setCollapsed((current) => {
       const next = new Set(current);
