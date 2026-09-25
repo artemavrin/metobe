@@ -49,6 +49,8 @@ jobs:
         env:
           METOBE_YES: "1"
           METOBE_BUILD: "1"
+      # The one-time claim link from the installer's output: admin tests sign in with it (and so check it works).
+      - run: echo "E2E_CLAIM_TOKEN=$(grep -oE 'claim\?token=[A-Za-z0-9_-]+' /tmp/install.log | head -1 | cut -d= -f2)" >> "$GITHUB_ENV"
       - run: pnpm --filter @metobe/web exec playwright install --with-deps chromium
       - run: pnpm --filter @metobe/web test:e2e
       - if: failure()
