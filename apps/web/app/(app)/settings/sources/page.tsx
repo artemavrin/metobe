@@ -8,6 +8,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@metobe/ui/components/empty";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
 import { Plus, Server } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
@@ -24,8 +25,10 @@ const SourcesPage = async () => {
     <div className="flex min-h-[60dvh] items-center justify-center px-6">
       <Empty>
         <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <Server />
+          <EmptyMedia>
+            <IconTile size="lg" variant="frame">
+              <Server />
+            </IconTile>
           </EmptyMedia>
           <EmptyTitle>{t("empty.title")}</EmptyTitle>
           <EmptyDescription>{t("empty.text")}</EmptyDescription>

@@ -279,9 +279,8 @@ export const SettingsShell = ({
       </Sidebar>
       <SidebarInset className="min-h-0">
         <MobileBar lists={lists} />
-        <main className="min-h-0 flex-1 overflow-y-auto text-sm">
-          {children}
-        </main>
+        {/* SidebarInset is the page's <main>; this is only its scroll area */}
+        <div className="min-h-0 flex-1 overflow-y-auto text-sm">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );
