@@ -1,4 +1,5 @@
 import "server-only";
+import { listProviders } from "@metobe/core/providers";
 import { listSources } from "@metobe/core/sources-read";
 import type { SourceSummary } from "@metobe/core/sources-read";
 import { getTranslations } from "next-intl/server";
@@ -16,7 +17,8 @@ export interface ListEntry {
   logo: string | undefined;
   /** The line under the title: the state in words. */
   sub: string;
-  state: "ok" | "error" | "off" | "unchecked";
+  /** Drives the dot; `none` — no dot (lists without a state, such as providers). */
+  state: "ok" | "error" | "off" | "unchecked" | "none";
   count?: number;
 }
 
@@ -89,7 +91,37 @@ const sourcesList = async (): Promise<SettingsList> => {
   };
 };
 
+/** Makers of the models, most models first; a maker is listed while any source carries its models. */
+const providersList = async (): Promise<SettingsList> => {
+  const [rows, t] = await Promise.all([
+    listProviders(),
+    getTranslations("providers"),
+  ]);
+  return {
+    entries: rows.map((p) => ({
+      count: p.modelsEnabled,
+      href: `/settings/providers/${p.id}`,
+      id: p.id,
+      logo: p.logo ?? undefined,
+      state: "none",
+      sub: t("inChat", { on: p.modelsEnabled, total: p.modelsTotal }),
+      title: p.title,
+    })),
+    meta: t("meta"),
+    title: t("title"),
+  };
+};
+
 /** The lists this viewer may open; the service's lists are for admins only. */
 export const getSettingsLists = async (
   admin: boolean
-): Promise<SettingsLists> => (admin ? { sources: await sourcesList() } : {});
+): Promise<SettingsLists> => {
+  if (!admin) {
+    return {};
+  }
+  const [sources, providers] = await Promise.all([
+    sourcesList(),
+    providersList(),
+  ]);
+  return { providers, sources };
+};

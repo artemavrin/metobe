@@ -183,7 +183,8 @@
       "superuser": "Owner",
       "admin": "Admin",
       "user": "Member"
-    }
+    },
+    "listSearch": "Find in the list"
   },
   "sources": {
     "title": "Sources",
@@ -440,5 +441,34 @@
         }
       }
     }
+  },
+  "providers": {
+    "title": "Providers",
+    "meta": "Who made the models",
+    "inChat": "{on} of {total} in chat",
+    "empty": {
+      "title": "No providers yet",
+      "text": "Providers are who made the models. They appear on their own once you connect a source."
+    },
+    "detail": {
+      "name": "Provider name",
+      "summary": "{on} of {total, plural, one {# model} other {# models}} in chat",
+      "renamed": "renamed",
+      "models": "Models",
+      "modelsMeta": "from all sources",
+      "footnote": "One model can come through several sources — for example, Claude with an Anthropic key and through AI Gateway. The switch turns it on in that source.",
+      "unavailable": "The source is off or not answering",
+      "new": "new",
+      "noPrice": "no price"
+    }
+  },
+  "logoPicker": {
+    "change": "Change the logo",
+    "title": "Logo",
+    "drop": "Drop to use it",
+    "upload": "Upload your own",
+    "uploadHint": "Or paste from the clipboard, or drop a file here",
+    "auto": "Back to automatic",
+    "tooBig": "The file is over 256 KB — a logo needs far less."
   }
 }
