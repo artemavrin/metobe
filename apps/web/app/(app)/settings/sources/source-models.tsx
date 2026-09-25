@@ -310,16 +310,19 @@ const ProviderChips = ({
   }
   // oxlint-disable-next-line unicorn/no-array-sort -- sorts a fresh copy; toSorted is past this project's ES target
   const all = [...counts.values()].sort((a, b) => b.n - a.n);
-  const shown = all.slice(0, CHIPS_SHOWN);
-  const rest = all.slice(CHIPS_SHOWN);
+  // A maker picked from «Ещё N» moves into the row, so every pick stays in sight.
+  const shown = all.filter(
+    (g, i) => i < CHIPS_SHOWN || picked.has(g.provider.id)
+  );
+  const rest = all.filter((g) => !shown.includes(g));
   const chip = ({ provider, n }: (typeof all)[number]) => (
     <button
       aria-pressed={picked.has(provider.id)}
       className={cn(
-        "flex h-8 items-center gap-2 rounded-full border px-2.5 text-sm transition-colors duration-150 active:scale-[0.98]",
+        "flex h-8 items-center gap-1.5 rounded-lg border pr-2.5 pl-1.5 text-xs transition-[background-color,transform] duration-150 ease-out active:scale-[0.97]",
         picked.has(provider.id)
           ? "border-foreground/40 bg-muted"
-          : "hover:bg-muted/50"
+          : "hover:bg-muted/60 text-muted-foreground"
       )}
       key={provider.id}
       onClick={() => onPick(provider.id)}
@@ -331,12 +334,11 @@ const ProviderChips = ({
         size={20}
       />
       {provider.title}
-      <span className="text-muted-foreground text-xs tabular-nums">{n}</span>
+      <span className="text-muted-foreground tabular-nums">{n}</span>
     </button>
   );
-  const restPicked = rest.filter((r) => picked.has(r.provider.id)).length;
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-2">
       {shown.map(chip)}
       {rest.length > 0 && (
         <Popover>
@@ -344,18 +346,13 @@ const ProviderChips = ({
             render={
               <button
                 aria-label={t("more", { count: rest.length })}
-                className={cn(
-                  "flex h-8 items-center gap-1 rounded-full border px-2.5 text-sm transition-colors duration-150",
-                  restPicked > 0
-                    ? "border-foreground/40 bg-muted"
-                    : "hover:bg-muted/50"
-                )}
+                className="hover:bg-muted/60 text-muted-foreground flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition-colors duration-150"
                 type="button"
               />
             }
           >
             {t("more", { count: rest.length })}
-            <ChevronDown className="text-muted-foreground size-3.5" />
+            <ChevronDown className="size-3.5" />
           </PopoverTrigger>
           <PopoverContent
             align="start"
@@ -364,10 +361,7 @@ const ProviderChips = ({
             {rest.map(({ provider, n }) => (
               <button
                 aria-pressed={picked.has(provider.id)}
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-150",
-                  picked.has(provider.id) ? "bg-muted" : "hover:bg-muted/50"
-                )}
+                className="hover:bg-muted flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-150"
                 key={provider.id}
                 onClick={() => onPick(provider.id)}
                 type="button"
@@ -503,7 +497,6 @@ export const SourceModels = ({
           {syncNote}
         </p>
       )}
-      <ProviderChips models={detail.models} onPick={pick} picked={picked} />
       {detail.models.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <InputGroup className="min-w-48 flex-1">
@@ -531,6 +524,7 @@ export const SourceModels = ({
           </Button>
         </div>
       )}
+      <ProviderChips models={detail.models} onPick={pick} picked={picked} />
       <div
         className={cn(
           "max-h-[70vh] overflow-y-auto rounded-lg border transition-opacity duration-200",
