@@ -161,6 +161,8 @@ docs/
 ### M3. Ядро чата
 
 1. Перенос из `vercel/chatbot`: схема чата, `api/chat`, рендер parts — с адаптацией по таблице §1.
+   - ✓ **Схема и `api/chat`.** `packages/db/schema/chat.ts` — `chats` (с `kind`), `messages` (`parts` — UI-части AI SDK как есть), `streams`, `votes`; миграция `0009_chats`, у `model_runs.chat_id` появился внешний ключ (`SET NULL`). `documents` — v2. Контракт — `@metobe/contracts/chat`: клиент шлёт одно сообщение пользователя и `modelId` — наш `models.id`; источник находит сервер, а модель вне чата (выключена, источник выключен или сломан) — `422 model-unavailable`. `core/chat.ts`: чат, история, сохранение (повторное сохранение того же id обновляет части), `getChatModel`. `POST /api/chat`: история из базы, сообщение пользователя сохраняется до вызова модели, ответ — в `onEnd`; `consumeStream` доводит генерацию до конца без клиента. Ошибки — коды (`unauthorized`, `bad-request`, `forbidden`, `model-unavailable`, `generation-failed`), текст подставит экран чата. Заголовок пока — первая строка сообщения. API не проходит через редирект `proxy.ts`: без сессии — `401`. Проверено насквозь на Ollama: два сообщения подряд, второй ответ опирается на историю.
+   - Рендер parts — вместе с экраном чата (прототипы P2, P3, P6).
 2. Стрим, persist, `stop` через реестр `AbortController`, `edit` / `regenerate` (прототип P6), статусы `data-status` (P9).
 3. Composer (P2), выбор модели (P3), вложения в S3, заголовок чата, голоса, `model_runs`.
 4. Хоткеи: `Esc`, `↑`, `⌘/`.

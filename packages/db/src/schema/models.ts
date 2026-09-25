@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { chats } from "./chat";
 import { proxies } from "./proxies";
 
 // ARCH §5.2, D29: a source gives access (key, route, health), a provider made the model (name and logo in chat).
@@ -146,8 +147,10 @@ export const modelRuns = pgTable(
   {
     cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
     cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
-    /** The chat, once chats exist (M3); SET NULL keeps usage history when a chat is deleted. */
-    chatId: uuid("chat_id"),
+    /** SET NULL keeps usage history when a chat is deleted. */
+    chatId: uuid("chat_id").references(() => chats.id, {
+      onDelete: "set null",
+    }),
     /** Exact: the source's reported cost (AI Gateway) or tokens × the model's prices at the time of the run. */
     cost: numeric("cost"),
     createdAt: timestamp("created_at", { withTimezone: true })
