@@ -514,6 +514,9 @@ const ConnectForm = ({
   }
   const troubled = problem || (phase.kind !== "idle" && shownSteps);
   const busy = phase.kind === "checking" || phase.kind === "models";
+  // While checking and once connected the form holds still: fields read-only rather than greyed out, the button
+  // in full colour — nothing flickers between «disabled» and back.
+  const locked = busy || phase.kind === "done";
 
   const input = (): SourceInput => ({
     apiKey: apiKey.trim() || undefined,
@@ -587,7 +590,9 @@ const ConnectForm = ({
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        void run();
+        if (!locked) {
+          void run();
+        }
       }}
     >
       <DialogHeader className="flex-row items-center gap-3">
@@ -612,7 +617,7 @@ const ConnectForm = ({
               aria-invalid={Boolean(errors.folderId)}
               autoComplete="off"
               className="font-mono"
-              disabled={busy}
+              readOnly={locked}
               id="source-folder"
               onChange={(e) => setFolderId(e.target.value)}
               placeholder="b1g…"
@@ -632,7 +637,7 @@ const ConnectForm = ({
               aria-invalid={Boolean(errors.baseUrl)}
               autoComplete="off"
               className="font-mono"
-              disabled={busy}
+              readOnly={locked}
               id="source-url"
               inputMode="url"
               onChange={(e) => setBaseUrl(e.target.value)}
@@ -657,7 +662,7 @@ const ConnectForm = ({
             <SecretInput
               aria-invalid={Boolean(errors.apiKey)}
               autoFocus={kind !== "yandex" && kind !== "openai-compatible"}
-              disabled={busy}
+              readOnly={locked}
               id="source-key"
               onChange={(e) => setApiKey(e.target.value)}
               placeholder={
@@ -697,14 +702,15 @@ const ConnectForm = ({
       />
 
       <DialogFooter className="sm:justify-between">
-        <Button disabled={busy} onClick={onBack} type="button" variant="ghost">
+        <Button
+          disabled={locked}
+          onClick={onBack}
+          type="button"
+          variant="ghost"
+        >
           <ArrowLeft /> {t("connect.back")}
         </Button>
-        <Button
-          className="min-w-44"
-          disabled={busy || phase.kind === "done"}
-          type="submit"
-        >
+        <Button className="min-w-44" aria-disabled={locked} type="submit">
           <SubmitLabel phase={phase} />
         </Button>
       </DialogFooter>
@@ -724,22 +730,22 @@ export const ConnectDialog = ({
   const router = useRouter();
   const open = params.get("connect") === "1";
   const [kind, setKind] = useState<SourceKind | null>(null);
-  const close = () => {
-    router.replace(pathname, { scroll: false });
-    setKind(null);
-  };
+  const close = () => router.replace(pathname, { scroll: false });
   return (
-    <Dialog onOpenChange={(next) => !next && close()} open={open}>
+    <Dialog
+      // Back to the list of kinds only once the dialog is gone, so the list never flashes on the way out.
+      onOpenChange={(next) => !next && close()}
+      onOpenChangeComplete={(next) => !next && setKind(null)}
+      open={open}
+    >
       <DialogContent className="sm:max-w-lg">
         {kind ? (
           <ConnectForm
             key={kind}
             kind={kind}
             onBack={() => setKind(null)}
-            onDone={(id) => {
-              setKind(null);
-              router.push(`/settings/sources/${id}`);
-            }}
+            // The new page has no ?connect, so the dialog closes on its own as it opens.
+            onDone={(id) => router.push(`/settings/sources/${id}`)}
           />
         ) : (
           <div className="flex flex-col gap-5">
