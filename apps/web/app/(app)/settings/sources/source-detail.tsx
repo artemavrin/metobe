@@ -39,7 +39,7 @@ import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 
-import { BrandLogo } from "@/components/brand-logo";
+import { LogoPicker } from "@/components/logo-picker";
 import { Row, Rows, Section } from "@/components/settings/rows";
 import { sourceLogo } from "@/lib/source-logo";
 
@@ -49,6 +49,7 @@ import {
   rename,
   replaceKey,
   setEnabled,
+  setLogo,
   setRoute,
   updateConfig,
 } from "./actions";
@@ -574,7 +575,13 @@ export const SourceDetail = ({ detail }: { detail: Detail }) => {
     <>
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <BrandLogo label={source.title} logo={sourceLogo(source)} size={48} />
+          <LogoPicker
+            hosts
+            label={source.title}
+            onPick={(logo) => startToggle(() => setLogo(source.id, logo))}
+            size={48}
+            value={sourceLogo(source)}
+          />
           <div className="flex min-w-0 flex-col gap-1">
             <Input
               aria-label={t("detail.name")}

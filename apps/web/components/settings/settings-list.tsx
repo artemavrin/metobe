@@ -21,6 +21,7 @@ import type { SettingsList } from "@/lib/settings-lists";
 
 const DOT: Record<SettingsList["entries"][number]["state"], string> = {
   error: "bg-destructive",
+  none: "hidden",
   off: "bg-muted-foreground/40",
   ok: "bg-success",
   unchecked: "bg-muted-foreground/40",

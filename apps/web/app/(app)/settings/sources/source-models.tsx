@@ -1,6 +1,5 @@
 "use client";
 
-import type { Currency } from "@metobe/contracts/models";
 import type { SourceDetail } from "@metobe/core/sources-read";
 import { Button } from "@metobe/ui/components/button";
 import {
@@ -36,6 +35,7 @@ import { useMemo, useOptimistic, useState, useTransition } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { Section } from "@/components/settings/rows";
+import { contextLabel, isNew, priceLabel } from "@/lib/model-format";
 
 import { sync, toggleModels } from "./actions";
 import { ModelDrawer } from "./model-drawer";
@@ -44,43 +44,6 @@ import { ModelDrawer } from "./model-drawer";
 // grouped by maker, a group switch for all of them; prices per any number of tokens, shown per 1M to compare.
 
 type Model = SourceDetail["models"][number];
-
-const NEW_DAYS = 90;
-const SYMBOL: Record<Currency, string> = { RUB: "₽", USD: "$" };
-
-const isNew = (released: string | null) =>
-  released !== null &&
-  Date.now() - new Date(released).getTime() < NEW_DAYS * 24 * 3600 * 1000;
-
-const contextLabel = (tokens: number | null) => {
-  if (!tokens) {
-    return null;
-  }
-  return tokens >= 1_000_000
-    ? `${+(tokens / 1_000_000).toFixed(1)}M`
-    : `${Math.round(tokens / 1000)}K`;
-};
-
-/** A stored price (per `unitTokens`) shown per 1M tokens, rounded only for display. */
-const perMillion = (value: string | null, unit: number | null) => {
-  if (value === null || !unit) {
-    return null;
-  }
-  const n = (Number(value) * 1_000_000) / unit;
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: n < 1 ? 4 : 2,
-  }).format(n);
-};
-
-const priceLabel = (m: Model) => {
-  const input = perMillion(m.priceInput, m.priceUnitTokens);
-  const output = perMillion(m.priceOutput, m.priceUnitTokens);
-  if (input === null && output === null) {
-    return null;
-  }
-  const s = SYMBOL[(m.priceCurrency ?? "USD") as Currency];
-  return `${s}${input ?? "—"} / ${s}${output ?? "—"}`;
-};
 
 const CAPS = [
   { icon: Wrench, key: "tools" },

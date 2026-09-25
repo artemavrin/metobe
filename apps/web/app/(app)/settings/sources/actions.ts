@@ -30,6 +30,7 @@ import type {
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { logoSchema } from "@/lib/logo";
 import { getSettingsViewer } from "@/lib/settings-access";
 import { translateIssue } from "@/lib/validation";
 
@@ -169,6 +170,15 @@ export const rename = async (id: string, title: string) => {
   await requireAdmin();
   await updateSource(idSchema.parse(id), {
     title: z.string().trim().min(1).max(100).parse(title),
+  });
+  refresh();
+};
+
+/** A built-in logo key, an uploaded image, or `null` for the kind's own. */
+export const setLogo = async (id: string, logo: string | null) => {
+  await requireAdmin();
+  await updateSource(idSchema.parse(id), {
+    logo: logo === null ? null : logoSchema.parse(logo),
   });
   refresh();
 };
