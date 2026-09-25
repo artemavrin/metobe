@@ -213,6 +213,13 @@ describe("rules", () => {
       "alibaba"
     );
     expect(providerSlugFor("openai-compatible", "llama3.3:70b")).toBe("meta");
+    expect(providerSlugFor("openai-compatible", "nemotron-3-super:cloud")).toBe(
+      "nvidia"
+    );
+    // NVIDIA's fine-tunes of Llama are theirs, not Meta's.
+    expect(
+      providerSlugFor("openai-compatible", "nvidia/llama-3.1-nemotron-70b")
+    ).toBe("nvidia");
     expect(providerSlugFor("gateway", "zai/glm-4.7", "zai")).toBe("zai");
     // The Gateway names the maker: an unknown one is kept as itself, not folded into «Другие».
     expect(providerSlugFor("gateway", "newco/model", "newco")).toBe("newco");
