@@ -3,7 +3,7 @@ import { models, providers, sources } from "@metobe/db/schema/models";
 import { asc, count, countDistinct, eq, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
-import { PROVIDERS } from "./discovery-rules";
+import { PROVIDERS, titleOfSlug } from "./discovery-rules";
 
 // Providers — who made a model (ARCH §5.2), apart from sources — who gives access to it. The same maker can come
 // through several sources (Claude directly and through the Gateway); here the admin names it and picks its logo.
@@ -45,10 +45,13 @@ export const getProvider = async (id: string) => {
   const rows = await db
     .select({
       capabilities: models.capabilities,
+      capabilitiesSource: models.capabilitiesSource,
       contextWindow: models.contextWindow,
       enabled: models.enabled,
       id: models.id,
       modelId: models.modelId,
+      priceCacheRead: models.priceCacheRead,
+      priceCacheWrite: models.priceCacheWrite,
       priceCurrency: models.priceCurrency,
       priceInput: models.priceInput,
       priceOutput: models.priceOutput,
@@ -74,7 +77,11 @@ export const getProvider = async (id: string) => {
       asc(models.title),
       asc(sources.createdAt)
     );
-  return { models: rows, provider };
+  // «Renamed» only when the name really differs from the one it came with (renaming back is not a rename).
+  const original =
+    PROVIDERS.find((p) => p.slug === provider.slug)?.title ??
+    titleOfSlug(provider.slug);
+  return { models: rows, provider, renamed: provider.title !== original };
 };
 export type ProviderDetail = NonNullable<
   Awaited<ReturnType<typeof getProvider>>

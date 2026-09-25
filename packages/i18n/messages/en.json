@@ -453,7 +453,6 @@
       "name": "Provider name",
       "summary": "{on} of {total, plural, one {# model} other {# models}} in chat",
       "renamed": "renamed",
-      "preview": "As seen in the model picker",
       "models": "Models",
       "modelsMeta": "from all sources",
       "footnote": "One model can come through several sources — for example, Claude with an Anthropic key and through AI Gateway. The switch turns it on in that source.",
