@@ -718,11 +718,10 @@ export const SourceModels = ({
                                 setEditing(editing === m.id ? null : m.id)
                               }
                             />
-                            {context && (
-                              <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">
-                                {context}
-                              </span>
-                            )}
+                            {/* Always there, empty when unknown: a missing cell would shift the columns */}
+                            <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">
+                              {context}
+                            </span>
                             <button
                               className="text-muted-foreground hover:text-foreground w-32 truncate text-right text-xs tabular-nums transition-colors duration-150"
                               onClick={() =>

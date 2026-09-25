@@ -207,7 +207,7 @@ export const ModelsFrame = ({
                     <button className="hidden rounded-md p-0.5 hover:bg-muted md:inline-flex" onClick={toggle} type="button">
                       <CapIcons caps={m.caps} manual={m.manual} />
                     </button>
-                    {context && <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">{context}</span>}
+                    <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">{context}</span>
                     <button
                       className="text-muted-foreground hover:text-foreground w-28 truncate text-right text-xs tabular-nums"
                       onClick={toggle}

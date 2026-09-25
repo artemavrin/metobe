@@ -13,11 +13,11 @@ import { useState } from "react";
 import { CAPS, convert, MODELS, ModelsFrame, priceLine, SYMBOL, UNITS } from "./shared";
 import type { Cap, Model, Prices } from "./shared";
 
-type V = "yes" | "no" | "unknown";
-const toV = (v: boolean | null): V => (v === null ? "unknown" : v ? "yes" : "no");
+export type V = "yes" | "no" | "unknown";
+export const toV = (v: boolean | null): V => (v === null ? "unknown" : v ? "yes" : "no");
 
 /** Three options in one pill; the chosen one's background slides (it's a state change you watch). */
-const Tri = ({ value, onChange, label }: { value: V; onChange: (v: V) => void; label: string }) => {
+export const Tri = ({ value, onChange, label }: { value: V; onChange: (v: V) => void; label: string }) => {
   const opts: { v: V; node: React.ReactNode; name: string }[] = [
     { name: "да", node: <Check className="size-3.5" />, v: "yes" },
     { name: "нет", node: <X className="size-3.5" />, v: "no" },
@@ -65,7 +65,7 @@ const Row = ({ label, hint, children, action }: { label: React.ReactNode; hint?:
   </div>
 );
 
-const PriceEditor = ({ prices, onSave, onCancel }: { prices: Prices | null; onSave: (p: Prices) => void; onCancel: () => void }) => {
+export const PriceEditor = ({ prices, onSave, onCancel }: { prices: Prices | null; onSave: (p: Prices) => void; onCancel: () => void }) => {
   const start = prices ?? { cacheRead: null, cacheWrite: null, currency: "USD" as const, input: null, output: null, unit: 1_000_000 };
   // Shown per 1M by default; switching the unit converts what is typed, so the price keeps its meaning.
   const [unit, setUnit] = useState(1_000_000);

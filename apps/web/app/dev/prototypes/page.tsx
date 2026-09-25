@@ -59,7 +59,7 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
         title: "Источники, провайдеры и модели",
       },
       {
-        description: "Правка модели в источнике: возможности вручную и цены за любую единицу. Три направления: «Строки», «Панель», «Плотный».",
+        description: "Правка модели в источнике. Выбрана «Панель»; второй раунд — что внутри: «Разделы», «Вкладки», «Строки». Рядом первый раунд.",
         href: "/dev/prototypes/model-editor",
         icon: SlidersHorizontal,
         status: "выбираем",
