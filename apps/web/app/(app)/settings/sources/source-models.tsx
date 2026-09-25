@@ -1,10 +1,8 @@
 "use client";
 
-import { currencies } from "@metobe/contracts/models";
 import type { Currency } from "@metobe/contracts/models";
 import type { SourceDetail } from "@metobe/core/sources-read";
 import { Button } from "@metobe/ui/components/button";
-import { Input } from "@metobe/ui/components/input";
 import {
   InputGroup,
   InputGroupAddon,
@@ -16,19 +14,7 @@ import {
   PopoverTrigger,
 } from "@metobe/ui/components/popover";
 import { Badge } from "@metobe/ui/components/reui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@metobe/ui/components/select";
-import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@metobe/ui/components/toggle-group";
 import {
   Tooltip,
   TooltipContent,
@@ -51,8 +37,8 @@ import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { Section } from "@/components/settings/rows";
 
-import { setCapabilities, setPricing, sync, toggleModels } from "./actions";
-import type { PricingState } from "./actions";
+import { sync, toggleModels } from "./actions";
+import { ModelDrawer } from "./model-drawer";
 
 // A source's models (ARCH §7.1): nothing is on until the admin turns it on; newest first, «новая» for under 90 days;
 // grouped by maker, a group switch for all of them; prices per any number of tokens, shown per 1M to compare.
@@ -149,231 +135,6 @@ const Caps = ({ model, onOpen }: { model: Model; onOpen: () => void }) => {
         );
       })}
     </button>
-  );
-};
-
-type CapValue = "yes" | "no" | "unknown";
-const toValue = (v: boolean | null): CapValue => {
-  if (v === null) {
-    return "unknown";
-  }
-  return v ? "yes" : "no";
-};
-const fromValue = (v: CapValue) => (v === "unknown" ? null : v === "yes");
-
-/**
- * Capabilities by hand: a change is saved at once and marks the model «manual», which syncs keep. «Как у
- * источника» hands it back and re-reads the source.
- */
-const CapsEditor = ({
-  model,
-  sourceId,
-}: {
-  model: Model;
-  sourceId: string;
-}) => {
-  const t = useTranslations("sources.detail.models.caps");
-  const [caps, setCaps] = useState(model.capabilities);
-  const [pending, start] = useTransition();
-  const change = (key: (typeof CAPS)[number]["key"], value: CapValue) => {
-    const next = { ...caps, [key]: fromValue(value) };
-    setCaps(next);
-    start(async () => {
-      await setCapabilities(sourceId, model.id, next);
-    });
-  };
-  return (
-    <div className="animate-in fade-in fill-mode-both bg-muted/30 flex flex-col gap-3 border-t px-4 py-3 duration-150 md:pl-12">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-medium">{t("title")}</span>
-        {model.capabilitiesSource === "manual" && (
-          <Button
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                await setCapabilities(sourceId, model.id, null);
-              })
-            }
-            size="sm"
-            variant="ghost"
-          >
-            {pending && <Spinner />}
-            {t("reset")}
-          </Button>
-        )}
-      </div>
-      <div className="flex max-w-lg flex-col gap-2">
-        {CAPS.map(({ icon: Icon, key }) => (
-          <div className="flex items-center justify-between gap-3" key={key}>
-            <span className="flex items-center gap-2 text-sm">
-              <Icon className="text-muted-foreground size-3.5" />
-              {t(key)}
-            </span>
-            <ToggleGroup
-              aria-label={t(key)}
-              onValueChange={(v) => v[0] && change(key, v[0] as CapValue)}
-              size="sm"
-              value={[toValue(caps[key])]}
-              variant="outline"
-            >
-              <ToggleGroupItem value="yes">{t("yes")}</ToggleGroupItem>
-              <ToggleGroupItem value="no">{t("no")}</ToggleGroupItem>
-              <ToggleGroupItem value="unknown">{t("unset")}</ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        ))}
-      </div>
-      <p className="text-muted-foreground text-xs">{t("hint")}</p>
-    </div>
-  );
-};
-
-const UNITS = [1, 1000, 1_000_000];
-const UNIT_LABEL: Record<number, string> = {
-  1: "1",
-  1000: "1K",
-  1_000_000: "1M",
-};
-const blank = (v: string) => (v.trim() === "" ? null : v.trim());
-
-/** Prices as in the provider's price list: per any number of tokens, kept exactly as typed. */
-const PricingEditor = ({
-  model,
-  sourceId,
-  fromSource,
-  onClose,
-}: {
-  model: Model;
-  sourceId: string;
-  fromSource: boolean;
-  onClose: () => void;
-}) => {
-  const t = useTranslations("sources.detail");
-  const [values, setValues] = useState({
-    cacheRead: model.priceCacheRead ?? "",
-    cacheWrite: model.priceCacheWrite ?? "",
-    input: model.priceInput ?? "",
-    output: model.priceOutput ?? "",
-  });
-  const [unit, setUnit] = useState(String(model.priceUnitTokens ?? 1_000_000));
-  const [currency, setCurrency] = useState<Currency>(
-    (model.priceCurrency ?? "USD") as Currency
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const done = (result: PricingState) =>
-    result.ok ? onClose() : setError(result.error);
-  const save = () =>
-    start(async () => {
-      done(
-        await setPricing(sourceId, model.id, {
-          cacheRead: blank(values.cacheRead),
-          cacheWrite: blank(values.cacheWrite),
-          currency,
-          input: blank(values.input),
-          output: blank(values.output),
-          unitTokens: Number(unit),
-        })
-      );
-    });
-  const field = (key: keyof typeof values) => (
-    <label className="flex flex-col gap-1 text-xs">
-      <span className="text-muted-foreground">{t(`pricing.${key}`)}</span>
-      <InputGroup>
-        <InputGroupAddon>{SYMBOL[currency]}</InputGroupAddon>
-        <InputGroupInput
-          autoComplete="off"
-          className="font-mono tabular-nums"
-          inputMode="decimal"
-          onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
-          placeholder="0"
-          value={values[key]}
-        />
-      </InputGroup>
-    </label>
-  );
-  return (
-    <div className="animate-in fade-in fill-mode-both bg-muted/30 flex flex-col gap-3 border-t px-4 py-3 duration-150 md:pl-12">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {field("input")}
-        {field("output")}
-        {field("cacheRead")}
-        {field("cacheWrite")}
-      </div>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-muted-foreground">{t("pricing.unit")}</span>
-          <div className="flex items-center gap-1">
-            <Input
-              autoComplete="off"
-              className="w-32 font-mono tabular-nums"
-              inputMode="numeric"
-              onChange={(e) => setUnit(e.target.value.replaceAll(/\D/gu, ""))}
-              value={unit}
-            />
-            {UNITS.map((u) => (
-              <Button
-                className={cn(String(u) === unit && "bg-muted")}
-                key={u}
-                onClick={() => setUnit(String(u))}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                {UNIT_LABEL[u]}
-              </Button>
-            ))}
-          </div>
-        </label>
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-muted-foreground">{t("pricing.currency")}</span>
-          <Select
-            onValueChange={(v) => setCurrency(v as Currency)}
-            value={currency}
-          >
-            <SelectTrigger className="w-24">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {currencies.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            disabled={pending}
-            onClick={() =>
-              start(async () =>
-                done(await setPricing(sourceId, model.id, null))
-              )
-            }
-            type="button"
-            variant="ghost"
-          >
-            {t("pricing.clear")}
-          </Button>
-          <Button onClick={onClose} type="button" variant="ghost">
-            {t("cancel")}
-          </Button>
-          <Button disabled={pending} onClick={save} type="button">
-            {pending && <Spinner />}
-            {t("save")}
-          </Button>
-        </div>
-      </div>
-      <p
-        className={cn(
-          "text-xs",
-          error ? "text-destructive" : "text-muted-foreground"
-        )}
-      >
-        {error ?? (fromSource ? t("pricing.fromSource") : t("pricing.hint"))}
-      </p>
-    </div>
   );
 };
 
@@ -696,10 +457,14 @@ export const SourceModels = ({
                       return (
                         <li key={m.id}>
                           <div className="flex items-center gap-3 py-2 pr-4 pl-4 md:pl-12">
-                            <span className="flex min-w-0 flex-1 items-center gap-2">
+                            <button
+                              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                              onClick={() => setEditing(m.id)}
+                              type="button"
+                            >
                               <span
                                 className={cn(
-                                  "truncate font-medium transition-colors duration-150",
+                                  "hover:text-foreground truncate font-medium transition-colors duration-150",
                                   !enabled.has(m.id) && "text-muted-foreground"
                                 )}
                                 title={m.modelId}
@@ -711,22 +476,15 @@ export const SourceModels = ({
                                   {t("models.new")}
                                 </Badge>
                               )}
-                            </span>
-                            <Caps
-                              model={m}
-                              onOpen={() =>
-                                setEditing(editing === m.id ? null : m.id)
-                              }
-                            />
+                            </button>
+                            <Caps model={m} onOpen={() => setEditing(m.id)} />
                             {/* Always there, empty when unknown: a missing cell would shift the columns */}
                             <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">
                               {context}
                             </span>
                             <button
                               className="text-muted-foreground hover:text-foreground w-32 truncate text-right text-xs tabular-nums transition-colors duration-150"
-                              onClick={() =>
-                                setEditing(editing === m.id ? null : m.id)
-                              }
+                              onClick={() => setEditing(m.id)}
                               title={
                                 price
                                   ? `${price} ${t("models.perMillion")}`
@@ -743,17 +501,6 @@ export const SourceModels = ({
                               size="sm"
                             />
                           </div>
-                          {editing === m.id && (
-                            <CapsEditor model={m} sourceId={sourceId} />
-                          )}
-                          {editing === m.id && (
-                            <PricingEditor
-                              fromSource={detail.source.kind === "gateway"}
-                              model={m}
-                              onClose={() => setEditing(null)}
-                              sourceId={sourceId}
-                            />
-                          )}
                         </li>
                       );
                     })}
@@ -763,6 +510,12 @@ export const SourceModels = ({
             );
           })}
       </div>
+      <ModelDrawer
+        fromSource={detail.source.kind === "gateway"}
+        model={detail.models.find((m) => m.id === editing) ?? null}
+        onClose={() => setEditing(null)}
+        sourceId={sourceId}
+      />
     </Section>
   );
 };

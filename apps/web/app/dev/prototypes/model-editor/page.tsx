@@ -6,7 +6,8 @@ import { RowsPanelVariant, SectionsVariant, TabsVariant } from "./panels";
 import { RowsVariant } from "./rows";
 import { SheetVariant } from "./sheet";
 
-// Editing a model in a source (capabilities by hand, prices per any unit).
+// Editing a model in a source (capabilities by hand, prices per any unit) — decided and in the product:
+// «Вкладки» in a floating drawer, with the unit free as before (app/(app)/settings/sources/model-drawer.tsx).
 // Round 1 chose «Панель» (a side sheet); round 2 plays with what goes inside: «Разделы», «Вкладки», «Строки».
 // Round 1 kept for reference: its «Панель», inline «Строки» and «Плотный».
 const ModelEditorPrototype = () => (

@@ -416,6 +416,28 @@
         "confirm": "Disconnect {title}?",
         "text": "The key is deleted and {count, plural, one {# model leaves} other {# models leave}} the chat's model picker. Chat history with them stays. You can connect again at any time.",
         "action": "Disconnect"
+      },
+      "drawer": {
+        "caps": "Capabilities",
+        "prices": "Prices",
+        "about": "About",
+        "reset": "Reset",
+        "per": "per",
+        "tokens": "tokens",
+        "unitHint": "The prices above are per this number of tokens, as in the provider's price list. Saved exactly as typed, no rounding.",
+        "backToSource": "Back to what the source says",
+        "backOnSave": "Saving brings back the source's values.",
+        "maker": "Maker",
+        "context": "Context",
+        "released": "Released",
+        "id": "Identifier",
+        "notReported": "not reported",
+        "capHint": {
+          "tools": "Calls tools and MCP",
+          "vision": "Understands images in attachments",
+          "reasoning": "Thinks before answering",
+          "structured": "Answers strictly by a JSON schema"
+        }
       }
     }
   }
