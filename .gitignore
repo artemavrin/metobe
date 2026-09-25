@@ -33,3 +33,6 @@ next-env.d.ts
 .vercel/
 test-results/
 playwright-report/
+
+# playwright: the admin session from the claim link
+apps/web/e2e/.auth/
