@@ -75,6 +75,7 @@ export const buildProvider = ({
         apiKey: key,
         baseURL,
         fetch: yandexFetch(fetch),
+        includeUsage: true,
         name: "yandex",
       });
       return {
@@ -87,6 +88,8 @@ export const buildProvider = ({
         apiKey: key,
         baseURL,
         fetch,
+        // Without it llama.cpp and others send no usage in a stream: no tokens, no cache, no cost.
+        includeUsage: true,
         name: "compatible",
       });
       return { languageModel: (id) => p.chatModel(id) };
