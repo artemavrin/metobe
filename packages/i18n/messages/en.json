@@ -754,8 +754,6 @@
     },
     "empty": "No working sources with models — connect a source",
     "clear": "Remove the model",
-    "choose": "Choose a model: {job}",
-    "price": "{input} / {output} {sign} per 1M",
-    "firstToken": "first token {n} s"
+    "choose": "Choose a model: {job}"
   }
 }

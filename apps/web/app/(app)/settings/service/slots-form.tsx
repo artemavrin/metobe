@@ -4,47 +4,17 @@ import { modelSlots } from "@metobe/contracts/models";
 import type { ModelSlot } from "@metobe/contracts/models";
 import { Button } from "@metobe/ui/components/button";
 import { ChevronDown, X } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
-import { PickerDataProvider, fmtContext } from "@/components/chat/picker/data";
+import { PickerDataProvider } from "@/components/chat/picker/data";
 import type { PickerModel } from "@/components/chat/picker/data";
 import { ModelPalette } from "@/components/chat/picker/palette";
 import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { Row, Rows, Section } from "@/components/settings/rows";
 
 import { saveSlot } from "./actions";
-
-/** The model of a job at a glance: who, through what, and what it costs and how fast it starts. */
-const Chosen = ({ m }: { m: PickerModel }) => {
-  const t = useTranslations("service");
-  const locale = useLocale();
-  const nf = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
-  const facts = [
-    m.source,
-    fmtContext(m.context),
-    m.price &&
-      t("price", {
-        input: nf.format(m.price.input),
-        output: nf.format(m.price.output),
-        sign: m.price.currency === "USD" ? "$" : "₽",
-      }),
-    m.firstTokenMs !== null &&
-      t("firstToken", { n: nf.format(m.firstTokenMs / 1000) }),
-  ].filter(Boolean);
-  return (
-    <span className="flex min-w-0 items-center gap-2.5">
-      <BrandLogo label={m.makerTitle} logo={m.logo} size={24} />
-      <span className="flex min-w-0 flex-col text-left leading-tight">
-        <span className="truncate font-medium">{m.title}</span>
-        <span className="text-muted-foreground truncate text-xs">
-          {facts.join(" · ")}
-        </span>
-      </span>
-    </span>
-  );
-};
 
 /**
  * One row per job. A model is picked in the same palette as in the chat — search, makers, sorting by price and
@@ -87,7 +57,7 @@ export const SlotsForm = ({
                     <Button
                       aria-label={t("clear")}
                       onClick={() => save(slot, null)}
-                      size="icon-sm"
+                      size="icon-xs"
                       title={t("clear")}
                       variant="ghost"
                     >
@@ -101,16 +71,23 @@ export const SlotsForm = ({
               >
                 <button
                   aria-label={t("choose", { job: t(`slots.${slot}.label`) })}
-                  className="hover:bg-muted flex h-12 w-full items-center justify-between gap-3 rounded-lg border px-3 transition-colors duration-150 md:w-80"
+                  className="hover:bg-muted flex h-8 max-w-64 items-center gap-1.5 rounded-lg px-2 text-sm [transition:scale_160ms_cubic-bezier(0.23,1,0.32,1),background-color_150ms_ease] active:scale-[0.97] motion-reduce:active:scale-100"
                   onClick={() => setOpen(slot)}
                   type="button"
                 >
                   {current ? (
-                    <Chosen m={current} />
+                    <>
+                      <BrandLogo
+                        label={current.makerTitle}
+                        logo={current.logo}
+                        size={16}
+                      />
+                      <span className="truncate">{current.title}</span>
+                    </>
                   ) : (
                     <span className="text-muted-foreground">{t("none")}</span>
                   )}
-                  <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+                  <ChevronDown className="size-3.5 shrink-0 opacity-50" />
                 </button>
               </Row>
             );

@@ -1,6 +1,6 @@
 import "server-only";
 import { chats } from "@metobe/db/schema/chat";
-import { generateText } from "ai";
+import { APICallError, generateText } from "ai";
 import { eq } from "drizzle-orm";
 
 import { getLanguageModel } from "./ai";
@@ -12,6 +12,30 @@ import { getSlotModel } from "./model-slots";
 const INSTRUCTIONS =
   "Name the conversation that starts with the user's message: 3–6 words, in the language of the message, " +
   "no quotes, no final punctuation. Answer with the title only.";
+
+/**
+ * A title wants no thinking: it is faster and a thinking model would spend the few output tokens on it. A provider
+ * that does not take `none` (older OpenAI reasoning models) refuses with 400 — then once more with its default.
+ */
+const titleText = async (
+  model: Awaited<ReturnType<typeof getLanguageModel>>,
+  text: string
+) => {
+  const call = {
+    instructions: INSTRUCTIONS,
+    maxOutputTokens: 40,
+    model,
+    prompt: text.slice(0, 4000),
+  };
+  try {
+    return await generateText({ ...call, reasoning: "none" });
+  } catch (error) {
+    if (APICallError.isInstance(error) && error.statusCode === 400) {
+      return generateText(call);
+    }
+    throw error;
+  }
+};
 
 /**
  * A chat's title from its first message by the «titles» service model; null when no model has the job, the call
@@ -28,12 +52,10 @@ export const generateChatTitle = async (run: {
   }
   const started = Date.now();
   try {
-    const result = await generateText({
-      instructions: INSTRUCTIONS,
-      maxOutputTokens: 40,
-      model: await getLanguageModel(model.sourceId, model.modelId),
-      prompt: run.text.slice(0, 4000),
-    });
+    const result = await titleText(
+      await getLanguageModel(model.sourceId, model.modelId),
+      run.text
+    );
     await recordRun({
       chatId: run.chatId,
       latencyMs: Date.now() - started,
