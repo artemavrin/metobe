@@ -4,7 +4,23 @@ import { z } from "zod";
 // Chat (ARCH §5.3, §6.1): messages are stored and sent as AI SDK UI messages. Our own data parts (`data-status`,
 // M3.2) and tools (M4) extend `ChatMessage` when they arrive.
 
-export type ChatMessage = UIMessage;
+/** What a message carries besides its parts: the model that wrote an answer (our `models.id`). */
+export const chatMessageMetadataSchema = z.object({
+  modelId: z.uuid().optional(),
+});
+export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
+
+export type ChatMessage = UIMessage<ChatMessageMetadata>;
+
+/** What `POST /api/chat` answers instead of a stream; the chat screen says it in the user's language. */
+export const chatErrorCodes = [
+  "unauthorized",
+  "bad-request",
+  "forbidden",
+  "model-unavailable",
+  "generation-failed",
+] as const;
+export type ChatErrorCode = (typeof chatErrorCodes)[number];
 
 export const chatRoles = ["user", "assistant", "system"] as const;
 export type ChatRole = (typeof chatRoles)[number];
@@ -14,6 +30,12 @@ export type ChatVisibility = (typeof chatVisibilities)[number];
 
 export const chatKinds = ["chat", "agent_run"] as const;
 export type ChatKind = (typeof chatKinds)[number];
+
+/** A new chat is named by its first line until real titles arrive (M3.3); the sidebar shows it before the server. */
+export const chatTitleFrom = (text: string) => {
+  const line = text.trim().split("\n")[0]?.trim() ?? "";
+  return line.length > 80 ? `${line.slice(0, 79)}…` : line;
+};
 
 /** A generous bound for one message: long pastes are normal, a runaway client is not. */
 const MAX_TEXT = 100_000;

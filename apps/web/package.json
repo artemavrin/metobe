@@ -11,11 +11,13 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@ai-sdk/react": "4.0.116",
     "@lobehub/icons-static-svg": "^1.95.1",
     "@metobe/contracts": "workspace:*",
     "@metobe/core": "workspace:*",
     "@metobe/i18n": "workspace:*",
     "@metobe/ui": "workspace:*",
+    "@streamdown/code": "^1.1.1",
     "@tanstack/react-table": "^9.2.4",
     "agentation": "^3.1.2",
     "ai": "7.0.113",
@@ -27,6 +29,7 @@
     "next-themes": "^0.4.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "streamdown": "^2.6.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

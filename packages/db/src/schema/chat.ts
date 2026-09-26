@@ -65,6 +65,8 @@ export const messages = pgTable(
       .notNull()
       .defaultNow(),
     id: uuid("id").primaryKey(),
+    /** `UIMessage['metadata']`: which model wrote an answer. */
+    metadata: jsonb("metadata").$type<ChatMessage["metadata"]>(),
     /** `UIMessage['parts']` as is — the persistence format the AI SDK recommends. */
     parts: jsonb("parts").$type<ChatMessage["parts"]>().notNull(),
     role: text("role").$type<ChatRole>().notNull(),
