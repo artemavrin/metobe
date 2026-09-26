@@ -39,7 +39,15 @@ export const ShellModes = ({
   providers,
   pages,
   settings,
-}: { start?: "chat" | "settings"; providers?: React.ReactNode; pages?: Pages; settings?: (ctx: SettingsCtx) => React.ReactNode } = {}) => {
+  chatScreen,
+}: {
+  start?: "chat" | "settings";
+  providers?: React.ReactNode;
+  pages?: Pages;
+  settings?: (ctx: SettingsCtx) => React.ReactNode;
+  /** Replaces the chat screen (home and thread), for prototypes of what lives inside it. */
+  chatScreen?: (chat: { id?: string }) => React.ReactNode;
+} = {}) => {
   const [mode, setMode] = useState<"chat" | "settings">(start);
   const [chat, setChat] = useState<ChatView>({});
   const [section, setSection] = useState<SettingsSection>("providers");
@@ -57,7 +65,7 @@ export const ShellModes = ({
   }, []);
 
   return mode === "chat" ? (
-    <ChatMode chat={chat} onChat={setChat} onSettings={() => setMode("settings")} />
+    <ChatMode chat={chat} chatScreen={chatScreen} onChat={setChat} onSettings={() => setMode("settings")} />
   ) : settings ? (
     settings({ onBack: () => setMode("chat"), onSection: setSection, section })
   ) : (
@@ -95,7 +103,17 @@ export const AccountFooter = ({ onSettings, inSettings = false }: { onSettings: 
   </SidebarFooter>
 );
 
-const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: ChatView) => void; onSettings: () => void }) => (
+const ChatMode = ({
+  chat,
+  onChat,
+  onSettings,
+  chatScreen,
+}: {
+  chat: ChatView;
+  onChat: (c: ChatView) => void;
+  onSettings: () => void;
+  chatScreen?: (chat: { id?: string }) => React.ReactNode;
+}) => (
   <SidebarProvider className="animate-in fade-in duration-200 ease-out">
     <Sidebar variant="floating">
       <SidebarHeader>
@@ -143,7 +161,15 @@ const ChatMode = ({ chat, onChat, onSettings }: { chat: ChatView; onChat: (c: Ch
         <SidebarTrigger />
       </header>
       <div className="flex min-h-0 flex-1 flex-col" key={JSON.stringify(chat)}>
-        {"area" in chat ? <SoonPage title={chat.area === "agents" ? "Агенты" : "Входящие"} /> : chat.id ? <ChatThread id={chat.id} /> : <ChatHome />}
+        {"area" in chat ? (
+          <SoonPage title={chat.area === "agents" ? "Агенты" : "Входящие"} />
+        ) : chatScreen ? (
+          chatScreen({ id: chat.id })
+        ) : chat.id ? (
+          <ChatThread id={chat.id} />
+        ) : (
+          <ChatHome />
+        )}
       </div>
     </SidebarInset>
   </SidebarProvider>

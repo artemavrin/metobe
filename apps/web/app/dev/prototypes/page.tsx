@@ -16,7 +16,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@metobe/ui/components/item";
-import { ChevronRight, Columns3, SlidersHorizontal, LayoutDashboard, LogIn, PanelsTopLeft, Rocket, Server } from "lucide-react";
+import { ChevronRight, Columns3, MessageSquare, SlidersHorizontal, LayoutDashboard, LogIn, PanelsTopLeft, Rocket, Server } from "lucide-react";
 import Link from "next/link";
 
 type Entry = {
@@ -87,6 +87,19 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
       },
     ],
     title: "Оболочка",
+  },
+  {
+    description: "Composer и выбор модели — M3",
+    entries: [
+      {
+        description: "Направление — «Избранное + палитра»: избранное с ⌘1–9 и карточка модели справа; скиллы и подключения бейджами прямо в тексте (/ и @); файлы полосой карточек сверху. Прошлые раунды — в папке, в пилюле их нет.",
+        href: "/dev/prototypes/composer",
+        icon: MessageSquare,
+        status: "выбираем",
+        title: "Composer и выбор модели",
+      },
+    ],
+    title: "P2 · P3 · Чат",
   },
   {
     description: "Все компоненты ReUI и shadcn в теме Metobe",
