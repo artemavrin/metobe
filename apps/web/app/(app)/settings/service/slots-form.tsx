@@ -2,102 +2,138 @@
 
 import { modelSlots } from "@metobe/contracts/models";
 import type { ModelSlot } from "@metobe/contracts/models";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@metobe/ui/components/select";
-import { useTranslations } from "next-intl";
+import { Button } from "@metobe/ui/components/button";
+import { ChevronDown, X } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { PickerDataProvider, fmtContext } from "@/components/chat/picker/data";
+import type { PickerModel } from "@/components/chat/picker/data";
+import { ModelPalette } from "@/components/chat/picker/palette";
+import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { Row, Rows, Section } from "@/components/settings/rows";
 
 import { saveSlot } from "./actions";
 
-interface Candidate {
-  id: string;
-  title: string;
-  maker: string;
-  logo: string | undefined;
-  source: string;
-  inChat: boolean;
-}
-
-const NONE = "none";
-
-const ModelOption = ({ c, notInChat }: { c: Candidate; notInChat: string }) => (
-  <span className="flex min-w-0 items-center gap-2">
-    <BrandLogo label={c.maker} logo={c.logo} size={18} />
-    <span className="truncate">{c.title}</span>
-    <span className="text-muted-foreground truncate text-xs">
-      {c.source}
-      {!c.inChat && ` · ${notInChat}`}
+/** The model of a job at a glance: who, through what, and what it costs and how fast it starts. */
+const Chosen = ({ m }: { m: PickerModel }) => {
+  const t = useTranslations("service");
+  const locale = useLocale();
+  const nf = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+  const facts = [
+    m.source,
+    fmtContext(m.context),
+    m.price &&
+      t("price", {
+        input: nf.format(m.price.input),
+        output: nf.format(m.price.output),
+        sign: m.price.currency === "USD" ? "$" : "₽",
+      }),
+    m.firstTokenMs !== null &&
+      t("firstToken", { n: nf.format(m.firstTokenMs / 1000) }),
+  ].filter(Boolean);
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <BrandLogo label={m.makerTitle} logo={m.logo} size={24} />
+      <span className="flex min-w-0 flex-col text-left leading-tight">
+        <span className="truncate font-medium">{m.title}</span>
+        <span className="text-muted-foreground truncate text-xs">
+          {facts.join(" · ")}
+        </span>
+      </span>
     </span>
-  </span>
-);
+  );
+};
 
-/** One row per job; a choice is saved as it is made. */
+/**
+ * One row per job. A model is picked in the same palette as in the chat — search, makers, sorting by price and
+ * latency, since a service job wants a cheap, fast model — among every model of a working source.
+ */
 export const SlotsForm = ({
-  candidates,
+  models,
+  favorites: initialFavorites,
+  recent,
   assigned,
 }: {
-  candidates: Candidate[];
+  models: PickerModel[];
+  favorites: string[];
+  recent: string[];
   assigned: Record<string, string | null>;
 }) => {
   const t = useTranslations("service");
+  const favorites = useFavorites(initialFavorites);
   const [values, setValues] = useState(assigned);
+  const [open, setOpen] = useState<ModelSlot | null>(null);
   const [, startTransition] = useTransition();
-  const pick = (slot: ModelSlot, value: string) => {
-    const modelId = value === NONE ? null : value;
+  const save = (slot: ModelSlot, modelId: string | null) => {
     setValues((v) => ({ ...v, [slot]: modelId }));
     startTransition(() => saveSlot(slot, modelId));
   };
-  if (candidates.length === 0) {
+  if (models.length === 0) {
     return <p className="text-muted-foreground">{t("empty")}</p>;
   }
+  const byId = (id: string | null) => models.find((m) => m.id === id);
   return (
-    <Section title={t("jobs")}>
-      <Rows>
-        {modelSlots.map((slot) => {
-          const current = candidates.find((c) => c.id === values[slot]);
-          return (
-            <Row
-              hint={t(`slots.${slot}.hint`)}
-              key={slot}
-              label={t(`slots.${slot}.label`)}
-            >
-              <Select
-                onValueChange={(v) => pick(slot, String(v))}
-                value={values[slot] ?? NONE}
+    <PickerDataProvider models={models} recent={recent}>
+      <Section title={t("jobs")}>
+        <Rows>
+          {modelSlots.map((slot) => {
+            const current = byId(values[slot] ?? null);
+            return (
+              <Row
+                action={
+                  current && (
+                    <Button
+                      aria-label={t("clear")}
+                      onClick={() => save(slot, null)}
+                      size="icon-sm"
+                      title={t("clear")}
+                      variant="ghost"
+                    >
+                      <X />
+                    </Button>
+                  )
+                }
+                hint={t(`slots.${slot}.hint`)}
+                key={slot}
+                label={t(`slots.${slot}.label`)}
               >
-                <SelectTrigger
-                  aria-label={t(`slots.${slot}.label`)}
-                  className="w-full md:w-80"
+                <button
+                  aria-label={t("choose", { job: t(`slots.${slot}.label`) })}
+                  className="hover:bg-muted flex h-12 w-full items-center justify-between gap-3 rounded-lg border px-3 transition-colors duration-150 md:w-80"
+                  onClick={() => setOpen(slot)}
+                  type="button"
                 >
-                  <SelectValue>
-                    {current ? (
-                      <ModelOption c={current} notInChat={t("notInChat")} />
-                    ) : (
-                      t("none")
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  <SelectItem value={NONE}>{t("none")}</SelectItem>
-                  {candidates.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <ModelOption c={c} notInChat={t("notInChat")} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Row>
-          );
-        })}
-      </Rows>
-    </Section>
+                  {current ? (
+                    <Chosen m={current} />
+                  ) : (
+                    <span className="text-muted-foreground">{t("none")}</span>
+                  )}
+                  <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+                </button>
+              </Row>
+            );
+          })}
+        </Rows>
+      </Section>
+      <ModelPalette
+        current={byId(open ? (values[open] ?? null) : null)}
+        favorites={favorites}
+        onOpenChange={(o) => {
+          if (!o) {
+            setOpen(null);
+          }
+        }}
+        onPick={(m) => {
+          if (open) {
+            save(open, m.id);
+          }
+          setOpen(null);
+        }}
+        open={open !== null}
+        opening={{ via: "mouse" }}
+      />
+    </PickerDataProvider>
   );
 };

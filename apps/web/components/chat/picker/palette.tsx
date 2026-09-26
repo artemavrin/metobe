@@ -910,7 +910,8 @@ const PaletteBar = ({
 }: {
   id: string;
   m: ChatModel;
-  current: ChatModel;
+  /** Nothing to compare with when choosing for an empty place (a service job). */
+  current?: ChatModel;
   contextTokens?: number;
   hasImages?: boolean;
 }) => {
@@ -930,7 +931,7 @@ const PaletteBar = ({
         </span>
       ) : (
         <span className="min-w-0 truncate">
-          {compareWith(t, locale, m, current)}
+          {current && compareWith(t, locale, m, current)}
         </span>
       )}
       <span className="ml-auto flex shrink-0 items-center gap-3 max-sm:hidden">
@@ -975,7 +976,8 @@ export const ModelPalette = ({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   opening: PaletteOpening;
-  current: ChatModel;
+  /** The model in place now; none when a service job has no model yet. */
+  current?: ChatModel;
   favorites: Favorites;
   onPick: (m: ChatModel, dir: -1 | 0 | 1) => void;
   contextTokens?: number;
@@ -994,7 +996,7 @@ export const ModelPalette = ({
   const [sort, setSort] = useState<Sort>({ dir: "asc", key: "maker" });
   /** The last sort change came from a click: the arrow may animate. ⌥S and a fresh opening are instant. */
   const [sortAnim, setSortAnim] = useState(false);
-  const [value, setValue] = useState(current.id);
+  const [value, setValue] = useState(current?.id ?? "");
   /** Favorites as they were when the palette opened: sections do not reshuffle while it is open. */
   const [frozen, setFrozen] = useState(favorites.ids);
   /** More than 8 s since closing (or never opened): the next opening starts fresh on the chat's model. */
@@ -1025,7 +1027,7 @@ export const ModelPalette = ({
         setQuery(opening.initialQuery);
         setCaps([]);
       } else if (stale) {
-        setValue(current.id);
+        setValue(current?.id ?? "");
       }
       setStale(false);
     } else {
@@ -1072,7 +1074,8 @@ export const ModelPalette = ({
     [sections, isFolded]
   );
   const visible = useMemo(() => new Set(flatIds), [flatIds]);
-  const subject = (visible.has(value) ? anyModel(value) : undefined) ?? current;
+  const subject =
+    (visible.has(value) ? anyModel(value) : undefined) ?? current ?? models[0];
   const filtering = query.trim() !== "" || caps.length > 0;
 
   // --- keeping the selection across regrouping ---
@@ -1125,12 +1128,12 @@ export const ModelPalette = ({
 
   // --- actions ---
   const dirOf = (id: string): -1 | 0 | 1 => {
-    const a = flatIds.indexOf(current.id);
+    const a = current ? flatIds.indexOf(current.id) : -1;
     const b = flatIds.indexOf(id);
     return a === -1 || b === -1 ? 0 : (Math.sign(b - a) as -1 | 0 | 1);
   };
   const pick = (m: ChatModel) => {
-    if (m.id === current.id) {
+    if (m.id === current?.id) {
       onOpenChange(false);
       return;
     }
@@ -1584,7 +1587,7 @@ export const ModelPalette = ({
                               fav={favIndex !== -1}
                               favIndex={favIndex}
                               fresh={favIndex !== -1 && !frozen.includes(m.id)}
-                              isCurrent={m.id === current.id}
+                              isCurrent={m.id === current?.id}
                               key={m.id}
                               m={m}
                               mask={query.trim() ? mask : undefined}
@@ -1661,13 +1664,15 @@ export const ModelPalette = ({
               />
             </CommandList>
 
-            <PaletteBar
-              contextTokens={contextTokens}
-              current={current}
-              hasImages={hasImages}
-              id={inspectorId}
-              m={subject}
-            />
+            {subject && (
+              <PaletteBar
+                contextTokens={contextTokens}
+                current={current}
+                hasImages={hasImages}
+                id={inspectorId}
+                m={subject}
+              />
+            )}
           </Command>
         </DialogPopup>
       </DialogPortal>

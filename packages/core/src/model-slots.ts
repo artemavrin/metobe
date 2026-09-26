@@ -1,12 +1,7 @@
 import "server-only";
 import type { ModelSlot } from "@metobe/contracts/models";
-import {
-  modelSlots,
-  models,
-  providers,
-  sources,
-} from "@metobe/db/schema/models";
-import { asc, eq, sql } from "drizzle-orm";
+import { modelSlots, models, sources } from "@metobe/db/schema/models";
+import { eq, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
 
@@ -14,25 +9,6 @@ import { getDb } from "./db";
 // and working may take a job, in the chat or not: a cheap, fast one is often best for it.
 
 const working = sql`${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`;
-
-/** Models that may take a service job, by maker and title. */
-export const listSlotCandidates = () => {
-  const { db } = getDb();
-  return db
-    .select({
-      id: models.id,
-      inChat: models.enabled,
-      providerLogo: providers.logo,
-      providerTitle: providers.title,
-      sourceTitle: sources.title,
-      title: models.title,
-    })
-    .from(models)
-    .innerJoin(sources, eq(sources.id, models.sourceId))
-    .leftJoin(providers, eq(providers.id, models.providerId))
-    .where(working)
-    .orderBy(asc(providers.title), asc(models.title));
-};
 
 export const getSlotAssignments = async () => {
   const { db } = getDb();

@@ -13,8 +13,11 @@ import { getDb } from "./db";
 // What the model picker shows (P3): only what sources and our own runs really say — maker, source, context,
 // capabilities, prices, the median time to the first token in Metobe — and the user's favorites and recent models.
 
-/** Models that are in chat right now, newest first, with everything the picker compares. */
-export const listModelChoices = () => {
+/**
+ * Models with everything the picker compares, newest first: those in chat right now, or (`working`) every model of
+ * a source that is on and working — what a service job may take.
+ */
+export const listModelChoices = (scope: "chat" | "working" = "chat") => {
   const { db } = getDb();
   return db
     .select({
@@ -37,7 +40,7 @@ export const listModelChoices = () => {
     .innerJoin(sources, eq(sources.id, models.sourceId))
     .leftJoin(providers, eq(providers.id, models.providerId))
     .where(
-      sql`${models.enabled} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
+      sql`${scope === "chat" ? models.enabled : sql`true`} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
     )
     .orderBy(
       sql`${models.releasedAt} desc nulls last`,

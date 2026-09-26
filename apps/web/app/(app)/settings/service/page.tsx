@@ -1,21 +1,30 @@
 import { modelSlots } from "@metobe/contracts/models";
 import {
-  getSlotAssignments,
-  listSlotCandidates,
-} from "@metobe/core/model-slots";
+  getFavoriteModelIds,
+  getFirstTokenMedians,
+  getRecentModelIds,
+  listModelChoices,
+} from "@metobe/core/model-choices";
+import { getSlotAssignments } from "@metobe/core/model-slots";
 import { getTranslations } from "next-intl/server";
 
 import {
   SettingsHeader,
   SettingsPageFrame,
 } from "@/components/settings/settings-shell";
+import { toPickerModel } from "@/lib/model-choice";
+import { getSettingsViewer } from "@/lib/settings-access";
 
 import { SlotsForm } from "./slots-form";
 
 const ServicePage = async () => {
-  const [candidates, assigned, t] = await Promise.all([
-    listSlotCandidates(),
+  const { user } = await getSettingsViewer();
+  const [rows, medians, assigned, favorites, recent, t] = await Promise.all([
+    listModelChoices("working"),
+    getFirstTokenMedians(),
     getSlotAssignments(),
+    user ? getFavoriteModelIds(user.id) : [],
+    user ? getRecentModelIds(user.id) : [],
     getTranslations("service"),
   ]);
   return (
@@ -25,14 +34,11 @@ const ServicePage = async () => {
         assigned={Object.fromEntries(
           modelSlots.map((s) => [s, assigned[s] ?? null])
         )}
-        candidates={candidates.map((c) => ({
-          id: c.id,
-          inChat: c.inChat,
-          logo: c.providerLogo ?? undefined,
-          maker: c.providerTitle ?? c.sourceTitle,
-          source: c.sourceTitle,
-          title: c.title,
-        }))}
+        favorites={favorites}
+        models={rows.map((row) =>
+          toPickerModel(row, medians.get(row.id) ?? null)
+        )}
+        recent={recent}
       />
     </SettingsPageFrame>
   );

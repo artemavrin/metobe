@@ -746,14 +746,16 @@
     "description": "Models for work outside the chat. A service model doesn’t have to be in the chat — a cheap, fast one is enough.",
     "jobs": "Jobs",
     "none": "Not set",
-    "notInChat": "not in chat",
-    "saved": "Saved",
     "slots": {
       "titles": {
         "label": "Chat titles",
         "hint": "Names a new chat after its first message. Without a model — the message’s first line."
       }
     },
-    "empty": "No working sources with models — connect a source"
+    "empty": "No working sources with models — connect a source",
+    "clear": "Remove the model",
+    "choose": "Choose a model: {job}",
+    "price": "{input} / {output} {sign} per 1M",
+    "firstToken": "first token {n} s"
   }
 }
