@@ -4,6 +4,7 @@ import { proxies, proxyDomains } from "@metobe/db/schema/proxies";
 import { count, eq } from "drizzle-orm";
 import type { Dispatcher } from "undici";
 
+import { onConfigChange } from "./config-bus";
 import { getDb } from "./db";
 import { resolveRoute } from "./net-route";
 import type { Route, Target } from "./net-route";
@@ -247,3 +248,10 @@ export const importEnvProxy = async (env: NodeJS.ProcessEnv = process.env) => {
   const id = await addProxy(config);
   return { host: config.host, id, type: config.type };
 };
+
+// Routes and proxies changed here or in another process (config-bus); a change to one source leaves them be.
+onConfigChange((change) => {
+  if (!change.sourceId) {
+    invalidateNet();
+  }
+});

@@ -13,8 +13,8 @@ import { models, sources } from "@metobe/db/schema/models";
 import type { Source } from "@metobe/db/schema/models";
 import { and, eq, inArray } from "drizzle-orm";
 
-import { invalidateAi } from "./ai";
 import { baseUrlOf } from "./ai-build";
+import { configChanged } from "./config-bus";
 import { getDb } from "./db";
 import { syncModels } from "./discovery";
 import { GATEWAY_MODELS_URL } from "./discovery-fetch";
@@ -290,7 +290,7 @@ export const replaceSourceKey = async (
   }
   await setSecret({ id, type: "source" }, "api_key", apiKey);
   await writeHealth(id, healthOf(result));
-  invalidateAi(id);
+  await configChanged({ sourceId: id });
   return { ok: true };
 };
 
@@ -310,7 +310,7 @@ export const updateSourceConfig = async (
     .update(sources)
     .set({ ...config, health: healthOf(result) })
     .where(eq(sources.id, id));
-  invalidateAi(id);
+  await configChanged({ sourceId: id });
   return { ok: true };
 };
 
@@ -327,7 +327,7 @@ export const setSourceRoute = async (
       proxyMode: route.mode,
     })
     .where(eq(sources.id, id));
-  invalidateAi(id);
+  await configChanged({ sourceId: id });
   return recheckSource(id);
 };
 
@@ -338,7 +338,7 @@ export const updateSource = async (
 ) => {
   const { db } = getDb();
   await db.update(sources).set(patch).where(eq(sources.id, id));
-  invalidateAi(id);
+  await configChanged({ sourceId: id });
 };
 
 /** The source, its models (cascade) and its secrets (no FK — removed here, IMPLEMENTATION M2 §3). */
@@ -346,7 +346,7 @@ export const deleteSource = async (id: string) => {
   const { db } = getDb();
   await db.delete(sources).where(eq(sources.id, id));
   await removeSecrets({ id, type: "source" });
-  invalidateAi(id);
+  await configChanged({ sourceId: id });
 };
 
 // Models -----------------------------------------------------------------------------------------------------------

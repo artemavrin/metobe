@@ -5,6 +5,7 @@ import type { LanguageModel } from "ai";
 import { eq } from "drizzle-orm";
 
 import { baseUrlOf, buildProvider } from "./ai-build";
+import { onConfigChange } from "./config-bus";
 import { getDb } from "./db";
 import { fetchFor, onNetChange } from "./net";
 import { withSecret } from "./secrets";
@@ -78,3 +79,6 @@ export const invalidateAi = (sourceId?: string) => {
     cache.clear();
   }
 };
+
+// A source, key or proxy changed here or in another process (config-bus): its provider is built anew.
+onConfigChange((change) => invalidateAi(change.sourceId));

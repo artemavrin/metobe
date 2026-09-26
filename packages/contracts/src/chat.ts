@@ -4,9 +4,15 @@ import { z } from "zod";
 // Chat (ARCH §5.3, §6.1): messages are stored and sent as AI SDK UI messages. Our own data parts (`data-status`,
 // M3.2) and tools (M4) extend `ChatMessage` when they arrive.
 
-/** What a message carries besides its parts: the model that wrote an answer (our `models.id`). */
+/**
+ * What a message carries besides its parts: when it was written (the thread's toolbar says it; stored messages
+ * take it from their row), the model that wrote an answer (our `models.id`) and how long it reasoned before its
+ * first word, as the server measured it.
+ */
 export const chatMessageMetadataSchema = z.object({
+  createdAt: z.iso.datetime().optional(),
   modelId: z.uuid().optional(),
+  reasoningMs: z.number().int().nonnegative().optional(),
 });
 export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 

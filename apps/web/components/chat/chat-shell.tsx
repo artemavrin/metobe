@@ -43,9 +43,12 @@ interface ChatItem {
   group: ChatGroup;
 }
 
-/** Lets the chat screen put a chat on top of the list the moment it gets a message. */
+/**
+ * Lets the chat screen put a chat on top of the list the moment it gets a message. A title names it (a new chat);
+ * without one, the chat keeps the title it has.
+ */
 const ChatListContext = createContext<
-  ((chat: { id: string; title: string }) => void) | null
+  ((chat: { id: string; title?: string }) => void) | null
 >(null);
 
 export const useTouchChat = () => {
@@ -192,11 +195,16 @@ export const ChatShell = ({
     setChats(initialChats);
   }
   const touch = useMemo(
-    () => (chat: { id: string; title: string }) =>
-      setChats((list) => [
-        { ...chat, group: "today" as const },
-        ...list.filter((c) => c.id !== chat.id),
-      ]),
+    () => (chat: { id: string; title?: string }) =>
+      setChats((list) => {
+        const title = chat.title ?? list.find((c) => c.id === chat.id)?.title;
+        return title === undefined
+          ? list
+          : [
+              { group: "today" as const, id: chat.id, title },
+              ...list.filter((c) => c.id !== chat.id),
+            ];
+      }),
     []
   );
   // ⌘, (Ctrl+, elsewhere) from anywhere, text fields included; the physical key, so ЙЦУКЕН works too.

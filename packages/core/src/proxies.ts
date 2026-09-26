@@ -4,16 +4,16 @@ import { sources } from "@metobe/db/schema/models";
 import { proxies, proxyDomains } from "@metobe/db/schema/proxies";
 import { asc, eq } from "drizzle-orm";
 
-import { invalidateAi } from "./ai";
 import { baseUrlOf } from "./ai-build";
+import { configChanged } from "./config-bus";
 import { getDb } from "./db";
 import { GATEWAY_MODELS_URL } from "./discovery-fetch";
-import { addProxy, checkProxy, invalidateNet, routeFor } from "./net";
+import { addProxy, checkProxy, routeFor } from "./net";
 import type { ProxyConfig } from "./net-transport";
 import { listSecretHints, removeSecrets, setSecret } from "./secrets";
 
 // Proxies (ARCH §18): set up once, used where needed. Everything goes direct unless a source picks a proxy or
-// the proxy claims its domain. Every change rebuilds the routes (invalidateNet) and is checked for real.
+// the proxy claims its domain. Every change rebuilds the routes in every process (config-bus) and is checked for real.
 
 export const listProxies = () => {
   const { db } = getDb();
@@ -113,8 +113,7 @@ export const updateProxy = async (
 ) => {
   const { db } = getDb();
   await db.update(proxies).set(patch).where(eq(proxies.id, id));
-  invalidateNet();
-  invalidateAi();
+  await configChanged();
   if (patch.host || patch.port || patch.type) {
     await checkProxy(id);
   }
@@ -133,8 +132,7 @@ export const setProxyCredentials = async (
   } else if (password !== undefined) {
     await setSecret({ id, type: "proxy" }, "password", password);
   }
-  invalidateNet();
-  invalidateAi();
+  await configChanged();
   await checkProxy(id);
 };
 
@@ -158,16 +156,14 @@ export const addProxyDomain = async (
       : { ok: false, takenBy: taken.title };
   }
   await db.insert(proxyDomains).values({ domain, proxyId: id });
-  invalidateNet();
-  invalidateAi();
+  await configChanged();
   return { ok: true };
 };
 
 export const removeProxyDomain = async (id: string, domain: string) => {
   const { db } = getDb();
   await db.delete(proxyDomains).where(eq(proxyDomains.domain, domain));
-  invalidateNet();
-  invalidateAi();
+  await configChanged();
   return id;
 };
 
@@ -186,6 +182,5 @@ export const deleteProxy = async (id: string) => {
     .where(eq(sources.proxyId, id));
   await db.delete(proxies).where(eq(proxies.id, id));
   await removeSecrets({ id, type: "proxy" });
-  invalidateNet();
-  invalidateAi();
+  await configChanged();
 };
