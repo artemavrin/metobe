@@ -25,11 +25,12 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@metobe/ui/components/sidebar";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { LogOut, Settings, SquarePen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { signOut } from "@/app/(app)/(chat)/actions";
@@ -198,16 +199,8 @@ export const ChatShell = ({
       ]),
     []
   );
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
-        e.preventDefault();
-        router.push("/settings");
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [router]);
+  // ⌘, (Ctrl+, elsewhere) from anywhere, text fields included; the physical key, so ЙЦУКЕН works too.
+  useHotkey("Mod+,", () => router.push("/settings"), { ignoreInputs: false });
 
   return (
     <ChatListContext.Provider value={touch}>

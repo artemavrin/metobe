@@ -12,16 +12,11 @@ import {
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
+import { useHotkey, useHotkeys } from "@tanstack/react-hotkeys";
 import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 
@@ -193,40 +188,35 @@ export const ModelChooser = ({
     setPalette(true);
   }, []);
 
-  // ⌘/ from anywhere, by the physical key (works on ЙЦУКЕН too), toggles the palette; ⌘1–9 pick a favorite.
-  const latest = useRef({ byId, choose, favorites, openPalette, palette });
-  useLayoutEffect(() => {
-    latest.current = { byId, choose, favorites, openPalette, palette };
-  });
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) {
-        return;
+  // ⌘/ from anywhere, text fields included, toggles the palette (the physical key: ЙЦУКЕН works too). ⌘1–9 take a
+  // favorite from the composer; inside the picker and the palette their own keys handle the digits.
+  useHotkey(
+    "Mod+/",
+    () => {
+      if (palette) {
+        setPalette(false);
+      } else {
+        openPalette({ via: "key" });
       }
-      const l = latest.current;
-      if (e.code === "Slash") {
-        e.preventDefault();
-        if (l.palette) {
-          setPalette(false);
-        } else {
-          l.openPalette({ via: "key" });
-        }
-        return;
-      }
-      // Inside the picker and the palette their own handlers take the digits.
-      const n = /^Digit(?<n>[1-9])$/u.exec(e.code)?.groups?.n;
-      const target = e.target as HTMLElement;
-      if (n && !e.shiftKey && target.closest("form[data-composer]")) {
-        const m = l.byId(l.favorites.ids[Number(n) - 1] ?? "");
-        if (m) {
+    },
+    { ignoreInputs: false }
+  );
+  useHotkeys(
+    (["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const).map((n, i) => ({
+      callback: (e: KeyboardEvent) => {
+        const m = byId(favorites.ids[i] ?? "");
+        if (
+          m &&
+          (e.target as HTMLElement | null)?.closest("form[data-composer]")
+        ) {
           e.preventDefault();
-          l.choose(m, 0, "fade");
+          choose(m, 0, "fade");
         }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+      },
+      hotkey: `Mod+${n}` as const satisfies `Mod+${typeof n}`,
+    })),
+    { ignoreInputs: false, preventDefault: false }
+  );
 
   return (
     <>
