@@ -2,7 +2,23 @@
 
 import type { ChatMessage } from "@metobe/contracts/chat";
 import type { ModelLabel } from "@metobe/core/chat";
+import { Bubble, BubbleContent } from "@metobe/ui/components/bubble";
 import { Button } from "@metobe/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@metobe/ui/components/collapsible";
+import {
+  Marker,
+  MarkerContent,
+  MarkerIcon,
+} from "@metobe/ui/components/marker";
+import {
+  Message,
+  MessageContent,
+  MessageFooter,
+} from "@metobe/ui/components/message";
 import { Textarea } from "@metobe/ui/components/textarea";
 import {
   Tooltip,
@@ -11,6 +27,7 @@ import {
 } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import { code } from "@streamdown/code";
+import { GridLoader } from "gridora";
 import {
   Brain,
   Check,
@@ -23,17 +40,19 @@ import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
+import "gridora/styles.css";
 import "streamdown/styles.css";
 
-const textOf = (message: ChatMessage) =>
-  message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("");
+const textOf = (message?: ChatMessage) =>
+  message?.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("") ??
+  "";
 
 /**
- * Under a message, shown while the pointer is on it (always on touch screens, and while a button in it has the
- * focus): when it was written and what can be done with it. Its room is kept, so showing it moves nothing.
+ * The footer under a message, shown while the pointer is on it (always on touch screens, and while a button in it
+ * has the focus): when it was written and what can be done with it. Its room is kept, so showing it moves nothing.
  */
 const TOOLBAR =
-  "text-muted-foreground flex h-6 items-center gap-0.5 text-xs opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100 has-data-[popup-open]:opacity-100 [@media(hover:none)]:opacity-100";
+  "h-6 gap-0.5 px-0 opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100 has-data-[popup-open]:opacity-100 [@media(hover:none)]:opacity-100";
 
 /** The thread's hints: the sidebar's surface, no arrow — like the model peek. */
 const Tip = ({ children }: { children: React.ReactNode }) => (
@@ -129,7 +148,7 @@ const When = ({ at }: { at?: string }) => {
   );
 };
 
-/** The user's message edited in place: Enter sends it anew (what followed it goes), Esc leaves it as it was. */
+/** The user's message edited in place: Enter sends it anew and asks for a new answer (what followed it goes), Esc leaves it as it was. */
 const EditMessage = ({
   initial,
   onCancel,
@@ -146,15 +165,12 @@ const EditMessage = ({
     if (!next) {
       return;
     }
-    if (next === initial.trim()) {
-      onCancel();
-      return;
-    }
+    // Sent even unchanged: sending from an edit always asks for a new answer.
     onSend(next);
   };
   return (
     <form
-      className="bg-muted flex w-full max-w-[85%] flex-col gap-2 rounded-2xl p-2"
+      className="bg-muted flex w-full max-w-[80%] flex-col gap-2 self-end rounded-2xl p-2"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -205,144 +221,234 @@ export const UserMessage = ({
   const [editing, setEditing] = useState(false);
   const text = textOf(message);
   return (
-    <div className="group/msg animate-in fade-in slide-in-from-bottom-1 motion-reduce:slide-in-from-bottom-0 flex flex-col items-end gap-1 duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]">
-      {editing && onEdit ? (
-        <EditMessage
-          initial={text}
-          onCancel={() => setEditing(false)}
-          onSend={(next) => {
-            setEditing(false);
-            onEdit(next);
-          }}
-        />
-      ) : (
-        <>
-          <div className="bg-muted max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 break-words whitespace-pre-wrap">
-            {text}
-          </div>
-          <div className={TOOLBAR}>
-            <span className="px-1">
-              <When at={message.metadata?.createdAt} />
-            </span>
-            <CopyAction text={text} />
-            {onEdit && (
-              <Action label={t("edit")} onClick={() => setEditing(true)}>
-                <Pencil />
-              </Action>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-const Thinking = () => {
-  const t = useTranslations("chat");
-  return (
-    <span className="text-muted-foreground animate-pulse text-sm motion-reduce:animate-none">
-      {t("thinking")}
-    </span>
-  );
-};
-
-/** The model's reasoning, folded: what it thought is there for whoever wants it, the answer comes first. */
-const Reasoning = ({ text, live }: { text: string; live: boolean }) => {
-  const t = useTranslations("chat");
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <button
-        aria-expanded={open}
-        className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors duration-150"
-        onClick={() => setOpen((o) => !o)}
-        type="button"
-      >
-        <Brain className="size-3.5" />
-        {/* While it thinks and nothing is answered yet, the fold itself says so — no second «Думает…» under it */}
-        <span
-          className={cn(live && "animate-pulse motion-reduce:animate-none")}
-        >
-          {live ? t("thinking") : t("reasoning")}
-        </span>
-        <ChevronRight
-          className={cn(
-            "size-3 transition-[rotate] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-            open && "rotate-90"
-          )}
-        />
-      </button>
-      {open && (
-        <p className="text-muted-foreground border-border border-l pl-3 text-sm leading-relaxed whitespace-pre-wrap">
-          {text}
-        </p>
-      )}
-    </div>
+    <Message
+      align="end"
+      className="animate-in fade-in slide-in-from-bottom-1 motion-reduce:slide-in-from-bottom-0 duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+    >
+      <MessageContent className="gap-1">
+        {editing && onEdit ? (
+          <EditMessage
+            initial={text}
+            onCancel={() => setEditing(false)}
+            onSend={(next) => {
+              setEditing(false);
+              onEdit(next);
+            }}
+          />
+        ) : (
+          <>
+            <Bubble align="end" variant="muted">
+              <BubbleContent className="rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap">
+                {text}
+              </BubbleContent>
+            </Bubble>
+            <MessageFooter className={TOOLBAR}>
+              <span className="px-1">
+                <When at={message.metadata?.createdAt} />
+              </span>
+              <CopyAction text={text} />
+              {onEdit && (
+                <Action label={t("edit")} onClick={() => setEditing(true)}>
+                  <Pencil />
+                </Action>
+              )}
+            </MessageFooter>
+          </>
+        )}
+      </MessageContent>
+    </Message>
   );
 };
 
 /**
- * An answer: reasoning folded above, the text as markdown — new words fade in while it streams. Under it, once it
- * is done: the model that wrote it, when, copy and regenerate.
+ * What an answer is doing before its words: one status line from the moment the question goes until the first word
+ * — the same element through the wait and the reasoning, so nothing blinks or jumps between them. It fades in a
+ * beat late, so a fast answer never flashes it. It says only what is true: «Готовит ответ…» while nothing has come,
+ * «Думает…» once reasoning really streams (a model may not reason, or have it off), a dot grid (gridora) beside
+ * either. Like AI Elements' Reasoning, the fold opens by itself while the model thinks — the thoughts stream in —
+ * and closes a second after the words start; the reader's own toggle wins. Once done, the grid gives its place to
+ * a still brain and the line says «Размышления · N с» (the server's measure) — or goes when there was none.
+ */
+const Activity = ({
+  reasoning,
+  working,
+  reasoningMs,
+}: {
+  reasoning: string;
+  working: boolean;
+  reasoningMs?: number;
+}) => {
+  const t = useTranslations("chat");
+  const thinking = working && reasoning.length > 0;
+  const [chosen, setChosen] = useState<boolean>();
+  const [lingering, setLingering] = useState(false);
+  const [wasThinking, setWasThinking] = useState(thinking);
+  if (wasThinking !== thinking) {
+    setWasThinking(thinking);
+    if (thinking) {
+      setChosen(undefined);
+    } else {
+      setLingering(true);
+    }
+  }
+  useEffect(() => {
+    if (!lingering) {
+      return;
+    }
+    const timer = setTimeout(() => setLingering(false), 1000);
+    return () => clearTimeout(timer);
+  }, [lingering]);
+  if (!working && !reasoning) {
+    return null;
+  }
+  const open = Boolean(reasoning) && (chosen ?? (thinking || lingering));
+  let label = t("reasoning");
+  if (working) {
+    label = t(reasoning ? "thinking" : "preparing");
+  } else if (reasoningMs !== undefined) {
+    label = t("reasoningFor", {
+      seconds: Math.max(1, Math.round(reasoningMs / 1000)),
+    });
+  }
+  return (
+    <Collapsible
+      className={cn(
+        "flex flex-col items-start",
+        working &&
+          "animate-in fade-in fill-mode-backwards delay-150 duration-300"
+      )}
+      onOpenChange={setChosen}
+      open={open}
+      role={working ? "status" : undefined}
+    >
+      <Marker
+        className="enabled:hover:text-foreground w-fit gap-2 transition-colors duration-150 disabled:cursor-default"
+        render={<CollapsibleTrigger disabled={!reasoning} />}
+      >
+        {/* One cell for both, so the text never moves: the grid while it works, the brain once it has thought */}
+        <MarkerIcon className="grid size-3.5 place-items-center *:col-start-1 *:row-start-1">
+          {working && (
+            <GridLoader
+              cellSize={3}
+              gap={1.5}
+              respectReducedMotion
+              variant="cacheWarm"
+            />
+          )}
+          <Brain
+            className={cn(
+              "size-3.5 transition-opacity duration-200",
+              working && "opacity-0"
+            )}
+          />
+        </MarkerIcon>
+        <MarkerContent className={cn(working && "shimmer")}>
+          {label}
+        </MarkerContent>
+        {/* Always there, so the line does not shift when reasoning arrives — it only fades in */}
+        <MarkerIcon
+          className={cn(
+            "-ml-1 transition-opacity duration-200",
+            !reasoning && "opacity-0"
+          )}
+        >
+          <ChevronRight
+            className={cn(
+              "size-3.5 transition-[rotate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+              open && "rotate-90"
+            )}
+          />
+        </MarkerIcon>
+      </Marker>
+      {/* Height from base-ui's measure; opens and closes on a strong ease-out, no motion when reduced */}
+      <CollapsibleContent className="h-(--collapsible-panel-height) w-full overflow-hidden transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none">
+        <div className="text-muted-foreground border-border mt-2 border-l pl-3 text-sm leading-relaxed">
+          <Streamdown isAnimating={thinking}>{reasoning}</Streamdown>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
+/**
+ * Where the model changes in the thread: a thin line with the new model's name before the question it answered.
+ * Drawn from the answers' own metadata — never a message, so the model's history and its cache stay as they were.
+ */
+export const ModelSwitch = ({ label }: { label?: ModelLabel }) => {
+  const t = useTranslations("chat");
+  if (!label) {
+    return null;
+  }
+  return (
+    <Marker className="text-xs" variant="separator">
+      <MarkerContent>{t("modelSwitch", { model: label.title })}</MarkerContent>
+    </Marker>
+  );
+};
+
+/**
+ * An answer: the status line (the wait, the reasoning folded), then the text as markdown — new words fade in while
+ * it streams. Under it, once it is done: the model that wrote it, when, copy and regenerate.
  */
 export const AssistantMessage = ({
   message,
   label,
-  streaming,
+  live,
   onRegenerate,
 }: {
-  message: ChatMessage;
+  /** Absent while the question waits for the stream to start. */
+  message?: ChatMessage;
   label?: ModelLabel;
-  streaming: boolean;
-  /** Absent while an answer is on its way. */
-  onRegenerate?: () => void;
+  /** On its way: from the moment the question goes until the last word. */
+  live: boolean;
+  /** Asks for this answer again; absent while an answer is on its way. */
+  onRegenerate?: (messageId: string) => void;
 }) => {
   const t = useTranslations("chat");
-  const reasoning = message.parts
+  const reasoning = (message?.parts ?? [])
     .flatMap((p) => (p.type === "reasoning" ? [p.text] : []))
     .join("\n\n")
     .trim();
   const text = textOf(message);
+  const hasText = text.trim().length > 0;
   return (
-    <div className="group/msg flex min-w-0 flex-col gap-1.5">
-      {reasoning && <Reasoning live={streaming && !text} text={reasoning} />}
-      {text ? (
-        <Streamdown
-          animated
-          caret={streaming ? "block" : undefined}
-          className="leading-relaxed"
-          isAnimating={streaming}
-          plugins={{ code }}
-        >
-          {text}
-        </Streamdown>
-      ) : (
-        streaming && !reasoning && <Thinking />
-      )}
-      {!streaming && (
-        <div className={cn(TOOLBAR, "-mt-1")}>
-          <span className="flex items-center gap-1.5 px-1">
-            {label && <span>{label.title}</span>}
-            {label && message.metadata?.createdAt && (
-              <span aria-hidden="true">·</span>
+    <Message>
+      <MessageContent className="gap-2">
+        <Activity
+          reasoning={reasoning}
+          reasoningMs={message?.metadata?.reasoningMs}
+          working={live && !hasText}
+        />
+        {hasText && (
+          <Bubble className="w-full" variant="ghost">
+            <BubbleContent className="w-full overflow-visible">
+              <Streamdown animated isAnimating={live} plugins={{ code }}>
+                {text}
+              </Streamdown>
+            </BubbleContent>
+          </Bubble>
+        )}
+        {!live && message && (
+          <MessageFooter className={cn(TOOLBAR, "-mt-1")}>
+            <span className="flex items-center gap-1.5">
+              {label && <span>{label.title}</span>}
+              {label && message.metadata?.createdAt && (
+                <span aria-hidden="true">·</span>
+              )}
+              <When at={message.metadata?.createdAt} />
+            </span>
+            {hasText && <CopyAction text={text} />}
+            {onRegenerate && (
+              <Action
+                label={t("regenerate")}
+                onClick={() => onRegenerate(message.id)}
+              >
+                <RefreshCw />
+              </Action>
             )}
-            <When at={message.metadata?.createdAt} />
-          </span>
-          {text && <CopyAction text={text} />}
-          {onRegenerate && (
-            <Action label={t("regenerate")} onClick={onRegenerate}>
-              <RefreshCw />
-            </Action>
-          )}
-        </div>
-      )}
-    </div>
+          </MessageFooter>
+        )}
+      </MessageContent>
+    </Message>
   );
 };
-
-/** Before the first chunk: thinking. */
-export const PendingAnswer = () => (
-  <div className="flex flex-col">
-    <Thinking />
-  </div>
-);

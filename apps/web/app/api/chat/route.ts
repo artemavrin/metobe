@@ -47,6 +47,23 @@ const FIRST_TOKEN = new Set([
   "tool-input-start",
 ]);
 
+/**
+ * Why a call failed, as «name: message» down the cause chain (a retry's last error first) — where the real reason
+ * is, like a proxy that does not resolve. The request itself stays out of the log: it holds the prompt.
+ */
+const causes = (error: unknown) => {
+  const chain: string[] = [];
+  let current: unknown = (error as { lastError?: unknown }).lastError ?? error;
+  while (current instanceof Error && chain.length < 6) {
+    const status = (current as { statusCode?: number }).statusCode;
+    chain.push(
+      `${current.name}: ${current.message}${status ? ` (${status})` : ""}`
+    );
+    current = current.cause;
+  }
+  return chain.join(" ← ");
+};
+
 const textOf = (message: ChatMessage) =>
   message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(" ");
 
@@ -132,6 +149,9 @@ export const POST = async (request: Request) => {
       );
       const started = Date.now();
       let firstChunk: number | null = null;
+      // How long the model reasoned: from its first reasoning to its first word (the folded reasoning says it).
+      let reasoningFrom: number | null = null;
+      let reasoningTo: number | null = null;
       const run = { chatId: id, model, userId: session.user.id };
       const record = async (
         r: Omit<Parameters<typeof recordRun>[0], keyof typeof run>
@@ -151,6 +171,11 @@ export const POST = async (request: Request) => {
           if (FIRST_TOKEN.has(chunk.type)) {
             firstChunk ??= Date.now() - started;
           }
+          if (chunk.type === "reasoning-delta") {
+            reasoningFrom ??= Date.now();
+          } else if (chunk.type === "text-delta" && reasoningFrom !== null) {
+            reasoningTo ??= Date.now();
+          }
         },
         onEnd: ({ providerMetadata, totalUsage }) =>
           record({
@@ -159,18 +184,27 @@ export const POST = async (request: Request) => {
             status: "ok",
             usage: totalUsage,
           }),
-        onError: () => record({ latencyMs: firstChunk, status: "error" }),
+        // The provider's own error: the stream passes on only «An error occurred».
+        onError: ({ error }) => {
+          console.error("chat: the model failed", model.id, causes(error));
+          return record({ latencyMs: firstChunk, status: "error" });
+        },
         providerOptions: prompt.providerOptions,
       });
       // Runs the generation to its end on the server, so the answer is saved even when the client has left.
       void result.consumeStream();
       writer.merge(
         toUIMessageStream<ToolSet, ChatMessage>({
-          // The answer names its model, so the thread can show who wrote it after the chat switches models.
-          messageMetadata: ({ part }) =>
-            part.type === "start"
-              ? { createdAt: new Date().toISOString(), modelId: model.id }
-              : undefined,
+          // The answer names its model, so the thread can show who wrote it after the chat switches models, and at
+          // the end how long it reasoned.
+          messageMetadata: ({ part }) => {
+            if (part.type === "start") {
+              return { createdAt: new Date().toISOString(), modelId: model.id };
+            }
+            return part.type === "finish" && reasoningFrom !== null
+              ? { reasoningMs: (reasoningTo ?? Date.now()) - reasoningFrom }
+              : undefined;
+          },
           sendReasoning: true,
           stream: result.stream,
         })

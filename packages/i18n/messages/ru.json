@@ -13,6 +13,7 @@
     "send": "Отправить",
     "stop": "Остановить (Esc)",
     "disclaimer": "Metobe может ошибаться — проверяйте важное",
+    "preparing": "Готовит ответ…",
     "thinking": "Думает…",
     "reasoning": "Размышления",
     "copy": "Скопировать",
@@ -21,6 +22,10 @@
     "edit": "Изменить",
     "cancel": "Отмена",
     "justNow": "только что",
+    "modelSwitch": "Модель: {model}",
+    "thread": "Сообщения",
+    "toLatest": "К последнему сообщению",
+    "reasoningFor": "Размышления · {seconds} с",
     "retry": "Повторить",
     "signIn": "Войти",
     "errors": {

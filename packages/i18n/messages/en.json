@@ -13,6 +13,7 @@
     "send": "Send",
     "stop": "Stop (Esc)",
     "disclaimer": "Metobe can make mistakes — check what matters",
+    "preparing": "Preparing an answer…",
     "thinking": "Thinking…",
     "reasoning": "Reasoning",
     "copy": "Copy",
@@ -21,6 +22,10 @@
     "edit": "Edit",
     "cancel": "Cancel",
     "justNow": "just now",
+    "modelSwitch": "Model: {model}",
+    "thread": "Messages",
+    "toLatest": "Jump to latest",
+    "reasoningFor": "Reasoning · {seconds}s",
     "retry": "Try again",
     "signIn": "Sign in",
     "errors": {

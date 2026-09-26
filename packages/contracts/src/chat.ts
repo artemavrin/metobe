@@ -6,11 +6,13 @@ import { z } from "zod";
 
 /**
  * What a message carries besides its parts: when it was written (the thread's toolbar says it; stored messages
- * take it from their row) and the model that wrote an answer (our `models.id`).
+ * take it from their row), the model that wrote an answer (our `models.id`) and how long it reasoned before its
+ * first word, as the server measured it.
  */
 export const chatMessageMetadataSchema = z.object({
   createdAt: z.iso.datetime().optional(),
   modelId: z.uuid().optional(),
+  reasoningMs: z.number().int().nonnegative().optional(),
 });
 export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 
