@@ -723,7 +723,7 @@ export const FavoritesPicker = ({
   const plainRow = (id: string) => {
     const m = anyModel(id);
     return (
-      <div {...rowProps(id)} className={ROW} key={id}>
+      <div key={id} {...rowProps(id)} className={ROW}>
         <Body faded={false} isCurrent={id === current.id} m={m} />
         <Slot
           digit={digitOf(id)}
@@ -852,9 +852,6 @@ export const FavoritesPicker = ({
           {/* No «Избранное» title: the digits on the rows already say what this list is. */}
           {frozen.empty ? (
             <>
-              <p className="text-muted-foreground p-2.5 text-sm">
-                {t("noFavorites")}
-              </p>
               {frozen.extras.length > 0 && <Header>{t("recent")}</Header>}
               {frozen.extras.map(plainRow)}
             </>

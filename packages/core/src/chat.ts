@@ -45,6 +45,7 @@ export const listMessages = async (chatId: string): Promise<ChatMessage[]> => {
   const { db } = getDb();
   const rows = await db
     .select({
+      createdAt: messages.createdAt,
       id: messages.id,
       metadata: messages.metadata,
       parts: messages.parts,
@@ -53,7 +54,10 @@ export const listMessages = async (chatId: string): Promise<ChatMessage[]> => {
     .from(messages)
     .where(eq(messages.chatId, chatId))
     .orderBy(asc(messages.createdAt));
-  return rows.map(({ metadata, ...m }) => (metadata ? { ...m, metadata } : m));
+  return rows.map(({ createdAt, metadata, ...m }) => ({
+    ...m,
+    metadata: { ...metadata, createdAt: createdAt.toISOString() },
+  }));
 };
 
 /**

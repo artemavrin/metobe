@@ -5,9 +5,17 @@ import { chatTitleFrom } from "@metobe/contracts/chat";
 import type { ChatMessage } from "@metobe/contracts/chat";
 import type { ModelLabel } from "@metobe/core/chat";
 import { Button } from "@metobe/ui/components/button";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@metobe/ui/components/message-scroller";
 import { cn } from "@metobe/ui/lib/utils";
 import { DefaultChatTransport } from "ai";
-import { TriangleAlert } from "lucide-react";
+import { ArrowDown, TriangleAlert } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -17,13 +25,15 @@ import { useTouchChat } from "@/components/chat/chat-shell";
 import { Composer } from "@/components/chat/composer";
 import {
   AssistantMessage,
-  PendingAnswer,
+  ModelSwitch,
   UserMessage,
 } from "@/components/chat/messages";
 import { PickerDataProvider } from "@/components/chat/picker/data";
 import type { PickerModel } from "@/components/chat/picker/data";
 import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { chatProblem } from "@/lib/chat-errors";
+import { threadRows } from "@/lib/thread-rows";
+import type { ThreadRow } from "@/lib/thread-rows";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 /** The composer's move to the bottom: a spring with a hint of bounce, for a large move that must feel physical. */
@@ -48,6 +58,9 @@ const asLabel = (m: PickerModel): ModelLabel => ({
   providerTitle: m.makerTitle,
   title: m.title,
 });
+
+/** A message's time as the client knows it until the server's copy comes back with its own. */
+const stamp = () => ({ createdAt: new Date().toISOString() });
 
 const ChatError = ({
   error,
@@ -112,6 +125,7 @@ export const ChatView = ({
   /** A new chat greets the user; an existing one opens on its history. */
   greeting?: string;
 }) => {
+  const t = useTranslations("chat");
   const reduce = useReducedMotion() ?? false;
   const touch = useTouchChat();
   const [model, setModel] = useState(initialModel);
@@ -150,7 +164,8 @@ export const ChatView = ({
   const empty = messages.length === 0;
 
   // When an answer starts, the server has the chat: a new one gets its address without a reload, and the chat
-  // goes to the top of the sidebar.
+  // goes to the top of the sidebar. A chat is named once, when it is made: its first line until the titles model
+  // answers (onData above); later answers — a new question, regenerate, edit — only move it up.
   const fresh = useRef(initialMessages.length === 0);
   const touched = useRef(false);
   useEffect(() => {
@@ -162,10 +177,12 @@ export const ChatView = ({
       return;
     }
     touched.current = true;
-    if (fresh.current) {
-      fresh.current = false;
-      window.history.replaceState(null, "", `/chat/${id}`);
+    if (!fresh.current) {
+      touch({ id });
+      return;
     }
+    fresh.current = false;
+    window.history.replaceState(null, "", `/chat/${id}`);
     const first = messages.find((m) => m.role === "user");
     const text =
       first?.parts
@@ -174,84 +191,111 @@ export const ChatView = ({
     touch({ id, title: titled.current ?? chatTitleFrom(text) });
   }, [status, messages, id, touch]);
 
-  // The thread follows its growth — a new message, a streaming answer — while the user is at its end; scrolling up
-  // to read stops that, sending brings it back.
-  const scroller = useRef<HTMLDivElement>(null);
-  const content = useRef<HTMLDivElement>(null);
-  const pinned = useRef(true);
-  useEffect(() => {
-    const el = scroller.current;
-    const inner = content.current;
-    if (!el || !inner) {
-      return;
-    }
-    const follow = new ResizeObserver(() => {
-      if (pinned.current) {
-        el.scrollTop = el.scrollHeight;
-      }
-    });
-    follow.observe(inner);
-    return () => follow.disconnect();
-  }, []);
-
+  // The model a question went to: marks a switch for the answer that has not started yet.
+  const [asked, setAsked] = useState<string>();
   const send = (text: string) => {
-    pinned.current = true;
     clearError();
-    void sendMessage({ text }, { body: { modelId: model.id } });
+    setAsked(model.id);
+    void sendMessage(
+      { metadata: stamp(), text },
+      { body: { modelId: model.id } }
+    );
+  };
+  // An edited message replaces its old self and drops what followed; the server does the same with its copy.
+  const edit = (messageId: string, text: string) => {
+    clearError();
+    setAsked(model.id);
+    void sendMessage(
+      { messageId, metadata: stamp(), text },
+      { body: { modelId: model.id } }
+    );
+  };
+  // An answer again, by the model in the chip, from the user's message before it.
+  const regenerateFrom = (messageId: string) => {
+    clearError();
+    setAsked(model.id);
+    void regenerate({ body: { modelId: model.id }, messageId });
   };
   const retry = () => {
     clearError();
+    setAsked(model.id);
     void regenerate({ body: { modelId: model.id } });
   };
-  const labelOf = (m: ChatMessage) => {
-    const picked = models.find((x) => x.id === m.metadata?.modelId);
-    return picked
-      ? asLabel(picked)
-      : labels.find((l) => l.id === m.metadata?.modelId);
+  const labelOf = (modelId?: string) => {
+    const picked = models.find((x) => x.id === modelId);
+    return picked ? asLabel(picked) : labels.find((l) => l.id === modelId);
   };
-  const last = messages.at(-1);
+  const rowOf = (row: ThreadRow) => {
+    if (row.role === "switch") {
+      return <ModelSwitch label={labelOf(row.modelId)} />;
+    }
+    if (row.role === "user") {
+      return (
+        <UserMessage
+          message={row.message}
+          onEdit={busy ? undefined : (text) => edit(row.message.id, text)}
+        />
+      );
+    }
+    return (
+      <AssistantMessage
+        label={labelOf(row.message?.metadata?.modelId)}
+        live={row.live}
+        message={row.message}
+        onRegenerate={busy ? undefined : regenerateFrom}
+      />
+    );
+  };
 
   return (
     <PickerDataProvider models={models} recent={recent}>
       <div className="relative flex min-h-0 flex-1 flex-col">
         <style>{SCREEN_CSS}</style>
-        <div
-          className={cn(
-            "min-h-0 flex-1 overflow-y-auto px-4 md:px-6",
-            !empty && "py-6"
-          )}
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            pinned.current =
-              el.scrollHeight - el.scrollTop - el.clientHeight < 64;
-          }}
-          ref={scroller}
-        >
-          <div
-            className="mx-auto flex max-w-4xl flex-col gap-6 text-sm"
-            ref={content}
+        {/*
+          The thread (shadcn MessageScroller): a question that goes settles near the top with its answer growing
+          under it, and once the answer runs past the view, the view follows the words — while the reader stays at
+          the end; scrolling up to read stops that, the button brings the end back. A saved chat opens on its last
+          question.
+        */}
+        <div className="relative min-h-0 flex-1">
+          <MessageScrollerProvider
+            autoScroll
+            defaultScrollPosition="last-anchor"
           >
-            {!empty && (
-              <>
-                {messages.map((m) =>
-                  m.role === "user" ? (
-                    <UserMessage key={m.id} message={m} />
-                  ) : (
-                    <AssistantMessage
-                      key={m.id}
-                      label={labelOf(m)}
-                      message={m}
-                      streaming={status === "streaming" && m.id === last?.id}
-                    />
-                  )
-                )}
-                {status === "submitted" && last?.role === "user" && (
-                  <PendingAnswer label={asLabel(model)} />
-                )}
-                {error && !busy && <ChatError error={error} onRetry={retry} />}
-              </>
-            )}
-          </div>
+            <MessageScroller>
+              <MessageScrollerViewport aria-label={t("thread")}>
+                <MessageScrollerContent
+                  className={cn(
+                    "mx-auto w-full max-w-4xl px-4 text-sm md:px-6",
+                    !empty && "py-6"
+                  )}
+                >
+                  {threadRows(messages, status, asked)
+                    .filter(
+                      (row) => row.role !== "switch" || labelOf(row.modelId)
+                    )
+                    .map((row) => (
+                      <MessageScrollerItem
+                        key={row.key}
+                        messageId={row.key}
+                        scrollAnchor={row.role === "user"}
+                      >
+                        {rowOf(row)}
+                      </MessageScrollerItem>
+                    ))}
+                  {error && !busy && (
+                    <MessageScrollerItem messageId="error">
+                      <ChatError error={error} onRetry={retry} />
+                    </MessageScrollerItem>
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton>
+                <ArrowDown />
+                <span className="sr-only">{t("toLatest")}</span>
+              </MessageScrollerButton>
+            </MessageScroller>
+          </MessageScrollerProvider>
         </div>
         <AnimatePresence initial={false} mode="popLayout">
           {empty && greeting && (
