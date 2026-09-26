@@ -85,6 +85,13 @@
       "when": 1790430422376,
       "tag": "0011_favorite_models",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790446406816,
+      "tag": "0012_model_slots",
+      "breakpoints": true
     }
   ]
 }

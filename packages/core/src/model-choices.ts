@@ -61,6 +61,7 @@ export const getFirstTokenMedians = async () => {
     .where(
       and(
         eq(modelRuns.status, "ok"),
+        eq(modelRuns.purpose, "chat"),
         isNotNull(modelRuns.latencyMs),
         isNotNull(modelRuns.modelId),
         gte(modelRuns.createdAt, sql`now() - interval '30 days'`)
@@ -83,7 +84,13 @@ export const getRecentModelIds = async (userId: string, limit = 3) => {
       modelId: modelRuns.modelId,
     })
     .from(modelRuns)
-    .where(and(eq(modelRuns.userId, userId), isNotNull(modelRuns.modelId)))
+    .where(
+      and(
+        eq(modelRuns.userId, userId),
+        eq(modelRuns.purpose, "chat"),
+        isNotNull(modelRuns.modelId)
+      )
+    )
     .groupBy(modelRuns.modelId)
     .orderBy(sql`max(${modelRuns.createdAt}) desc`)
     .limit(limit);

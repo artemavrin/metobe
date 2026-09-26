@@ -1,5 +1,9 @@
 import "server-only";
-import type { RunStatus, SourceKind } from "@metobe/contracts/models";
+import type {
+  RunPurpose,
+  RunStatus,
+  SourceKind,
+} from "@metobe/contracts/models";
 import { modelRuns } from "@metobe/db/schema/models";
 import type { LanguageModelUsage, ModelMessage, ProviderMetadata } from "ai";
 
@@ -60,6 +64,8 @@ export const recordRun = async (run: {
   usage?: LanguageModelUsage;
   providerMetadata?: ProviderMetadata;
   latencyMs: number | null;
+  /** A chat's answer by default; service jobs say which. */
+  purpose?: RunPurpose;
 }) => {
   const { model, usage } = run;
   const cacheReadTokens = usage?.inputTokenDetails.cacheReadTokens ?? 0;
@@ -94,6 +100,7 @@ export const recordRun = async (run: {
     latencyMs: run.latencyMs,
     modelId: model.id,
     outputTokens,
+    purpose: run.purpose ?? "chat",
     status: run.status,
     userId: run.userId,
   });

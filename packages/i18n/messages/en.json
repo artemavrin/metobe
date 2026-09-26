@@ -284,6 +284,10 @@
       "about": {
         "label": "About",
         "hint": "Version, updates, master key"
+      },
+      "service": {
+        "label": "Service models",
+        "hint": "Who does the work outside the chat: chat titles"
       }
     },
     "appearance": {
@@ -736,5 +740,20 @@
       "title": "Chat isn't set up yet",
       "text": "An admin hasn't connected any models yet. Once they do, chat opens here."
     }
+  },
+  "service": {
+    "title": "Service models",
+    "description": "Models for work outside the chat. A service model doesn’t have to be in the chat — a cheap, fast one is enough.",
+    "jobs": "Jobs",
+    "none": "Not set",
+    "notInChat": "not in chat",
+    "saved": "Saved",
+    "slots": {
+      "titles": {
+        "label": "Chat titles",
+        "hint": "Names a new chat after its first message. Without a model — the message’s first line."
+      }
+    },
+    "empty": "No working sources with models — connect a source"
   }
 }
