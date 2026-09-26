@@ -49,6 +49,9 @@ const asLabel = (m: PickerModel): ModelLabel => ({
   title: m.title,
 });
 
+/** A message's time as the client knows it until the server's copy comes back with its own. */
+const stamp = () => ({ createdAt: new Date().toISOString() });
+
 const ChatError = ({
   error,
   onRetry,
@@ -197,7 +200,24 @@ export const ChatView = ({
   const send = (text: string) => {
     pinned.current = true;
     clearError();
-    void sendMessage({ text }, { body: { modelId: model.id } });
+    void sendMessage(
+      { metadata: stamp(), text },
+      { body: { modelId: model.id } }
+    );
+  };
+  // An edited message replaces its old self and drops what followed; the server does the same with its copy.
+  const edit = (messageId: string, text: string) => {
+    pinned.current = true;
+    clearError();
+    void sendMessage(
+      { messageId, metadata: stamp(), text },
+      { body: { modelId: model.id } }
+    );
+  };
+  // An answer again, by the model in the chip, from the user's message before it.
+  const regenerateFrom = (messageId: string) => {
+    clearError();
+    void regenerate({ body: { modelId: model.id }, messageId });
   };
   const retry = () => {
     clearError();
@@ -235,18 +255,25 @@ export const ChatView = ({
               <>
                 {messages.map((m) =>
                   m.role === "user" ? (
-                    <UserMessage key={m.id} message={m} />
+                    <UserMessage
+                      key={m.id}
+                      message={m}
+                      onEdit={busy ? undefined : (text) => edit(m.id, text)}
+                    />
                   ) : (
                     <AssistantMessage
                       key={m.id}
                       label={labelOf(m)}
                       message={m}
+                      onRegenerate={
+                        busy ? undefined : () => regenerateFrom(m.id)
+                      }
                       streaming={status === "streaming" && m.id === last?.id}
                     />
                   )
                 )}
                 {status === "submitted" && last?.role === "user" && (
-                  <PendingAnswer label={asLabel(model)} />
+                  <PendingAnswer />
                 )}
                 {error && !busy && <ChatError error={error} onRetry={retry} />}
               </>

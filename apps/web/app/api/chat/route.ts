@@ -91,7 +91,7 @@ export const POST = async (request: Request) => {
   try {
     uiMessages = await validateUIMessages<ChatMessage>({
       messages: [...history, message],
-      // A user's message has no metadata; an answer names its model.
+      // A message the client sends has no metadata; stored ones have their time, answers their model.
       metadataSchema: chatMessageMetadataSchema.optional(),
     });
   } catch (error) {
@@ -168,7 +168,9 @@ export const POST = async (request: Request) => {
         toUIMessageStream<ToolSet, ChatMessage>({
           // The answer names its model, so the thread can show who wrote it after the chat switches models.
           messageMetadata: ({ part }) =>
-            part.type === "start" ? { modelId: model.id } : undefined,
+            part.type === "start"
+              ? { createdAt: new Date().toISOString(), modelId: model.id }
+              : undefined,
           sendReasoning: true,
           stream: result.stream,
         })
