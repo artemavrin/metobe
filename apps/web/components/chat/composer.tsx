@@ -1,15 +1,21 @@
 "use client";
 
+import type { ChatServer } from "@metobe/core/mcp";
 import { Button } from "@metobe/ui/components/button";
 import { Kbd } from "@metobe/ui/components/kbd";
-import { Textarea } from "@metobe/ui/components/textarea";
 import { cn } from "@metobe/ui/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
+import { connectServer } from "@/app/(app)/(chat)/actions";
+import { ConnectDialog } from "@/components/chat/connect-dialog";
+import { MentionMenu } from "@/components/chat/mention-menu";
 import { ModelChooser } from "@/components/chat/picker/chooser";
 import type { Favorites, PickerModel } from "@/components/chat/picker/data";
+import type { NavSource } from "@/components/chat/picker/motion";
+import { TokenEditor } from "@/components/chat/token-editor";
+import type { EditorHandle, Trigger } from "@/components/chat/token-editor";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
@@ -114,7 +120,9 @@ const SendButton = ({
 
 /**
  * The composer «Щелчок» (P2): a grey shell with the white card nested in it — the band on top of the card (files,
- * the context) arrives with attachments. Enter sends, Shift+Enter breaks the line, Esc stops an answer.
+ * the context) arrives with attachments. Enter sends, Shift+Enter breaks the line, Esc stops an answer. `@` mentions
+ * an MCP server right in the text: only mentioned servers give their tools to the model; one the user has not
+ * connected yet is connected from here — its OAuth page, or their token in a small dialog.
  */
 export const Composer = ({
   home,
@@ -124,6 +132,8 @@ export const Composer = ({
   busy,
   onSend,
   onStop,
+  servers,
+  onServerReady,
 }: {
   /** An empty chat: the composer sits in the middle, a bit taller. */
   home: boolean;
@@ -133,83 +143,220 @@ export const Composer = ({
   onModel: (m: PickerModel) => void;
   /** An answer is on its way: the button stops it instead of sending. */
   busy: boolean;
-  onSend: (text: string) => void;
+  /** The text (a mention reads `@Name`) and the servers mentioned in it. */
+  onSend: (text: string, catalogIds: string[]) => void;
   onStop: () => void;
+  /** The MCP servers the user may mention here. */
+  servers: ChatServer[];
+  /** A server the user just connected from the chat. */
+  onServerReady: (id: string) => void;
 }) => {
   const t = useTranslations("chat");
-  const [text, setText] = useState("");
-  const field = useRef<HTMLTextAreaElement>(null);
-  const ready = text.trim().length > 0;
-  const submit = () => {
-    if (!ready || busy) {
+  const editor = useRef<EditorHandle>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const nav = useRef<NavSource>("snap");
+  const [ready, setReady] = useState(false);
+  const [trigger, setTrigger] = useState<{
+    at: Trigger;
+    box: DOMRect;
+    taken: Set<string>;
+  } | null>(null);
+  const [active, setActive] = useState(0);
+  const [connecting, setConnecting] = useState<ChatServer | null>(null);
+  const items = trigger
+    ? servers.filter(
+        (s) =>
+          !trigger.taken.has(s.id) &&
+          s.title.toLowerCase().includes(trigger.at.query)
+      )
+    : [];
+
+  const onTrigger = useCallback((at: Trigger | null) => {
+    nav.current = "snap";
+    setActive(0);
+    const rect = box.current?.getBoundingClientRect();
+    setTrigger(
+      at && rect
+        ? {
+            at,
+            box: rect,
+            taken: new Set(editor.current?.tokens().map((x) => x.id)),
+          }
+        : null
+    );
+  }, []);
+  const onEmptyChange = useCallback((empty: boolean) => setReady(!empty), []);
+
+  const insert = (server: ChatServer) => {
+    editor.current?.insertToken({
+      id: server.id,
+      label: server.title,
+      logo: server.logo ?? undefined,
+    });
+    setTrigger(null);
+  };
+  /** A server the user has not connected: OAuth goes to its page (back here after), anything else asks here. */
+  const pick = async (server: ChatServer) => {
+    if (server.signIn === "ready") {
+      insert(server);
       return;
     }
-    onSend(text.trim());
-    setText("");
+    if (server.auth !== "oauth") {
+      setConnecting(server);
+      return;
+    }
+    const result = await connectServer({
+      catalogId: server.id,
+      returnTo: window.location.pathname,
+    });
+    if (result.state === "signIn") {
+      window.location.assign(result.url);
+    } else if (result.state === "ok") {
+      onServerReady(server.id);
+      insert(server);
+    }
   };
+
+  const submit = () => {
+    const segments = editor.current?.value() ?? [];
+    const text = segments
+      .map((x) => (typeof x === "string" ? x : `@${x.label}`))
+      .join("")
+      .trim();
+    if (!text || busy) {
+      return;
+    }
+    onSend(
+      text,
+      segments.flatMap((x) => (typeof x === "string" ? [] : [x.id]))
+    );
+    editor.current?.clear();
+  };
+
   return (
-    <form
-      data-composer
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-    >
-      {/* The shell: grey, the white card nested inside — radius 22 = 18 + 4 of padding */}
-      <div className="bg-muted/70 dark:bg-muted/40 ring-border/70 rounded-[22px] p-1 ring-1">
+    <>
+      <form
+        data-composer
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        {/* The shell: grey, the white card nested inside — radius 22 = 18 + 4 of padding */}
         <div
-          className={cn(
-            "bg-background border-border/80 flex flex-col rounded-[18px] border shadow-xs",
-            "focus-within:border-foreground/15 [transition:border-color_200ms_ease,box-shadow_200ms_ease]",
-            "focus-within:shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_-1px_rgba(0,0,0,0.06),0_2px_4px_0_rgba(0,0,0,0.04)] dark:focus-within:shadow-xs"
-          )}
+          className="bg-muted/70 dark:bg-muted/40 ring-border/70 relative rounded-[22px] p-1 ring-1"
+          ref={box}
         >
-          <Textarea
-            aria-label={t("placeholder")}
-            autoFocus
-            ref={field}
-            className={cn(
-              "max-h-60 resize-none rounded-none border-0 bg-transparent px-3 pt-3 pb-1 leading-7 shadow-none focus-visible:ring-0 md:leading-7 dark:bg-transparent",
-              home ? "min-h-24" : "min-h-16"
-            )}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (
-                e.key === "Enter" &&
-                !e.shiftKey &&
-                !e.nativeEvent.isComposing
-              ) {
-                e.preventDefault();
-                submit();
-              } else if (e.key === "Escape" && busy) {
-                e.preventDefault();
-                onStop();
-              }
-            }}
-            placeholder={t("placeholder")}
-            value={text}
-          />
-          <div className="flex items-center gap-1 px-2 pt-1 pb-2">
-            <ModelChooser
-              favorites={favorites}
-              model={model}
-              onChange={onModel}
-              onDone={() => field.current?.focus()}
+          {trigger && (
+            <MentionMenu
+              active={active}
+              box={trigger.box}
+              items={items}
+              nav={nav}
+              onHover={setActive}
+              onPick={pick}
+              trigger={trigger.at}
             />
-            <span className="ml-auto">
-              <SendButton
-                onStop={onStop}
-                ready={ready}
-                state={busy ? "stop" : "send"}
+          )}
+          <div
+            className={cn(
+              "bg-background border-border/80 flex flex-col rounded-[18px] border shadow-xs",
+              "focus-within:border-foreground/15 [transition:border-color_200ms_ease,box-shadow_200ms_ease]",
+              "focus-within:shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_-1px_rgba(0,0,0,0.06),0_2px_4px_0_rgba(0,0,0,0.04)] dark:focus-within:shadow-xs"
+            )}
+          >
+            <TokenEditor
+              autoFocus
+              className={cn("max-h-60", home ? "min-h-24" : "min-h-16")}
+              onEmptyChange={onEmptyChange}
+              onKeyDown={(e) => {
+                if (trigger) {
+                  if (
+                    items.length > 0 &&
+                    (e.key === "ArrowDown" || e.key === "ArrowUp")
+                  ) {
+                    e.preventDefault();
+                    nav.current = e.repeat ? "snap" : "step";
+                    setActive(
+                      (a) =>
+                        (a + (e.key === "ArrowDown" ? 1 : items.length - 1)) %
+                        items.length
+                    );
+                    return true;
+                  }
+                  const current = items[active];
+                  if (current && (e.key === "Enter" || e.key === "Tab")) {
+                    e.preventDefault();
+                    if (current.signIn !== "admin") {
+                      pick(current);
+                    }
+                    return true;
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setTrigger(null);
+                    return true;
+                  }
+                }
+                if (e.key === "Escape" && busy) {
+                  e.preventDefault();
+                  onStop();
+                  return true;
+                }
+                return false;
+              }}
+              onSubmit={submit}
+              onTrigger={onTrigger}
+              placeholder={t("placeholder")}
+              ref={editor}
+              removeLabel={t("mcp.remove")}
+            />
+            <div className="flex items-center gap-1 px-2 pt-1 pb-2">
+              <ModelChooser
+                favorites={favorites}
+                model={model}
+                onChange={onModel}
+                onDone={() => editor.current?.focus()}
               />
-            </span>
+              <span className="ml-auto">
+                <SendButton
+                  onStop={onStop}
+                  ready={ready}
+                  state={busy ? "stop" : "send"}
+                />
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-      <p className="text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-xs">
-        {t("disclaimer")} <span className="opacity-50">·</span> <Kbd>⌘/</Kbd>{" "}
-        {t("allModels")}
-      </p>
-    </form>
+        <p className="text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-xs">
+          {t("disclaimer")} <span className="opacity-50">·</span> <Kbd>⌘/</Kbd>{" "}
+          {t("allModels")}
+        </p>
+      </form>
+      {/* Outside the form: React events bubble through portals, and its submit would send the draft */}
+      <ConnectDialog
+        onClose={() => setConnecting(null)}
+        onConnect={async (secret, username) => {
+          const server = connecting;
+          if (!server) {
+            return false;
+          }
+          const result = await connectServer({
+            catalogId: server.id,
+            returnTo: window.location.pathname,
+            secret,
+            username,
+          });
+          if (result.state !== "ok") {
+            return false;
+          }
+          setConnecting(null);
+          onServerReady(server.id);
+          insert(server);
+          return true;
+        }}
+        server={connecting}
+      />
+    </>
   );
 };

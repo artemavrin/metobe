@@ -92,6 +92,27 @@
       "when": 1790446406816,
       "tag": "0012_model_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790458495971,
+      "tag": "0013_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790460794579,
+      "tag": "0014_catalog_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790462123290,
+      "tag": "0015_chat_catalog",
+      "breakpoints": true
     }
   ]
 }

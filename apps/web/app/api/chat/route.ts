@@ -3,7 +3,11 @@ import {
   chatRequestSchema,
   chatTitleFrom,
 } from "@metobe/contracts/chat";
-import type { ChatErrorCode, ChatMessage } from "@metobe/contracts/chat";
+import type {
+  Approvals,
+  ChatErrorCode,
+  ChatMessage,
+} from "@metobe/contracts/chat";
 import { getLanguageModel } from "@metobe/core/ai";
 import {
   createChat,
@@ -12,13 +16,16 @@ import {
   getChatModel,
   listMessages,
   saveMessages,
+  setChatCatalog,
 } from "@metobe/core/chat";
 import { recordRun, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
+import { toolsForUser } from "@metobe/core/mcp";
 import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  isStepCount,
   streamText,
   toUIMessageStream,
   validateUIMessages,
@@ -26,10 +33,11 @@ import {
 import type { ToolSet } from "ai";
 import { headers } from "next/headers";
 
+import { applyApprovals } from "@/lib/approvals";
 import { getAuth } from "@/lib/auth";
 
-// POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message, the history comes
-// from the database. The user's message is saved before the model is called, the answer when the stream ends —
+// POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
+// the last answer's approvals — and the history comes from the database. The user's message is saved before the model is called, the answer when the stream ends —
 // even if the client has gone by then. Errors are codes; the chat screen says them in the user's language.
 // Every call is recorded in model_runs with its cache split; prompt caching per source is in core/chat-run.
 // Tools (M4), stop, resume and statuses (M3.2) come on their steps.
@@ -70,6 +78,73 @@ const textOf = (message: ChatMessage) =>
 const provisionalTitle = (message: ChatMessage) =>
   chatTitleFrom(textOf(message));
 
+/**
+ * A new question: the same message again (a retry, an edit) drops itself and what followed, then goes anew.
+ */
+/** What a request makes of the chat: the messages the model gets, the one to save, and where to cut first. */
+interface Prepared {
+  messages: ChatMessage[];
+  save: ChatMessage;
+  dropFrom?: string;
+}
+
+const askAnew = (stored: ChatMessage[], message: ChatMessage): Prepared => {
+  const again = stored.findIndex((m) => m.id === message.id);
+  return {
+    dropFrom: again === -1 ? undefined : message.id,
+    messages: [...(again === -1 ? stored : stored.slice(0, again)), message],
+    save: message,
+  };
+};
+
+/** The user's answers to the last answer's approvals, applied to the server's copy; null when they fit nothing. */
+const applyToLast = (
+  stored: ChatMessage[],
+  approvals?: Approvals
+): Prepared | null => {
+  const last = stored.at(-1);
+  if (
+    !approvals ||
+    last?.role !== "assistant" ||
+    last.id !== approvals.messageId
+  ) {
+    return null;
+  }
+  const answered = applyApprovals(last, approvals.answers);
+  return answered
+    ? { messages: [...stored.slice(0, -1), answered], save: answered }
+    : null;
+};
+
+/**
+ * Makes a new chat with the servers mentioned in its first question, or adds the servers a question mentions to the
+ * chat's; a carry-on after approvals uses what the chat has. Returns the servers whose tools the model gets.
+ */
+const keepChat = async (input: {
+  id: string;
+  userId: string;
+  chat: Awaited<ReturnType<typeof getChat>>;
+  message?: ChatMessage;
+  catalogIds?: string[];
+}) => {
+  const { chat, message } = input;
+  // A server mentioned once stays on in the chat.
+  const catalogIds = [
+    ...new Set([...(chat?.catalogIds ?? []), ...(input.catalogIds ?? [])]),
+  ];
+  if (message && !chat) {
+    await createChat({
+      catalogIds,
+      id: input.id,
+      title: provisionalTitle(message),
+      userId: input.userId,
+    });
+  } else if (chat && catalogIds.length > chat.catalogIds.length) {
+    await setChatCatalog(input.id, catalogIds);
+  }
+  return catalogIds;
+};
+
 export const POST = async (request: Request) => {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) {
@@ -83,10 +158,20 @@ export const POST = async (request: Request) => {
   }
   const { id, message, modelId } = body.data;
 
-  const [chat, model] = await Promise.all([getChat(id), getChatModel(modelId)]);
+  const chat = await getChat(id);
   if (chat && chat.userId !== session.user.id) {
     return fail("forbidden", 403);
   }
+  const stored = chat ? await listMessages(id) : [];
+  const prepared = message
+    ? askAnew(stored, message)
+    : applyToLast(stored, body.data.approvals);
+  if (!prepared) {
+    return fail("bad-request", 400);
+  }
+  // A new question goes to the chip's model; an answer carried on after approvals, to the model that asked.
+  const answerModel = modelId ?? stored.at(-1)?.metadata?.modelId;
+  const model = answerModel ? await getChatModel(answerModel) : null;
   if (!model) {
     return fail("model-unavailable", 422);
   }
@@ -99,15 +184,11 @@ export const POST = async (request: Request) => {
     return fail("model-unavailable", 422);
   }
 
-  const stored = chat ? await listMessages(id) : [];
-  // The same message again (a retry after an error): it and what followed it go, then it is sent anew.
-  const again = stored.findIndex((m) => m.id === message.id);
-  const history = again === -1 ? stored : stored.slice(0, again);
   // Checked before anything is written, so a history that does not validate leaves no empty chat behind.
   let uiMessages: ChatMessage[];
   try {
     uiMessages = await validateUIMessages<ChatMessage>({
-      messages: [...history, message],
+      messages: prepared.messages,
       // A message the client sends has no metadata; stored ones have their time, answers their model.
       metadataSchema: chatMessageMetadataSchema.optional(),
     });
@@ -115,29 +196,32 @@ export const POST = async (request: Request) => {
     console.error("chat: the history does not validate", id, error);
     return fail("bad-request", 400);
   }
-  if (!chat) {
-    await createChat({
-      id,
-      title: provisionalTitle(message),
-      userId: session.user.id,
-    });
+  const catalogIds = await keepChat({
+    catalogIds: body.data.catalogIds,
+    chat,
+    id,
+    message,
+    userId: session.user.id,
+  });
+  if (prepared.dropFrom) {
+    await deleteMessagesFrom(id, prepared.dropFrom);
   }
-  if (again !== -1) {
-    await deleteMessagesFrom(id, message.id);
-  }
-  await saveMessages(id, [message]);
+  await saveMessages(id, [prepared.save]);
+  // Carrying on after approvals writes into the same answer.
+  const originalMessages = message ? undefined : uiMessages;
 
   const stream = createUIMessageStream<ChatMessage>({
     execute: async ({ writer }) => {
       // A new chat gets its name from the titles model while the answer streams; the sidebar takes it at once.
       const name = async () => {
-        const title = chat
-          ? null
-          : await generateChatTitle({
-              chatId: id,
-              text: textOf(message),
-              userId: session.user.id,
-            });
+        const title =
+          chat || !message
+            ? null
+            : await generateChatTitle({
+                chatId: id,
+                text: textOf(message),
+                userId: session.user.id,
+              });
         if (title) {
           writer.write({ data: title, transient: true, type: "data-title" });
         }
@@ -152,6 +236,8 @@ export const POST = async (request: Request) => {
       // How long the model reasoned: from its first reasoning to its first word (the folded reasoning says it).
       let reasoningFrom: number | null = null;
       let reasoningTo: number | null = null;
+      // How long the work with tools took: to the last tool result (the folded work says it).
+      let workTo: number | null = null;
       const run = { chatId: id, model, userId: session.user.id };
       const record = async (
         r: Omit<Parameters<typeof recordRun>[0], keyof typeof run>
@@ -162,6 +248,11 @@ export const POST = async (request: Request) => {
           console.error("chat: could not record the run", model.id, error);
         }
       };
+      // The MCP servers turned on in this chat (ARCH §8); a model that says it cannot call tools gets none.
+      const tools =
+        model.capabilities.tools === false
+          ? {}
+          : await toolsForUser(session.user.id, catalogIds);
       const result = streamText({
         messages: prompt.messages,
         model: languageModel,
@@ -170,6 +261,9 @@ export const POST = async (request: Request) => {
           // Time to the first thing the user sees, not to the stream's own bookkeeping.
           if (FIRST_TOKEN.has(chunk.type)) {
             firstChunk ??= Date.now() - started;
+          }
+          if (chunk.type === "tool-result" || chunk.type === "tool-error") {
+            workTo = Date.now();
           }
           if (chunk.type === "reasoning-delta") {
             reasoningFrom ??= Date.now();
@@ -190,6 +284,9 @@ export const POST = async (request: Request) => {
           return record({ latencyMs: firstChunk, status: "error" });
         },
         providerOptions: prompt.providerOptions,
+        // A tool's result goes back to the model until it answers in words — within reason.
+        stopWhen: isStepCount(10),
+        tools,
       });
       // Runs the generation to its end on the server, so the answer is saved even when the client has left.
       void result.consumeStream();
@@ -201,10 +298,17 @@ export const POST = async (request: Request) => {
             if (part.type === "start") {
               return { createdAt: new Date().toISOString(), modelId: model.id };
             }
-            return part.type === "finish" && reasoningFrom !== null
-              ? { reasoningMs: (reasoningTo ?? Date.now()) - reasoningFrom }
-              : undefined;
+            if (part.type !== "finish") {
+              return;
+            }
+            return {
+              ...(reasoningFrom === null
+                ? {}
+                : { reasoningMs: (reasoningTo ?? Date.now()) - reasoningFrom }),
+              ...(workTo === null ? {} : { workMs: workTo - started }),
+            };
           },
+          originalMessages,
           sendReasoning: true,
           stream: result.stream,
         })
@@ -219,6 +323,7 @@ export const POST = async (request: Request) => {
       console.error("chat: generation failed", model.id, error);
       return "generation-failed" satisfies ChatErrorCode;
     },
+    originalMessages,
   });
 
   return createUIMessageStreamResponse({ stream });

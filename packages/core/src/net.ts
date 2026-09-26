@@ -249,9 +249,10 @@ export const importEnvProxy = async (env: NodeJS.ProcessEnv = process.env) => {
   return { host: config.host, id, type: config.type };
 };
 
-// Routes and proxies changed here or in another process (config-bus); a change to one source leaves them be.
+// Routes and proxies changed here or in another process (config-bus); a change to one source or catalog item
+// leaves them be.
 onConfigChange((change) => {
-  if (!change.sourceId) {
+  if (!change.sourceId && !change.catalogId) {
     invalidateNet();
   }
 });

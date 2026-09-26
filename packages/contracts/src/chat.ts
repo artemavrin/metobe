@@ -13,6 +13,8 @@ export const chatMessageMetadataSchema = z.object({
   createdAt: z.iso.datetime().optional(),
   modelId: z.uuid().optional(),
   reasoningMs: z.number().int().nonnegative().optional(),
+  /** How long the work with tools took, to its last tool result, as the server measured it. */
+  workMs: z.number().int().nonnegative().optional(),
 });
 export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 
@@ -63,10 +65,42 @@ export const userMessageSchema = z.object({
   role: z.literal("user"),
 });
 
-/** `POST /api/chat`. `modelId` is our `models.id` — the source is looked up from it. */
-export const chatRequestSchema = z.object({
-  id: z.uuid(),
-  message: userMessageSchema,
-  modelId: z.uuid(),
+/**
+ * The user's answers to «ask first?» on the last answer's tool calls: which answer, and yes or no per request. Only
+ * the decisions travel — the server applies them to its own copy of the answer and carries it on.
+ */
+export const approvalsSchema = z.object({
+  answers: z
+    .array(
+      z.object({
+        approved: z.boolean(),
+        id: z.string().min(1).max(200),
+        reason: z.string().max(500).optional(),
+      })
+    )
+    .min(1)
+    .max(20),
+  messageId: z.uuid(),
 });
+export type Approvals = z.infer<typeof approvalsSchema>;
+
+/**
+ * `POST /api/chat`: a new message from the user with the model to answer it (our `models.id` — the source is looked
+ * up from it), or the user's answers to the last answer's approvals — carried on by the model that asked.
+ */
+export const chatRequestSchema = z
+  .object({
+    approvals: approvalsSchema.optional(),
+    /** The MCP servers the question mentions; they join the chat's, whose tools reach the model. */
+    catalogIds: z.array(z.uuid()).max(50).optional(),
+    id: z.uuid(),
+    message: userMessageSchema.optional(),
+    modelId: z.uuid().optional(),
+  })
+  .refine((r) => (r.message ? Boolean(r.modelId) : Boolean(r.approvals)), {
+    message: "a message with its model, or approvals",
+  })
+  .refine((r) => !(r.message && r.approvals), {
+    message: "not both",
+  });
 export type ChatRequest = z.infer<typeof chatRequestSchema>;

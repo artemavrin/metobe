@@ -24,9 +24,19 @@ export const createChat = async (chat: {
   id: string;
   userId: string;
   title: string;
+  catalogIds?: string[];
 }) => {
   const { db } = getDb();
   await db.insert(chats).values(chat).onConflictDoNothing();
+};
+
+/** The MCP servers turned on in a chat, as the user left them. */
+export const setChatCatalog = async (chatId: string, catalogIds: string[]) => {
+  const { db } = getDb();
+  await db
+    .update(chats)
+    .set({ catalogIds: [...new Set(catalogIds)] })
+    .where(eq(chats.id, chatId));
 };
 
 /** A user's chats for the sidebar, the latest first. Agent runs live in their own place (v2). */
