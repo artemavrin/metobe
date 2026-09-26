@@ -1,8 +1,13 @@
 import "server-only";
 import type { ChatMessage } from "@metobe/contracts/chat";
 import { chats, messages } from "@metobe/db/schema/chat";
-import { models, sources } from "@metobe/db/schema/models";
-import { and, asc, eq, sql } from "drizzle-orm";
+import {
+  modelRuns,
+  models,
+  providers,
+  sources,
+} from "@metobe/db/schema/models";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
 
@@ -24,15 +29,31 @@ export const createChat = async (chat: {
   await db.insert(chats).values(chat).onConflictDoNothing();
 };
 
+/** A user's chats for the sidebar, the latest first. Agent runs live in their own place (v2). */
+export const listChats = (userId: string, limit = 200) => {
+  const { db } = getDb();
+  return db
+    .select({ id: chats.id, title: chats.title, updatedAt: chats.updatedAt })
+    .from(chats)
+    .where(and(eq(chats.userId, userId), eq(chats.kind, "chat")))
+    .orderBy(desc(chats.updatedAt))
+    .limit(limit);
+};
+
 /** A chat's messages in order, ready for `useChat` and `convertToModelMessages`. */
 export const listMessages = async (chatId: string): Promise<ChatMessage[]> => {
   const { db } = getDb();
   const rows = await db
-    .select({ id: messages.id, parts: messages.parts, role: messages.role })
+    .select({
+      id: messages.id,
+      metadata: messages.metadata,
+      parts: messages.parts,
+      role: messages.role,
+    })
     .from(messages)
     .where(eq(messages.chatId, chatId))
     .orderBy(asc(messages.createdAt));
-  return rows;
+  return rows.map(({ metadata, ...m }) => (metadata ? { ...m, metadata } : m));
 };
 
 /**
@@ -54,12 +75,13 @@ export const saveMessages = async (chatId: string, list: ChatMessage[]) => {
           // One insert, one timestamp: a step apart keeps them in order.
           createdAt: new Date(now + i),
           id: m.id,
+          metadata: m.metadata ?? null,
           parts: m.parts,
           role: m.role,
         }))
       )
       .onConflictDoUpdate({
-        set: { parts: sql`excluded.parts` },
+        set: { metadata: sql`excluded.metadata`, parts: sql`excluded.parts` },
         target: messages.id,
       });
     await tx
@@ -67,6 +89,88 @@ export const saveMessages = async (chatId: string, list: ChatMessage[]) => {
       .set({ updatedAt: new Date(now) })
       .where(eq(chats.id, chatId));
   });
+};
+
+/**
+ * Drops a message and everything after it — before the same message is sent again (a retry after an error, and
+ * edit / regenerate later), so the model never sees it twice or an answer that no longer follows it.
+ */
+export const deleteMessagesFrom = async (chatId: string, messageId: string) => {
+  const { db } = getDb();
+  const [from] = await db
+    .select({ createdAt: messages.createdAt })
+    .from(messages)
+    .where(and(eq(messages.chatId, chatId), eq(messages.id, messageId)))
+    .limit(1);
+  if (!from) {
+    return;
+  }
+  await db
+    .delete(messages)
+    .where(
+      and(eq(messages.chatId, chatId), gte(messages.createdAt, from.createdAt))
+    );
+};
+
+/** The models a user ran last — in this chat and anywhere; the caller keeps the first that is still in chat. */
+export const getLastModelIds = async (userId: string, chatId?: string) => {
+  const { db } = getDb();
+  const last = async (where: ReturnType<typeof eq>) => {
+    const [run] = await db
+      .select({ modelId: modelRuns.modelId })
+      .from(modelRuns)
+      .where(and(where, sql`${modelRuns.modelId} is not null`))
+      .orderBy(desc(modelRuns.createdAt))
+      .limit(1);
+    return run?.modelId ?? null;
+  };
+  const [inChat, anywhere] = await Promise.all([
+    chatId ? last(eq(modelRuns.chatId, chatId)) : null,
+    last(eq(modelRuns.userId, userId)),
+  ]);
+  return [inChat, anywhere].filter((id): id is string => id !== null);
+};
+
+/** How a model is named on screen: its title and its maker's logo. */
+const labelColumns = {
+  id: models.id,
+  providerLogo: providers.logo,
+  providerTitle: providers.title,
+  title: models.title,
+};
+
+/** Models that are in chat right now, newest first — what the composer may pick. */
+export const listChatModelLabels = () => {
+  const { db } = getDb();
+  return db
+    .select(labelColumns)
+    .from(models)
+    .innerJoin(sources, eq(sources.id, models.sourceId))
+    .leftJoin(providers, eq(providers.id, models.providerId))
+    .where(
+      sql`${models.enabled} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
+    )
+    .orderBy(
+      sql`${models.releasedAt} desc nulls last`,
+      desc(models.createdAt),
+      asc(models.title)
+    );
+};
+export type ModelLabel = Awaited<
+  ReturnType<typeof listChatModelLabels>
+>[number];
+
+/** Names of any models, in chat or not — for answers written by a model that has left the chat since. */
+export const getModelLabels = (ids: string[]) => {
+  if (ids.length === 0) {
+    return Promise.resolve([] as ModelLabel[]);
+  }
+  const { db } = getDb();
+  return db
+    .select(labelColumns)
+    .from(models)
+    .leftJoin(providers, eq(providers.id, models.providerId))
+    .where(inArray(models.id, ids));
 };
 
 /**

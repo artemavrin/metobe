@@ -2,10 +2,42 @@
   "metadata": {
     "description": "Self-hosted AI workspace"
   },
-  "home": {
-    "signedInAs": "Signed in as {email}",
+  "chat": {
+    "greeting": {
+      "morning": "{hasName, select, yes {Good morning, {name}} other {Good morning}}",
+      "day": "{hasName, select, yes {Good afternoon, {name}} other {Good afternoon}}",
+      "evening": "{hasName, select, yes {Good evening, {name}} other {Good evening}}",
+      "night": "{hasName, select, yes {Hello, {name}} other {Hello}}"
+    },
+    "placeholder": "Ask anything…",
+    "send": "Send",
+    "stop": "Stop (Esc)",
+    "disclaimer": "Metobe can make mistakes — check what matters",
+    "model": "Model: {title}",
+    "thinking": "Thinking…",
+    "reasoning": "Reasoning",
+    "retry": "Try again",
+    "signIn": "Sign in",
+    "errors": {
+      "model-unavailable": "The model is unavailable right now. Try again later.",
+      "generation-failed": "The model didn’t answer. Try again.",
+      "network": "Can’t reach the server. Check your connection.",
+      "forbidden": "This chat isn’t yours.",
+      "unauthorized": "Your session has ended — sign in again.",
+      "bad-request": "The message wasn’t sent.",
+      "unknown": "Something went wrong."
+    },
+    "newChat": "New chat",
+    "openSidebar": "Open menu",
+    "settings": "Settings",
     "signOut": "Sign out",
-    "settings": "Settings"
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "Previous 7 days",
+      "earlier": "Earlier"
+    },
+    "noChats": "Your chats will appear here"
   },
   "login": {
     "title": "Sign in to Metobe",
