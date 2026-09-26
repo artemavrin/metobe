@@ -2,10 +2,42 @@
   "metadata": {
     "description": "Self-hosted AI-рабочее место"
   },
-  "home": {
-    "signedInAs": "Вы вошли как {email}",
+  "chat": {
+    "greeting": {
+      "morning": "{hasName, select, yes {Доброе утро, {name}} other {Доброе утро}}",
+      "day": "{hasName, select, yes {Добрый день, {name}} other {Добрый день}}",
+      "evening": "{hasName, select, yes {Добрый вечер, {name}} other {Добрый вечер}}",
+      "night": "{hasName, select, yes {Доброй ночи, {name}} other {Доброй ночи}}"
+    },
+    "placeholder": "Спросите что-нибудь…",
+    "send": "Отправить",
+    "stop": "Остановить (Esc)",
+    "disclaimer": "Metobe может ошибаться — проверяйте важное",
+    "model": "Модель: {title}",
+    "thinking": "Думает…",
+    "reasoning": "Размышления",
+    "retry": "Повторить",
+    "signIn": "Войти",
+    "errors": {
+      "model-unavailable": "Модель сейчас недоступна. Попробуйте позже.",
+      "generation-failed": "Модель не ответила. Попробуйте ещё раз.",
+      "network": "Нет связи с сервером. Проверьте подключение.",
+      "forbidden": "Это не ваш чат.",
+      "unauthorized": "Сессия закончилась — войдите снова.",
+      "bad-request": "Сообщение не отправилось.",
+      "unknown": "Что-то пошло не так."
+    },
+    "newChat": "Новый чат",
+    "openSidebar": "Открыть меню",
+    "settings": "Настройки",
     "signOut": "Выйти",
-    "settings": "Настройки"
+    "groups": {
+      "today": "Сегодня",
+      "yesterday": "Вчера",
+      "week": "Последние 7 дней",
+      "earlier": "Раньше"
+    },
+    "noChats": "Здесь появятся ваши чаты"
   },
   "login": {
     "title": "Вход в Metobe",

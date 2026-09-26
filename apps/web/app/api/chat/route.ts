@@ -1,8 +1,13 @@
-import { chatRequestSchema } from "@metobe/contracts/chat";
-import type { ChatMessage } from "@metobe/contracts/chat";
+import {
+  chatMessageMetadataSchema,
+  chatRequestSchema,
+  chatTitleFrom,
+} from "@metobe/contracts/chat";
+import type { ChatErrorCode, ChatMessage } from "@metobe/contracts/chat";
 import { getLanguageModel } from "@metobe/core/ai";
 import {
   createChat,
+  deleteMessagesFrom,
   getChat,
   getChatModel,
   listMessages,
@@ -17,6 +22,7 @@ import {
   toUIMessageStream,
   validateUIMessages,
 } from "ai";
+import type { ToolSet } from "ai";
 import { headers } from "next/headers";
 
 import { getAuth } from "@/lib/auth";
@@ -29,14 +35,7 @@ import { getAuth } from "@/lib/auth";
 
 export const maxDuration = 300;
 
-type ErrorCode =
-  | "unauthorized"
-  | "bad-request"
-  | "forbidden"
-  | "model-unavailable"
-  | "generation-failed";
-
-const fail = (code: ErrorCode, status: number) =>
+const fail = (code: ChatErrorCode, status: number) =>
   Response.json({ error: code }, { status });
 
 /** Chunks that mean the model has started answering. */
@@ -47,14 +46,10 @@ const FIRST_TOKEN = new Set([
   "tool-input-start",
 ]);
 
-/** A new chat is named by its first line until real titles arrive (M3.3). */
-const provisionalTitle = (message: ChatMessage) => {
-  const text = message.parts
-    .flatMap((p) => (p.type === "text" ? [p.text] : []))
-    .join(" ");
-  const line = text.trim().split("\n")[0]?.trim() ?? "";
-  return line.length > 80 ? `${line.slice(0, 79)}…` : line;
-};
+const provisionalTitle = (message: ChatMessage) =>
+  chatTitleFrom(
+    message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(" ")
+  );
 
 export const POST = async (request: Request) => {
   const session = await getAuth().api.getSession({ headers: await headers() });
@@ -85,6 +80,22 @@ export const POST = async (request: Request) => {
     return fail("model-unavailable", 422);
   }
 
+  const stored = chat ? await listMessages(id) : [];
+  // The same message again (a retry after an error): it and what followed it go, then it is sent anew.
+  const again = stored.findIndex((m) => m.id === message.id);
+  const history = again === -1 ? stored : stored.slice(0, again);
+  // Checked before anything is written, so a history that does not validate leaves no empty chat behind.
+  let uiMessages: ChatMessage[];
+  try {
+    uiMessages = await validateUIMessages<ChatMessage>({
+      messages: [...history, message],
+      // A user's message has no metadata; an answer names its model.
+      metadataSchema: chatMessageMetadataSchema.optional(),
+    });
+  } catch (error) {
+    console.error("chat: the history does not validate", id, error);
+    return fail("bad-request", 400);
+  }
   if (!chat) {
     await createChat({
       id,
@@ -92,10 +103,9 @@ export const POST = async (request: Request) => {
       userId: session.user.id,
     });
   }
-  const history = chat ? await listMessages(id) : [];
-  const uiMessages = await validateUIMessages<ChatMessage>({
-    messages: [...history, message],
-  });
+  if (again !== -1) {
+    await deleteMessagesFrom(id, message.id);
+  }
   await saveMessages(id, [message]);
 
   const stream = createUIMessageStream<ChatMessage>({
@@ -139,7 +149,13 @@ export const POST = async (request: Request) => {
       // Runs the generation to its end on the server, so the answer is saved even when the client has left.
       void result.consumeStream();
       writer.merge(
-        toUIMessageStream({ sendReasoning: true, stream: result.stream })
+        toUIMessageStream<ToolSet, ChatMessage>({
+          // The answer names its model, so the thread can show who wrote it after the chat switches models.
+          messageMetadata: ({ part }) =>
+            part.type === "start" ? { modelId: model.id } : undefined,
+          sendReasoning: true,
+          stream: result.stream,
+        })
       );
     },
     generateId: () => crypto.randomUUID(),
@@ -148,7 +164,7 @@ export const POST = async (request: Request) => {
     },
     onError: (error) => {
       console.error("chat: generation failed", model.id, error);
-      return "generation-failed" satisfies ErrorCode;
+      return "generation-failed" satisfies ChatErrorCode;
     },
   });
 
