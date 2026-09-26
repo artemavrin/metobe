@@ -1,4 +1,5 @@
 import {
+  Cog,
   Factory,
   HardDrive,
   Info,
@@ -44,6 +45,7 @@ export const SETTINGS_NAV = [
     items: [
       { icon: Server, id: "sources", kind: "list" },
       { icon: Factory, id: "providers", kind: "list" },
+      { icon: Cog, id: "service", kind: "screen" },
     ],
     key: "models",
     scope: "admin",

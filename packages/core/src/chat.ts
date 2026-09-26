@@ -119,7 +119,13 @@ export const getLastModelIds = async (userId: string, chatId?: string) => {
     const [run] = await db
       .select({ modelId: modelRuns.modelId })
       .from(modelRuns)
-      .where(and(where, sql`${modelRuns.modelId} is not null`))
+      .where(
+        and(
+          where,
+          eq(modelRuns.purpose, "chat"),
+          sql`${modelRuns.modelId} is not null`
+        )
+      )
       .orderBy(desc(modelRuns.createdAt))
       .limit(1);
     return run?.modelId ?? null;

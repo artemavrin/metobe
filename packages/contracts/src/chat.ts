@@ -10,7 +10,12 @@ export const chatMessageMetadataSchema = z.object({
 });
 export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 
-export type ChatMessage = UIMessage<ChatMessageMetadata>;
+/** Data the stream sends besides the answer; `title` — a new chat's name from the titles model (not stored). */
+// A type alias, not an interface: AI SDK wants a Record, and an interface is not assignable to one.
+// oxlint-disable-next-line typescript/consistent-type-definitions -- see above
+export type ChatDataParts = { title: string };
+
+export type ChatMessage = UIMessage<ChatMessageMetadata, ChatDataParts>;
 
 /** What `POST /api/chat` answers instead of a stream; the chat screen says it in the user's language. */
 export const chatErrorCodes = [

@@ -116,6 +116,7 @@ export const ChatView = ({
   const touch = useTouchChat();
   const [model, setModel] = useState(initialModel);
   const favorites = useFavorites(initialFavorites);
+  const titled = useRef<string | null>(null);
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
@@ -136,6 +137,13 @@ export const ChatView = ({
       generateId: () => crypto.randomUUID(),
       id,
       messages: initialMessages,
+      // A new chat's name from the titles model: the sidebar shows it as soon as it comes.
+      onData: (part) => {
+        if (part.type === "data-title") {
+          titled.current = part.data;
+          touch({ id, title: part.data });
+        }
+      },
       transport,
     });
   const busy = status === "submitted" || status === "streaming";
@@ -163,7 +171,7 @@ export const ChatView = ({
       first?.parts
         .flatMap((p) => (p.type === "text" ? [p.text] : []))
         .join(" ") ?? "";
-    touch({ id, title: chatTitleFrom(text) });
+    touch({ id, title: titled.current ?? chatTitleFrom(text) });
   }, [status, messages, id, touch]);
 
   // The thread follows its growth — a new message, a streaming answer — while the user is at its end; scrolling up

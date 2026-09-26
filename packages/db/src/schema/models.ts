@@ -3,6 +3,8 @@ import type {
   CapabilitySource,
   Currency,
   ProxyMode,
+  ModelSlot,
+  RunPurpose,
   RunStatus,
   SourceHealth,
   SourceKind,
@@ -127,7 +129,6 @@ export const models = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
-    usedForTitles: boolean("used_for_titles").notNull().default(false),
   },
   (table) => [
     unique("models_source_model").on(table.sourceId, table.modelId),
@@ -165,6 +166,8 @@ export const modelRuns = pgTable(
       onDelete: "set null",
     }),
     outputTokens: integer("output_tokens").notNull().default(0),
+    /** A chat's answer or a service job (a chat title…): usage shows what each costs. */
+    purpose: text("purpose").$type<RunPurpose>().notNull().default("chat"),
     status: text("status").$type<RunStatus>().notNull(),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
   },
@@ -175,8 +178,20 @@ export const modelRuns = pgTable(
       "model_runs_status",
       sql`${table.status} in ('ok', 'error', 'aborted')`
     ),
+    check("model_runs_purpose", sql`${table.purpose} in ('chat', 'title')`),
   ]
 );
+
+/** Which model does each service job; a job without a model falls back (titles: the first line). */
+export const modelSlots = pgTable("model_slots", {
+  modelId: uuid("model_id").references(() => models.id, {
+    onDelete: "set null",
+  }),
+  slot: text("slot").$type<ModelSlot>().primaryKey(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 /** A user's favorite models in their order: the picker's list and ⌘1–9. */
 export const favoriteModels = pgTable(

@@ -14,6 +14,7 @@ import {
   saveMessages,
 } from "@metobe/core/chat";
 import { recordRun, withPromptCache } from "@metobe/core/chat-run";
+import { generateChatTitle } from "@metobe/core/chat-title";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -46,10 +47,11 @@ const FIRST_TOKEN = new Set([
   "tool-input-start",
 ]);
 
+const textOf = (message: ChatMessage) =>
+  message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(" ");
+
 const provisionalTitle = (message: ChatMessage) =>
-  chatTitleFrom(
-    message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(" ")
-  );
+  chatTitleFrom(textOf(message));
 
 export const POST = async (request: Request) => {
   const session = await getAuth().api.getSession({ headers: await headers() });
@@ -110,6 +112,20 @@ export const POST = async (request: Request) => {
 
   const stream = createUIMessageStream<ChatMessage>({
     execute: async ({ writer }) => {
+      // A new chat gets its name from the titles model while the answer streams; the sidebar takes it at once.
+      const name = async () => {
+        const title = chat
+          ? null
+          : await generateChatTitle({
+              chatId: id,
+              text: textOf(message),
+              userId: session.user.id,
+            });
+        if (title) {
+          writer.write({ data: title, transient: true, type: "data-title" });
+        }
+      };
+      const naming = name();
       const prompt = withPromptCache(
         model.kind,
         await convertToModelMessages(uiMessages)
@@ -157,6 +173,7 @@ export const POST = async (request: Request) => {
           stream: result.stream,
         })
       );
+      await naming;
     },
     generateId: () => crypto.randomUUID(),
     onEnd: async ({ messages: finished }) => {
