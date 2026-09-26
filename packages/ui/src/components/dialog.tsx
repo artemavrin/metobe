@@ -80,6 +80,17 @@ function DialogContent({
   )
 }
 
+/** The bare popup, no built-in size, position or motion — for surfaces that own their geometry (a palette). */
+function DialogPopup({ className, ...props }: DialogPrimitive.Popup.Props) {
+  return (
+    <DialogPrimitive.Popup
+      data-slot="dialog-popup"
+      className={className}
+      {...props}
+    />
+  )
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -154,6 +165,7 @@ export {
   DialogFooter,
   DialogHeader,
   DialogOverlay,
+  DialogPopup,
   DialogPortal,
   DialogTitle,
   DialogTrigger,
