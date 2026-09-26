@@ -78,6 +78,13 @@
       "when": 1790426961097,
       "tag": "0010_chat_message_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790430422376,
+      "tag": "0011_favorite_models",
+      "breakpoints": true
     }
   ]
 }

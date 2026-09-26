@@ -11,7 +11,7 @@ import { TriangleAlert } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useTouchChat } from "@/components/chat/chat-shell";
 import { Composer } from "@/components/chat/composer";
@@ -20,6 +20,9 @@ import {
   PendingAnswer,
   UserMessage,
 } from "@/components/chat/messages";
+import { PickerDataProvider } from "@/components/chat/picker/data";
+import type { PickerModel } from "@/components/chat/picker/data";
+import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { chatProblem } from "@/lib/chat-errors";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
@@ -37,6 +40,14 @@ const SCREEN_CSS = `
 .chat-rise-next { animation-delay: 60ms; }
 @media (prefers-reduced-motion: reduce) { .chat-rise { animation-name: chat-rise-fade; } }
 `;
+
+/** A picker model named the way the thread's bylines read it. */
+const asLabel = (m: PickerModel): ModelLabel => ({
+  id: m.id,
+  providerLogo: m.logo ?? null,
+  providerTitle: m.makerTitle,
+  title: m.title,
+});
 
 const ChatError = ({
   error,
@@ -81,21 +92,30 @@ const ChatError = ({
 export const ChatView = ({
   id,
   initialMessages,
-  model,
+  model: initialModel,
+  models,
+  favorites: initialFavorites,
+  recent,
   labels,
   greeting,
 }: {
   id: string;
   initialMessages: ChatMessage[];
-  /** The model the next message goes to. */
-  model: ModelLabel;
-  /** Names of the models that wrote answers in this chat. */
+  /** The model the chat opens with; the chip picks another. */
+  model: PickerModel;
+  /** Models in chat, the user's favorites and recent models — what the picker shows. */
+  models: PickerModel[];
+  favorites: string[];
+  recent: string[];
+  /** Names of models that wrote answers here but have left the chat since. */
   labels: ModelLabel[];
   /** A new chat greets the user; an existing one opens on its history. */
   greeting?: string;
 }) => {
   const reduce = useReducedMotion() ?? false;
   const touch = useTouchChat();
+  const [model, setModel] = useState(initialModel);
+  const favorites = useFavorites(initialFavorites);
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
@@ -175,85 +195,93 @@ export const ChatView = ({
     clearError();
     void regenerate({ body: { modelId: model.id } });
   };
-  const labelOf = (m: ChatMessage) =>
-    labels.find((l) => l.id === m.metadata?.modelId);
+  const labelOf = (m: ChatMessage) => {
+    const picked = models.find((x) => x.id === m.metadata?.modelId);
+    return picked
+      ? asLabel(picked)
+      : labels.find((l) => l.id === m.metadata?.modelId);
+  };
   const last = messages.at(-1);
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <style>{SCREEN_CSS}</style>
-      <div
-        className={cn(
-          "min-h-0 flex-1 overflow-y-auto px-4 md:px-6",
-          !empty && "py-6"
-        )}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          pinned.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 64;
-        }}
-        ref={scroller}
-      >
+    <PickerDataProvider models={models} recent={recent}>
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <style>{SCREEN_CSS}</style>
         <div
-          className="mx-auto flex max-w-4xl flex-col gap-6 text-sm"
-          ref={content}
-        >
-          {!empty && (
-            <>
-              {messages.map((m) =>
-                m.role === "user" ? (
-                  <UserMessage key={m.id} message={m} />
-                ) : (
-                  <AssistantMessage
-                    key={m.id}
-                    label={labelOf(m)}
-                    message={m}
-                    streaming={status === "streaming" && m.id === last?.id}
-                  />
-                )
-              )}
-              {status === "submitted" && last?.role === "user" && (
-                <PendingAnswer label={model} />
-              )}
-              {error && !busy && <ChatError error={error} onRetry={retry} />}
-            </>
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto px-4 md:px-6",
+            !empty && "py-6"
           )}
-        </div>
-      </div>
-      <AnimatePresence initial={false} mode="popLayout">
-        {empty && greeting && (
-          <motion.h1
-            className="chat-rise w-full px-6 pb-6 text-center text-2xl font-semibold tracking-tight"
-            exit={{
-              opacity: 0,
-              transition: { duration: 0.15, ease: EASE_OUT },
-            }}
-            key="greeting"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            pinned.current =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 64;
+          }}
+          ref={scroller}
+        >
+          <div
+            className="mx-auto flex max-w-4xl flex-col gap-6 text-sm"
+            ref={content}
           >
-            {greeting}
-          </motion.h1>
-        )}
-      </AnimatePresence>
-      <motion.div
-        className={cn(
-          "chat-rise chat-rise-next w-full px-4 md:px-6",
-          !empty && "pb-4"
-        )}
-        layout="position"
-        transition={reduce ? SNAP : SPRING}
-      >
-        <div className="mx-auto max-w-4xl">
-          <Composer
-            busy={busy}
-            home={empty}
-            model={model}
-            onSend={send}
-            onStop={stop}
-          />
+            {!empty && (
+              <>
+                {messages.map((m) =>
+                  m.role === "user" ? (
+                    <UserMessage key={m.id} message={m} />
+                  ) : (
+                    <AssistantMessage
+                      key={m.id}
+                      label={labelOf(m)}
+                      message={m}
+                      streaming={status === "streaming" && m.id === last?.id}
+                    />
+                  )
+                )}
+                {status === "submitted" && last?.role === "user" && (
+                  <PendingAnswer label={asLabel(model)} />
+                )}
+                {error && !busy && <ChatError error={error} onRetry={retry} />}
+              </>
+            )}
+          </div>
         </div>
-      </motion.div>
-      {/* Below an empty chat's composer: its share of the free space and a bit more, so the pair sits above the middle */}
-      {empty && <div className="flex-1 pb-[14vh]" />}
-    </div>
+        <AnimatePresence initial={false} mode="popLayout">
+          {empty && greeting && (
+            <motion.h1
+              className="chat-rise w-full px-6 pb-6 text-center text-2xl font-semibold tracking-tight"
+              exit={{
+                opacity: 0,
+                transition: { duration: 0.15, ease: EASE_OUT },
+              }}
+              key="greeting"
+            >
+              {greeting}
+            </motion.h1>
+          )}
+        </AnimatePresence>
+        <motion.div
+          className={cn(
+            "chat-rise chat-rise-next w-full px-4 md:px-6",
+            !empty && "pb-4"
+          )}
+          layout="position"
+          transition={reduce ? SNAP : SPRING}
+        >
+          <div className="mx-auto max-w-4xl">
+            <Composer
+              busy={busy}
+              favorites={favorites}
+              home={empty}
+              model={model}
+              onModel={setModel}
+              onSend={send}
+              onStop={stop}
+            />
+          </div>
+        </motion.div>
+        {/* Below an empty chat's composer: its share of the free space and a bit more, so the pair sits above the middle */}
+        {empty && <div className="flex-1 pb-[14vh]" />}
+      </div>
+    </PickerDataProvider>
   );
 };

@@ -18,6 +18,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -175,6 +176,21 @@ export const modelRuns = pgTable(
       sql`${table.status} in ('ok', 'error', 'aborted')`
     ),
   ]
+);
+
+/** A user's favorite models in their order: the picker's list and ⌘1–9. */
+export const favoriteModels = pgTable(
+  "favorite_models",
+  {
+    modelId: uuid("model_id")
+      .notNull()
+      .references(() => models.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.modelId] })]
 );
 
 export type Source = typeof sources.$inferSelect;

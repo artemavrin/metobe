@@ -1,14 +1,15 @@
 "use client";
 
-import type { ModelLabel } from "@metobe/core/chat";
 import { Button } from "@metobe/ui/components/button";
+import { Kbd } from "@metobe/ui/components/kbd";
 import { Textarea } from "@metobe/ui/components/textarea";
 import { cn } from "@metobe/ui/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-import { BrandLogo } from "@/components/brand-logo";
+import { ModelChooser } from "@/components/chat/picker/chooser";
+import type { Favorites, PickerModel } from "@/components/chat/picker/data";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
@@ -111,28 +112,6 @@ const SendButton = ({
   );
 };
 
-/** The model the next message goes to. Picking another one comes with the favorites picker (P3). */
-const ModelChip = ({ model }: { model: ModelLabel }) => {
-  const t = useTranslations("chat");
-  return (
-    <span
-      aria-label={t("model", { title: model.title })}
-      className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm"
-    >
-      {/* Only a real logo here: a letter without its tile would look like a glitch at this size */}
-      {model.providerLogo && (
-        <BrandLogo
-          label={model.providerTitle ?? model.title}
-          logo={model.providerLogo}
-          size={18}
-          tile={false}
-        />
-      )}
-      <span className="max-w-[180px] truncate">{model.title}</span>
-    </span>
-  );
-};
-
 /**
  * The composer «Щелчок» (P2): a grey shell with the white card nested in it — the band on top of the card (files,
  * the context) arrives with attachments. Enter sends, Shift+Enter breaks the line, Esc stops an answer.
@@ -140,13 +119,18 @@ const ModelChip = ({ model }: { model: ModelLabel }) => {
 export const Composer = ({
   home,
   model,
+  favorites,
+  onModel,
   busy,
   onSend,
   onStop,
 }: {
   /** An empty chat: the composer sits in the middle, a bit taller. */
   home: boolean;
-  model: ModelLabel;
+  /** The model the next message goes to, and the user's favorites to pick another from. */
+  model: PickerModel;
+  favorites: Favorites;
+  onModel: (m: PickerModel) => void;
   /** An answer is on its way: the button stops it instead of sending. */
   busy: boolean;
   onSend: (text: string) => void;
@@ -154,6 +138,7 @@ export const Composer = ({
 }) => {
   const t = useTranslations("chat");
   const [text, setText] = useState("");
+  const field = useRef<HTMLTextAreaElement>(null);
   const ready = text.trim().length > 0;
   const submit = () => {
     if (!ready || busy) {
@@ -164,6 +149,7 @@ export const Composer = ({
   };
   return (
     <form
+      data-composer
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -181,6 +167,7 @@ export const Composer = ({
           <Textarea
             aria-label={t("placeholder")}
             autoFocus
+            ref={field}
             className={cn(
               "max-h-60 resize-none rounded-none border-0 bg-transparent px-3 pt-3 pb-1 leading-7 shadow-none focus-visible:ring-0 md:leading-7 dark:bg-transparent",
               home ? "min-h-24" : "min-h-16"
@@ -203,7 +190,12 @@ export const Composer = ({
             value={text}
           />
           <div className="flex items-center gap-1 px-2 pt-1 pb-2">
-            <ModelChip model={model} />
+            <ModelChooser
+              favorites={favorites}
+              model={model}
+              onChange={onModel}
+              onDone={() => field.current?.focus()}
+            />
             <span className="ml-auto">
               <SendButton
                 onStop={onStop}
@@ -214,8 +206,9 @@ export const Composer = ({
           </div>
         </div>
       </div>
-      <p className="text-muted-foreground mt-2 text-center text-xs">
-        {t("disclaimer")}
+      <p className="text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-xs">
+        {t("disclaimer")} <span className="opacity-50">·</span> <Kbd>⌘/</Kbd>{" "}
+        {t("allModels")}
       </p>
     </form>
   );
