@@ -13,7 +13,6 @@
     "send": "Отправить",
     "stop": "Остановить (Esc)",
     "disclaimer": "Metobe может ошибаться — проверяйте важное",
-    "model": "Модель: {title}",
     "thinking": "Думает…",
     "reasoning": "Размышления",
     "retry": "Повторить",
@@ -37,7 +36,91 @@
       "week": "Последние 7 дней",
       "earlier": "Раньше"
     },
-    "noChats": "Здесь появятся ваши чаты"
+    "noChats": "Здесь появятся ваши чаты",
+    "picker": {
+      "models": "Модели",
+      "favorites": "Избранное",
+      "recent": "Недавние",
+      "allModels": "Все модели · {count}",
+      "allModelsTitle": "Все модели",
+      "noFavorites": "Отмечайте ☆ в палитре — модели встанут сюда под цифрами 1–9",
+      "inChatNow": ", сейчас в чате",
+      "chatModel": "Модель чата",
+      "star": "В избранное: {title}",
+      "unstar": "Убрать из избранного: {title}",
+      "movedTo": "{title} — теперь {position}",
+      "new": "новая",
+      "via": "через {source}",
+      "priceTip": "вход / выход за 1M",
+      "priceTipCache": "вход / выход за 1M · из кэша {cache}",
+      "seconds": "{n} с",
+      "times": "{n, plural, one {в # раз} few {в # раза} many {в # раз} other {в # раза}}",
+      "caps": {
+        "vision": "Картинки",
+        "tools": "Инструменты",
+        "reasoning": "Размышления"
+      },
+      "capState": {
+        "yes": "{cap}: да",
+        "no": "{cap}: нет",
+        "unknown": "{cap}: источник не сообщил"
+      },
+      "capUnknown": "Источник не сообщил",
+      "spec": {
+        "context": "Контекст",
+        "firstToken": "Первый токен",
+        "input": "Вход за 1M",
+        "output": "Выход за 1M"
+      },
+      "comparedWith": "по сравнению с {title}",
+      "inRubles": "В рублях",
+      "noPrice": "Цена не указана",
+      "warn": {
+        "context": "Этот чат ({chat}) не поместится в окно {window}",
+        "noVision": "Не видит картинки — а в сообщении есть картинки",
+        "unknownVision": "Источник не сообщил, видит ли картинки"
+      },
+      "compare": {
+        "same": "Это модель чата",
+        "against": "Против {title}: {diff}",
+        "alike": "примерно так же",
+        "windowBigger": "окно {times} больше",
+        "windowSmaller": "окно {times} меньше",
+        "currencies": "цены в разных валютах",
+        "pricier": "вход {times} дороже",
+        "cheaper": "вход {times} дешевле",
+        "slower": "отклик на {n} с медленнее",
+        "faster": "отклик на {n} с быстрее"
+      },
+      "keys": {
+        "pick": "выбрать",
+        "star": "в избранное",
+        "sort": "сортировка"
+      },
+      "search": "Модель, производитель или источник",
+      "byLayout": "по раскладке: {layout}",
+      "ofTotal": "из {total}",
+      "onlyCapable": "Только те, что умеют",
+      "only": "Только «{cap}»",
+      "close": "Закрыть",
+      "columns": {
+        "model": "Модель",
+        "context": "Контекст",
+        "price": "Цена за 1M",
+        "priceTip": "вход / выход; сортируем по входу",
+        "latency": "Отклик",
+        "latencyTip": "Время до первого токена, медиана по запускам в Metobe за 30 дней"
+      },
+      "sortBy": "{column}: сортировать",
+      "noModels": "В чате пока нет моделей — их включает администратор",
+      "nothingFor": "Ничего по «{query}»",
+      "nothingFiltered": "Ничего с этими фильтрами",
+      "without": "Без «{cap}» — {n}",
+      "resetFilters": "Сбросить фильтры",
+      "chipTip": "Избранные модели · все —",
+      "chipLabel": "Модель: {title}"
+    },
+    "allModels": "все модели"
   },
   "login": {
     "title": "Вход в Metobe",

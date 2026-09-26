@@ -13,7 +13,6 @@
     "send": "Send",
     "stop": "Stop (Esc)",
     "disclaimer": "Metobe can make mistakes — check what matters",
-    "model": "Model: {title}",
     "thinking": "Thinking…",
     "reasoning": "Reasoning",
     "retry": "Try again",
@@ -37,7 +36,91 @@
       "week": "Previous 7 days",
       "earlier": "Earlier"
     },
-    "noChats": "Your chats will appear here"
+    "noChats": "Your chats will appear here",
+    "picker": {
+      "models": "Models",
+      "favorites": "Favorites",
+      "recent": "Recent",
+      "allModels": "All models · {count}",
+      "allModelsTitle": "All models",
+      "noFavorites": "Star ☆ models in the palette — they’ll line up here under 1–9",
+      "inChatNow": ", in this chat",
+      "chatModel": "This chat’s model",
+      "star": "Add to favorites: {title}",
+      "unstar": "Remove from favorites: {title}",
+      "movedTo": "{title} — now {position}",
+      "new": "new",
+      "via": "via {source}",
+      "priceTip": "input / output per 1M",
+      "priceTipCache": "input / output per 1M · cached {cache}",
+      "seconds": "{n} s",
+      "times": "{n}×",
+      "caps": {
+        "vision": "Images",
+        "tools": "Tools",
+        "reasoning": "Reasoning"
+      },
+      "capState": {
+        "yes": "{cap}: yes",
+        "no": "{cap}: no",
+        "unknown": "{cap}: the source didn’t say"
+      },
+      "capUnknown": "The source didn’t say",
+      "spec": {
+        "context": "Context",
+        "firstToken": "First token",
+        "input": "Input per 1M",
+        "output": "Output per 1M"
+      },
+      "comparedWith": "compared with {title}",
+      "inRubles": "In rubles",
+      "noPrice": "No price",
+      "warn": {
+        "context": "This chat ({chat}) won’t fit into a {window} window",
+        "noVision": "Can’t see images — and the message has images",
+        "unknownVision": "The source didn’t say whether it sees images"
+      },
+      "compare": {
+        "same": "This chat’s model",
+        "against": "Versus {title}: {diff}",
+        "alike": "about the same",
+        "windowBigger": "window {times} larger",
+        "windowSmaller": "window {times} smaller",
+        "currencies": "prices in different currencies",
+        "pricier": "input {times} pricier",
+        "cheaper": "input {times} cheaper",
+        "slower": "first token {n} s slower",
+        "faster": "first token {n} s faster"
+      },
+      "keys": {
+        "pick": "pick",
+        "star": "favorite",
+        "sort": "sort"
+      },
+      "search": "Model, maker or source",
+      "byLayout": "by layout: {layout}",
+      "ofTotal": "of {total}",
+      "onlyCapable": "Only those that can",
+      "only": "Only “{cap}”",
+      "close": "Close",
+      "columns": {
+        "model": "Model",
+        "context": "Context",
+        "price": "Price per 1M",
+        "priceTip": "input / output; sorted by input",
+        "latency": "Latency",
+        "latencyTip": "Time to the first token, median of runs in Metobe over 30 days"
+      },
+      "sortBy": "{column}: sort",
+      "noModels": "No models in chat yet — an admin turns them on",
+      "nothingFor": "Nothing for “{query}”",
+      "nothingFiltered": "Nothing with these filters",
+      "without": "Without “{cap}” — {n}",
+      "resetFilters": "Reset filters",
+      "chipTip": "Favorite models · all —",
+      "chipLabel": "Model: {title}"
+    },
+    "allModels": "all models"
   },
   "login": {
     "title": "Sign in to Metobe",
