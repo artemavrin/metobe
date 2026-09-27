@@ -46,6 +46,7 @@ import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { AnswerChart } from "@/components/chat/answer-chart";
 import { AnswerTable } from "@/components/chat/answer-table";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { answerWork } from "@/lib/answer-work";
@@ -829,10 +830,14 @@ export const AssistantMessage = ({
             working={live && !answering}
           />
         )}
-        {blocks.map((block, i) =>
-          block.kind === "table" ? (
-            <AnswerTable key={block.key} part={block.part} />
-          ) : (
+        {blocks.map((block, i) => {
+          if (block.kind === "table") {
+            return <AnswerTable key={block.key} part={block.part} />;
+          }
+          if (block.kind === "chart") {
+            return <AnswerChart key={block.key} part={block.part} />;
+          }
+          return (
             <Bubble className="w-full" key={block.key} variant="ghost">
               <BubbleContent className="w-full overflow-visible">
                 <Streamdown
@@ -844,8 +849,8 @@ export const AssistantMessage = ({
                 </Streamdown>
               </BubbleContent>
             </Bubble>
-          )
-        )}
+          );
+        })}
         {!live && message && (
           <AnswerFooter
             copy={answer || undefined}

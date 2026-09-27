@@ -35,6 +35,7 @@ import { headers } from "next/headers";
 
 import { applyApprovals } from "@/lib/approvals";
 import { getAuth } from "@/lib/auth";
+import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 
 // POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
@@ -249,13 +250,14 @@ export const POST = async (request: Request) => {
           console.error("chat: could not record the run", model.id, error);
         }
       };
-      // The MCP servers turned on in this chat (ARCH §8) and our own table; a model that says it cannot call tools
-      // gets none. The table comes last, so a server's tool of the same name cannot replace it.
+      // The MCP servers turned on in this chat (ARCH §8) and our own table and chart; a model that says it cannot
+      // call tools gets none. Ours come last, so a server's tool of the same name cannot replace them.
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
           : {
               ...(await toolsForUser(session.user.id, catalogIds)),
+              [CHART_TOOL]: chartTool,
               [TABLE_TOOL]: tableTool,
             };
       const result = streamText({
@@ -267,10 +269,11 @@ export const POST = async (request: Request) => {
           if (FIRST_TOKEN.has(chunk.type)) {
             firstChunk ??= Date.now() - started;
           }
-          // The work is the servers' tools; a table is already the answer.
+          // The work is the servers' tools; a table or a chart is already the answer.
           if (
             (chunk.type === "tool-result" || chunk.type === "tool-error") &&
-            chunk.toolName !== TABLE_TOOL
+            chunk.toolName !== TABLE_TOOL &&
+            chunk.toolName !== CHART_TOOL
           ) {
             workTo = Date.now();
           }

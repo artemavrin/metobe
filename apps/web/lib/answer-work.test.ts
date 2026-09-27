@@ -25,11 +25,28 @@ const table = (id: string): Part =>
     type: "tool-show_table",
   }) as Part;
 
+const chart = (id: string): Part =>
+  ({
+    input: {
+      kind: "bar",
+      points: [],
+      series: [],
+      title: "c",
+      x: { label: "x", type: "category" },
+    },
+    output: { points: 0 },
+    state: "output-available",
+    toolCallId: id,
+    type: "tool-show_chart",
+  }) as Part;
+
 const shape = (parts: Part[]) => {
   const { steps, answer, blocks } = answerWork(parts);
   return {
     answer,
-    blocks: blocks.map((b) => (b.kind === "table" ? `table:${b.key}` : "text")),
+    blocks: blocks.map((b) =>
+      b.kind === "text" ? "text" : `${b.kind}:${b.key}`
+    ),
     steps: steps.map((s) =>
       s.kind === "tool"
         ? `tool:${s.calls.map((c) => c.toolCallId).join("+")}`
@@ -85,6 +102,22 @@ describe("an answer's work and its answer", () => {
     expect(shape([call("a", "x_y"), text("  ")])).toEqual({
       answer: "",
       blocks: [],
+      steps: ["tool:a"],
+    });
+  });
+
+  it("puts a chart into the answer too, in its place among the words", () => {
+    expect(
+      shape([
+        call("a", "kaskad_run_query"),
+        text("Вот выручка."),
+        chart("c"),
+        table("t"),
+        text("Рост с марта."),
+      ])
+    ).toEqual({
+      answer: "Вот выручка.\n\nРост с марта.",
+      blocks: ["text", "chart:c", "table:t", "text"],
       steps: ["tool:a"],
     });
   });
