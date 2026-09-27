@@ -60,6 +60,10 @@ describe("what a server's tools are about", () => {
         "getDealById",
       ])
     ).toEqual(["deal", "stage", "lead", "id"]);
+    // Verbs and little words are not what the tools are about.
+    expect(
+      topicsOf(["move_task_from_stage", "check_task", "search_employee"])
+    ).toEqual(["task", "stage", "employee"]);
   });
 });
 
