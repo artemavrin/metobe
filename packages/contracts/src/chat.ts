@@ -1,6 +1,7 @@
 import type { UIMessage } from "ai";
 import { z } from "zod";
 
+import type { ChartInput, ChartOutput } from "./chart";
 import type { TableInput, TableOutput } from "./table";
 
 // Chat (ARCH §5.3, §6.1): messages are stored and sent as AI SDK UI messages. Our own data parts (`data-status`,
@@ -28,6 +29,7 @@ export type ChatDataParts = { title: string };
 /** Our own tools, drawn in the answer (MCP tools arrive as dynamic tools). */
 // oxlint-disable-next-line typescript/consistent-type-definitions -- a Record for AI SDK, as above
 export type ChatTools = {
+  show_chart: { input: ChartInput; output: ChartOutput };
   show_table: { input: TableInput; output: TableOutput };
 };
 

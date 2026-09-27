@@ -230,6 +230,13 @@
       },
       "sortAscending": "Ascending",
       "sortDescending": "Descending"
+    },
+    "chart": {
+      "building": "Drawing the chart…",
+      "points": "{count, plural, one {# point} other {# points}}",
+      "total": "{value} in total",
+      "other": "Other",
+      "noData": "No data"
     }
   },
   "login": {

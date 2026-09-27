@@ -3,6 +3,7 @@ import type { ChatMessage } from "@metobe/contracts/chat";
 type Part = ChatMessage["parts"][number];
 export type ToolPart = Extract<Part, { type: "dynamic-tool" }>;
 export type TablePart = Extract<Part, { type: "tool-show_table" }>;
+export type ChartPart = Extract<Part, { type: "tool-show_chart" }>;
 
 export type WorkStep =
   | { kind: "thought"; key: string; text: string }
@@ -10,10 +11,11 @@ export type WorkStep =
   /** The same tool called several times in a row is one step. */
   | { kind: "tool"; key: string; calls: ToolPart[] };
 
-/** What the answer shows, in order: its words and the tables the model built. */
+/** What the answer shows, in order: its words and the tables and charts the model built. */
 export type AnswerBlock =
   | { kind: "text"; key: string; text: string }
-  | { kind: "table"; key: string; part: TablePart };
+  | { kind: "table"; key: string; part: TablePart }
+  | { kind: "chart"; key: string; part: ChartPart };
 
 /** Reasoning or words between tool calls: one step, or more of the step before it when it is of the same kind. */
 const addWords = (
@@ -35,7 +37,7 @@ const addWords = (
 
 /**
  * An answer split in two: its work — reasoning, tool calls and what the model said between them, everything up to
- * its last tool call — and the answer itself: the words after it and the tables, wherever they come. Without tools
+ * its last tool call — and the answer itself: the words after it and the tables and charts, wherever they come. Without tools
  * there is no work. Only a way to draw the message: its parts, and what the model is sent, stay as they are.
  */
 export const answerWork = (parts: Part[]) => {
@@ -53,6 +55,8 @@ export const answerWork = (parts: Part[]) => {
     const lastBlock = blocks.at(-1);
     if (part.type === "tool-show_table") {
       blocks.push({ key: part.toolCallId, kind: "table", part });
+    } else if (part.type === "tool-show_chart") {
+      blocks.push({ key: part.toolCallId, kind: "chart", part });
     } else if (part.type === "text" && i > lastTool) {
       if (lastBlock?.kind === "text") {
         lastBlock.text += part.text;
@@ -85,7 +89,7 @@ export const answerWork = (parts: Part[]) => {
   return {
     answer,
     blocks: blocks.flatMap<AnswerBlock>((b) => {
-      if (b.kind === "table") {
+      if (b.kind !== "text") {
         return [b];
       }
       const text = b.text.trim();

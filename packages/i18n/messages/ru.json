@@ -230,6 +230,13 @@
       },
       "sortAscending": "По возрастанию",
       "sortDescending": "По убыванию"
+    },
+    "chart": {
+      "building": "Строит график…",
+      "points": "{count, plural, one {# точка} few {# точки} many {# точек} other {# точки}}",
+      "total": "всего {value}",
+      "other": "Прочее",
+      "noData": "Нет данных"
     }
   },
   "login": {

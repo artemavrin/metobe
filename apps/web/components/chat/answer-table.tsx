@@ -21,10 +21,10 @@ import { Skeleton } from "@metobe/ui/components/skeleton";
 import { cn } from "@metobe/ui/lib/utils";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { useTable } from "@tanstack/react-table";
-import { GridLoader } from "gridora";
 import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
+import { WidgetFrame } from "@/components/chat/widget-frame";
 import type { TablePart } from "@/lib/answer-work";
 import {
   categoryValues,
@@ -327,55 +327,32 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
 
   const ready = view.columns.length > 0;
   return (
-    <section
-      aria-busy={view.streaming}
-      aria-label={view.title || undefined}
-      className="bg-card border-foreground/10 w-full overflow-hidden rounded-xl border"
+    <WidgetFrame
+      actions={
+        ready &&
+        view.rows.length > 1 && (
+          <Filters
+            fields={fields}
+            labels={copy.labels}
+            onQueryChange={setQuery}
+            operatorLabels={copy.operatorLabels}
+            query={query}
+            showClear
+            size="sm"
+          />
+        )
+      }
+      building={t("building")}
+      meta={
+        ready &&
+        (filtered
+          ? t("shown", { shown: rows.length, total: view.rows.length })
+          : t("rows", { count: view.rows.length }))
+      }
+      streaming={view.streaming}
+      title={view.title}
     >
-      {/* A border, not a ring: the grid's rows paint over a ring's sides; `overflow-hidden` clips inside a border. */}
       <style>{TABLE_CSS}</style>
-      <header className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
-        <div className="me-auto flex min-w-0 items-baseline gap-2">
-          {view.title ? (
-            <h3 className="truncate text-sm font-medium">{view.title}</h3>
-          ) : (
-            view.streaming && <Skeleton className="h-3.5 w-32 rounded-sm" />
-          )}
-          {ready && (
-            <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-              {filtered
-                ? t("shown", { shown: rows.length, total: view.rows.length })
-                : t("rows", { count: view.rows.length })}
-            </span>
-          )}
-        </div>
-        {view.streaming ? (
-          <output className="text-muted-foreground flex h-7 items-center gap-2 text-xs">
-            <span className="grid size-3.5 place-items-center">
-              <GridLoader
-                cellSize={3}
-                gap={1.5}
-                respectReducedMotion
-                variant="cacheWarm"
-              />
-            </span>
-            <span className="shimmer">{t("building")}</span>
-          </output>
-        ) : (
-          ready &&
-          view.rows.length > 1 && (
-            <Filters
-              fields={fields}
-              labels={copy.labels}
-              onQueryChange={setQuery}
-              operatorLabels={copy.operatorLabels}
-              query={query}
-              showClear
-              size="sm"
-            />
-          )
-        )}
-      </header>
       {ready ? (
         <div ref={box}>
           <DataGrid
@@ -417,6 +394,6 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
           </div>
         )
       )}
-    </section>
+    </WidgetFrame>
   );
 };
