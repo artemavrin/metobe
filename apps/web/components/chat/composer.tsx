@@ -147,8 +147,8 @@ export const Composer = ({
   onModel: (m: PickerModel) => void;
   /** An answer is on its way: the button stops it instead of sending. */
   busy: boolean;
-  /** The text (a mention reads `@Name`) and the servers mentioned in it. */
-  onSend: (text: string, catalogIds: string[]) => void;
+  /** The text; a mention reads `@Name` — the servers a question names give the model their tools. */
+  onSend: (text: string) => void;
   onStop: () => void;
   /** The MCP servers the user may mention here. */
   servers: ChatServer[];
@@ -234,10 +234,7 @@ export const Composer = ({
     if (!text || busy) {
       return;
     }
-    onSend(
-      text,
-      segments.flatMap((x) => (typeof x === "string" ? [] : [x.id]))
-    );
+    onSend(text);
     editor.current?.clear();
   };
 

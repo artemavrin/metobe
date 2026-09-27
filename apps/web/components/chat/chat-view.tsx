@@ -184,7 +184,6 @@ export const ChatView = ({
                     modelId,
                   }
                 : {
-                    catalogIds: body?.catalogIds,
                     id: chatId,
                     message: last,
                     modelId,
@@ -251,13 +250,13 @@ export const ChatView = ({
 
   // The model a question went to: marks a switch for the answer that has not started yet.
   const [asked, setAsked] = useState<string>();
-  // The servers mentioned in a question join the chat's; only the chat's servers give tools to the model.
-  const send = (text: string, catalogIds: string[]) => {
+  // A mention is the `@Name` in the text: the server reads the thread's questions for the servers to use.
+  const send = (text: string) => {
     clearError();
     setAsked(model.id);
     void sendMessage(
       { metadata: stamp(), text },
-      { body: { catalogIds, modelId: model.id } }
+      { body: { modelId: model.id } }
     );
   };
   // An edited message replaces its old self and drops what followed; the server does the same with its copy.

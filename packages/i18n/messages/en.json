@@ -36,7 +36,10 @@
       "approve": "Allow",
       "deny": "Refuse",
       "call": "Call {n}",
-      "done": "done"
+      "done": "done",
+      "searching": "Looking for tools",
+      "found": "{count, plural, =0 {No tools found} one {Found # tool} other {Found # tools}}",
+      "query": "“{query}”"
     },
     "retry": "Try again",
     "signIn": "Sign in",

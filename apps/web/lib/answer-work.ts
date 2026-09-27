@@ -4,12 +4,15 @@ type Part = ChatMessage["parts"][number];
 export type ToolPart = Extract<Part, { type: "dynamic-tool" }>;
 export type TablePart = Extract<Part, { type: "tool-show_table" }>;
 export type ChartPart = Extract<Part, { type: "tool-show_chart" }>;
+export type SearchPart = Extract<Part, { type: "tool-find_tools" }>;
 
 export type WorkStep =
   | { kind: "thought"; key: string; text: string }
   | { kind: "note"; key: string; text: string }
   /** The same tool called several times in a row is one step. */
-  | { kind: "tool"; key: string; calls: ToolPart[] };
+  | { kind: "tool"; key: string; calls: ToolPart[] }
+  /** The model looking for a big server's tools. */
+  | { kind: "search"; key: string; part: SearchPart };
 
 /** What the answer shows, in order: its words and the tables and charts the model built. */
 export type AnswerBlock =
@@ -35,19 +38,25 @@ const addWords = (
   }
 };
 
+/** Where the work ends: the last call of a server's tool or of the search for them; -1 without any. */
+const lastToolAt = (parts: Part[]) => {
+  // findLastIndex is past the ES2022 target.
+  let at = -1;
+  for (const [i, p] of parts.entries()) {
+    if (p.type === "dynamic-tool" || p.type === "tool-find_tools") {
+      at = i;
+    }
+  }
+  return at;
+};
+
 /**
  * An answer split in two: its work — reasoning, tool calls and what the model said between them, everything up to
  * its last tool call — and the answer itself: the words after it and the tables and charts, wherever they come. Without tools
  * there is no work. Only a way to draw the message: its parts, and what the model is sent, stay as they are.
  */
 export const answerWork = (parts: Part[]) => {
-  // findLastIndex is past the ES2022 target.
-  let lastTool = -1;
-  for (const [i, p] of parts.entries()) {
-    if (p.type === "dynamic-tool") {
-      lastTool = i;
-    }
-  }
+  const lastTool = lastToolAt(parts);
   const steps: WorkStep[] = [];
   const blocks: AnswerBlock[] = [];
   for (const [i, part] of parts.entries()) {
@@ -63,6 +72,8 @@ export const answerWork = (parts: Part[]) => {
       } else {
         blocks.push({ key: `text:${i}`, kind: "text", text: part.text });
       }
+    } else if (part.type === "tool-find_tools") {
+      steps.push({ key: part.toolCallId, kind: "search", part });
     } else if (part.type === "dynamic-tool") {
       if (last?.kind === "tool" && last.calls[0]?.toolName === part.toolName) {
         last.calls.push(part);
@@ -96,7 +107,9 @@ export const answerWork = (parts: Part[]) => {
       return text ? [{ ...b, text }] : [];
     }),
     steps: steps.map((s) =>
-      s.kind === "tool" ? s : { ...s, text: s.text.trim() }
+      s.kind === "thought" || s.kind === "note"
+        ? { ...s, text: s.text.trim() }
+        : s
     ),
   };
 };

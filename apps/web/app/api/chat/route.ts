@@ -16,11 +16,10 @@ import {
   getChatModel,
   listMessages,
   saveMessages,
-  setChatCatalog,
 } from "@metobe/core/chat";
 import { recordRun, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
-import { toolsForUser } from "@metobe/core/mcp";
+import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -36,7 +35,9 @@ import { headers } from "next/headers";
 import { applyApprovals } from "@/lib/approvals";
 import { getAuth } from "@/lib/auth";
 import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
+import { mentionedIn } from "@/lib/mentions";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
+import { lendTools } from "@/lib/tool-search";
 
 // POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
 // the last answer's approvals — and the history comes from the database. The user's message is saved before the model is called, the answer when the stream ends —
@@ -119,33 +120,27 @@ const applyToLast = (
 };
 
 /**
- * Makes a new chat with the servers mentioned in its first question, or adds the servers a question mentions to the
- * chat's; a carry-on after approvals uses what the chat has. Returns the servers whose tools the model gets.
+ * The MCP servers whose tools the model gets: those the thread's questions mention (`@Title`, read as the thread
+ * draws its badges). A server stays on while a question that names it is in the thread — an edited or dropped
+ * question takes its servers along.
  */
-const keepChat = async (input: {
-  id: string;
-  userId: string;
-  chat: Awaited<ReturnType<typeof getChat>>;
-  message?: ChatMessage;
-  catalogIds?: string[];
-}) => {
-  const { chat, message } = input;
-  // A server mentioned once stays on in the chat.
-  const catalogIds = [
-    ...new Set([...(chat?.catalogIds ?? []), ...(input.catalogIds ?? [])]),
-  ];
-  if (message && !chat) {
-    await createChat({
-      catalogIds,
-      id: input.id,
-      title: provisionalTitle(message),
-      userId: input.userId,
-    });
-  } else if (chat && catalogIds.length > chat.catalogIds.length) {
-    await setChatCatalog(input.id, catalogIds);
-  }
-  return catalogIds;
-};
+const serversOf = async (userId: string, thread: ChatMessage[]) =>
+  mentionedIn(
+    thread.flatMap((m) =>
+      m.role === "user"
+        ? m.parts.flatMap((p) => (p.type === "text" ? [p.text] : []))
+        : []
+    ),
+    await listChatServers(userId)
+  );
+
+/** The MCP tools the thread has called: a big server loads them at once for the next question. */
+const calledIn = (thread: ChatMessage[]) =>
+  new Set(
+    thread.flatMap((m) =>
+      m.parts.flatMap((p) => (p.type === "dynamic-tool" ? [p.toolName] : []))
+    )
+  );
 
 export const POST = async (request: Request) => {
   const session = await getAuth().api.getSession({ headers: await headers() });
@@ -198,13 +193,13 @@ export const POST = async (request: Request) => {
     console.error("chat: the history does not validate", id, error);
     return fail("bad-request", 400);
   }
-  const catalogIds = await keepChat({
-    catalogIds: body.data.catalogIds,
-    chat,
-    id,
-    message,
-    userId: session.user.id,
-  });
+  if (message && !chat) {
+    await createChat({
+      id,
+      title: provisionalTitle(message),
+      userId: session.user.id,
+    });
+  }
   if (prepared.dropFrom) {
     await deleteMessagesFrom(id, prepared.dropFrom);
   }
@@ -250,13 +245,20 @@ export const POST = async (request: Request) => {
           console.error("chat: could not record the run", model.id, error);
         }
       };
-      // The MCP servers turned on in this chat (ARCH §8) and our own table and chart; a model that says it cannot
-      // call tools gets none. Ours come last, so a server's tool of the same name cannot replace them.
+      // The MCP servers the thread mentions (ARCH §8) — a big one's tools on demand — and our own table and chart;
+      // a model that says it cannot call tools gets none. Ours come last, so a server's tool of the same name cannot
+      // replace them.
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
           : {
-              ...(await toolsForUser(session.user.id, catalogIds)),
+              ...lendTools(
+                await toolsForUser(
+                  session.user.id,
+                  await serversOf(session.user.id, uiMessages)
+                ),
+                calledIn(uiMessages)
+              ),
               [CHART_TOOL]: chartTool,
               [TABLE_TOOL]: tableTool,
             };
