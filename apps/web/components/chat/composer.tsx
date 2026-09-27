@@ -6,9 +6,16 @@ import { Kbd } from "@metobe/ui/components/kbd";
 import { cn } from "@metobe/ui/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { useCallback, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { connectServer } from "@/app/(app)/(chat)/actions";
+import { AddMenu } from "@/components/chat/add-menu";
 import { ConnectDialog } from "@/components/chat/connect-dialog";
 import { MentionMenu } from "@/components/chat/mention-menu";
 import { ModelChooser } from "@/components/chat/picker/chooser";
@@ -22,6 +29,39 @@ import {
 } from "@/components/mcp/oauth-window";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
+
+/** The gaps between «+», the field and the buttons, and the field's own side padding: what a line has less than the row. */
+const GAP = 4;
+const FIELD_PADDING = 16;
+/** The height clip's padding above and below (`p-1.5`), around the content it follows. */
+const FRAME_PADDING = 12;
+
+/**
+ * Whether a draft sits on one line in `room` px: no line break, and its width as one unbroken line fits. Measured on
+ * a hidden copy — the field itself is as wide as the layout it is in, which is what this decides.
+ */
+const fitsOneLine = (field: HTMLElement, room: number) => {
+  const text = field.textContent ?? "";
+  // A line break, but not the one that waits at the end after the caret (the editor's own, never sent).
+  if (text.replace(/\n$/u, "").includes("\n")) {
+    return false;
+  }
+  // Far more than any row holds: nothing to measure.
+  if (text.length > 400) {
+    return false;
+  }
+  const probe = field.cloneNode(true) as HTMLElement;
+  for (const name of ["contenteditable", "role", "tabindex", "aria-label"]) {
+    probe.removeAttribute(name);
+  }
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText =
+    "position:absolute;left:0;top:0;visibility:hidden;width:max-content;max-width:none;min-height:0;max-height:none;padding:0;white-space:pre;overflow:visible";
+  field.parentElement?.append(probe);
+  const width = probe.scrollWidth;
+  probe.remove();
+  return width <= room;
+};
 
 type SendState = "send" | "stop";
 
@@ -67,7 +107,7 @@ const SendButton = ({
       aria-disabled={dim}
       aria-label={t(state)}
       className={cn(
-        "relative size-9 overflow-hidden rounded-xl active:translate-y-0 active:scale-[0.97]",
+        "relative size-9 overflow-hidden rounded-full active:translate-y-0 active:scale-[0.97]",
         "[transition:scale_160ms_cubic-bezier(0.23,1,0.32,1),opacity_150ms_ease]",
         dim && "opacity-40"
       )}
@@ -123,13 +163,13 @@ const SendButton = ({
 };
 
 /**
- * The composer «Щелчок» (P2): a grey shell with the white card nested in it — the band on top of the card (files,
- * the context) arrives with attachments. Enter sends, Shift+Enter breaks the line, Esc stops an answer. `@` mentions
- * an MCP server right in the text: only mentioned servers give their tools to the model; one the user has not
- * connected yet is connected from here — its OAuth page, or their token in a small dialog.
+ * The composer: one pill (kobra's chat input) — a single line while the draft fits beside the model and the send
+ * button; longer, the text takes the whole width and the buttons a row below it. Enter sends, Shift+Enter breaks the
+ * line, Esc stops an answer. `@` mentions an MCP server right in the text: only mentioned servers give their tools
+ * to the model; one the user has not connected yet is connected from here — its OAuth page, or their token in a
+ * small dialog.
  */
 export const Composer = ({
-  home,
   model,
   favorites,
   onModel,
@@ -139,8 +179,6 @@ export const Composer = ({
   servers,
   onServerReady,
 }: {
-  /** An empty chat: the composer sits in the middle, a bit taller. */
-  home: boolean;
   /** The model the next message goes to, and the user's favorites to pick another from. */
   model: PickerModel;
   favorites: Favorites;
@@ -191,12 +229,81 @@ export const Composer = ({
   }, []);
   const onEmptyChange = useCallback((empty: boolean) => setReady(!empty), []);
 
+  // One line while the draft fits beside the buttons; past that — or at a line break — the text above them.
+  const frame = useRef<HTMLDivElement>(null);
+  const deck = useRef<HTMLDivElement>(null);
+  const plus = useRef<HTMLDivElement>(null);
+  const actions = useRef<HTMLDivElement>(null);
+  const field = useRef<HTMLDivElement | null>(null);
+  const [tall, setTall] = useState(false);
+  const measure = useCallback(() => {
+    const at = field.current;
+    const row = deck.current;
+    const buttons = actions.current;
+    const add = plus.current;
+    if (!at || !row || !buttons || !add) {
+      return;
+    }
+    const room =
+      row.clientWidth -
+      add.offsetWidth -
+      buttons.offsetWidth -
+      2 * GAP -
+      FIELD_PADDING;
+    // A little less room to come back to one line, so a draft right at the edge does not flip back and forth.
+    setTall((was) => !fitsOneLine(at, was ? room - 8 : room));
+  }, []);
+  const onDraft = useCallback(
+    (el: HTMLDivElement) => {
+      field.current = el;
+      measure();
+    },
+    [measure]
+  );
+  // The pill's height follows its content at once while typing, over 200ms when the layout switches (data-morph).
+  useEffect(() => {
+    const row = deck.current;
+    const shell = frame.current;
+    if (!row || !shell) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      shell.style.height = `${row.offsetHeight + FRAME_PADDING}px`;
+      measure();
+    });
+    observer.observe(row);
+    if (actions.current) {
+      observer.observe(actions.current);
+    }
+    return () => observer.disconnect();
+  }, [measure]);
+  const shown = useRef(tall);
+  useLayoutEffect(() => {
+    const shell = frame.current;
+    if (!shell || shown.current === tall) {
+      return;
+    }
+    shown.current = tall;
+    shell.dataset.morph = "";
+    const timer = setTimeout(() => {
+      delete shell.dataset.morph;
+    }, 260);
+    return () => clearTimeout(timer);
+  }, [tall]);
+
+  // Where a picked server's badge goes: in place of the `@…` typed, or — picked from «+» — where the caret was.
+  const place = useRef<"mention" | "add">("mention");
   const insert = (server: ChatServer) => {
-    editor.current?.insertToken({
+    const token = {
       id: server.id,
       label: server.title,
       logo: server.logo ?? undefined,
-    });
+    };
+    if (place.current === "add") {
+      editor.current?.addToken(token);
+    } else {
+      editor.current?.insertToken(token);
+    }
     setTrigger(null);
   };
   // OAuth signs in in the provider's window: the draft stays where it is, the badge lands where `@` was typed.
@@ -247,9 +354,12 @@ export const Composer = ({
           submit();
         }}
       >
-        {/* The shell: grey, the white card nested inside — radius 22 = 18 + 4 of padding */}
+        {/* One pill; radius 24 = half its one-line height (36 + 2 × 6 of padding) */}
         <div
-          className="bg-muted/70 dark:bg-muted/40 ring-border/70 relative rounded-[22px] p-1 ring-1"
+          className={cn(
+            "bg-muted/70 dark:bg-muted/40 border-border/70 relative rounded-[24px] border p-1.5",
+            "focus-within:border-foreground/15 [transition:border-color_200ms_ease]"
+          )}
           ref={box}
         >
           {trigger && (
@@ -259,77 +369,107 @@ export const Composer = ({
               items={items}
               nav={nav}
               onHover={setActive}
-              onPick={pick}
+              onPick={(server) => {
+                place.current = "mention";
+                pick(server);
+              }}
               trigger={trigger.at}
             />
           )}
+          {/* The height clip, with room around for the buttons' focus rings */}
           <div
-            className={cn(
-              "bg-background border-border/80 flex flex-col rounded-[18px] border shadow-xs",
-              "focus-within:border-foreground/15 [transition:border-color_200ms_ease,box-shadow_200ms_ease]",
-              "focus-within:shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_-1px_rgba(0,0,0,0.06),0_2px_4px_0_rgba(0,0,0,0.04)] dark:focus-within:shadow-xs"
-            )}
+            className="-m-1.5 overflow-hidden p-1.5 transition-[height] duration-0 ease-[cubic-bezier(0.23,1,0.32,1)] data-morph:duration-200 motion-reduce:transition-none"
+            ref={frame}
           >
-            <TokenEditor
-              autoFocus
-              className={cn("max-h-60", home ? "min-h-24" : "min-h-16")}
-              onEmptyChange={onEmptyChange}
-              onKeyDown={(e) => {
-                if (trigger) {
-                  if (
-                    items.length > 0 &&
-                    (e.key === "ArrowDown" || e.key === "ArrowUp")
-                  ) {
-                    e.preventDefault();
-                    nav.current = e.repeat ? "snap" : "step";
-                    setActive(
-                      (a) =>
-                        (a + (e.key === "ArrowDown" ? 1 : items.length - 1)) %
-                        items.length
-                    );
-                    return true;
+            <div
+              className="group/deck grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-1 data-tall:gap-y-1"
+              data-tall={tall || undefined}
+              ref={deck}
+            >
+              <div
+                className="col-start-1 row-start-1 group-data-tall/deck:row-start-2"
+                ref={plus}
+              >
+                <AddMenu
+                  field={() =>
+                    deck.current?.querySelector<HTMLElement>(
+                      "[role=textbox]"
+                    ) ?? null
                   }
-                  const current = items[active];
-                  if (current && (e.key === "Enter" || e.key === "Tab")) {
-                    e.preventDefault();
-                    if (current.signIn !== "admin") {
-                      pick(current);
+                  mentioned={() =>
+                    new Set(editor.current?.tokens().map((x) => x.id))
+                  }
+                  onPick={(server) => {
+                    place.current = "add";
+                    pick(server);
+                  }}
+                  servers={servers}
+                />
+              </div>
+              <TokenEditor
+                autoFocus
+                className="col-start-2 row-start-1 max-h-60 min-h-9 px-2 py-1.5 leading-6 group-data-tall/deck:col-span-3 group-data-tall/deck:col-start-1 md:leading-6"
+                onChange={onDraft}
+                onEmptyChange={onEmptyChange}
+                onKeyDown={(e) => {
+                  if (trigger) {
+                    if (
+                      items.length > 0 &&
+                      (e.key === "ArrowDown" || e.key === "ArrowUp")
+                    ) {
+                      e.preventDefault();
+                      nav.current = e.repeat ? "snap" : "step";
+                      setActive(
+                        (a) =>
+                          (a + (e.key === "ArrowDown" ? 1 : items.length - 1)) %
+                          items.length
+                      );
+                      return true;
                     }
-                    return true;
+                    const current = items[active];
+                    if (current && (e.key === "Enter" || e.key === "Tab")) {
+                      e.preventDefault();
+                      if (current.signIn !== "admin") {
+                        place.current = "mention";
+                        pick(current);
+                      }
+                      return true;
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setTrigger(null);
+                      return true;
+                    }
                   }
-                  if (e.key === "Escape") {
+                  if (e.key === "Escape" && busy) {
                     e.preventDefault();
-                    setTrigger(null);
+                    onStop();
                     return true;
                   }
-                }
-                if (e.key === "Escape" && busy) {
-                  e.preventDefault();
-                  onStop();
-                  return true;
-                }
-                return false;
-              }}
-              onSubmit={submit}
-              onTrigger={onTrigger}
-              placeholder={t("placeholder")}
-              ref={editor}
-              removeLabel={t("mcp.remove")}
-            />
-            <div className="flex items-center gap-1 px-2 pt-1 pb-2">
-              <ModelChooser
-                favorites={favorites}
-                model={model}
-                onChange={onModel}
-                onDone={() => editor.current?.focus()}
+                  return false;
+                }}
+                onSubmit={submit}
+                onTrigger={onTrigger}
+                placeholder={t("placeholder")}
+                ref={editor}
+                removeLabel={t("mcp.remove")}
               />
-              <span className="ml-auto">
+              <div
+                className="col-start-3 row-start-1 flex items-center gap-1 group-data-tall/deck:row-start-2"
+                ref={actions}
+              >
+                <ModelChooser
+                  favorites={favorites}
+                  model={model}
+                  onChange={onModel}
+                  onDone={() => editor.current?.focus()}
+                />
                 <SendButton
                   onStop={onStop}
                   ready={ready}
                   state={busy ? "stop" : "send"}
                 />
-              </span>
+              </div>
             </div>
           </div>
         </div>

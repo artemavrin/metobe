@@ -385,11 +385,16 @@ export const ChatView = ({
           layout="position"
           transition={reduce ? SNAP : SPRING}
         >
-          <div className="mx-auto max-w-4xl">
+          {/* An empty chat's composer is narrower; the thread's takes the column, the width easing out on the first send */}
+          <div
+            className={cn(
+              "mx-auto transition-[max-width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+              empty ? "max-w-2xl" : "max-w-4xl"
+            )}
+          >
             <Composer
               busy={busy}
               favorites={favorites}
-              home={empty}
               model={model}
               onModel={setModel}
               onSend={send}

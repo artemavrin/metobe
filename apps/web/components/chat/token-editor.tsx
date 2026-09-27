@@ -29,6 +29,8 @@ export interface EditorHandle {
   tokens: () => Token[];
   /** Puts a badge where the `@…` being typed is. */
   insertToken: (t: Token) => void;
+  /** Puts a badge where the caret is, or was last in the field — else at its end (a pick from the «+» menu). */
+  addToken: (t: Token) => void;
 }
 
 /** The badge's look, shared by the editor (built in the DOM) and a sent message (React). */
@@ -198,6 +200,7 @@ export const TokenEditor = ({
   autoFocus,
   className,
   onEmptyChange,
+  onChange,
   onTrigger,
   onKeyDown,
   onSubmit,
@@ -208,6 +211,8 @@ export const TokenEditor = ({
   autoFocus?: boolean;
   className?: string;
   onEmptyChange: (empty: boolean) => void;
+  /** The text changed: the field itself, to measure. */
+  onChange?: (field: HTMLDivElement) => void;
   onTrigger: (t: Trigger | null) => void;
   /** Returns true when the key was handled (an open menu takes arrows, Enter, Tab, Esc). */
   onKeyDown: (e: React.KeyboardEvent) => boolean;
@@ -216,6 +221,8 @@ export const TokenEditor = ({
   const root = useRef<HTMLDivElement>(null);
   const templates = useRef<HTMLDivElement>(null);
   const trigger = useRef<Found | null>(null);
+  // Where the caret was when the field last lost the focus: a badge from the «+» menu lands there.
+  const lastRange = useRef<Range | null>(null);
   // A key the menu took (an arrow moving its highlight) moved no caret: its keyup must not read the mention anew —
   // that would open the menu afresh, its highlight back on the first row.
   const taken = useRef<string | null>(null);
@@ -233,9 +240,10 @@ export const TokenEditor = ({
       el.innerHTML = "";
     }
     onEmptyChange(empty);
+    onChange?.(el);
     trigger.current = readTrigger(el);
     onTrigger(trigger.current);
-  }, [onEmptyChange, onTrigger]);
+  }, [onChange, onEmptyChange, onTrigger]);
 
   useEffect(() => {
     if (root.current) {
@@ -247,6 +255,52 @@ export const TokenEditor = ({
   }, [autoFocus]);
 
   useImperativeHandle(ref, () => ({
+    addToken: (t) => {
+      const el = root.current;
+      if (!el) {
+        return;
+      }
+      const sel = window.getSelection();
+      const current =
+        sel?.rangeCount && el.contains(sel.anchorNode)
+          ? sel.getRangeAt(0)
+          : null;
+      const kept =
+        lastRange.current && el.contains(lastRange.current.startContainer)
+          ? lastRange.current
+          : null;
+      const range = document.createRange();
+      const at = current ?? kept;
+      if (at) {
+        range.setStart(at.startContainer, at.startOffset);
+      } else {
+        range.selectNodeContents(el);
+        range.collapse(false);
+      }
+      range.collapse(true);
+      // Its own word: a space before it when it would stick to the text.
+      const before = document.createRange();
+      before.setStart(el, 0);
+      before.setEnd(range.startContainer, range.startOffset);
+      const glued = /\S$/u.test(before.toString());
+      const space = document.createTextNode(" ");
+      range.insertNode(space);
+      range.insertNode(makeBadge(t, templates.current, removeLabel));
+      if (glued) {
+        range.insertNode(document.createTextNode(" "));
+      }
+      // …and no second space where the text after it already starts with one.
+      const next = space.nextSibling;
+      if (
+        next?.nodeType === Node.TEXT_NODE &&
+        next.textContent?.startsWith(" ")
+      ) {
+        next.textContent = next.textContent.slice(1);
+      }
+      caretAt(space, 1);
+      el.focus();
+      sync();
+    },
     clear: () => {
       if (root.current) {
         root.current.innerHTML = "";
@@ -288,6 +342,20 @@ export const TokenEditor = ({
     range.deleteContents();
     const node = document.createTextNode(text);
     range.insertNode(node);
+    // A line break at the very end draws no new line (pre-wrap) until something follows it, and the caret stays up:
+    // a second one waits after the caret — the text is trimmed when it goes, so it is never sent.
+    const el = root.current;
+    if (el && text.endsWith("\n")) {
+      const rest = document.createRange();
+      rest.setStart(node, text.length);
+      rest.setEnd(el, el.childNodes.length);
+      if (
+        rest.toString() === "" &&
+        !rest.cloneContents().querySelector("[data-token]")
+      ) {
+        node.after(document.createTextNode("\n"));
+      }
+    }
     caretAt(node, text.length);
     sync();
   };
@@ -302,10 +370,18 @@ export const TokenEditor = ({
         className={cn(
           "relative w-full overflow-y-auto px-3 pt-3 pb-1 text-base leading-7 whitespace-pre-wrap outline-none md:text-sm md:leading-7",
           "data-[empty=true]:before:text-muted-foreground data-[empty=true]:before:pointer-events-none data-[empty=true]:before:absolute data-[empty=true]:before:content-[attr(data-placeholder)]",
+          // One line however narrow the field — cut with an ellipsis, not wrapped under it — at the field's own padding.
+          "data-[empty=true]:before:inset-x-0 data-[empty=true]:before:truncate data-[empty=true]:before:px-[inherit]",
           className
         )}
         contentEditable
         data-placeholder={placeholder}
+        onBlur={() => {
+          const sel = window.getSelection();
+          if (sel?.rangeCount && root.current?.contains(sel.anchorNode)) {
+            lastRange.current = sel.getRangeAt(0).cloneRange();
+          }
+        }}
         onClick={(e) => {
           const badge = (e.target as HTMLElement)
             .closest("[data-remove]")
