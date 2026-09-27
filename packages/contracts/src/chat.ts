@@ -26,9 +26,16 @@ export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 // oxlint-disable-next-line typescript/consistent-type-definitions -- see above
 export type ChatDataParts = { title: string };
 
-/** Our own tools, drawn in the answer (MCP tools arrive as dynamic tools). */
+/**
+ * Our own tools (MCP tools arrive as dynamic tools): the table and the chart drawn in the answer, and the search a
+ * big server's tools are found with (AI SDK's tool search) — what the model looked for, what it found.
+ */
 // oxlint-disable-next-line typescript/consistent-type-definitions -- a Record for AI SDK, as above
 export type ChatTools = {
+  find_tools: {
+    input: { query: string };
+    output: { tools: { name: string; description?: string }[] };
+  };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_table: { input: TableInput; output: TableOutput };
 };
@@ -105,8 +112,6 @@ export type Approvals = z.infer<typeof approvalsSchema>;
 export const chatRequestSchema = z
   .object({
     approvals: approvalsSchema.optional(),
-    /** The MCP servers the question mentions; they join the chat's, whose tools reach the model. */
-    catalogIds: z.array(z.uuid()).max(50).optional(),
     id: z.uuid(),
     message: userMessageSchema.optional(),
     modelId: z.uuid().optional(),

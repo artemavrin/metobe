@@ -40,6 +40,15 @@ const chart = (id: string): Part =>
     type: "tool-show_chart",
   }) as Part;
 
+const search = (id: string): Part =>
+  ({
+    input: { query: "create deal" },
+    output: { tools: [{ name: "bitrix_create_deal" }] },
+    state: "output-available",
+    toolCallId: id,
+    type: "tool-find_tools",
+  }) as Part;
+
 const shape = (parts: Part[]) => {
   const { steps, answer, blocks } = answerWork(parts);
   return {
@@ -47,11 +56,12 @@ const shape = (parts: Part[]) => {
     blocks: blocks.map((b) =>
       b.kind === "text" ? "text" : `${b.kind}:${b.key}`
     ),
-    steps: steps.map((s) =>
-      s.kind === "tool"
-        ? `tool:${s.calls.map((c) => c.toolCallId).join("+")}`
-        : `${s.kind}:${s.text}`
-    ),
+    steps: steps.map((s) => {
+      if (s.kind === "tool") {
+        return `tool:${s.calls.map((c) => c.toolCallId).join("+")}`;
+      }
+      return s.kind === "search" ? `search:${s.key}` : `${s.kind}:${s.text}`;
+    }),
   };
 };
 
@@ -139,6 +149,27 @@ describe("an answer's work and its answer", () => {
       answer: "",
       blocks: ["table:t"],
       steps: [],
+    });
+  });
+
+  it("makes a search for a big server's tools a step of the work, the words before it too", () => {
+    expect(
+      shape([
+        text("Поищу, чем создать сделку."),
+        search("s"),
+        call("a", "bitrix_create_deal"),
+        text("Сделка создана."),
+      ])
+    ).toEqual({
+      answer: "Сделка создана.",
+      blocks: ["text"],
+      steps: ["note:Поищу, чем создать сделку.", "search:s", "tool:a"],
+    });
+    // Found nothing and answered: the search alone is the work.
+    expect(shape([search("s"), text("Не нашёл подходящего.")])).toEqual({
+      answer: "Не нашёл подходящего.",
+      blocks: ["text"],
+      steps: ["search:s"],
     });
   });
 });

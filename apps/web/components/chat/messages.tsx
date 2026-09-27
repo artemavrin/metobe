@@ -39,6 +39,7 @@ import {
   ListChecks,
   Pencil,
   RefreshCw,
+  Search,
   Wrench,
 } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
@@ -50,28 +51,34 @@ import { AnswerChart } from "@/components/chat/answer-chart";
 import { AnswerTable } from "@/components/chat/answer-table";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { answerWork } from "@/lib/answer-work";
-import type { ToolPart, WorkStep } from "@/lib/answer-work";
+import type { SearchPart, ToolPart, WorkStep } from "@/lib/answer-work";
+import { splitMentions } from "@/lib/mentions";
 
 import "gridora/styles.css";
 import "streamdown/styles.css";
 
 const NO_SERVERS: ChatServer[] = [];
 
-/** A tool's name as people read it — its MCP title, else its name without the server's prefix — and its server. */
-const toolLook = (part: ToolPart, servers: ChatServer[]) => {
-  // The longest prefix wins: `kaskad_hr` over `kaskad`.
+/** A tool's server, by its name's prefix — the longest wins: `kaskad_hr` over `kaskad` — and its name without it. */
+const toolOwner = (toolName: string, servers: ChatServer[]) => {
   let server: ChatServer | undefined;
   for (const s of servers) {
     if (
-      part.toolName.startsWith(`${s.key}_`) &&
+      toolName.startsWith(`${s.key}_`) &&
       s.key.length > (server?.key.length ?? 0)
     ) {
       server = s;
     }
   }
-  const bare = server
-    ? part.toolName.slice(server.key.length + 1)
-    : part.toolName;
+  return {
+    bare: server ? toolName.slice(server.key.length + 1) : toolName,
+    server,
+  };
+};
+
+/** A tool's name as people read it — its MCP title, else its name without the server's prefix — and its server. */
+const toolLook = (part: ToolPart, servers: ChatServer[]) => {
+  const { bare, server } = toolOwner(part.toolName, servers);
   return { label: part.title ?? bare.replaceAll("_", " "), server };
 };
 
@@ -234,6 +241,98 @@ const ToolStep = ({
   );
 };
 
+/**
+ * The model looking for a big server's tools (they wait until found): what it looked for — the grid while it looks —
+ * and how many it found; it unfolds into the tools found, with their servers' pictures.
+ */
+const SearchStep = ({
+  part,
+  servers,
+}: {
+  part: SearchPart;
+  servers: ChatServer[];
+}) => {
+  const t = useTranslations("chat.tools");
+  const [open, setOpen] = useState(false);
+  const running =
+    part.state === "input-streaming" || part.state === "input-available";
+  const found = part.state === "output-available" ? part.output.tools : [];
+  let label = t("searching");
+  if (part.state === "output-available") {
+    label = t("found", { count: found.length });
+  } else if (part.state === "output-error") {
+    label = `${t("searching")} · ${t("failed")}`;
+  }
+  const query = part.input?.query;
+  return (
+    <Collapsible
+      className="flex flex-col items-start"
+      onOpenChange={setOpen}
+      open={open}
+    >
+      <Marker
+        className="enabled:hover:text-foreground w-fit gap-2 transition-colors duration-150 disabled:cursor-default"
+        render={<CollapsibleTrigger disabled={found.length === 0} />}
+      >
+        <MarkerIcon className="grid size-3.5 place-items-center [&_svg]:size-3.5">
+          {running ? (
+            <GridLoader
+              cellSize={3}
+              gap={1.5}
+              respectReducedMotion
+              variant="cacheWarm"
+            />
+          ) : (
+            <Search />
+          )}
+        </MarkerIcon>
+        <MarkerContent className={cn(running && "shimmer")}>
+          {label}
+          {query && <span> · {t("query", { query })}</span>}
+        </MarkerContent>
+        {found.length > 0 && (
+          <MarkerIcon className="-ml-1">
+            <ChevronRight
+              className={cn(
+                "size-3.5 transition-[rotate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+                open && "rotate-90"
+              )}
+            />
+          </MarkerIcon>
+        )}
+      </Marker>
+      <CollapsibleContent className="h-(--collapsible-panel-height) w-full overflow-hidden transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none">
+        <ul className="text-muted-foreground border-border mt-2 flex flex-col gap-1.5 border-l pl-3 text-xs">
+          {found.map((tool) => {
+            const { bare, server } = toolOwner(tool.name, servers);
+            return (
+              <li className="flex min-w-0 items-center gap-2" key={tool.name}>
+                {server ? (
+                  <BrandLogo
+                    label={server.title}
+                    logo={server.logo ?? undefined}
+                    size={14}
+                  />
+                ) : (
+                  <Wrench className="size-3.5 shrink-0" />
+                )}
+                <span className="text-foreground shrink-0">
+                  {bare.replaceAll("_", " ")}
+                </span>
+                {tool.description && (
+                  <span className="truncate">
+                    {tool.description.split("\n")[0]}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
 /** Opens by itself while the work goes on and folds a second after it ends; the reader's own toggle wins. */
 const useAutoOpen = (working: boolean) => {
   const [chosen, setChosen] = useState<boolean>();
@@ -337,6 +436,11 @@ const WorkBlock = ({
                   onApprove={onApprove}
                   servers={servers}
                 />
+              );
+            }
+            if (step.kind === "search") {
+              return (
+                <SearchStep key={step.key} part={step.part} servers={servers} />
               );
             }
             return (
@@ -534,32 +638,16 @@ const Mentioned = ({
   text: string;
   mentions: { title: string; logo: string | null }[];
 }) => {
-  // Longest first, so «GitHub Enterprise» wins over «GitHub».
-  const titles = mentions.map((m) => m.title);
-  // oxlint-disable-next-line unicorn/no-array-sort -- a fresh array; toSorted is past the ES2022 target
-  titles.sort((a, b) => b.length - a.length);
-  const names = titles.map((n) =>
-    n.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)
-  );
-  if (names.length === 0) {
-    return text;
-  }
-  const parts = text.split(new RegExp(`(@(?:${names.join("|")}))`, "u"));
-  return parts.map((part, i) => {
-    const server = part.startsWith("@")
-      ? mentions.find((m) => `@${m.title}` === part)
-      : undefined;
-    return server ? (
-      // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
-      <TokenBadge
-        key={i}
-        label={server.title}
-        logo={server.logo ?? undefined}
-      />
+  // Read the way the chat reads them: what shows as a badge is what gives the model its tools.
+  const pieces = splitMentions(text, mentions);
+  return pieces.map((piece, i) =>
+    typeof piece === "string" ? (
+      piece
     ) : (
-      part
-    );
-  });
+      // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
+      <TokenBadge key={i} label={piece.title} logo={piece.logo ?? undefined} />
+    )
+  );
 };
 
 /** The user's message: a bubble on the right that rises in when it goes; its time, copy and edit under it. */

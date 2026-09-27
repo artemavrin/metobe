@@ -392,17 +392,24 @@ export const listMyConnections = async (userId: string) => {
 };
 export type MyServer = Awaited<ReturnType<typeof listMyConnections>>[number];
 
+/** A server's tools for a chat, as `<key>_<name>`, with what names the server to the model. */
+export interface ServerTools {
+  key: string;
+  title: string;
+  tools: ToolSet;
+}
+
 /**
- * The MCP tools a user's chat gets: the servers turned on in that chat that they may use and can open, each tool
- * as `<key>_<name>`. The allowlist
- * narrows, `deny` hides, `ask` needs the user's yes. A server that fails is left out of this answer, not the chat.
+ * The MCP tools a user's chat gets, server by server: the servers the chat mentions that the user may use and can
+ * open, each tool as `<key>_<name>`. The allowlist narrows, `deny` hides, `ask` needs the user's yes. A server that
+ * fails is left out of this answer, not the chat.
  */
 export const toolsForUser = async (
   userId: string,
   catalogIds: string[]
-): Promise<ToolSet> => {
+): Promise<ServerTools[]> => {
   if (catalogIds.length === 0) {
-    return {};
+    return [];
   }
   const { db } = getDb();
   const items = await db
@@ -410,10 +417,10 @@ export const toolsForUser = async (
     .from(catalogItems)
     .where(and(inArray(catalogItems.id, catalogIds), usable(userId)));
   const sets = await Promise.all(
-    items.map(async (item): Promise<ToolSet> => {
+    items.map(async (item): Promise<ServerTools | null> => {
       const owner = await ownerFor(item, userId);
       if (!owner) {
-        return {};
+        return null;
       }
       try {
         const client = await clientFor(item, owner);
@@ -434,7 +441,7 @@ export const toolsForUser = async (
         await noteConnection(owner).catch((noteError: unknown) =>
           console.error("mcp: could not note a use", item.key, noteError)
         );
-        return set;
+        return { key: item.key, title: item.title, tools: set };
       } catch (error) {
         console.error("mcp: a server is left out", item.key, error);
         if (error instanceof UnauthorizedError) {
@@ -446,9 +453,9 @@ export const toolsForUser = async (
             console.error("mcp: could not note a refusal", item.key, noteError)
           );
         }
-        return {};
+        return null;
       }
     })
   );
-  return Object.assign({}, ...sets);
+  return sets.filter((s) => s !== null);
 };
