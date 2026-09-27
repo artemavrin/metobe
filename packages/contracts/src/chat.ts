@@ -1,6 +1,8 @@
 import type { UIMessage } from "ai";
 import { z } from "zod";
 
+import type { TableInput, TableOutput } from "./table";
+
 // Chat (ARCH §5.3, §6.1): messages are stored and sent as AI SDK UI messages. Our own data parts (`data-status`,
 // M3.2) and tools (M4) extend `ChatMessage` when they arrive.
 
@@ -23,7 +25,17 @@ export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 // oxlint-disable-next-line typescript/consistent-type-definitions -- see above
 export type ChatDataParts = { title: string };
 
-export type ChatMessage = UIMessage<ChatMessageMetadata, ChatDataParts>;
+/** Our own tools, drawn in the answer (MCP tools arrive as dynamic tools). */
+// oxlint-disable-next-line typescript/consistent-type-definitions -- a Record for AI SDK, as above
+export type ChatTools = {
+  show_table: { input: TableInput; output: TableOutput };
+};
+
+export type ChatMessage = UIMessage<
+  ChatMessageMetadata,
+  ChatDataParts,
+  ChatTools
+>;
 
 /** What `POST /api/chat` answers instead of a stream; the chat screen says it in the user's language. */
 export const chatErrorCodes = [

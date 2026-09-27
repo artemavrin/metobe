@@ -35,6 +35,7 @@ import { headers } from "next/headers";
 
 import { applyApprovals } from "@/lib/approvals";
 import { getAuth } from "@/lib/auth";
+import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 
 // POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
 // the last answer's approvals — and the history comes from the database. The user's message is saved before the model is called, the answer when the stream ends —
@@ -248,11 +249,15 @@ export const POST = async (request: Request) => {
           console.error("chat: could not record the run", model.id, error);
         }
       };
-      // The MCP servers turned on in this chat (ARCH §8); a model that says it cannot call tools gets none.
-      const tools =
+      // The MCP servers turned on in this chat (ARCH §8) and our own table; a model that says it cannot call tools
+      // gets none. The table comes last, so a server's tool of the same name cannot replace it.
+      const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
-          : await toolsForUser(session.user.id, catalogIds);
+          : {
+              ...(await toolsForUser(session.user.id, catalogIds)),
+              [TABLE_TOOL]: tableTool,
+            };
       const result = streamText({
         messages: prompt.messages,
         model: languageModel,
@@ -262,7 +267,11 @@ export const POST = async (request: Request) => {
           if (FIRST_TOKEN.has(chunk.type)) {
             firstChunk ??= Date.now() - started;
           }
-          if (chunk.type === "tool-result" || chunk.type === "tool-error") {
+          // The work is the servers' tools; a table is already the answer.
+          if (
+            (chunk.type === "tool-result" || chunk.type === "tool-error") &&
+            chunk.toolName !== TABLE_TOOL
+          ) {
             workTo = Date.now();
           }
           if (chunk.type === "reasoning-delta") {
