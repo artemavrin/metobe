@@ -26,6 +26,7 @@ import {
   removeSecret,
   removeSecrets,
   setSecret,
+  withSecret,
 } from "./secrets";
 import type { Owner } from "./secrets";
 
@@ -202,6 +203,72 @@ export const catalogCredentials = async (
   };
 };
 
+export interface MyCredential {
+  hint: string | null;
+  login: string | null;
+}
+
+/** A user's own connection to a per-user server, or none. */
+const myOwner = (item: CatalogItem, userId: string) =>
+  item.credentialMode === "per_user"
+    ? ownerFor(item, userId)
+    : Promise.resolve(null);
+
+/**
+ * What a user's own page shows of their connection: a token's hint, or for basic auth the login — read from the
+ * secret that keeps it with the password. The password never leaves this function.
+ */
+export const myCredential = async (
+  item: CatalogItem,
+  userId: string
+): Promise<MyCredential> => {
+  const owner = await myOwner(item, userId);
+  if (!owner) {
+    return { hint: null, login: null };
+  }
+  if (item.config.auth === "basic") {
+    const login = await withSecret(owner, "token", (value) =>
+      value.slice(0, Math.max(value.indexOf(":"), 0))
+    );
+    return { hint: null, login };
+  }
+  const hints = await listSecretHints(owner);
+  return {
+    hint: hints.find((h) => h.purpose === "token")?.hint ?? null,
+    login: null,
+  };
+};
+
+/** A user's own login changes alone: the saved password stays with it. */
+export const setMyLogin = async (
+  item: CatalogItem,
+  userId: string,
+  login: string
+) => {
+  const owner = await myOwner(item, userId);
+  const password = owner
+    ? await withSecret(owner, "token", (value) =>
+        value.slice(value.indexOf(":") + 1)
+      )
+    : null;
+  if (!owner || password === null) {
+    throw new Error("no saved password to keep");
+  }
+  await setSecret(owner, "token", `${login}:${password}`, { password: true });
+  await configChanged({ catalogId: item.id });
+};
+
+/** A user leaves a server: their connection and every secret of it (OAuth tokens too) go; their clients close. */
+export const disconnectMine = async (item: CatalogItem, userId: string) => {
+  const owner = await myOwner(item, userId);
+  if (!owner) {
+    return;
+  }
+  await removeSecrets(owner);
+  await getDb().db.delete(connections).where(eq(connections.id, owner.id));
+  await configChanged({ catalogId: item.id });
+};
+
 /**
  * Connects and lists the tools, keeping what it found on the item. For OAuth without tokens yet, the answer
  * carries the provider's sign-in page: the UI opens it, the callback finishes the sign-in (`finishOAuth`).
@@ -249,13 +316,53 @@ export const checkCatalogItem = async (
           ? { lastError: null, status: "active" }
           : {
               lastError: result.health.error ?? null,
-              status: result.health.state === "auth" ? "needs_reauth" : "error",
+              // «Sign in again» is OAuth's; a refused token or password is an error to fix.
+              status:
+                result.health.state === "auth" && item.config.auth === "oauth"
+                  ? "needs_reauth"
+                  : "error",
             }
       )
       .where(eq(connections.id, owner.id));
   }
   await configChanged({ catalogId: item.id });
   return result;
+};
+
+/**
+ * A user signs in to a per-user OAuth server on demand — the first time, or «войти заново»: the provider's page, even
+ * while their saved tokens still work. Nothing is written until the callback: tokens that work stay, so a sign-in
+ * left half-way loses nothing. A connection made just now waits as «not signed in yet».
+ */
+export const startMySignIn = async (
+  item: CatalogItem,
+  userId: string,
+  returnTo: string
+): Promise<
+  { state: "ok" } | { state: "signIn"; url: string } | { state: "error" }
+> => {
+  const existing = await myOwner(item, userId);
+  const owner =
+    existing ?? (await credentialOwner(item, userId, { create: true }));
+  if (!owner) {
+    return { state: "error" };
+  }
+  if (!existing) {
+    await getDb()
+      .db.update(connections)
+      .set({ status: "needs_reauth" })
+      .where(eq(connections.id, owner.id));
+  }
+  const result = await checkServer(
+    item,
+    owner,
+    { returnTo, userId },
+    { fresh: true }
+  );
+  if (result.authorizationUrl) {
+    return { state: "signIn", url: result.authorizationUrl };
+  }
+  return result.health.state === "ok" ? { state: "ok" } : { state: "error" };
 };
 
 /** The catalog item a flow signs in to: its own row, or the item of the connection it signs in for. */
@@ -314,7 +421,7 @@ const FLOW_TTL = sql`now() - interval '1 hour'`;
 
 /**
  * The OAuth callback: the state names the flow, the code is traded for tokens (kept as the owner's secrets).
- * Returns where to send the user, or null for a state that is unknown, stale or someone else's.
+ * Returns the server and where to send the user, or null for a state that is unknown, stale or someone else's.
  */
 export const finishOAuth = async (input: {
   state: string;
@@ -360,5 +467,5 @@ export const finishOAuth = async (input: {
     return null;
   }
   await checkCatalogItem(item, input.userId, flow.returnTo);
-  return flow.returnTo;
+  return { catalogId: item.id, returnTo: flow.returnTo };
 };

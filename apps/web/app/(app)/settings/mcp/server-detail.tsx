@@ -29,6 +29,10 @@ import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import {
+  OAuthWindowDialog,
+  useOAuthWindow,
+} from "@/components/mcp/oauth-window";
 import { EditRow } from "@/components/settings/edit-row";
 import { Row, Rows, Section } from "@/components/settings/rows";
 
@@ -701,14 +705,25 @@ export const ServerDetail = ({
     ? "checking"
     : (item.health?.state ?? "unchecked");
 
-  // A check only checks; the provider's sign-in page opens only when the user asked to sign in.
-  const runCheck = (signIn = false) =>
+  // A check only checks; signing in opens the provider's page in its own window, from the click itself.
+  const oauth = useOAuthWindow({ onDone: () => router.refresh() });
+  const runCheck = (signIn = false) => {
+    if (signIn) {
+      oauth.start(item, async (returnTo) => {
+        const result = await check(item.id, returnTo);
+        if (result.state === "ok") {
+          return { state: "ok" };
+        }
+        return result.authorizationUrl
+          ? { state: "signIn", url: result.authorizationUrl }
+          : { state: "error" };
+      });
+      return;
+    }
     startCheck(async () => {
-      const result = await check(item.id);
-      if (signIn && result.authorizationUrl) {
-        window.location.assign(result.authorizationUrl);
-      }
+      await check(item.id);
     });
+  };
 
   const saveName = () => {
     const next = name.trim();
@@ -853,7 +868,7 @@ export const ServerDetail = ({
               onClick={() =>
                 startRemove(async () => {
                   await remove(item.id);
-                  router.push("/settings/connections");
+                  router.push("/settings/mcp");
                 })
               }
               size="sm"
@@ -864,6 +879,7 @@ export const ServerDetail = ({
           </Row>
         </Rows>
       </Section>
+      <OAuthWindowDialog flow={oauth} />
     </>
   );
 };

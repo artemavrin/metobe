@@ -123,6 +123,10 @@ const closeQuietly = async (
   }
 };
 
+/** A refused token or header comes back as the transport's 401/403 — the same «wants credentials» as OAuth. */
+export const isRefused = (error: unknown) =>
+  error instanceof Error && /\(HTTP 40[13]\)/u.test(error.message);
+
 /** What a check found: the server's tools, or that it wants a sign-in (its page, when OAuth), or why it failed. */
 export interface ServerCheck {
   health: CatalogHealth;
@@ -134,12 +138,13 @@ export interface ServerCheck {
 export const checkServer = async (
   item: CatalogItem,
   owner: Owner,
-  start?: OAuthStart
+  start?: OAuthStart,
+  { fresh = false }: { fresh?: boolean } = {}
 ): Promise<ServerCheck> => {
   const checkedAt = new Date().toISOString();
   const oauth =
     item.config.auth === "oauth"
-      ? new StoredOAuth(owner, { start })
+      ? new StoredOAuth(owner, { fresh, start })
       : undefined;
   let client: MCPClient | undefined;
   try {
@@ -156,13 +161,10 @@ export const checkServer = async (
       })),
     };
   } catch (error) {
-    // A refused token or header comes back as the transport's 401/403 — the same «wants credentials» as OAuth.
-    const refused =
-      error instanceof Error && /\(HTTP 40[13]\)/u.test(error.message);
     if (
       error instanceof UnauthorizedError ||
       oauth?.authorizationUrl ||
-      refused
+      isRefused(error)
     ) {
       return {
         authorizationUrl: oauth?.authorizationUrl?.toString(),
@@ -244,6 +246,36 @@ const markUnauthorized = async (owner: Owner, error: unknown) => {
         .where(eq(catalogItems.id, owner.id)));
 };
 
+/**
+ * A user's connection after a chat opened it: working — «used just now» (written at most once a minute) and active
+ * again; refused — its token or password no longer fits, and the settings say so.
+ */
+const noteConnection = async (owner: Owner, error?: unknown) => {
+  if (owner.type !== "connection") {
+    return;
+  }
+  const { db } = getDb();
+  if (error === undefined) {
+    await db
+      .update(connections)
+      .set({ lastError: null, lastUsedAt: new Date(), status: "active" })
+      .where(
+        and(
+          eq(connections.id, owner.id),
+          sql`(${connections.status} <> 'active' or ${connections.lastUsedAt} is null or ${connections.lastUsedAt} < now() - interval '1 minute')`
+        )
+      );
+    return;
+  }
+  await db
+    .update(connections)
+    .set({
+      lastError: error instanceof Error ? error.message : String(error),
+      status: "error",
+    })
+    .where(eq(connections.id, owner.id));
+};
+
 /** Servers a user may use: enabled, and open to everyone or to them. */
 const usable = (userId: string) =>
   and(
@@ -306,6 +338,61 @@ export const listChatServers = async (userId: string) => {
 export type ChatServer = Awaited<ReturnType<typeof listChatServers>>[number];
 
 /**
+ * «Мои подключения»: the servers a user may use — the per-user ones with their own connection (or none yet), the
+ * shared ones with the admin's account — by title.
+ */
+export const listMyConnections = async (userId: string) => {
+  const { db } = getDb();
+  const rows = await db
+    .select({
+      config: catalogItems.config,
+      connection: {
+        createdAt: connections.createdAt,
+        lastError: connections.lastError,
+        lastUsedAt: connections.lastUsedAt,
+        status: connections.status,
+      },
+      credentialMode: catalogItems.credentialMode,
+      health: catalogItems.health,
+      id: catalogItems.id,
+      logo: catalogItems.logo,
+      title: catalogItems.title,
+      tools: catalogItems.tools,
+    })
+    .from(catalogItems)
+    .leftJoin(
+      connections,
+      and(
+        eq(connections.catalogId, catalogItems.id),
+        eq(connections.userId, userId)
+      )
+    )
+    .where(usable(userId))
+    .orderBy(asc(catalogItems.title));
+  return rows.map((r) => ({
+    auth: r.config.auth,
+    // A left join gives a row of nulls when the user has not connected.
+    connection:
+      r.credentialMode === "per_user" && r.connection?.status
+        ? {
+            createdAt: r.connection.createdAt,
+            lastError: r.connection.lastError,
+            lastUsedAt: r.connection.lastUsedAt,
+            status: r.connection.status,
+          }
+        : null,
+    headerName: r.config.headerName,
+    health: r.health,
+    id: r.id,
+    logo: r.logo,
+    mode: r.credentialMode,
+    title: r.title,
+    toolCount: r.tools.length,
+  }));
+};
+export type MyServer = Awaited<ReturnType<typeof listMyConnections>>[number];
+
+/**
  * The MCP tools a user's chat gets: the servers turned on in that chat that they may use and can open, each tool
  * as `<key>_<name>`. The allowlist
  * narrows, `deny` hides, `ask` needs the user's yes. A server that fails is left out of this answer, not the chat.
@@ -344,12 +431,19 @@ export const toolsForUser = async (
             needsApproval: approval === "ask",
           } as ToolSet[string];
         }
+        await noteConnection(owner).catch((noteError: unknown) =>
+          console.error("mcp: could not note a use", item.key, noteError)
+        );
         return set;
       } catch (error) {
         console.error("mcp: a server is left out", item.key, error);
         if (error instanceof UnauthorizedError) {
           await markUnauthorized(owner, error).catch((markError: unknown) =>
             console.error("mcp: could not mark a sign-in", item.key, markError)
+          );
+        } else if (isRefused(error)) {
+          await noteConnection(owner, error).catch((noteError: unknown) =>
+            console.error("mcp: could not note a refusal", item.key, noteError)
           );
         }
         return {};

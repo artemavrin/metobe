@@ -16,6 +16,10 @@ import type { Favorites, PickerModel } from "@/components/chat/picker/data";
 import type { NavSource } from "@/components/chat/picker/motion";
 import { TokenEditor } from "@/components/chat/token-editor";
 import type { EditorHandle, Trigger } from "@/components/chat/token-editor";
+import {
+  OAuthWindowDialog,
+  useOAuthWindow,
+} from "@/components/mcp/oauth-window";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
@@ -195,8 +199,18 @@ export const Composer = ({
     });
     setTrigger(null);
   };
-  /** A server the user has not connected: OAuth goes to its page (back here after), anything else asks here. */
-  const pick = async (server: ChatServer) => {
+  // OAuth signs in in the provider's window: the draft stays where it is, the badge lands where `@` was typed.
+  const [signingIn, setSigningIn] = useState<ChatServer | null>(null);
+  const oauth = useOAuthWindow({
+    onDone: (id) => {
+      if (signingIn?.id === id) {
+        onServerReady(id);
+        insert(signingIn);
+      }
+    },
+  });
+  /** A server the user has not connected: OAuth — in its window, from this very pick; anything else asks here. */
+  const pick = (server: ChatServer) => {
     if (server.signIn === "ready") {
       insert(server);
       return;
@@ -205,16 +219,10 @@ export const Composer = ({
       setConnecting(server);
       return;
     }
-    const result = await connectServer({
-      catalogId: server.id,
-      returnTo: window.location.pathname,
-    });
-    if (result.state === "signIn") {
-      window.location.assign(result.url);
-    } else if (result.state === "ok") {
-      onServerReady(server.id);
-      insert(server);
-    }
+    setSigningIn(server);
+    oauth.start(server, (returnTo) =>
+      connectServer({ catalogId: server.id, returnTo })
+    );
   };
 
   const submit = () => {
@@ -357,6 +365,7 @@ export const Composer = ({
         }}
         server={connecting}
       />
+      <OAuthWindowDialog flow={oauth} />
     </>
   );
 };

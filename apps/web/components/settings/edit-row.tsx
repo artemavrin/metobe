@@ -15,6 +15,9 @@ export const EditRow = ({
   value,
   editor,
   onSave,
+  action,
+  primary,
+  defaultOpen = false,
 }: {
   label: string;
   hint?: string;
@@ -23,9 +26,15 @@ export const EditRow = ({
   editor: ReactNode;
   /** Returns what went wrong, or null — then the editor closes. */
   onSave: () => Promise<string | null>;
+  /** The button that opens the editor; «Изменить» by default. */
+  action?: string;
+  /** The main action; «Сохранить» by default. */
+  primary?: string;
+  /** Open from the start — when fixing it is the one thing to do. */
+  defaultOpen?: boolean;
 }) => {
   const t = useTranslations("settings");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   // Esc inside the editor cancels it; captured first, so the settings shell doesn't close on the same key.
@@ -59,7 +68,7 @@ export const EditRow = ({
         action={
           !open && (
             <Button onClick={() => setOpen(true)} size="sm" variant="ghost">
-              {t("edit")}
+              {action ?? t("edit")}
             </Button>
           )
         }
@@ -96,7 +105,7 @@ export const EditRow = ({
             )}
             <Button aria-disabled={pending} type="submit">
               {pending && <Spinner />}
-              {t("save")}
+              {primary ?? t("save")}
             </Button>
           </div>
           {error && <p className="text-destructive text-xs">{error}</p>}

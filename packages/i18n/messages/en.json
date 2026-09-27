@@ -361,7 +361,11 @@
       },
       "connections": {
         "label": "Connections",
-        "hint": "MCP servers and services for tools"
+        "hint": "Your accounts to servers with tools"
+      },
+      "mcp": {
+        "label": "MCP servers",
+        "hint": "Servers with tools for the whole organization"
       },
       "skills": {
         "label": "Skills",
@@ -695,8 +699,8 @@
     }
   },
   "connections": {
-    "title": "Connections",
-    "meta": "MCP servers whose tools the model gets in chat",
+    "title": "MCP servers",
+    "meta": "Servers whose tools the model gets in a chat",
     "add": "Add a server",
     "empty": {
       "title": "No MCP servers",
@@ -984,5 +988,113 @@
     "empty": "No working sources with models — connect a source",
     "clear": "Remove the model",
     "choose": "Choose a model: {job}"
+  },
+  "mcpOAuth": {
+    "title": "Sign in to {server}",
+    "phase": {
+      "opening": "Opening the {server} window — sign in there and allow access.",
+      "waiting": "We opened the {server} window. Sign in there and allow access — this one updates by itself.",
+      "done": "Done: {server} is connected.",
+      "failed": "Signing in to {server} failed — the service did not confirm it.",
+      "blocked": "The browser did not let the window open. You can sign in in this tab — you come back here after.",
+      "error": "Could not start signing in to {server} — try again."
+    },
+    "opening": "Opening the {server} window…",
+    "waiting": "Waiting for the {server} window…",
+    "maybeClosed": "Window closed? Open it again.",
+    "signedIn": "Signed in",
+    "close": "Close",
+    "cancel": "Cancel",
+    "reopen": "Open the window again",
+    "retry": "Try again",
+    "thisTab": "Sign in in this tab",
+    "relay": {
+      "opening": "Opening the sign-in page…",
+      "done": "Signed in",
+      "doneText": "This window closes by itself. If not, close it and go back to Metobe.",
+      "failed": "Sign-in failed",
+      "failedText": "The service did not confirm the sign-in. Go back to Metobe and try again.",
+      "back": "Back to Metobe"
+    }
+  },
+  "myConnections": {
+    "title": "Connections",
+    "meta": "{connected} of {total} connected",
+    "metaEmpty": "No servers yet",
+    "used": "used {when}",
+    "notUsed": "not used yet",
+    "fromOrg": "From the organization",
+    "standing": {
+      "active": "Connected",
+      "needs_reauth": "Sign in again",
+      "error": "Not working",
+      "none": "Not connected",
+      "org": "Organization's account",
+      "admin": "Waiting for the admin"
+    },
+    "tools": "{count, plural, one {# tool} other {# tools}}",
+    "empty": {
+      "title": "Nothing to connect yet",
+      "text": "When the admin adds a server with personal credentials, it shows up here.",
+      "textAdmin": "Add a server to the catalog with each user's own credentials — it shows up here for everyone who may use it.",
+      "catalog": "Open MCP servers"
+    },
+    "account": "Your account",
+    "connect": "Connect",
+    "connected": "Connected",
+    "shared": {
+      "section": "Account",
+      "label": "The organization's",
+      "hint": "The admin sets it — nothing to enter for you"
+    },
+    "adminWait": {
+      "title": "The server waits for the admin",
+      "text": "The shared account does not work. The tools come back by themselves once it is fixed."
+    },
+    "broken": {
+      "error": "Until the credentials are replaced, the server's tools do not work in chats.",
+      "needs_reauth": "Until you sign in, the {server} tools do not work in chats."
+    },
+    "oauth": {
+      "label": "Sign-in",
+      "hint": "In the {server} window",
+      "signedIn": "Done",
+      "expired": "Expired",
+      "again": "Sign in again",
+      "via": "Sign in with {server}",
+      "viaLabel": "Sign in with {server}",
+      "viaHint": "The {server} window opens: sign in there, this page waits"
+    },
+    "login": "Sign-in",
+    "token": "Token",
+    "password": "Password",
+    "username": "Login",
+    "headerValue": "Header value",
+    "notSet": "not set",
+    "secretKeep": "keep the current one",
+    "connectAction": "Connect",
+    "check": "Check and connect",
+    "afterConnect": "Once connected, mention {server} in a chat with @ — the model gets its tools.",
+    "errors": {
+      "loginMissing": "Enter the login",
+      "loginColon": "A login cannot contain a colon",
+      "passwordMissing": "Enter the password",
+      "valueMissing": "Enter the value",
+      "refused": "The server refused — check the credentials",
+      "failed": "Could not check: the server did not answer"
+    },
+    "leave": {
+      "section": "Disconnecting",
+      "title": "Disconnect {server}",
+      "hint": "Your credentials go, the tools leave your chats. Chat history stays.",
+      "confirm": "Disconnect {server}?",
+      "text": "Your credentials go and {count, plural, one {# {server} tool leaves} other {# {server} tools leave}} your chats. Chat history stays. You can connect again at any time.",
+      "action": "Disconnect",
+      "cancel": "Cancel"
+    },
+    "alert": {
+      "needs_reauth": "The {server} sign-in expired — sign in again",
+      "error": "The server refused your credentials"
+    }
   }
 }

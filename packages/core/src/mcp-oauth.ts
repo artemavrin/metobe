@@ -32,14 +32,24 @@ export class StoredOAuth implements OAuthClientProvider {
   private readonly owner: Owner;
   private readonly start: OAuthStart | undefined;
   private readonly callbackState: string | undefined;
+  private readonly fresh: boolean;
 
+  /**
+   * `fresh` — a sign-in on demand («войти заново»): the saved tokens are not offered, so the provider's page comes
+   * even while they still work; they stay until the callback saves new ones.
+   */
   constructor(
     owner: Owner,
-    options: { start?: OAuthStart; callbackState?: string } = {}
+    options: {
+      start?: OAuthStart;
+      callbackState?: string;
+      fresh?: boolean;
+    } = {}
   ) {
     this.owner = owner;
     this.start = options.start;
     this.callbackState = options.callbackState;
+    this.fresh = options.fresh ?? false;
   }
 
   // oxlint-disable-next-line eslint/class-methods-use-this -- OAuthClientProvider asks for it on the instance
@@ -66,8 +76,10 @@ export class StoredOAuth implements OAuthClientProvider {
     return value ?? undefined;
   }
 
-  tokens() {
-    return this.read<OAuthTokens>("oauth_tokens");
+  async tokens(): Promise<OAuthTokens | undefined> {
+    return this.fresh
+      ? undefined
+      : await this.read<OAuthTokens>("oauth_tokens");
   }
 
   async saveTokens(tokens: OAuthTokens) {

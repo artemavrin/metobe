@@ -1,4 +1,5 @@
 import {
+  Blocks,
   Cog,
   Factory,
   HardDrive,
@@ -37,6 +38,7 @@ export const SETTINGS_NAV = [
     items: [
       { icon: Languages, id: "region", kind: "screen" },
       { icon: Palette, id: "appearance", kind: "screen" },
+      { icon: Plug, id: "connections", kind: "list" },
     ],
     key: "account",
     scope: "user",
@@ -52,7 +54,7 @@ export const SETTINGS_NAV = [
   },
   {
     items: [
-      { icon: Plug, id: "connections", kind: "list" },
+      { icon: Blocks, id: "mcp", kind: "list" },
       { icon: Sparkles, id: "skills", kind: "list" },
       { icon: Search, id: "search", kind: "screen" },
     ],
