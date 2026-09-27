@@ -46,6 +46,7 @@ import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { AnswerTable } from "@/components/chat/answer-table";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { answerWork } from "@/lib/answer-work";
 import type { ToolPart, WorkStep } from "@/lib/answer-work";
@@ -800,8 +801,10 @@ export const AssistantMessage = ({
   /** The chat's MCP servers: their pictures and prefixes name the tools in the work. */
   servers?: ChatServer[];
 }) => {
-  const { steps, answer } = answerWork(message?.parts ?? []);
+  const { steps, answer, blocks } = answerWork(message?.parts ?? []);
   const hasWork = steps.length > 0;
+  // The answer has begun: its first words or a table.
+  const answering = blocks.length > 0;
   // Without tools the status line keeps the reasoning; with them the reasoning is a step of the work.
   const reasoning = hasWork
     ? ""
@@ -809,15 +812,13 @@ export const AssistantMessage = ({
         .flatMap((p) => (p.type === "reasoning" ? [p.text] : []))
         .join("\n\n")
         .trim();
-  const text = answer;
-  const hasText = answer.length > 0;
   return (
     <Message>
       <MessageContent className="gap-2">
         <Activity
           reasoning={reasoning}
           reasoningMs={message?.metadata?.reasoningMs}
-          working={live && !hasWork && !hasText}
+          working={live && !hasWork && !answering}
         />
         {hasWork && (
           <WorkBlock
@@ -825,21 +826,29 @@ export const AssistantMessage = ({
             servers={servers}
             steps={steps}
             workMs={message?.metadata?.workMs}
-            working={live && !hasText}
+            working={live && !answering}
           />
         )}
-        {hasText && (
-          <Bubble className="w-full" variant="ghost">
-            <BubbleContent className="w-full overflow-visible">
-              <Streamdown animated isAnimating={live} plugins={{ code }}>
-                {answer}
-              </Streamdown>
-            </BubbleContent>
-          </Bubble>
+        {blocks.map((block, i) =>
+          block.kind === "table" ? (
+            <AnswerTable key={block.key} part={block.part} />
+          ) : (
+            <Bubble className="w-full" key={block.key} variant="ghost">
+              <BubbleContent className="w-full overflow-visible">
+                <Streamdown
+                  animated
+                  isAnimating={live && i === blocks.length - 1}
+                  plugins={{ code }}
+                >
+                  {block.text}
+                </Streamdown>
+              </BubbleContent>
+            </Bubble>
+          )
         )}
         {!live && message && (
           <AnswerFooter
-            copy={hasText ? text : undefined}
+            copy={answer || undefined}
             label={label}
             message={message}
             onRegenerate={onRegenerate}

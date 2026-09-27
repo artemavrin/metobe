@@ -16,10 +16,20 @@ const call = (id: string, name: string): Part =>
     type: "dynamic-tool",
   }) as Part;
 
+const table = (id: string): Part =>
+  ({
+    input: { columns: [], rows: [], title: "t" },
+    output: { rows: 0 },
+    state: "output-available",
+    toolCallId: id,
+    type: "tool-show_table",
+  }) as Part;
+
 const shape = (parts: Part[]) => {
-  const { steps, answer } = answerWork(parts);
+  const { steps, answer, blocks } = answerWork(parts);
   return {
     answer,
+    blocks: blocks.map((b) => (b.kind === "table" ? `table:${b.key}` : "text")),
     steps: steps.map((s) =>
       s.kind === "tool"
         ? `tool:${s.calls.map((c) => c.toolCallId).join("+")}`
@@ -32,6 +42,7 @@ describe("an answer's work and its answer", () => {
   it("keeps an answer without tools as it is: no work", () => {
     expect(shape([thought("hm"), text("Привет")])).toEqual({
       answer: "Привет",
+      blocks: ["text"],
       steps: [],
     });
   });
@@ -48,6 +59,7 @@ describe("an answer's work and its answer", () => {
       ])
     ).toEqual({
       answer: "Всего 736 записей.",
+      blocks: ["text"],
       steps: [
         "thought:надо посмотреть",
         "tool:a",
@@ -72,7 +84,28 @@ describe("an answer's work and its answer", () => {
   it("has no answer yet while the work goes on", () => {
     expect(shape([call("a", "x_y"), text("  ")])).toEqual({
       answer: "",
+      blocks: [],
       steps: ["tool:a"],
+    });
+  });
+
+  it("puts a table into the answer, not the work — with tools or without", () => {
+    expect(
+      shape([
+        call("a", "kaskad_run_query"),
+        text("Вот сотрудники."),
+        table("t"),
+        text("Больше всего — в Москве."),
+      ])
+    ).toEqual({
+      answer: "Вот сотрудники.\n\nБольше всего — в Москве.",
+      blocks: ["text", "table:t", "text"],
+      steps: ["tool:a"],
+    });
+    expect(shape([thought("hm"), table("t")])).toEqual({
+      answer: "",
+      blocks: ["table:t"],
+      steps: [],
     });
   });
 });

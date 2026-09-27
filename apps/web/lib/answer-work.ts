@@ -2,6 +2,7 @@ import type { ChatMessage } from "@metobe/contracts/chat";
 
 type Part = ChatMessage["parts"][number];
 export type ToolPart = Extract<Part, { type: "dynamic-tool" }>;
+export type TablePart = Extract<Part, { type: "tool-show_table" }>;
 
 export type WorkStep =
   | { kind: "thought"; key: string; text: string }
@@ -9,10 +10,33 @@ export type WorkStep =
   /** The same tool called several times in a row is one step. */
   | { kind: "tool"; key: string; calls: ToolPart[] };
 
+/** What the answer shows, in order: its words and the tables the model built. */
+export type AnswerBlock =
+  | { kind: "text"; key: string; text: string }
+  | { kind: "table"; key: string; part: TablePart };
+
+/** Reasoning or words between tool calls: one step, or more of the step before it when it is of the same kind. */
+const addWords = (
+  steps: WorkStep[],
+  kind: "thought" | "note",
+  text: string,
+  at: number
+) => {
+  if (!text.trim()) {
+    return;
+  }
+  const last = steps.at(-1);
+  if (last?.kind === kind) {
+    last.text += text;
+  } else {
+    steps.push({ key: `${kind}:${at}`, kind, text });
+  }
+};
+
 /**
  * An answer split in two: its work — reasoning, tool calls and what the model said between them, everything up to
- * its last tool call — and the answer itself, the words after it. Without tools there is no work. Only a way to
- * draw the message: its parts, and what the model is sent, stay as they are.
+ * its last tool call — and the answer itself: the words after it and the tables, wherever they come. Without tools
+ * there is no work. Only a way to draw the message: its parts, and what the model is sent, stay as they are.
  */
 export const answerWork = (parts: Part[]) => {
   // findLastIndex is past the ES2022 target.
@@ -22,41 +46,51 @@ export const answerWork = (parts: Part[]) => {
       lastTool = i;
     }
   }
-  if (lastTool === -1) {
-    return {
-      answer: parts
-        .flatMap((p) => (p.type === "text" ? [p.text] : []))
-        .join("")
-        .trim(),
-      steps: [] as WorkStep[],
-    };
-  }
   const steps: WorkStep[] = [];
-  let answer = "";
+  const blocks: AnswerBlock[] = [];
   for (const [i, part] of parts.entries()) {
     const last = steps.at(-1);
-    if (part.type === "text" && i > lastTool) {
-      answer += part.text;
+    const lastBlock = blocks.at(-1);
+    if (part.type === "tool-show_table") {
+      blocks.push({ key: part.toolCallId, kind: "table", part });
+    } else if (part.type === "text" && i > lastTool) {
+      if (lastBlock?.kind === "text") {
+        lastBlock.text += part.text;
+      } else {
+        blocks.push({ key: `text:${i}`, kind: "text", text: part.text });
+      }
     } else if (part.type === "dynamic-tool") {
       if (last?.kind === "tool" && last.calls[0]?.toolName === part.toolName) {
         last.calls.push(part);
       } else {
         steps.push({ calls: [part], key: part.toolCallId, kind: "tool" });
       }
-    } else if (part.type === "reasoning" || part.type === "text") {
-      const kind = part.type === "reasoning" ? "thought" : "note";
-      if (!part.text.trim()) {
-        continue;
-      }
-      if (last?.kind === kind) {
-        last.text += part.text;
-      } else {
-        steps.push({ key: `${kind}:${i}`, kind, text: part.text });
-      }
+    } else if (
+      // Without tools the reasoning stays with the status line.
+      lastTool !== -1 &&
+      (part.type === "reasoning" || part.type === "text")
+    ) {
+      addWords(
+        steps,
+        part.type === "reasoning" ? "thought" : "note",
+        part.text,
+        i
+      );
     }
   }
+  const answer = blocks
+    .flatMap((b) => (b.kind === "text" ? [b.text] : []))
+    .join("\n\n")
+    .trim();
   return {
-    answer: answer.trim(),
+    answer,
+    blocks: blocks.flatMap<AnswerBlock>((b) => {
+      if (b.kind === "table") {
+        return [b];
+      }
+      const text = b.text.trim();
+      return text ? [{ ...b, text }] : [];
+    }),
     steps: steps.map((s) =>
       s.kind === "tool" ? s : { ...s, text: s.text.trim() }
     ),
