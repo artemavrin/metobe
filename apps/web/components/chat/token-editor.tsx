@@ -216,6 +216,9 @@ export const TokenEditor = ({
   const root = useRef<HTMLDivElement>(null);
   const templates = useRef<HTMLDivElement>(null);
   const trigger = useRef<Found | null>(null);
+  // A key the menu took (an arrow moving its highlight) moved no caret: its keyup must not read the mention anew —
+  // that would open the menu afresh, its highlight back on the first row.
+  const taken = useRef<string | null>(null);
 
   const sync = useCallback(() => {
     const el = root.current;
@@ -316,8 +319,10 @@ export const TokenEditor = ({
         onInput={sync}
         onKeyDown={(e) => {
           if (onKeyDown(e)) {
+            taken.current = e.key;
             return;
           }
+          taken.current = null;
           if (e.key === "Enter" && !e.nativeEvent.isComposing) {
             e.preventDefault();
             if (e.shiftKey) {
@@ -328,6 +333,10 @@ export const TokenEditor = ({
           }
         }}
         onKeyUp={(e) => {
+          if (taken.current === e.key) {
+            taken.current = null;
+            return;
+          }
           if (
             e.key.startsWith("Arrow") ||
             e.key === "Home" ||
