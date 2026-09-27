@@ -8,7 +8,7 @@ import {
   toolApprovals,
 } from "@metobe/contracts/catalog";
 import type { ToolApproval } from "@metobe/contracts/catalog";
-import type { CatalogItem } from "@metobe/core/catalog";
+import type { CatalogCredentials, CatalogItem } from "@metobe/core/catalog";
 import { Button } from "@metobe/ui/components/button";
 import { Checkbox } from "@metobe/ui/components/checkbox";
 import { Input } from "@metobe/ui/components/input";
@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { EditRow } from "@/components/settings/edit-row";
 import { Row, Rows, Section } from "@/components/settings/rows";
 
 import {
@@ -62,55 +63,212 @@ const DOT: Record<PillState, string> = {
   unchecked: "bg-muted-foreground/40",
 };
 
-/** Who signs in and how: shared or each user's own, the auth kind, the token or header, or the OAuth sign-in. */
+/**
+ * The credentials' rows: the one account for everyone — its token, header or login — and a header's name, which is
+ * the server's own even when each user enters their value.
+ */
+const CredentialRows = ({
+  item,
+  credentials,
+  onSaved,
+}: {
+  item: CatalogItem;
+  credentials: CatalogCredentials;
+  /** After a save: the server is checked with what was saved. */
+  onSaved: () => void;
+}) => {
+  const t = useTranslations("connections.detail");
+  const [headerName, setHeaderName] = useState(item.config.headerName ?? "");
+  const [username, setUsername] = useState(credentials.username);
+  const [secret, setSecret] = useState("");
+  const { auth } = item.config;
+  const shared = item.credentialMode === "shared";
+  const notSet = (
+    <span className="text-muted-foreground font-sans text-sm">
+      {t("notSet")}
+    </span>
+  );
+  return (
+    <>
+      {auth === "bearer" && shared && (
+        <EditRow
+          editor={
+            <InputGroup className="w-full">
+              <SecretInput
+                aria-label={t("token")}
+                autoFocus
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder={credentials.saved ? t("secretKeep") : undefined}
+                value={secret}
+              />
+            </InputGroup>
+          }
+          label={t("token")}
+          onSave={async () => {
+            if (!secret.trim()) {
+              return credentials.saved ? null : t("tokenMissing");
+            }
+            await setToken(item.id, secret);
+            setSecret("");
+            onSaved();
+            return null;
+          }}
+          value={
+            credentials.hint ? (
+              <span className="font-mono text-sm">{credentials.hint}</span>
+            ) : (
+              notSet
+            )
+          }
+        />
+      )}
+      {auth === "header" && (
+        // The header's name belongs to the server; its value is the account — here only the one for everyone.
+        <EditRow
+          editor={
+            <>
+              <Input
+                {...NO_AUTOFILL}
+                aria-label={t("headerName")}
+                autoFocus
+                className="w-full font-mono sm:w-48"
+                onChange={(e) => setHeaderName(e.target.value)}
+                placeholder="X-API-Key"
+                value={headerName}
+              />
+              {shared && (
+                <InputGroup className="w-full sm:w-56">
+                  <SecretInput
+                    aria-label={t("headerValue")}
+                    onChange={(e) => setSecret(e.target.value)}
+                    placeholder={
+                      credentials.saved ? t("secretKeep") : t("headerValue")
+                    }
+                    value={secret}
+                  />
+                </InputGroup>
+              )}
+            </>
+          }
+          label={t("header")}
+          onSave={async () => {
+            const name = headerName.trim();
+            if (!name) {
+              return t("headerNameMissing");
+            }
+            if (shared && !secret.trim() && !credentials.saved) {
+              return t("valueMissing");
+            }
+            if (name !== item.config.headerName) {
+              const renamed = await setServer(item.id, { headerName: name });
+              if (!renamed.ok) {
+                return t("headerNameInvalid");
+              }
+            }
+            if (shared && secret.trim()) {
+              await setToken(item.id, secret);
+              setSecret("");
+            }
+            onSaved();
+            return null;
+          }}
+          value={
+            <span className="font-mono text-sm">
+              {item.config.headerName}
+              {shared && (
+                <>
+                  {" · "}
+                  {credentials.hint ?? notSet}
+                </>
+              )}
+            </span>
+          }
+        />
+      )}
+      {auth === "basic" && shared && (
+        <EditRow
+          editor={
+            <>
+              <Input
+                {...NO_AUTOFILL}
+                aria-label={t("username")}
+                autoFocus
+                className="w-full font-mono sm:w-48"
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={t("username")}
+                value={username}
+              />
+              <InputGroup className="w-full sm:w-56">
+                <SecretInput
+                  aria-label={t("password")}
+                  onChange={(e) => setSecret(e.target.value)}
+                  placeholder={
+                    credentials.saved ? t("secretKeep") : t("password")
+                  }
+                  value={secret}
+                />
+              </InputGroup>
+            </>
+          }
+          label={t("login")}
+          onSave={async () => {
+            if (!username.trim()) {
+              return t("usernameMissing");
+            }
+            if (!secret.trim() && !credentials.saved) {
+              return t("passwordMissing");
+            }
+            const saved = await setToken(item.id, secret, username);
+            if (!saved.ok) {
+              return t("usernameInvalid");
+            }
+            setSecret("");
+            onSaved();
+            return null;
+          }}
+          value={
+            credentials.saved ? (
+              // A password shows only that it is saved — like a proxy's.
+              <span className="font-mono text-sm">
+                {credentials.username} · ••••••
+              </span>
+            ) : (
+              notSet
+            )
+          }
+        />
+      )}
+    </>
+  );
+};
+
+/**
+ * How the server signs in and whose credentials: the one account for everyone is set here — its token, header,
+ * login or OAuth sign-in; with each user's own there is nothing to enter here but a header's name.
+ */
 const AccessSection = ({
   item,
-  hint,
+  credentials,
   oauthFailed,
   checking,
   onCheck,
 }: {
   item: CatalogItem;
-  hint: string | null;
+  credentials: CatalogCredentials;
   oauthFailed: boolean;
   checking: boolean;
   onCheck: (signIn?: boolean) => void;
 }) => {
   const t = useTranslations("connections.detail");
   const ta = useTranslations("connections.auth");
-  const [headerName, setHeaderName] = useState(item.config.headerName ?? "");
-  const [username, setUsername] = useState(item.config.username ?? "");
-  const [secret, setSecret] = useState("");
   const [, startChange] = useTransition();
   const { auth } = item.config;
+  // Only the one account for everyone is set here; each user's own is theirs, entered where they connect.
+  const shared = item.credentialMode === "shared";
   const runCheck = onCheck;
-  const secretLabel = {
-    basic: t("password"),
-    bearer: t("token"),
-    header: t("headerValue"),
-  }[auth === "basic" || auth === "header" ? auth : "bearer"];
   return (
     <Section title={t("authSection")}>
       <Rows>
-        <Row hint={t(`modeHints.${item.credentialMode}`)} label={t("mode")}>
-          <Select
-            onValueChange={(v) =>
-              startChange(() => setMode(item.id, String(v)))
-            }
-            value={item.credentialMode}
-          >
-            <SelectTrigger className="w-full md:w-64">
-              <SelectValue>{t(`modes.${item.credentialMode}`)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {credentialModes.map((x) => (
-                <SelectItem key={x} value={x}>
-                  {t(`modes.${x}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Row>
         <Row label={t("authKind")}>
           <Select
             onValueChange={(v) =>
@@ -137,83 +295,36 @@ const AccessSection = ({
             </SelectContent>
           </Select>
         </Row>
-        {auth === "header" && (
-          <Row label={t("headerName")}>
-            <Input
-              {...NO_AUTOFILL}
-              className="w-full font-mono md:w-60"
-              onBlur={() => {
-                if (
-                  headerName.trim() &&
-                  headerName.trim() !== item.config.headerName
-                ) {
-                  startChange(async () => {
-                    await setServer(item.id, {
-                      headerName: headerName.trim(),
-                    });
-                  });
-                }
-              }}
-              onChange={(e) => setHeaderName(e.target.value)}
-              value={headerName}
-            />
-          </Row>
-        )}
-        {auth === "basic" && (
-          <Row label={t("username")}>
-            <Input
-              {...NO_AUTOFILL}
-              aria-label={t("username")}
-              className="w-full font-mono md:w-60"
-              onBlur={() => {
-                if (username.trim() !== (item.config.username ?? "")) {
-                  startChange(async () => {
-                    await setServer(item.id, { username: username.trim() });
-                  });
-                }
-              }}
-              onChange={(e) => setUsername(e.target.value)}
-              value={username}
-            />
-          </Row>
-        )}
-        {(auth === "bearer" || auth === "header" || auth === "basic") && (
-          <Row
-            hint={hint ? t("saved", { hint }) : undefined}
-            label={secretLabel}
-          >
-            <form
-              className="flex items-center gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (secret.trim()) {
-                  startChange(async () => {
-                    await setToken(item.id, secret);
-                    setSecret("");
-                    runCheck();
-                  });
-                }
-              }}
+        {/* Whose credentials comes after how the server signs in: without auth there are none to own. */}
+        {auth !== "none" && (
+          <Row hint={t(`modeHints.${item.credentialMode}`)} label={t("mode")}>
+            <Select
+              onValueChange={(v) =>
+                startChange(() => setMode(item.id, String(v)))
+              }
+              value={item.credentialMode}
             >
-              <InputGroup className="w-full md:w-72">
-                <SecretInput
-                  aria-label={secretLabel}
-                  onChange={(e) => setSecret(e.target.value)}
-                  value={secret}
-                />
-              </InputGroup>
-              <Button
-                disabled={!secret.trim()}
-                size="sm"
-                type="submit"
-                variant="outline"
-              >
-                {t("save")}
-              </Button>
-            </form>
+              <SelectTrigger className="w-full md:w-64">
+                <SelectValue>{t(`modes.${item.credentialMode}`)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {credentialModes.map((x) => (
+                  <SelectItem key={x} value={x}>
+                    {t(`modes.${x}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Row>
         )}
-        {auth === "oauth" && (
+        {/* Keyed by method and mode: the drafts start again from what is saved when either changes. */}
+        <CredentialRows
+          credentials={credentials}
+          item={item}
+          key={`${auth}:${item.credentialMode}`}
+          onSaved={() => runCheck()}
+        />
+        {auth === "oauth" && shared && (
           <Row
             hint={oauthFailed ? t("oauthFailed") : t("oauthHint")}
             label={t("oauth")}
@@ -566,13 +677,13 @@ const LogoPicker = ({ item }: { item: CatalogItem }) => {
  */
 export const ServerDetail = ({
   item,
-  hint,
+  credentials,
   oauthFailed,
   picked,
   users,
 }: {
   item: CatalogItem;
-  hint: string | null;
+  credentials: CatalogCredentials;
   oauthFailed: boolean;
   picked: string[];
   users: { id: string; name: string; email: string }[];
@@ -726,7 +837,7 @@ export const ServerDetail = ({
 
       <AccessSection
         checking={checking}
-        hint={hint}
+        credentials={credentials}
         item={item}
         oauthFailed={oauthFailed}
         onCheck={runCheck}

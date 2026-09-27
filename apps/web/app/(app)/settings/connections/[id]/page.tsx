@@ -1,5 +1,5 @@
 import {
-  catalogSecretHint,
+  catalogCredentials,
   getCatalogItem,
   listCatalogAccess,
 } from "@metobe/core/catalog";
@@ -28,15 +28,15 @@ const ServerPage = async ({
   if (!item || !user) {
     notFound();
   }
-  const [hint, picked, users] = await Promise.all([
-    catalogSecretHint(item, user.id),
+  const [credentials, picked, users] = await Promise.all([
+    catalogCredentials(item),
     listCatalogAccess(item.id),
     listUsers(),
   ]);
   return (
     <SettingsPageFrame>
       <ServerDetail
-        hint={hint}
+        credentials={credentials}
         item={item}
         key={item.id}
         oauthFailed={oauth === "failed"}

@@ -107,25 +107,27 @@ export const NewServerForm = () => {
             </SelectContent>
           </Select>
         </Field>
-        <Field>
-          <FieldLabel>{t("detail.mode")}</FieldLabel>
-          <Select
-            onValueChange={(v) => setMode(v as CredentialMode)}
-            value={mode}
-          >
-            <SelectTrigger className="w-full md:w-72">
-              <SelectValue>{t(`detail.modes.${mode}`)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {credentialModes.map((x) => (
-                <SelectItem key={x} value={x}>
-                  {t(`detail.modes.${x}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FieldDescription>{t(`detail.modeHints.${mode}`)}</FieldDescription>
-        </Field>
+        {auth !== "none" && (
+          <Field>
+            <FieldLabel>{t("detail.mode")}</FieldLabel>
+            <Select
+              onValueChange={(v) => setMode(v as CredentialMode)}
+              value={mode}
+            >
+              <SelectTrigger className="w-full md:w-72">
+                <SelectValue>{t(`detail.modes.${mode}`)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {credentialModes.map((x) => (
+                  <SelectItem key={x} value={x}>
+                    {t(`detail.modes.${x}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldDescription>{t(`detail.modeHints.${mode}`)}</FieldDescription>
+          </Field>
+        )}
         <Button
           aria-disabled={pending}
           className="w-fit"

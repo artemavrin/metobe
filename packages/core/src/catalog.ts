@@ -171,17 +171,35 @@ export const setCatalogToken = async (
     item.config.auth === "basic" && owner.type === "connection"
       ? `${username ?? item.config.username ?? ""}:${value}`
       : value;
-  await setSecret(owner, "token", secret);
+  await setSecret(owner, "token", secret, {
+    password: item.config.auth === "basic",
+  });
   await configChanged({ catalogId: item.id });
 };
 
-export const catalogSecretHint = async (item: CatalogItem, userId: string) => {
-  const owner = await ownerFor(item, userId);
-  if (!owner) {
-    return null;
+export interface CatalogCredentials {
+  saved: boolean;
+  hint: string | null;
+  username: string;
+}
+
+/**
+ * What the server's page shows of the one account for everyone: whether it is saved, a token's hint, the login.
+ * A password shows only that it is saved. Each user's own credentials are not shown here.
+ */
+export const catalogCredentials = async (
+  item: CatalogItem
+): Promise<CatalogCredentials> => {
+  if (item.credentialMode !== "shared") {
+    return { hint: null, saved: false, username: "" };
   }
-  const hints = await listSecretHints(owner);
-  return hints.find((h) => h.purpose === "token")?.hint ?? null;
+  const hints = await listSecretHints({ id: item.id, type: "catalog_item" });
+  const token = hints.find((h) => h.purpose === "token");
+  return {
+    hint: token && item.config.auth !== "basic" ? token.hint : null,
+    saved: Boolean(token),
+    username: item.config.username ?? "",
+  };
 };
 
 /**

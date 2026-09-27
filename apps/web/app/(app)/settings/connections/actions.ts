@@ -151,16 +151,44 @@ export const setMode = async (id: string, mode: string) => {
   refresh();
 };
 
-/** A token or a header's value: shared for everyone, or the admin's own for a per-user server. */
-export const setToken = async (id: string, value: string) => {
+/**
+ * The one account for everyone: its token, a header's value, or a login with its password — an empty secret keeps
+ * the saved one, so a login can change alone. Each user's own credentials are theirs, entered where they connect.
+ */
+export const setToken = async (
+  id: string,
+  value: string,
+  username?: string
+): Promise<{ ok: boolean }> => {
   const user = await requireAdmin();
   const item = await itemOf(id);
-  await setCatalogToken(
-    item,
-    user.id,
-    z.string().trim().min(1).max(4000).parse(value)
-  );
+  const secret = z.string().trim().max(4000).safeParse(value);
+  // A colon ends the login in basic auth, so a login cannot hold one.
+  const login = z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .regex(/^[^:]*$/u)
+    .safeParse(username ?? "");
+  const basic = item.config.auth === "basic";
+  if (
+    item.credentialMode !== "shared" ||
+    !secret.success ||
+    (basic && !login.success)
+  ) {
+    return { ok: false };
+  }
+  if (basic && login.data !== item.config.username) {
+    await updateCatalogItem(item.id, {
+      config: { ...item.config, username: login.data },
+    });
+  }
+  if (secret.data) {
+    await setCatalogToken(item, user.id, secret.data);
+  }
   refresh();
+  return { ok: true };
 };
 
 /** Connects and lists the tools; for OAuth not signed in yet, the provider's page to open. */

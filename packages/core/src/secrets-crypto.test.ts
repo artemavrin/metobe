@@ -60,6 +60,21 @@ describe("secrets crypto (ARCH §17.2)", () => {
   it("hints without revealing the value", () => {
     expect(hintFor("sk-proj-7Hc2Lq9VbN4xKt1Wm8Rz")).toBe("sk-…m8Rz");
     expect(hintFor("AQVN1r8Zk3Pq9Tx4Lm2Wb7Hc")).toBe("AQVN…b7Hc");
-    expect(hintFor("short")).toBe("••••hort");
+    // Four characters of a short secret would be most of it.
+    expect(hintFor("s3cret")).toBe("••••••");
+  });
+
+  it("hints nothing of a password — not its login, not its tail", () => {
+    for (const password of [
+      "admin:Mavrin-5277",
+      "hunter2",
+      "correct horse battery staple",
+    ]) {
+      const hint = hintFor(password, { password: true });
+      expect(hint).toBe("••••••");
+      expect([...password].some((c) => c !== "•" && hint.includes(c))).toBe(
+        false
+      );
+    }
   });
 });
