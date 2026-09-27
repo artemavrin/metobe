@@ -34,6 +34,7 @@ import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { signOut } from "@/app/(app)/(chat)/actions";
+import { BrandMark } from "@/components/brand-mark";
 import { groupChats } from "@/lib/chat-history";
 import type { ChatGroup } from "@/lib/chat-history";
 
@@ -69,9 +70,7 @@ const initials = (name: string) =>
 
 const Brand = () => (
   <span className="flex items-center gap-2 text-sm font-semibold">
-    <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs">
-      M
-    </span>
+    <BrandMark className="size-6" />
     Metobe
   </span>
 );

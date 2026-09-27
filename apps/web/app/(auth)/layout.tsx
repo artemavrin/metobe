@@ -1,5 +1,5 @@
-import { BrandMark } from "@/components/auth/brand-mark";
 import { BrandPanel } from "@/components/auth/brand-panel";
+import { BrandMark } from "@/components/brand-mark";
 import { LanguageSwitch } from "@/components/language-switch";
 
 // Shared frame of the pages before an account (sign-in, the code from a link, the first administrator): the form on
