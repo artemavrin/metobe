@@ -7,13 +7,17 @@ import { z } from "zod";
 // handlers apart from server actions, so a copy never hears the other's in-memory reset). Redis pub/sub carries
 // it; without REDIS_URL only this process hears. The process that made the change drops its caches at once.
 
-/** What changed: one source, or — without an id — everything (routes, proxies). */
+/** What changed: one source, one catalog item, or — without an id — everything (routes, proxies). */
 export interface ConfigChange {
   sourceId?: string;
+  catalogId?: string;
 }
 
 const CHANNEL = "config:changed";
-const changeSchema = z.object({ sourceId: z.uuid().optional() });
+const changeSchema = z.object({
+  catalogId: z.uuid().optional(),
+  sourceId: z.uuid().optional(),
+});
 
 type Handler = (change: ConfigChange) => void;
 const handlers = new Set<Handler>();

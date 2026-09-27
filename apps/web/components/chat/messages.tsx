@@ -2,6 +2,7 @@
 
 import type { ChatMessage } from "@metobe/contracts/chat";
 import type { ModelLabel } from "@metobe/core/chat";
+import type { ChatServer } from "@metobe/core/mcp";
 import { Bubble, BubbleContent } from "@metobe/ui/components/bubble";
 import { Button } from "@metobe/ui/components/button";
 import {
@@ -29,19 +30,332 @@ import { cn } from "@metobe/ui/lib/utils";
 import { code } from "@streamdown/code";
 import { GridLoader } from "gridora";
 import {
+  Ban,
   Brain,
   Check,
   ChevronRight,
+  CircleX,
   Copy,
+  ListChecks,
   Pencil,
   RefreshCw,
+  Wrench,
 } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
+import { BrandLogo } from "@/components/brand-logo";
+import { TokenBadge } from "@/components/chat/token-editor";
+import { answerWork } from "@/lib/answer-work";
+import type { ToolPart, WorkStep } from "@/lib/answer-work";
+
 import "gridora/styles.css";
 import "streamdown/styles.css";
+
+const NO_SERVERS: ChatServer[] = [];
+
+/** A tool's name as people read it — its MCP title, else its name without the server's prefix — and its server. */
+const toolLook = (part: ToolPart, servers: ChatServer[]) => {
+  // The longest prefix wins: `kaskad_hr` over `kaskad`.
+  let server: ChatServer | undefined;
+  for (const s of servers) {
+    if (
+      part.toolName.startsWith(`${s.key}_`) &&
+      s.key.length > (server?.key.length ?? 0)
+    ) {
+      server = s;
+    }
+  }
+  const bare = server
+    ? part.toolName.slice(server.key.length + 1)
+    : part.toolName;
+  return { label: part.title ?? bare.replaceAll("_", " "), server };
+};
+
+/** What a tool gave back, readable: an MCP result's text, anything else as JSON; a long one is cut. */
+const outputText = (output: unknown) => {
+  const content = (output as { content?: unknown } | null)?.content;
+  const text = Array.isArray(content)
+    ? content
+        .flatMap((c: { type?: string; text?: string }) =>
+          c.type === "text" && c.text ? [c.text] : []
+        )
+        .join("\n\n")
+    : JSON.stringify(output, null, 2);
+  return text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
+};
+
+type CallState = "running" | "waiting" | "failed" | "denied" | "done";
+
+/** Where a step of one or several calls of a tool stands: the first that is still busy or went wrong decides. */
+const stateOf = (calls: ToolPart[]): CallState => {
+  if (
+    calls.some(
+      (c) => c.state === "input-streaming" || c.state === "input-available"
+    )
+  ) {
+    return "running";
+  }
+  if (calls.some((c) => c.state === "approval-requested")) {
+    return "waiting";
+  }
+  if (calls.some((c) => c.state === "output-error")) {
+    return "failed";
+  }
+  return calls.every((c) => c.state === "output-denied") ? "denied" : "done";
+};
+
+/**
+ * A step of the work: a tool called once or several times in a row, as a line — the server's picture, the tool's
+ * name, where it stands (the grid while it runs). It unfolds into what went in and what came back, call by call;
+ * a call that asks first carries its «Разрешить / Отклонить» here.
+ */
+const ToolStep = ({
+  calls,
+  servers,
+  onApprove,
+}: {
+  calls: ToolPart[];
+  servers: ChatServer[];
+  onApprove?: (approvalId: string, approved: boolean) => void;
+}) => {
+  const t = useTranslations("chat.tools");
+  const state = stateOf(calls);
+  // Asked first: what would go in is shown at once, so the user sees what they allow.
+  const [open, setOpen] = useState(state === "waiting");
+  const [first] = calls;
+  if (!first) {
+    return null;
+  }
+  const { label, server } = toolLook(first, servers);
+  let icon = server ? (
+    <BrandLogo label={server.title} logo={server.logo ?? undefined} size={14} />
+  ) : (
+    <Wrench />
+  );
+  if (state === "running") {
+    icon = (
+      <GridLoader
+        cellSize={3}
+        gap={1.5}
+        respectReducedMotion
+        variant="cacheWarm"
+      />
+    );
+  } else if (state === "failed") {
+    icon = <CircleX />;
+  } else if (state === "denied") {
+    icon = <Ban />;
+  }
+  const status = state === "done" ? null : t(state);
+  return (
+    <Collapsible
+      className="flex flex-col items-start"
+      onOpenChange={setOpen}
+      open={open}
+    >
+      <Marker
+        className="enabled:hover:text-foreground w-fit gap-2 transition-colors duration-150"
+        render={<CollapsibleTrigger />}
+      >
+        <MarkerIcon className="grid size-3.5 place-items-center [&_svg]:size-3.5">
+          {icon}
+        </MarkerIcon>
+        <MarkerContent className={cn(state === "running" && "shimmer")}>
+          {label}
+          {calls.length > 1 && (
+            <span className="tabular-nums"> ×{calls.length}</span>
+          )}
+          {status && <span> · {status}</span>}
+        </MarkerContent>
+        <MarkerIcon className="-ml-1">
+          <ChevronRight
+            className={cn(
+              "size-3.5 transition-[rotate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+              open && "rotate-90"
+            )}
+          />
+        </MarkerIcon>
+      </Marker>
+      <CollapsibleContent className="h-(--collapsible-panel-height) w-full overflow-hidden transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none">
+        <div className="text-muted-foreground border-border mt-2 flex flex-col gap-3 border-l pl-3 text-xs">
+          {calls.map((call, i) => (
+            <div className="flex flex-col gap-2" key={call.toolCallId}>
+              {calls.length > 1 && (
+                <span className="font-medium">{t("call", { n: i + 1 })}</span>
+              )}
+              {call.input !== undefined && (
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium">{t("input")}</span>
+                  <pre className="bg-muted max-h-48 overflow-auto rounded-md p-2 whitespace-pre-wrap">
+                    {JSON.stringify(call.input, null, 2)}
+                  </pre>
+                </div>
+              )}
+              {call.state === "output-available" && (
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium">{t("output")}</span>
+                  <pre className="bg-muted max-h-64 overflow-auto rounded-md p-2 whitespace-pre-wrap">
+                    {outputText(call.output)}
+                  </pre>
+                </div>
+              )}
+              {call.state === "output-error" && (
+                <span className="text-destructive">{call.errorText}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+      {onApprove &&
+        calls.map((call) =>
+          call.state === "approval-requested" ? (
+            <div className="mt-2 flex gap-2" key={call.approval.id}>
+              <Button
+                onClick={() => onApprove(call.approval.id, true)}
+                size="sm"
+              >
+                {t("approve")}
+              </Button>
+              <Button
+                onClick={() => onApprove(call.approval.id, false)}
+                size="sm"
+                variant="ghost"
+              >
+                {t("deny")}
+              </Button>
+            </div>
+          ) : null
+        )}
+    </Collapsible>
+  );
+};
+
+/** Opens by itself while the work goes on and folds a second after it ends; the reader's own toggle wins. */
+const useAutoOpen = (working: boolean) => {
+  const [chosen, setChosen] = useState<boolean>();
+  const [lingering, setLingering] = useState(false);
+  const [wasWorking, setWasWorking] = useState(working);
+  if (wasWorking !== working) {
+    setWasWorking(working);
+    if (working) {
+      setChosen(undefined);
+    } else {
+      setLingering(true);
+    }
+  }
+  useEffect(() => {
+    if (!lingering) {
+      return;
+    }
+    const timer = setTimeout(() => setLingering(false), 1000);
+    return () => clearTimeout(timer);
+  }, [lingering]);
+  return [chosen ?? (working || lingering), setChosen] as const;
+};
+
+/**
+ * The work before an answer (like AI Elements' Chain of Thought): reasoning, the tools called and what the model
+ * said between them, as steps. Open while the model works, the current step in motion; once the answer comes it
+ * folds into one line — «Ход работы · 9 вызовов · 14 с» (the server's measure) — and the answer stands below.
+ */
+const WorkBlock = ({
+  steps,
+  working,
+  workMs,
+  servers,
+  onApprove,
+}: {
+  steps: WorkStep[];
+  working: boolean;
+  workMs?: number;
+  servers: ChatServer[];
+  onApprove?: (approvalId: string, approved: boolean) => void;
+}) => {
+  const t = useTranslations("chat.work");
+  const [open, setOpen] = useAutoOpen(working);
+  const calls = steps.reduce(
+    (n, s) => n + (s.kind === "tool" ? s.calls.length : 0),
+    0
+  );
+  const seconds =
+    workMs === undefined ? null : Math.max(1, Math.round(workMs / 1000));
+  return (
+    <Collapsible
+      className="flex flex-col items-start"
+      onOpenChange={setOpen}
+      open={open}
+      role={working ? "status" : undefined}
+    >
+      <Marker
+        className="enabled:hover:text-foreground w-fit gap-2 transition-colors duration-150"
+        render={<CollapsibleTrigger />}
+      >
+        <MarkerIcon className="grid size-3.5 place-items-center">
+          {working ? (
+            <GridLoader
+              cellSize={3}
+              gap={1.5}
+              respectReducedMotion
+              variant="cacheWarm"
+            />
+          ) : (
+            <ListChecks className="size-3.5" />
+          )}
+        </MarkerIcon>
+        <MarkerContent className={cn(working && "shimmer")}>
+          {working
+            ? t("working")
+            : [
+                t("done"),
+                t("calls", { count: calls }),
+                seconds && t("seconds", { seconds }),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+        </MarkerContent>
+        <MarkerIcon className="-ml-1">
+          <ChevronRight
+            className={cn(
+              "size-3.5 transition-[rotate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+              open && "rotate-90"
+            )}
+          />
+        </MarkerIcon>
+      </Marker>
+      <CollapsibleContent className="h-(--collapsible-panel-height) w-full overflow-hidden transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none">
+        <div className="border-border mt-2 flex flex-col gap-2.5 border-l pl-3">
+          {steps.map((step) => {
+            if (step.kind === "tool") {
+              return (
+                <ToolStep
+                  calls={step.calls}
+                  key={step.key}
+                  onApprove={onApprove}
+                  servers={servers}
+                />
+              );
+            }
+            return (
+              <p
+                className={cn(
+                  "text-sm leading-relaxed whitespace-pre-wrap",
+                  step.kind === "thought"
+                    ? "text-muted-foreground italic"
+                    : "text-foreground/80"
+                )}
+                key={step.key}
+              >
+                {step.text}
+              </p>
+            );
+          })}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
 
 const textOf = (message?: ChatMessage) =>
   message?.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("") ??
@@ -208,14 +522,55 @@ const EditMessage = ({
   );
 };
 
+const NO_MENTIONS: { title: string; logo: string | null }[] = [];
+
+/** A question's text with `@Name` of a known server drawn as its badge, the rest as it was typed. */
+const Mentioned = ({
+  text,
+  mentions,
+}: {
+  text: string;
+  mentions: { title: string; logo: string | null }[];
+}) => {
+  // Longest first, so «GitHub Enterprise» wins over «GitHub».
+  const titles = mentions.map((m) => m.title);
+  // oxlint-disable-next-line unicorn/no-array-sort -- a fresh array; toSorted is past the ES2022 target
+  titles.sort((a, b) => b.length - a.length);
+  const names = titles.map((n) =>
+    n.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)
+  );
+  if (names.length === 0) {
+    return text;
+  }
+  const parts = text.split(new RegExp(`(@(?:${names.join("|")}))`, "u"));
+  return parts.map((part, i) => {
+    const server = part.startsWith("@")
+      ? mentions.find((m) => `@${m.title}` === part)
+      : undefined;
+    return server ? (
+      // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
+      <TokenBadge
+        key={i}
+        label={server.title}
+        logo={server.logo ?? undefined}
+      />
+    ) : (
+      part
+    );
+  });
+};
+
 /** The user's message: a bubble on the right that rises in when it goes; its time, copy and edit under it. */
 export const UserMessage = ({
   message,
   onEdit,
+  mentions = NO_MENTIONS,
 }: {
   message: ChatMessage;
   /** Absent while an answer is on its way: a message is edited between answers. */
   onEdit?: (text: string) => void;
+  /** Servers whose `@Name` in the text is drawn as a badge. */
+  mentions?: { title: string; logo: string | null }[];
 }) => {
   const t = useTranslations("chat");
   const [editing, setEditing] = useState(false);
@@ -239,7 +594,7 @@ export const UserMessage = ({
           <>
             <Bubble align="end" variant="muted">
               <BubbleContent className="rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap">
-                {text}
+                <Mentioned mentions={mentions} text={text} />
               </BubbleContent>
             </Bubble>
             <MessageFooter className={TOOLBAR}>
@@ -386,6 +741,41 @@ export const ModelSwitch = ({ label }: { label?: ModelLabel }) => {
   );
 };
 
+/** Under a finished answer: the model that wrote it, when, copy (the answer's words) and regenerate. */
+const AnswerFooter = ({
+  message,
+  label,
+  copy,
+  onRegenerate,
+}: {
+  message: ChatMessage;
+  label?: ModelLabel;
+  copy?: string;
+  onRegenerate?: (messageId: string) => void;
+}) => {
+  const t = useTranslations("chat");
+  return (
+    <MessageFooter className={cn(TOOLBAR, "-mt-1")}>
+      <span className="flex items-center gap-1.5">
+        {label && <span>{label.title}</span>}
+        {label && message.metadata?.createdAt && (
+          <span aria-hidden="true">·</span>
+        )}
+        <When at={message.metadata?.createdAt} />
+      </span>
+      {copy && <CopyAction text={copy} />}
+      {onRegenerate && (
+        <Action
+          label={t("regenerate")}
+          onClick={() => onRegenerate(message.id)}
+        >
+          <RefreshCw />
+        </Action>
+      )}
+    </MessageFooter>
+  );
+};
+
 /**
  * An answer: the status line (the wait, the reasoning folded), then the text as markdown — new words fade in while
  * it streams. Under it, once it is done: the model that wrote it, when, copy and regenerate.
@@ -395,6 +785,8 @@ export const AssistantMessage = ({
   label,
   live,
   onRegenerate,
+  onApprove,
+  servers = NO_SERVERS,
 }: {
   /** Absent while the question waits for the stream to start. */
   message?: ChatMessage;
@@ -403,50 +795,55 @@ export const AssistantMessage = ({
   live: boolean;
   /** Asks for this answer again; absent while an answer is on its way. */
   onRegenerate?: (messageId: string) => void;
+  /** The user's yes or no on a tool call the model asked to make. */
+  onApprove?: (approvalId: string, approved: boolean) => void;
+  /** The chat's MCP servers: their pictures and prefixes name the tools in the work. */
+  servers?: ChatServer[];
 }) => {
-  const t = useTranslations("chat");
-  const reasoning = (message?.parts ?? [])
-    .flatMap((p) => (p.type === "reasoning" ? [p.text] : []))
-    .join("\n\n")
-    .trim();
-  const text = textOf(message);
-  const hasText = text.trim().length > 0;
+  const { steps, answer } = answerWork(message?.parts ?? []);
+  const hasWork = steps.length > 0;
+  // Without tools the status line keeps the reasoning; with them the reasoning is a step of the work.
+  const reasoning = hasWork
+    ? ""
+    : (message?.parts ?? [])
+        .flatMap((p) => (p.type === "reasoning" ? [p.text] : []))
+        .join("\n\n")
+        .trim();
+  const text = answer;
+  const hasText = answer.length > 0;
   return (
     <Message>
       <MessageContent className="gap-2">
         <Activity
           reasoning={reasoning}
           reasoningMs={message?.metadata?.reasoningMs}
-          working={live && !hasText}
+          working={live && !hasWork && !hasText}
         />
+        {hasWork && (
+          <WorkBlock
+            onApprove={onApprove}
+            servers={servers}
+            steps={steps}
+            workMs={message?.metadata?.workMs}
+            working={live && !hasText}
+          />
+        )}
         {hasText && (
           <Bubble className="w-full" variant="ghost">
             <BubbleContent className="w-full overflow-visible">
               <Streamdown animated isAnimating={live} plugins={{ code }}>
-                {text}
+                {answer}
               </Streamdown>
             </BubbleContent>
           </Bubble>
         )}
         {!live && message && (
-          <MessageFooter className={cn(TOOLBAR, "-mt-1")}>
-            <span className="flex items-center gap-1.5">
-              {label && <span>{label.title}</span>}
-              {label && message.metadata?.createdAt && (
-                <span aria-hidden="true">·</span>
-              )}
-              <When at={message.metadata?.createdAt} />
-            </span>
-            {hasText && <CopyAction text={text} />}
-            {onRegenerate && (
-              <Action
-                label={t("regenerate")}
-                onClick={() => onRegenerate(message.id)}
-              >
-                <RefreshCw />
-              </Action>
-            )}
-          </MessageFooter>
+          <AnswerFooter
+            copy={hasText ? text : undefined}
+            label={label}
+            message={message}
+            onRegenerate={onRegenerate}
+          />
         )}
       </MessageContent>
     </Message>

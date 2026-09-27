@@ -23,7 +23,11 @@ export type Purpose =
   | "token"
   | "headers"
   | "oauth_access"
-  | "oauth_refresh";
+  | "oauth_refresh"
+  // MCP OAuth (core/mcp-oauth): the token set as JSON, the client the server registered us as, the PKCE verifier.
+  | "oauth_tokens"
+  | "oauth_client"
+  | "oauth_verifier";
 export interface Owner {
   type: OwnerType;
   id: string;
@@ -130,6 +134,19 @@ export const listSecretHints = (owner: Owner) =>
     );
 
 /** Drops every secret of an owner (disconnecting a source, deleting a proxy). */
+/** Drops one secret of an owner (OAuth tokens the server no longer takes, say). */
+export const removeSecret = async (owner: Owner, purpose: Purpose) => {
+  await getDb()
+    .db.delete(secrets)
+    .where(
+      and(
+        eq(secrets.ownerType, owner.type),
+        eq(secrets.ownerId, owner.id),
+        eq(secrets.purpose, purpose)
+      )
+    );
+};
+
 export const removeSecrets = async (owner: Owner) => {
   await getDb()
     .db.delete(secrets)

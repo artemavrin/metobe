@@ -4,6 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { chatTitleFrom } from "@metobe/contracts/chat";
 import type { ChatMessage } from "@metobe/contracts/chat";
 import type { ModelLabel } from "@metobe/core/chat";
+import type { ChatServer } from "@metobe/core/mcp";
 import { Button } from "@metobe/ui/components/button";
 import {
   MessageScroller,
@@ -14,7 +15,10 @@ import {
   MessageScrollerViewport,
 } from "@metobe/ui/components/message-scroller";
 import { cn } from "@metobe/ui/lib/utils";
-import { DefaultChatTransport } from "ai";
+import {
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+} from "ai";
 import { ArrowDown, TriangleAlert } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
@@ -58,6 +62,20 @@ const asLabel = (m: PickerModel): ModelLabel => ({
   providerTitle: m.makerTitle,
   title: m.title,
 });
+
+/** The user's yes or no on each asked tool call of an answer. */
+const decisionsOf = (answer: ChatMessage) =>
+  answer.parts.flatMap((p) =>
+    p.type === "dynamic-tool" && p.state === "approval-responded"
+      ? [
+          {
+            approved: p.approval.approved,
+            id: p.approval.id,
+            ...(p.approval.reason ? { reason: p.approval.reason } : {}),
+          },
+        ]
+      : []
+  );
 
 /** A message's time as the client knows it until the server's copy comes back with its own. */
 const stamp = () => ({ createdAt: new Date().toISOString() });
@@ -103,7 +121,7 @@ const ChatError = ({
  * its focus, instead of one vanishing in the middle and another appearing below.
  */
 export const ChatView = ({
-  id,
+  id: givenId,
   initialMessages,
   model: initialModel,
   models,
@@ -111,8 +129,10 @@ export const ChatView = ({
   recent,
   labels,
   greeting,
+  servers: initialServers,
 }: {
-  id: string;
+  /** An existing chat's id; a new chat makes its own, once, in the browser. */
+  id?: string;
   initialMessages: ChatMessage[];
   /** The model the chat opens with; the chip picks another. */
   model: PickerModel;
@@ -120,46 +140,84 @@ export const ChatView = ({
   models: PickerModel[];
   favorites: string[];
   recent: string[];
+  /** The MCP servers the user may mention here. */
+  servers: ChatServer[];
   /** Names of models that wrote answers here but have left the chat since. */
   labels: ModelLabel[];
   /** A new chat greets the user; an existing one opens on its history. */
   greeting?: string;
 }) => {
   const t = useTranslations("chat");
+  // oxlint-disable-next-line react/hook-use-state -- made once and never changed: no setter to name
+  const [id] = useState(() => givenId ?? crypto.randomUUID());
   const reduce = useReducedMotion() ?? false;
   const touch = useTouchChat();
   const [model, setModel] = useState(initialModel);
+  // A server connected from the chat is ready at once, without a reload (a new chat would lose its draft).
+  const [servers, setServers] = useState(initialServers);
+  const serverReady = (serverId: string) =>
+    setServers((list) =>
+      list.map((s) =>
+        s.id === serverId ? { ...s, signIn: "ready" as const } : s
+      )
+    );
   const favorites = useFavorites(initialFavorites);
   const titled = useRef<string | null>(null);
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
         api: "/api/chat",
-        // Only the newest message goes; the history is the server's (ARCH §6).
-        prepareSendMessagesRequest: ({ body, id: chatId, messages }) => ({
-          body: {
-            id: chatId,
-            message: messages.at(-1),
-            modelId: body?.modelId,
-          },
-        }),
+        // Only the newest message goes; the history is the server's (ARCH §6). After «ask first?», only the
+        // decisions go — the server applies them to its own copy of the answer.
+        prepareSendMessagesRequest: ({ body, id: chatId, messages }) => {
+          const last = messages.at(-1);
+          const modelId = body?.modelId;
+          return {
+            body:
+              last?.role === "assistant"
+                ? {
+                    approvals: {
+                      answers: decisionsOf(last),
+                      messageId: last.id,
+                    },
+                    id: chatId,
+                    modelId,
+                  }
+                : {
+                    catalogIds: body?.catalogIds,
+                    id: chatId,
+                    message: last,
+                    modelId,
+                  },
+          };
+        },
       }),
     []
   );
-  const { clearError, error, messages, regenerate, sendMessage, status, stop } =
-    useChat<ChatMessage>({
-      generateId: () => crypto.randomUUID(),
-      id,
-      messages: initialMessages,
-      // A new chat's name from the titles model: the sidebar shows it as soon as it comes.
-      onData: (part) => {
-        if (part.type === "data-title") {
-          titled.current = part.data;
-          touch({ id, title: part.data });
-        }
-      },
-      transport,
-    });
+  const {
+    addToolApprovalResponse,
+    clearError,
+    error,
+    messages,
+    regenerate,
+    sendMessage,
+    status,
+    stop,
+  } = useChat<ChatMessage>({
+    generateId: () => crypto.randomUUID(),
+    id,
+    messages: initialMessages,
+    // A new chat's name from the titles model: the sidebar shows it as soon as it comes.
+    onData: (part) => {
+      if (part.type === "data-title") {
+        titled.current = part.data;
+        touch({ id, title: part.data });
+      }
+    },
+    // Once every asked call of the last answer has the user's yes or no, the answer carries on by itself.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+    transport,
+  });
   const busy = status === "submitted" || status === "streaming";
   const empty = messages.length === 0;
 
@@ -193,12 +251,13 @@ export const ChatView = ({
 
   // The model a question went to: marks a switch for the answer that has not started yet.
   const [asked, setAsked] = useState<string>();
-  const send = (text: string) => {
+  // The servers mentioned in a question join the chat's; only the chat's servers give tools to the model.
+  const send = (text: string, catalogIds: string[]) => {
     clearError();
     setAsked(model.id);
     void sendMessage(
       { metadata: stamp(), text },
-      { body: { modelId: model.id } }
+      { body: { catalogIds, modelId: model.id } }
     );
   };
   // An edited message replaces its old self and drops what followed; the server does the same with its copy.
@@ -214,7 +273,10 @@ export const ChatView = ({
   const regenerateFrom = (messageId: string) => {
     clearError();
     setAsked(model.id);
-    void regenerate({ body: { modelId: model.id }, messageId });
+    void regenerate({
+      body: { modelId: model.id },
+      messageId,
+    });
   };
   const retry = () => {
     clearError();
@@ -232,6 +294,7 @@ export const ChatView = ({
     if (row.role === "user") {
       return (
         <UserMessage
+          mentions={servers}
           message={row.message}
           onEdit={busy ? undefined : (text) => edit(row.message.id, text)}
         />
@@ -242,7 +305,11 @@ export const ChatView = ({
         label={labelOf(row.message?.metadata?.modelId)}
         live={row.live}
         message={row.message}
+        onApprove={(approvalId, approved) =>
+          addToolApprovalResponse({ approved, id: approvalId })
+        }
         onRegenerate={busy ? undefined : regenerateFrom}
+        servers={servers}
       />
     );
   };
@@ -328,6 +395,8 @@ export const ChatView = ({
               onModel={setModel}
               onSend={send}
               onStop={stop}
+              onServerReady={serverReady}
+              servers={servers}
             />
           </div>
         </motion.div>

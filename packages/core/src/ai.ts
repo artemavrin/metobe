@@ -81,4 +81,8 @@ export const invalidateAi = (sourceId?: string) => {
 };
 
 // A source, key or proxy changed here or in another process (config-bus): its provider is built anew.
-onConfigChange((change) => invalidateAi(change.sourceId));
+onConfigChange((change) => {
+  if (!change.catalogId) {
+    invalidateAi(change.sourceId);
+  }
+});

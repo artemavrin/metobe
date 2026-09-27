@@ -25,6 +25,8 @@ import { user } from "./auth";
 export const chats = pgTable(
   "chats",
   {
+    /** The MCP servers (catalog items) the user turned on in this chat: only their tools reach the model. */
+    catalogIds: uuid("catalog_ids").array().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -1,0 +1,1 @@
+ALTER TABLE "chats" ADD COLUMN "catalog_ids" uuid[] DEFAULT '{}' NOT NULL;

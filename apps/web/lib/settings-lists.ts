@@ -1,4 +1,5 @@
 import "server-only";
+import { listCatalog } from "@metobe/core/catalog";
 import { listProviders } from "@metobe/core/providers";
 import { listProxies } from "@metobe/core/proxies";
 import { listSources } from "@metobe/core/sources-read";
@@ -157,6 +158,43 @@ const proxiesList = async (): Promise<SettingsList> => {
   };
 };
 
+/** MCP servers by name; each with its tools count, or that it wants a sign-in, or fails. */
+const connectionsList = async (): Promise<SettingsList> => {
+  const [rows, t] = await Promise.all([
+    listCatalog(),
+    getTranslations("connections"),
+  ]);
+  return {
+    add: { href: "/settings/connections/new", label: t("add") },
+    entries: rows.map((x) => {
+      const auth = t(`auth.${x.config.auth}`);
+      const h = x.health;
+      let state: ListEntry["state"] = "unchecked";
+      let sub = `${auth} · ${t("status.unchecked")}`;
+      if (!x.enabled) {
+        state = "off";
+        sub = `${auth} · ${t("status.off")}`;
+      } else if (h?.state === "ok") {
+        state = "ok";
+        sub = `${auth} · ${t("status.ok", { count: x.tools.length })}`;
+      } else if (h) {
+        state = "error";
+        sub = `${auth} · ${t(h.state === "auth" ? "status.auth" : "status.error")}`;
+      }
+      return {
+        href: `/settings/connections/${x.id}`,
+        id: x.id,
+        logo: x.logo ?? undefined,
+        state,
+        sub,
+        title: x.title,
+      };
+    }),
+    meta: t("meta"),
+    title: t("title"),
+  };
+};
+
 /** The lists this viewer may open; the service's lists are for admins only. */
 export const getSettingsLists = async (
   admin: boolean
@@ -164,10 +202,11 @@ export const getSettingsLists = async (
   if (!admin) {
     return {};
   }
-  const [sources, providers, proxies] = await Promise.all([
+  const [sources, providers, proxies, connections] = await Promise.all([
     sourcesList(),
     providersList(),
     proxiesList(),
+    connectionsList(),
   ]);
-  return { providers, proxies, sources };
+  return { connections, providers, proxies, sources };
 };

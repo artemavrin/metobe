@@ -26,6 +26,18 @@
     "thread": "Messages",
     "toLatest": "Jump to latest",
     "reasoningFor": "Reasoning · {seconds}s",
+    "tools": {
+      "running": "running",
+      "waiting": "waiting for your yes",
+      "failed": "failed",
+      "denied": "refused",
+      "input": "Input",
+      "output": "Result",
+      "approve": "Allow",
+      "deny": "Refuse",
+      "call": "Call {n}",
+      "done": "done"
+    },
     "retry": "Try again",
     "signIn": "Sign in",
     "errors": {
@@ -130,7 +142,29 @@
       "chipTip": "Favorite models · all —",
       "chipLabel": "Model: {title}"
     },
-    "allModels": "all models"
+    "allModels": "all models",
+    "mcp": {
+      "menu": "Connections",
+      "none": "Nothing found",
+      "signIn": "Sign in",
+      "adminOnly": "Needs the admin's setup",
+      "tools": "{count, plural, one {# tool} other {# tools}}",
+      "remove": "Remove",
+      "connectTitle": "Connect to {server}",
+      "connectText": "Saved for you only",
+      "token": "Token",
+      "headerValue": "Header value",
+      "username": "Login",
+      "password": "Password",
+      "connect": "Connect",
+      "refused": "That did not work — check the details"
+    },
+    "work": {
+      "working": "Working…",
+      "done": "Work",
+      "calls": "{count, plural, one {# call} other {# calls}}",
+      "seconds": "{seconds}s"
+    }
   },
   "login": {
     "title": "Sign in to Metobe",
@@ -589,6 +623,116 @@
       "unavailable": "The source is off or not answering",
       "new": "new",
       "noPrice": "no price"
+    }
+  },
+  "connections": {
+    "title": "Connections",
+    "meta": "MCP servers whose tools the model gets in chat",
+    "add": "Add a server",
+    "empty": {
+      "title": "No MCP servers",
+      "text": "Connect a server and its tools will reach the model in chat."
+    },
+    "status": {
+      "ok": "{count, plural, one {# tool} other {# tools}}",
+      "auth": "Sign-in needed",
+      "error": "Not responding",
+      "unchecked": "Not checked",
+      "off": "Off"
+    },
+    "auth": {
+      "none": "No auth",
+      "bearer": "Token",
+      "header": "Header",
+      "basic": "Login and password",
+      "oauth": "OAuth"
+    },
+    "new": {
+      "title": "New MCP server",
+      "name": "Name",
+      "namePlaceholder": "GitHub",
+      "url": "Address",
+      "urlHint": "The MCP server's HTTP address, e.g. https://example.com/mcp",
+      "auth": "Authentication",
+      "create": "Add",
+      "invalid": "Check the name and the address"
+    },
+    "detail": {
+      "name": "Name",
+      "enabled": "On",
+      "enabledHint": "A server that is off gives no tools to the chat",
+      "check": "Check",
+      "pill": {
+        "ok": "Working",
+        "auth": "Sign-in needed",
+        "error": "Error",
+        "unchecked": "Not checked",
+        "checking": "Checking…",
+        "refused": "The token was refused"
+      },
+      "server": "Server",
+      "url": "Address",
+      "transport": "Transport",
+      "transportHint": "Streamable HTTP is current; SSE is for older servers",
+      "prefix": "Tool prefix",
+      "prefixHint": "How the model sees the tools",
+      "access": "Access",
+      "mode": "Credentials",
+      "modes": {
+        "shared": "Shared by everyone",
+        "per_user": "Each user's own"
+      },
+      "modeHints": {
+        "shared": "The admin sets the auth, every user works under it",
+        "per_user": "Each user connects on their own; the check uses your connection"
+      },
+      "authKind": "Authentication",
+      "headerName": "Header name",
+      "token": "Token",
+      "headerValue": "Header value",
+      "username": "Login",
+      "password": "Password",
+      "saved": "Saved: {hint}",
+      "save": "Save",
+      "oauth": "Sign-in",
+      "oauthHint": "The service's page opens; you come back here after signing in",
+      "signIn": "Sign in with OAuth",
+      "signedIn": "Signed in",
+      "oauthFailed": "Sign-in failed — try again",
+      "tools": "Tools",
+      "toolsEmpty": "Check the server to see its tools",
+      "toolsHint": "«Ask» — the model waits for your yes in chat; «Never» — the tool is hidden from the model",
+      "approvals": {
+        "auto": "Auto",
+        "ask": "Ask",
+        "deny": "Never"
+      },
+      "readOnly": "read-only",
+      "destructive": "changes data",
+      "remove": {
+        "section": "Removal",
+        "label": "Remove the server",
+        "hint": "Its tools leave everyone's chat; personal connections go too",
+        "confirm": "Remove"
+      },
+      "authSection": "Authentication",
+      "accessMode": "Available to",
+      "accessModes": {
+        "all": "All users",
+        "selected": "Selected users"
+      },
+      "accessHints": {
+        "all": "Every user gets the server's tools in chat",
+        "selected": "{count} of {total} selected"
+      },
+      "usersSearch": "Find a user",
+      "toolsSearch": "Find a tool",
+      "toolsBulk": "For the found ({count})",
+      "toolsNone": "Nothing found",
+      "toolsMore": "Show {count} more",
+      "logoUpload": "Upload a picture",
+      "logoRemove": "Remove the picture",
+      "signOut": "Sign out"
     }
   },
   "proxies": {

@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.62",
     "@ai-sdk/gateway": "4.0.91",
+    "@ai-sdk/mcp": "2.0.60",
     "@ai-sdk/openai": "4.0.74",
     "@ai-sdk/openai-compatible": "3.0.55",
     "@metobe/contracts": "workspace:*",
