@@ -92,8 +92,9 @@ export const lendTools = (servers: ServerTools[], used: Set<string>) => {
     }
     if (onDemand) {
       const topics = topicsOf(names.map((n) => n.slice(server.key.length + 1)));
+      const about = server.description ? ` (${server.description})` : "";
       lent.push(
-        `${server.title} — ${names.length} tools named ${server.key}_…, mostly about ${topics.join(", ")}`
+        `${server.title}${about} — ${names.length} tools named ${server.key}_…, mostly about ${topics.join(", ")}`
       );
     }
   }
@@ -106,4 +107,26 @@ export const lendTools = (servers: ServerTools[], used: Set<string>) => {
     };
   }
   return tools;
+};
+
+/**
+ * What the model is told of the chat's MCP servers: each by its tools' prefix, with the admin's word on what it is
+ * for — so it knows which service answers what, and that a big one's tools are found with `find_tools`.
+ */
+export const servicesNote = (servers: ServerTools[]) => {
+  if (servers.length === 0) {
+    return;
+  }
+  const lines = servers.map((server) => {
+    // Its own sentence: the admin's words without their last dot, ours after them.
+    const about = server.description
+      ? `: ${server.description.replace(/[\s.]+$/u, "")}`
+      : "";
+    const found =
+      Object.keys(server.tools).length > ON_DEMAND_AFTER
+        ? `. Its tools are found with ${FIND_TOOLS}.`
+        : "";
+    return `- ${server.title} (tools named ${server.key}_…)${about}${found}`;
+  });
+  return `MCP services connected in this chat:\n${lines.join("\n")}`;
 };

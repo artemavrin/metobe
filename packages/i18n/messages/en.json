@@ -767,6 +767,9 @@
       "transportHint": "Streamable HTTP is current; SSE is for older servers",
       "prefix": "Tool prefix",
       "prefixHint": "How the model sees the tools",
+      "description": "Description",
+      "descriptionHint": "For the model: what the service is and when to turn to it. Optional",
+      "descriptionPlaceholder": "E.g.: the company's CRM — deals, funnels, employees' tasks",
       "access": "Access",
       "mode": "Credentials",
       "modes": {

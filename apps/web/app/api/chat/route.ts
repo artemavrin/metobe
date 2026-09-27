@@ -37,7 +37,7 @@ import { getAuth } from "@/lib/auth";
 import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
 import { mentionedIn } from "@/lib/mentions";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
-import { lendTools } from "@/lib/tool-search";
+import { lendTools, servicesNote } from "@/lib/tool-search";
 
 // POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
 // the last answer's approvals — and the history comes from the database. The user's message is saved before the model is called, the answer when the stream ends —
@@ -245,24 +245,26 @@ export const POST = async (request: Request) => {
           console.error("chat: could not record the run", model.id, error);
         }
       };
-      // The MCP servers the thread mentions (ARCH §8) — a big one's tools on demand — and our own table and chart;
-      // a model that says it cannot call tools gets none. Ours come last, so a server's tool of the same name cannot
-      // replace them.
+      // The MCP servers the thread mentions (ARCH §8) — a big one's tools on demand, each told to the model with what
+      // it is for — and our own table and chart; a model that says it cannot call tools gets none. Ours come last, so
+      // a server's tool of the same name cannot replace them.
+      const servers =
+        model.capabilities.tools === false
+          ? []
+          : await toolsForUser(
+              session.user.id,
+              await serversOf(session.user.id, uiMessages)
+            );
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
           : {
-              ...lendTools(
-                await toolsForUser(
-                  session.user.id,
-                  await serversOf(session.user.id, uiMessages)
-                ),
-                calledIn(uiMessages)
-              ),
+              ...lendTools(servers, calledIn(uiMessages)),
               [CHART_TOOL]: chartTool,
               [TABLE_TOOL]: tableTool,
             };
       const result = streamText({
+        instructions: servicesNote(servers),
         messages: prompt.messages,
         model: languageModel,
         onAbort: () => record({ latencyMs: firstChunk, status: "aborted" }),

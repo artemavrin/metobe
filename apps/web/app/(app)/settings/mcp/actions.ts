@@ -109,6 +109,14 @@ export const rename = async (id: string, title: string) => {
   refresh();
 };
 
+/** What the service is for, for the model; empty clears it. */
+export const setDescription = async (id: string, description: string) => {
+  await requireAdmin();
+  const text = z.string().trim().max(500).parse(description);
+  await updateCatalogItem(idSchema.parse(id), { description: text || null });
+  refresh();
+};
+
 export const setEnabled = async (id: string, enabled: boolean) => {
   await requireAdmin();
   await updateCatalogItem(idSchema.parse(id), { enabled: Boolean(enabled) });
