@@ -49,6 +49,7 @@ import { Streamdown } from "streamdown";
 import { BrandLogo } from "@/components/brand-logo";
 import { AnswerChart } from "@/components/chat/answer-chart";
 import { AnswerTable } from "@/components/chat/answer-table";
+import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { answerWork } from "@/lib/answer-work";
 import type { SearchPart, ToolPart, WorkStep } from "@/lib/answer-work";
@@ -358,8 +359,9 @@ const useAutoOpen = (working: boolean) => {
 
 /**
  * The work before an answer (like AI Elements' Chain of Thought): reasoning, the tools called and what the model
- * said between them, as steps. Open while the model works, the current step in motion; once the answer comes it
- * folds into one line — «Ход работы · 9 вызовов · 14 с» (the server's measure) — and the answer stands below.
+ * said between them, as steps — in one window a few lines high, the newest at its bottom, the older fading out
+ * above. Open while the model works, the current step in motion; once the answer comes it folds into one line —
+ * «Ход работы · 9 вызовов · 14 с» (the server's measure) — and the answer stands below.
  */
 const WorkBlock = ({
   steps,
@@ -382,6 +384,11 @@ const WorkBlock = ({
   );
   const seconds =
     workMs === undefined ? null : Math.max(1, Math.round(workMs / 1000));
+  // A call waiting for the user's yes is read whole: what would go in, and the buttons.
+  const asking = steps.some(
+    (s) =>
+      s.kind === "tool" && s.calls.some((c) => c.state === "approval-requested")
+  );
   return (
     <Collapsible
       className="flex flex-col items-start"
@@ -426,38 +433,49 @@ const WorkBlock = ({
         </MarkerIcon>
       </Marker>
       <CollapsibleContent className="h-(--collapsible-panel-height) w-full overflow-hidden transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none">
-        <div className="border-border mt-2 flex flex-col gap-2.5 border-l pl-3">
-          {steps.map((step) => {
-            if (step.kind === "tool") {
+        <ThoughtWindow
+          bounded={!asking}
+          className="border-border mt-2 border-l pl-3"
+          following={working}
+          startAtEnd={working}
+        >
+          <div className="flex flex-col gap-2.5">
+            {steps.map((step) => {
+              if (step.kind === "tool") {
+                return (
+                  <ToolStep
+                    calls={step.calls}
+                    key={step.key}
+                    onApprove={onApprove}
+                    servers={servers}
+                  />
+                );
+              }
+              if (step.kind === "search") {
+                return (
+                  <SearchStep
+                    key={step.key}
+                    part={step.part}
+                    servers={servers}
+                  />
+                );
+              }
               return (
-                <ToolStep
-                  calls={step.calls}
+                <p
+                  className={cn(
+                    "text-sm leading-relaxed whitespace-pre-wrap",
+                    step.kind === "thought"
+                      ? "text-muted-foreground italic"
+                      : "text-foreground/80"
+                  )}
                   key={step.key}
-                  onApprove={onApprove}
-                  servers={servers}
-                />
+                >
+                  {step.text}
+                </p>
               );
-            }
-            if (step.kind === "search") {
-              return (
-                <SearchStep key={step.key} part={step.part} servers={servers} />
-              );
-            }
-            return (
-              <p
-                className={cn(
-                  "text-sm leading-relaxed whitespace-pre-wrap",
-                  step.kind === "thought"
-                    ? "text-muted-foreground italic"
-                    : "text-foreground/80"
-                )}
-                key={step.key}
-              >
-                {step.text}
-              </p>
-            );
-          })}
-        </div>
+            })}
+          </div>
+        </ThoughtWindow>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -710,8 +728,8 @@ export const UserMessage = ({
  * — the same element through the wait and the reasoning, so nothing blinks or jumps between them. It fades in a
  * beat late, so a fast answer never flashes it. It says only what is true: «Готовит ответ…» while nothing has come,
  * «Думает…» once reasoning really streams (a model may not reason, or have it off), a dot grid (gridora) beside
- * either. Like AI Elements' Reasoning, the fold opens by itself while the model thinks — the thoughts stream in —
- * and closes a second after the words start; the reader's own toggle wins. Once done, the grid gives its place to
+ * either. Like AI Elements' Reasoning, the fold opens by itself while the model thinks — the thoughts stream into a
+ * window a few lines high — and closes a second after the words start; the reader's own toggle wins. Once done, the grid gives its place to
  * a still brain and the line says «Размышления · N с» (the server's measure) — or goes when there was none.
  */
 const Activity = ({
@@ -807,9 +825,12 @@ const Activity = ({
       </Marker>
       {/* Height from base-ui's measure; opens and closes on a strong ease-out, no motion when reduced */}
       <CollapsibleContent className="h-(--collapsible-panel-height) w-full overflow-hidden transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none">
-        <div className="text-muted-foreground border-border mt-2 border-l pl-3 text-sm leading-relaxed">
+        <ThoughtWindow
+          className="text-muted-foreground border-border mt-2 border-l pl-3 text-sm leading-relaxed"
+          following={thinking}
+        >
           <Streamdown isAnimating={thinking}>{reasoning}</Streamdown>
-        </div>
+        </ThoughtWindow>
       </CollapsibleContent>
     </Collapsible>
   );
