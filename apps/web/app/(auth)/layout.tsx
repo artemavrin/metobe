@@ -8,9 +8,9 @@ const AuthLayout = ({ children }: { children: React.ReactNode }) => (
   <div className="bg-background flex min-h-dvh lg:h-dvh">
     <div className="flex min-h-dvh flex-1 flex-col px-5 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-12">
       <header className="flex h-16 shrink-0 items-center lg:h-20">
-        <span className="flex items-center gap-2.5 text-sm font-semibold tracking-tight">
+        <span className="flex items-center gap-[0.3em] text-base font-semibold tracking-tight">
           <BrandMark />
-          Metobe
+          metobe
         </span>
       </header>
       <main className="flex flex-1 items-start pt-[8vh] lg:items-center lg:pt-0">

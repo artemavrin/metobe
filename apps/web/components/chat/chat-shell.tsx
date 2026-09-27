@@ -69,9 +69,9 @@ const initials = (name: string) =>
     .toUpperCase();
 
 const Brand = () => (
-  <span className="flex items-center gap-2 text-sm font-semibold">
-    <BrandMark className="size-6" />
-    Metobe
+  <span className="flex items-center gap-[0.3em] text-sm font-semibold tracking-tight">
+    <BrandMark />
+    metobe
   </span>
 );
 

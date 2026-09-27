@@ -1,24 +1,24 @@
 import { cn } from "@metobe/ui/lib/utils";
 
 /**
- * The Metobe mark: a lowercase m whose second arch stands a step higher than the first — «me → to be». One stroke
- * weight, butt ends, both arches of one radius, on a tile in the brand colour. The same geometry as app/icon.svg and
- * docs/brand; the tile follows the theme's primary.
+ * The Metobe symbol: a block with two arched openings — an m in negative space, a viaduct: infrastructure that is
+ * yours and carries the traffic. Sized in em, so next to the name it follows the font size; filled with currentColor,
+ * the theme's primary by default (its lighter step in the dark theme, where primary sinks into the background).
+ * The app icon (app/icon.svg) is the same building grown to the whole tile.
  */
 export const BrandMark = ({ className }: { className?: string }) => (
-  <span
+  <svg
     aria-hidden
     className={cn(
-      "bg-primary text-primary-foreground inline-flex size-7 shrink-0 items-center justify-center rounded-[27.5%] shadow-[inset_0_1px_0_rgb(255_255_255/0.18)]",
+      "text-primary dark:text-sidebar-primary h-[0.9em] w-auto shrink-0",
       className
     )}
+    viewBox="2 4 20 16"
   >
-    <svg className="size-full" fill="none" viewBox="0 0 24 24">
-      <path
-        d="M5.5 18.25V12.5a3.25 3.25 0 0 1 6.5 0v5.75M12 18.25V10a3.25 3.25 0 0 1 6.5 0v8.25"
-        stroke="currentColor"
-        strokeWidth={2.25}
-      />
-    </svg>
-  </span>
+    <path
+      d="M3 4h18a1 1 0 0 1 1 1v15H2V5a1 1 0 0 1 1-1ZM6.25 20V9.5a2 2 0 0 1 4 0V20Zm7.5 0V9.5a2 2 0 0 1 4 0V20Z"
+      fill="currentColor"
+      fillRule="evenodd"
+    />
+  </svg>
 );
