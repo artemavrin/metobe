@@ -413,7 +413,10 @@
       "admin": "Admin",
       "user": "Member"
     },
-    "listSearch": "Find in the list"
+    "listSearch": "Find in the list",
+    "edit": "Change",
+    "cancel": "Cancel",
+    "save": "Save"
   },
   "sources": {
     "title": "Sources",
@@ -750,16 +753,14 @@
       },
       "modeHints": {
         "shared": "The admin sets the auth, every user works under it",
-        "per_user": "Each user connects on their own; the check uses your connection"
+        "per_user": "Everyone enters their own — when they first mention the server in a chat with @; checks use your connection"
       },
-      "authKind": "Authentication",
+      "authKind": "Method",
       "headerName": "Header name",
       "token": "Token",
       "headerValue": "Header value",
       "username": "Login",
       "password": "Password",
-      "saved": "Saved: {hint}",
-      "save": "Save",
       "oauth": "Sign-in",
       "oauthHint": "The service's page opens; you come back here after signing in",
       "signIn": "Sign in with OAuth",
@@ -798,7 +799,18 @@
       "toolsMore": "Show {count} more",
       "logoUpload": "Upload a picture",
       "logoRemove": "Remove the picture",
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "header": "Header",
+      "login": "Sign-in",
+      "notSet": "not set",
+      "secretKeep": "keep the current one",
+      "tokenMissing": "Enter the token",
+      "valueMissing": "Enter the header's value",
+      "headerNameMissing": "Enter the header's name",
+      "headerNameInvalid": "That header name won't do: Latin letters, digits and hyphens",
+      "usernameMissing": "Enter the login",
+      "usernameInvalid": "A login cannot contain a colon",
+      "passwordMissing": "Enter the password"
     }
   },
   "proxies": {
@@ -896,9 +908,6 @@
         "action": "Delete",
         "cancel": "Cancel"
       },
-      "cancel": "Cancel",
-      "save": "Save",
-      "edit": "Change",
       "domainInvalid": "A domain like openai.com — no scheme, path or port"
     }
   },

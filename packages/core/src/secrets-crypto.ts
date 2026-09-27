@@ -83,12 +83,19 @@ export const open = (
   ]).toString("utf-8");
 };
 
-/** What the UI may show: a known prefix and the last four characters — «sk-…a1B2», «AQVN…Hc4x», «••••x7Qp». */
-export const hintFor = (value: string) => {
-  const tail = value.slice(-4);
-  if (value.length < 12) {
-    return `••••${tail}`;
+/** A hint with nothing of the value: only that it is set. */
+export const HIDDEN_HINT = "••••••";
+
+/**
+ * What the UI may show, and all the database keeps in the clear: a known prefix and the last four characters —
+ * «sk-…a1B2», «AQVN…Hc4x» — so keys can be told apart. A password, or a secret too short to spare four of its
+ * characters, gets none of them.
+ */
+export const hintFor = (value: string, { password = false } = {}) => {
+  if (password || value.length < 12) {
+    return HIDDEN_HINT;
   }
+  const tail = value.slice(-4);
   const prefix = /^[A-Za-z]{2,6}[-_]/u.exec(value)?.[0] ?? value.slice(0, 4);
   return `${prefix}…${tail}`;
 };

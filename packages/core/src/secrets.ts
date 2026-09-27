@@ -55,19 +55,22 @@ const getKeys = () => {
   return keys;
 };
 
-/** Stores or replaces a secret; returns the hint the UI may show. */
+/**
+ * Stores or replaces a secret; returns the hint the UI may show. A password — its purpose, or `password` for one
+ * kept under another (MCP basic auth is a `token`) — gets a hint with none of its characters.
+ */
 export const setSecret = async (
   owner: Owner,
   purpose: Purpose,
   value: string,
-  expiresAt?: Date
+  { expiresAt, password = false }: { expiresAt?: Date; password?: boolean } = {}
 ) => {
   const sealed = seal(
     value,
     aadFor(owner.type, owner.id, purpose),
     getKeys().current
   );
-  const hint = hintFor(value);
+  const hint = hintFor(value, { password: password || purpose === "password" });
   await getDb()
     .db.insert(secrets)
     .values({
