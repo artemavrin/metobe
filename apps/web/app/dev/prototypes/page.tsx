@@ -16,7 +16,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@metobe/ui/components/item";
-import { ChevronRight, Columns3, MessageSquare, SlidersHorizontal, LayoutDashboard, LogIn, PanelsTopLeft, Rocket, Server } from "lucide-react";
+import { ChevronRight, Columns3, MessageSquare, SlidersHorizontal, LayoutDashboard, LogIn, PanelsTopLeft, Plug, Rocket, Server } from "lucide-react";
 import Link from "next/link";
 
 type Entry = {
@@ -100,6 +100,19 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
       },
     ],
     title: "P2 · P3 · Чат",
+  },
+  {
+    description: "Каталог серверов у админа и личные учётки у каждого — M4",
+    entries: [
+      {
+        description: "Выбрано «Погружение»: «Подключения» списком в сайдбаре, страница на сервер. «· 2» — отключение своим разделом, как удаление везде, и вход через OAuth в окне сервиса под модалкой. Рядом «Лента» и «Аккаунт».",
+        href: "/dev/prototypes/my-connections",
+        icon: Plug,
+        status: "выбрано",
+        title: "Мои подключения",
+      },
+    ],
+    title: "P8 · Подключения",
   },
   {
     description: "Все компоненты ReUI и shadcn в теме Metobe",

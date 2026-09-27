@@ -41,7 +41,7 @@ export const NewServerForm = () => {
       setInvalid(false);
       const result = await create({ auth, credentialMode: mode, title, url });
       if (result.ok) {
-        router.push(`/settings/connections/${result.id}`);
+        router.push(`/settings/mcp/${result.id}`);
       } else {
         setInvalid(true);
       }

@@ -17,7 +17,7 @@ const SettingsLayout = async ({ children }: { children: React.ReactNode }) => {
     getSettingsViewer(),
     getTranslations("settings.roles"),
   ]);
-  const lists = await getSettingsLists(admin);
+  const lists = await getSettingsLists(admin, user?.id);
   const name = user?.name || user?.email || "";
   const roleKey = role === "superuser" || role === "admin" ? role : "user";
   return (

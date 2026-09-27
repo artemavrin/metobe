@@ -15,7 +15,7 @@ import { cn } from "@metobe/ui/lib/utils";
 import { ChevronLeft, Plus, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { ProxyMark } from "@/components/proxy-mark";
@@ -33,6 +33,7 @@ const DOT: Record<SettingsList["entries"][number]["state"], string> = {
   off: "bg-muted-foreground/40",
   ok: "bg-success",
   unchecked: "bg-muted-foreground/40",
+  warning: "bg-warning",
 };
 
 /** The selected-row background; the first placement doesn't slide. */
@@ -141,51 +142,60 @@ export const SettingsListLevel = ({
               {t("nothing")}
             </p>
           )}
-          {entries.map((e) => {
+          {entries.map((e, i) => {
             const active = e.id === activeId;
+            // A group's heading goes before its first entry.
+            const heading =
+              e.group && e.group !== entries[i - 1]?.group ? e.group : null;
             return (
-              <Link
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99]",
-                  !active && "hover:bg-sidebar-accent/60"
+              <Fragment key={e.id}>
+                {heading && (
+                  <p className="text-muted-foreground px-2.5 pt-3 pb-1 text-[11px] font-medium tracking-wide uppercase">
+                    {heading}
+                  </p>
                 )}
-                data-active={active}
-                data-entry={e.id}
-                href={e.href}
-                key={e.id}
-                onClick={close}
-              >
-                {e.mark ? (
-                  <ProxyMark flag={e.mark.flag} size={28} />
-                ) : (
-                  <BrandLogo label={e.title} logo={e.logo} size={28} />
-                )}
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-medium">{e.title}</span>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1.5 truncate text-xs",
-                      e.state === "error"
-                        ? "text-destructive"
-                        : "text-muted-foreground"
-                    )}
-                  >
+                <Link
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99]",
+                    !active && "hover:bg-sidebar-accent/60"
+                  )}
+                  data-active={active}
+                  data-entry={e.id}
+                  href={e.href}
+                  onClick={close}
+                >
+                  {e.mark ? (
+                    <ProxyMark flag={e.mark.flag} size={28} />
+                  ) : (
+                    <BrandLogo label={e.title} logo={e.logo} size={28} />
+                  )}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-medium">{e.title}</span>
                     <span
                       className={cn(
-                        "size-1.5 shrink-0 rounded-full transition-colors duration-200",
-                        DOT[e.state]
+                        "flex items-center gap-1.5 truncate text-xs",
+                        e.state === "error"
+                          ? "text-destructive"
+                          : "text-muted-foreground"
                       )}
-                    />
-                    {e.sub}
+                    >
+                      <span
+                        className={cn(
+                          "size-1.5 shrink-0 rounded-full transition-colors duration-200",
+                          DOT[e.state]
+                        )}
+                      />
+                      {e.sub}
+                    </span>
                   </span>
-                </span>
-                {e.count !== undefined && (
-                  <span className="text-muted-foreground text-xs tabular-nums">
-                    {e.count}
-                  </span>
-                )}
-              </Link>
+                  {e.count !== undefined && (
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {e.count}
+                    </span>
+                  )}
+                </Link>
+              </Fragment>
             );
           })}
         </nav>

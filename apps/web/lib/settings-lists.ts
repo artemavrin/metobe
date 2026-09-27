@@ -1,11 +1,14 @@
 import "server-only";
 import { listCatalog } from "@metobe/core/catalog";
+import { listMyConnections } from "@metobe/core/mcp";
+import type { MyServer } from "@metobe/core/mcp";
 import { listProviders } from "@metobe/core/providers";
 import { listProxies } from "@metobe/core/proxies";
 import { listSources } from "@metobe/core/sources-read";
 import type { SourceSummary } from "@metobe/core/sources-read";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 
+import { standingDot, standingOf } from "@/lib/my-connections";
 import { flagOf } from "@/lib/proxy-flag";
 import type { SettingsSectionId } from "@/lib/settings-nav";
 import { sourceLogo } from "@/lib/source-logo";
@@ -23,8 +26,10 @@ export interface ListEntry {
   /** The line under the title: the state in words. */
   sub: string;
   /** Drives the dot; `none` — no dot (lists without a state, such as providers). */
-  state: "ok" | "error" | "off" | "unchecked" | "none";
+  state: "ok" | "warning" | "error" | "off" | "unchecked" | "none";
   count?: number;
+  /** A heading the entry sits under; entries of a group come together. */
+  group?: string;
 }
 
 export interface SettingsList {
@@ -158,14 +163,14 @@ const proxiesList = async (): Promise<SettingsList> => {
   };
 };
 
-/** MCP servers by name; each with its tools count, or that it wants a sign-in, or fails. */
-const connectionsList = async (): Promise<SettingsList> => {
+/** The admin's catalog of MCP servers by name; each with its tools count, or that it wants a sign-in, or fails. */
+const mcpList = async (): Promise<SettingsList> => {
   const [rows, t] = await Promise.all([
     listCatalog(),
     getTranslations("connections"),
   ]);
   return {
-    add: { href: "/settings/connections/new", label: t("add") },
+    add: { href: "/settings/mcp/new", label: t("add") },
     entries: rows.map((x) => {
       const auth = t(`auth.${x.config.auth}`);
       const h = x.health;
@@ -182,7 +187,7 @@ const connectionsList = async (): Promise<SettingsList> => {
         sub = `${auth} · ${t(h.state === "auth" ? "status.auth" : "status.error")}`;
       }
       return {
-        href: `/settings/connections/${x.id}`,
+        href: `/settings/mcp/${x.id}`,
         id: x.id,
         logo: x.logo ?? undefined,
         state,
@@ -195,18 +200,60 @@ const connectionsList = async (): Promise<SettingsList> => {
   };
 };
 
-/** The lists this viewer may open; the service's lists are for admins only. */
+/**
+ * «Мои подключения»: the servers this user may use — their own per-user ones first, then the organization's — each
+ * with where it stands: when it was last used, or what it needs.
+ */
+const connectionsList = async (userId: string): Promise<SettingsList> => {
+  const [rows, t, format] = await Promise.all([
+    listMyConnections(userId),
+    getTranslations("myConnections"),
+    getFormatter(),
+  ]);
+  const now = new Date();
+  const own = rows.filter((r) => r.mode === "per_user");
+  const connected = own.filter((r) => r.connection?.status === "active").length;
+  const entry = (r: MyServer): ListEntry => {
+    const standing = standingOf(r);
+    let sub = t(`standing.${standing}`);
+    if (standing === "active") {
+      sub = r.connection?.lastUsedAt
+        ? t("used", { when: format.relativeTime(r.connection.lastUsedAt, now) })
+        : t("notUsed");
+    }
+    return {
+      group: r.mode === "shared" ? t("fromOrg") : undefined,
+      href: `/settings/connections/${r.id}`,
+      id: r.id,
+      logo: r.logo ?? undefined,
+      state: standingDot(standing),
+      sub,
+      title: r.title,
+    };
+  };
+  return {
+    entries: [...own, ...rows.filter((r) => r.mode === "shared")].map(entry),
+    meta: own.length
+      ? t("meta", { connected, total: own.length })
+      : t("metaEmpty"),
+    title: t("title"),
+  };
+};
+
+/** The lists this viewer may open: their own connections always, the service's lists for admins only. */
 export const getSettingsLists = async (
-  admin: boolean
+  admin: boolean,
+  userId: string | undefined
 ): Promise<SettingsLists> => {
+  const connections = userId ? await connectionsList(userId) : undefined;
   if (!admin) {
-    return {};
+    return connections ? { connections } : {};
   }
-  const [sources, providers, proxies, connections] = await Promise.all([
+  const [sources, providers, proxies, mcp] = await Promise.all([
     sourcesList(),
     providersList(),
     proxiesList(),
-    connectionsList(),
+    mcpList(),
   ]);
-  return { connections, providers, proxies, sources };
+  return { connections, mcp, providers, proxies, sources };
 };
