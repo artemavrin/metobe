@@ -218,6 +218,11 @@ export const ChatView = ({
     transport,
   });
   const busy = status === "submitted" || status === "streaming";
+  // Stop lets go of the stream here and stops the model on the server (D6): what it wrote stays as the answer.
+  const halt = () => {
+    void stop();
+    void fetch(`/api/chat/${id}/stop`, { method: "POST" });
+  };
   const empty = messages.length === 0;
 
   // When an answer starts, the server has the chat: a new one gets its address without a reload, and the chat
@@ -398,7 +403,7 @@ export const ChatView = ({
               model={model}
               onModel={setModel}
               onSend={send}
-              onStop={stop}
+              onStop={halt}
               onServerReady={serverReady}
               servers={servers}
             />

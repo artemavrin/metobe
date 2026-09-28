@@ -22,6 +22,7 @@ import { generateChatTitle } from "@metobe/core/chat-title";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import { webToolsOn } from "@metobe/core/web-settings";
 import {
+  consumeStream,
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -36,6 +37,7 @@ import { headers } from "next/headers";
 import { applyApprovals } from "@/lib/approvals";
 import { getAuth } from "@/lib/auth";
 import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
+import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
@@ -214,6 +216,8 @@ export const POST = async (request: Request) => {
   await saveMessages(id, [prepared.save]);
   // Carrying on after approvals writes into the same answer.
   const originalMessages = message ? undefined : uiMessages;
+  // «Stop» reaches the model through this (D6): what was written by then is saved as the answer.
+  const generation = startGeneration(id);
 
   const stream = createUIMessageStream<ChatMessage>({
     execute: async ({ writer }) => {
@@ -276,10 +280,15 @@ export const POST = async (request: Request) => {
               ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
             };
       const result = streamText({
+        abortSignal: generation.signal,
         instructions: servicesNote(servers),
         messages: prompt.messages,
         model: languageModel,
-        onAbort: () => record({ latencyMs: firstChunk, status: "aborted" }),
+        // The model's own end frees the chat for «stop» — not the client's: it may leave, the model writes on.
+        onAbort: () => {
+          endGeneration(id, generation);
+          return record({ latencyMs: firstChunk, status: "aborted" });
+        },
         onChunk: ({ chunk }) => {
           // Time to the first thing the user sees, not to the stream's own bookkeeping.
           if (FIRST_TOKEN.has(chunk.type)) {
@@ -299,15 +308,18 @@ export const POST = async (request: Request) => {
             reasoningTo ??= Date.now();
           }
         },
-        onEnd: ({ providerMetadata, totalUsage }) =>
-          record({
+        onEnd: ({ providerMetadata, totalUsage }) => {
+          endGeneration(id, generation);
+          return record({
             latencyMs: firstChunk,
             providerMetadata,
             status: "ok",
             usage: totalUsage,
-          }),
+          });
+        },
         // The provider's own error: the stream passes on only «An error occurred».
         onError: ({ error }) => {
+          endGeneration(id, generation);
           console.error("chat: the model failed", model.id, causes(error));
           return record({ latencyMs: firstChunk, status: "error" });
         },
@@ -349,11 +361,17 @@ export const POST = async (request: Request) => {
       await saveMessages(id, finished);
     },
     onError: (error) => {
+      endGeneration(id, generation);
       console.error("chat: generation failed", model.id, error);
       return "generation-failed" satisfies ChatErrorCode;
     },
     originalMessages,
   });
 
-  return createUIMessageStreamResponse({ stream });
+  // The server reads its own copy to the end: an answer is saved whole when the client leaves halfway, and only
+  // «stop» (above) cuts it short.
+  return createUIMessageStreamResponse({
+    consumeSseStream: consumeStream,
+    stream,
+  });
 };

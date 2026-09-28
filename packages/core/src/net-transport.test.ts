@@ -155,3 +155,27 @@ describe("proxy addresses as the admin types them", () => {
     expect(parseProxyAddress("ftp://host:21", "http")).toBeNull();
   });
 });
+
+describe("stopping a request", () => {
+  it("lets the connection go when the answer is stopped halfway", async () => {
+    let answerClosed: Promise<unknown> = Promise.resolve();
+    const server = createServer((_req, res) => {
+      answerClosed = once(res, "close");
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      const tick = setInterval(() => res.write("data: word\n\n"), 20);
+      res.on("close", () => clearInterval(tick));
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const { port: at } = server.address() as AddressInfo;
+    const stop = new AbortController();
+    const res = await fetchWith(directAgent())(`http://127.0.0.1:${at}/`, {
+      signal: stop.signal,
+    });
+    await res.body?.getReader().read();
+    stop.abort();
+    // Times out, and fails, if the connection stays open.
+    await answerClosed;
+    server.close();
+  });
+});
