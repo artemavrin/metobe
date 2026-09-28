@@ -122,6 +122,19 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
     title: "P8 · Подключения",
   },
   {
+    description: "Графики в ответе — M5",
+    entries: [
+      {
+        description: "Спайк S9: графики evilcharts (ECharts) на наших данных и цветах темы — площадь, линия, столбцы, составной, радар, круговая, радиальная; плюс поток точек.",
+        href: "/dev/prototypes/evilcharts",
+        icon: LayoutDashboard,
+        status: "витрина",
+        title: "Графики evilcharts",
+      },
+    ],
+    title: "Графики",
+  },
+  {
     description: "Все компоненты ReUI и shadcn в теме Metobe",
     entries: [
       {

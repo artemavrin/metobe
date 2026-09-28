@@ -50,7 +50,7 @@ describe("what of a streaming chart can be drawn", () => {
   it("falls back to bars and a category axis for what it does not know", () => {
     const view = chartView(
       part("input-available", {
-        kind: "radar",
+        kind: "scatter",
         points: [],
         series,
         title: "",
@@ -88,19 +88,91 @@ describe("a pie's slices", () => {
     ).toEqual(["Б", "В", "А"]);
   });
 
-  it("keeps five colors: the biggest four and the rest together", () => {
+  it("keeps eight colors: the biggest seven and the rest together", () => {
     const slices = pieSlices(
       pie([
-        ["А", 50],
-        ["Б", 40],
-        ["В", 30],
-        ["Г", 20],
-        ["Д", 5],
-        ["Е", 3],
+        ["А", 90],
+        ["Б", 80],
+        ["В", 70],
+        ["Г", 60],
+        ["Д", 50],
+        ["Е", 40],
+        ["Ж", 30],
+        ["З", 5],
+        ["И", 3],
       ]),
       "Прочее"
     );
-    expect(slices.map((s) => s.name)).toEqual(["А", "Б", "В", "Г", "Прочее"]);
+    expect(slices.map((s) => s.name)).toEqual([
+      "А",
+      "Б",
+      "В",
+      "Г",
+      "Д",
+      "Е",
+      "Ж",
+      "Прочее",
+    ]);
     expect(slices.at(-1)?.value).toBe(8);
+    // Only the folded one is «Прочее»: it is drawn neutral.
+    expect(slices.map((s) => s.other)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+  });
+});
+
+const view = (extra: Record<string, unknown>) =>
+  chartView(
+    part("input-available", {
+      kind: "composed",
+      points: [["Янв", 1, 2, 3]],
+      series: [{ label: "А" }, { label: "Б" }, { as: "bar", label: "В" }],
+      title: "",
+      x: { label: "", type: "category" },
+      ...extra,
+    })
+  );
+
+describe("the chart's options", () => {
+  it("takes the model's kinds, all of them", () => {
+    for (const kind of [
+      "bar",
+      "line",
+      "area",
+      "pie",
+      "radar",
+      "radial",
+      "composed",
+    ]) {
+      expect(view({ kind }).kind).toBe(kind);
+    }
+  });
+
+  it("curves lines and rings pies unless told otherwise", () => {
+    expect(view({}).smooth).toBe(true);
+    expect(view({}).donut).toBe(true);
+    expect(view({ donut: false, smooth: false })).toMatchObject({
+      donut: false,
+      smooth: false,
+    });
+  });
+
+  it("stacks as shares when asked for percent, even without stacked", () => {
+    expect(view({ percent: true })).toMatchObject({
+      percent: true,
+      stacked: true,
+    });
+    expect(view({}).stacked).toBe(false);
+  });
+
+  it("reads which series of a composed chart are bars: the first, unless the model says", () => {
+    expect(view({}).series.map((s) => s.as)).toEqual(["bar", "line", "bar"]);
   });
 });

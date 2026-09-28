@@ -260,7 +260,9 @@
       "points": "{count, plural, one {# point} other {# points}}",
       "total": "{value} in total",
       "other": "Other",
-      "noData": "No data"
+      "noData": "No data",
+      "showData": "Data",
+      "showChart": "Chart"
     },
     "connectRequest": {
       "needed": "Sign in to {server}",

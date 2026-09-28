@@ -112,7 +112,7 @@ SMTP живёт в UI (D15): для старта он не нужен, приг�
 | `better-auth` | — | вместо NextAuth из шаблона |
 | `bullmq` | — | очереди: email, фоновые агенты и диспетчер (v2), песочница (v3) |
 | TanStack Query / Form / Hotkeys, `nuqs`, `motion` | — | по стеку |
-| **ReUI** (приоритет) + shadcn/ui, база Base UI, иконки lucide, графики ReUI на recharts | shadcn CLI 4.21 | §9.5; итоги S2 — D20 |
+| **ReUI** (приоритет) + shadcn/ui, база Base UI, иконки lucide, графики EvilCharts на ECharts (D20) | shadcn CLI 4.21 | §9.5; итоги S2 — D20 |
 | `nodemailer` + `react-email` | — | письма |
 
 ## 4. Структура проекта
