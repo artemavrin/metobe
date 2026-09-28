@@ -11,6 +11,8 @@ services:
     environment: &app-env
       DATABASE_URL: ${APP_DATABASE_URL:-postgres://${POSTGRES_USER:-metobe}:${POSTGRES_PASSWORD:-metobe}@postgres:5432/${POSTGRES_DB:-metobe}}
       REDIS_URL: redis://redis:6379
+      # The chat's web search (ARCH §8.1); without it the chat simply has no web.
+      SEARXNG_URL: http://searxng:8080
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,6 +68,46 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Web search: SearXNG on the inside network only (no port out), JSON on, the load spread over several engines and
+  # a refusing engine rested for minutes, not a day — they ban an IP that asks too often (spike S8, D21).
+  searxng:
+    image: searxng/searxng:2026.9.25-12f8b6515
+    restart: unless-stopped
+    environment:
+      # install.sh writes one; SearXNG refuses to start with its default. Not exposed, so the fallback only signs its
+      # own preference cookies.
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-metobe-searxng-inside-only}
+    configs:
+      - source: searxng-settings
+        target: /etc/searxng/settings.yml
+
+configs:
+  searxng-settings:
+    content: |
+      use_default_settings: true
+      server:
+        limiter: false
+        public_instance: false
+        image_proxy: false
+      search:
+        formats: [html, json]
+        safe_search: 0
+        suspended_times:
+          SearxEngineAccessDenied: 300
+          SearxEngineCaptcha: 600
+          SearxEngineTooManyRequests: 120
+          cf_SearxEngineCaptcha: 600
+          cf_SearxEngineAccessDenied: 300
+          recaptcha_SearxEngineCaptcha: 600
+      outgoing:
+        request_timeout: 3.0
+        max_request_timeout: 8.0
+      engines:
+        - name: google
+          disabled: false
+        - name: yahoo
+          disabled: false
 
 volumes:
   postgres:

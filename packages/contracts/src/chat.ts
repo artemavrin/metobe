@@ -3,6 +3,12 @@ import { z } from "zod";
 
 import type { ChartInput, ChartOutput } from "./chart";
 import type { TableInput, TableOutput } from "./table";
+import type {
+  WebFetchInput,
+  WebFetchOutput,
+  WebSearchInput,
+  WebSearchOutput,
+} from "./web";
 
 // Chat (ARCH §5.3, §6.1): messages are stored and sent as AI SDK UI messages. Our own data parts (`data-status`,
 // M3.2) and tools (M4) extend `ChatMessage` when they arrive.
@@ -27,8 +33,8 @@ export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 export type ChatDataParts = { title: string };
 
 /**
- * Our own tools (MCP tools arrive as dynamic tools): the table and the chart drawn in the answer, and the search a
- * big server's tools are found with (AI SDK's tool search) — what the model looked for, what it found.
+ * Our own tools (MCP tools arrive as dynamic tools): the table and the chart drawn in the answer, searching the web
+ * and reading its pages, and the search a big server's tools are found with (AI SDK's tool search).
  */
 // oxlint-disable-next-line typescript/consistent-type-definitions -- a Record for AI SDK, as above
 export type ChatTools = {
@@ -38,6 +44,8 @@ export type ChatTools = {
   };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_table: { input: TableInput; output: TableOutput };
+  web_fetch: { input: WebFetchInput; output: WebFetchOutput };
+  web_search: { input: WebSearchInput; output: WebSearchOutput };
 };
 
 export type ChatMessage = UIMessage<

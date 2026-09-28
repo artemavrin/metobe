@@ -170,6 +170,17 @@
       "soon": "Soon",
       "noServers": "No servers available"
     },
+    "web": {
+      "searching": "Searching the web",
+      "found": "{count, plural, =0 {Nothing found} one {# result} other {# results}}",
+      "query": "“{query}”",
+      "failed": "failed",
+      "reading": "Reading the page",
+      "read": "Read",
+      "readFailed": "Could not read",
+      "sources": "Sources",
+      "more": "{count} more"
+    },
     "work": {
       "working": "Working…",
       "done": "Work",
@@ -1116,6 +1127,40 @@
     "alert": {
       "needs_reauth": "The {server} sign-in expired — sign in again",
       "error": "The server refused your credentials"
+    }
+  },
+  "webSearch": {
+    "title": "Web search",
+    "description": "The model searches the web and reads pages by link — in chat and in agents.",
+    "tools": "What the model can do",
+    "search": {
+      "label": "Search",
+      "hint": "Finds links and snippets through SearXNG",
+      "noAddress": "Needs a SearXNG address — set it below"
+    },
+    "fetch": {
+      "label": "Reading pages",
+      "hint": "Opens a page by its link and reads its text. Private network addresses are never opened"
+    },
+    "recheck": "Check",
+    "address": {
+      "label": "Address",
+      "hint": "Empty — the address from the install: {url}",
+      "hintNoDefault": "Where SearXNG answers, e.g. http://searxng:8080",
+      "default": "from the install",
+      "none": "Not set",
+      "invalid": "Needs an address like http://host:port"
+    },
+    "check": {
+      "label": "Check",
+      "hint": "A test query to SearXNG",
+      "running": "Checking…",
+      "never": "Not checked yet",
+      "ok": "Works · {ms} ms · {found, plural, one {# result} other {# results}}",
+      "empty": "Answers in {ms} ms but found nothing — the search engines may have shut it out for a while",
+      "unreachable": "Does not answer: {detail}",
+      "json-off": "JSON is off — add json to search.formats in settings.yml",
+      "status": "Answered with an error: {detail}"
     }
   }
 }

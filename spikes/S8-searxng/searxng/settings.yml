@@ -1,0 +1,28 @@
+# Spike S8, round 2: more engines to spread the load, short suspensions, everything out through a SOCKS5 proxy.
+use_default_settings: true
+server:
+  secret_key: "change-me"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+search:
+  formats: [html, json]
+  safe_search: 0
+  suspended_times:
+    SearxEngineAccessDenied: 300
+    SearxEngineCaptcha: 600
+    SearxEngineTooManyRequests: 120
+    cf_SearxEngineCaptcha: 600
+    cf_SearxEngineAccessDenied: 300
+    recaptcha_SearxEngineCaptcha: 600
+outgoing:
+  request_timeout: 3.0
+  max_request_timeout: 8.0
+  proxies:
+    all://:
+      - socks5h://user:pass@socks:1080
+engines:
+  - name: google
+    disabled: false
+  - name: yahoo
+    disabled: false

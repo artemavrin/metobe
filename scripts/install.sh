@@ -98,6 +98,7 @@ else
     echo "BETTER_AUTH_SECRET=$(secret)"
     echo "# Encrypts source keys and connection secrets. Losing it makes them unrecoverable."
     echo "SECRETS_KEY=$(secret)"
+    echo "SEARXNG_SECRET=$(password)"
     if [ -n "${METOBE_DATABASE_URL:-}" ]; then
       echo "APP_DATABASE_URL=$METOBE_DATABASE_URL"
     else
@@ -129,7 +130,7 @@ else
   build
 fi
 say "Запускаю…"
-compose up -d --wait --remove-orphans app worker
+compose up -d --wait --remove-orphans app worker searxng
 
 link="$(compose exec -T app metobe claim-link | grep -oE 'https?://[^ ]+' || true)"
 say

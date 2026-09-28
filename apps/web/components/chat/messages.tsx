@@ -51,6 +51,7 @@ import { AnswerChart } from "@/components/chat/answer-chart";
 import { AnswerTable } from "@/components/chat/answer-table";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
+import { WebSources, WebStep } from "@/components/chat/web-step";
 import { answerWork } from "@/lib/answer-work";
 import type { SearchPart, ToolPart, WorkStep } from "@/lib/answer-work";
 import { splitMentions } from "@/lib/mentions";
@@ -378,10 +379,15 @@ const WorkBlock = ({
 }) => {
   const t = useTranslations("chat.work");
   const [open, setOpen] = useAutoOpen(working);
-  const calls = steps.reduce(
-    (n, s) => n + (s.kind === "tool" ? s.calls.length : 0),
-    0
-  );
+  // A search or a page read is a call too; the search for a server's tools is not.
+  let calls = 0;
+  for (const s of steps) {
+    if (s.kind === "tool") {
+      calls += s.calls.length;
+    } else if (s.kind === "web") {
+      calls += 1;
+    }
+  }
   const seconds =
     workMs === undefined ? null : Math.max(1, Math.round(workMs / 1000));
   // A call waiting for the user's yes is read whole: what would go in, and the buttons.
@@ -459,6 +465,9 @@ const WorkBlock = ({
                     servers={servers}
                   />
                 );
+              }
+              if (step.kind === "web") {
+                return <WebStep key={step.key} part={step.part} />;
               }
               return (
                 <p
@@ -960,6 +969,11 @@ export const AssistantMessage = ({
             </Bubble>
           );
         })}
+        {answering && (
+          <WebSources
+            parts={steps.flatMap((s) => (s.kind === "web" ? [s.part] : []))}
+          />
+        )}
         {!live && message && (
           <AnswerFooter
             copy={answer || undefined}

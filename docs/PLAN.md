@@ -17,7 +17,7 @@
 | S5 | `toModelOutput` между шагами `streamText` и обёртка MCP-тулов | модель видит сжатый результат, в `parts` лежит полный; рендер-тул строит виджет по `toolCallId` | D11 |
 | S6 | SeaweedFS S3 в compose | presigned upload из браузера (CORS), healthcheck, ключи из `.env` | D4 |
 | S7 ✓ | Ollama через `openai-compatible` `/v1`: tools | tool call работает; если нет — проверить `ai-sdk-ollama` | ARCH §7.6 |
-| S8 | SearXNG в compose: JSON-формат, русские запросы, поведение при ~1 запросе в секунду, прокси в `outgoing.proxies` включая SOCKS5 | `web_search` стабильно возвращает результаты по ru/en; понятно, когда начинаются капчи | D21 |
+| S8 ✓ | SearXNG в compose: JSON-формат, русские запросы, поведение при ~1 запросе в секунду, прокси в `outgoing.proxies` включая SOCKS5 | `web_search` стабильно возвращает результаты по ru/en; понятно, когда начинаются капчи | D21 |
 | S9 | Web Push в self-hosted Next 16: service worker, VAPID, HTTPS, iPhone, доставка через прокси (`web-push` `proxy`) | уведомление приходит при закрытой вкладке на десктопе; понятно, что нужно для iPhone | D24 |
 | S10 | OAuth MCP через `authProvider` из `@ai-sdk/mcp` с токенами в нашей БД (v2) | подключили публичный OAuth MCP-сервер; токен сам обновился после истечения; отзыв → `needs_reauth` | D25, D26 |
 | S11 | Песочница: microsandbox против gVisor на целевом хосте (v3) | изолированный запуск Python без сети; понятно, работает ли на Docker Desktop под macOS | D3 |
