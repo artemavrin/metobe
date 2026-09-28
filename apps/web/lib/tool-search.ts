@@ -12,6 +12,9 @@ export const FIND_TOOLS = "find_tools";
 /** A server with more tools than this lends them on demand. */
 export const ON_DEMAND_AFTER = 12;
 
+/** A lent server with at most this many tools has their names listed in the search's description. */
+export const NAMES_LISTED_UP_TO = 40;
+
 /** Words of tool names that say what a tool does, not what it is about. */
 const GENERIC = new Set([
   "a",
@@ -93,8 +96,13 @@ export const lendTools = (servers: ServerTools[], used: Set<string>) => {
     if (onDemand) {
       const topics = topicsOf(names.map((n) => n.slice(server.key.length + 1)));
       const about = server.description ? ` (${server.description})` : "";
+      // Up to a few dozen, the names themselves: the model searches by them instead of guessing words.
+      const listed =
+        names.length <= NAMES_LISTED_UP_TO
+          ? `: ${names.join(", ")}`
+          : `, mostly about ${topics.join(", ")}`;
       lent.push(
-        `${server.title}${about} — ${names.length} tools named ${server.key}_…, mostly about ${topics.join(", ")}`
+        `${server.title}${about} — ${names.length} tools named ${server.key}_…${listed}`
       );
     }
   }
