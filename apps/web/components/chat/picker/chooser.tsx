@@ -239,8 +239,9 @@ export const ModelChooser = ({
                   <button
                     aria-label={t("chipLabel", { title: model.title })}
                     className={cn(
-                      "group/chip relative flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm",
-                      "hover:bg-muted data-[popup-open]:bg-muted active:scale-[0.97]",
+                      "group/chip relative flex h-9 items-center gap-1.5 rounded-full px-3 text-sm",
+                      // On the composer's grey pill: a shade of the text, not the pill's own grey.
+                      "hover:bg-foreground/[0.06] data-[popup-open]:bg-foreground/[0.06] active:scale-[0.97]",
                       "[transition:scale_160ms_cubic-bezier(0.23,1,0.32,1),background-color_150ms_ease] motion-reduce:active:scale-100"
                     )}
                     type="button"

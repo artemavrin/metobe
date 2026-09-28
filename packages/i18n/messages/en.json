@@ -162,6 +162,14 @@
       "connect": "Connect",
       "refused": "That did not work — check the details"
     },
+    "add": {
+      "label": "Add",
+      "files": "Files",
+      "skills": "Skills",
+      "mcp": "MCP servers",
+      "soon": "Soon",
+      "noServers": "No servers available"
+    },
     "work": {
       "working": "Working…",
       "done": "Work",
