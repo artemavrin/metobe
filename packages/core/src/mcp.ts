@@ -392,10 +392,12 @@ export const listMyConnections = async (userId: string) => {
 };
 export type MyServer = Awaited<ReturnType<typeof listMyConnections>>[number];
 
-/** A server's tools for a chat, as `<key>_<name>`, with what names the server to the model. */
+/** A server's tools for a chat, as `<key>_<name>`, with what names and describes the server to the model. */
 export interface ServerTools {
   key: string;
   title: string;
+  /** The admin's word on what the service is for; null when none was given. */
+  description: string | null;
   tools: ToolSet;
 }
 
@@ -441,7 +443,12 @@ export const toolsForUser = async (
         await noteConnection(owner).catch((noteError: unknown) =>
           console.error("mcp: could not note a use", item.key, noteError)
         );
-        return { key: item.key, title: item.title, tools: set };
+        return {
+          description: item.description,
+          key: item.key,
+          title: item.title,
+          tools: set,
+        };
       } catch (error) {
         console.error("mcp: a server is left out", item.key, error);
         if (error instanceof UnauthorizedError) {

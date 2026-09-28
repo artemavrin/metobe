@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@metobe/ui/components/select";
 import { Switch } from "@metobe/ui/components/switch";
+import { Textarea } from "@metobe/ui/components/textarea";
 import { cn } from "@metobe/ui/lib/utils";
 import { LogIn, LogOut, RefreshCw, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -40,6 +41,7 @@ import {
   check,
   remove,
   rename,
+  setDescription,
   setAccess,
   setApprovals,
   setLogo,
@@ -697,6 +699,7 @@ export const ServerDetail = ({
   const router = useRouter();
   const [name, setName] = useState(item.title);
   const [url, setUrl] = useState(item.config.url);
+  const [about, setAbout] = useState(item.description ?? "");
   const [checking, startCheck] = useTransition();
   const [, startChange] = useTransition();
   const [removing, startRemove] = useTransition();
@@ -817,6 +820,23 @@ export const ServerDetail = ({
               }}
               onChange={(e) => setUrl(e.target.value)}
               value={url}
+            />
+          </Row>
+          <Row hint={t("descriptionHint")} label={t("description")}>
+            <Textarea
+              aria-label={t("description")}
+              className="max-h-40 min-h-16 w-full md:w-96"
+              maxLength={500}
+              onBlur={() => {
+                if (about.trim() !== (item.description ?? "")) {
+                  startChange(async () => {
+                    await setDescription(item.id, about);
+                  });
+                }
+              }}
+              onChange={(e) => setAbout(e.target.value)}
+              placeholder={t("descriptionPlaceholder")}
+              value={about}
             />
           </Row>
           <Row hint={t("transportHint")} label={t("transport")}>

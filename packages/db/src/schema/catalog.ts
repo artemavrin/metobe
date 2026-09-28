@@ -49,6 +49,8 @@ export const catalogItems = pgTable(
       .$type<CredentialMode>()
       .notNull()
       .default("shared"),
+    /** What the service is and when to turn to it, in a line or two: the model reads it. Optional. */
+    description: text("description"),
     enabled: boolean("enabled").notNull().default(true),
     health: jsonb("health").$type<CatalogHealth>(),
     id: uuid("id").primaryKey().defaultRandom(),

@@ -8,6 +8,7 @@ import {
   FIND_TOOLS,
   ON_DEMAND_AFTER,
   lendTools,
+  servicesNote,
   topicsOf,
 } from "./tool-search";
 
@@ -44,8 +45,18 @@ const bigNames = [
   "bitrix_lead_stage_list",
   ...Array.from({ length: ON_DEMAND_AFTER }, (_, i) => `bitrix_task_${i}`),
 ];
-const big = { key: "bitrix", title: "Битрикс", tools: named(bigNames) };
-const small = { key: "notes", title: "Заметки", tools: named(["notes_read"]) };
+const big = {
+  description: "CRM компании — сделки и задачи",
+  key: "bitrix",
+  title: "Битрикс",
+  tools: named(bigNames),
+};
+const small = {
+  description: null,
+  key: "notes",
+  title: "Заметки",
+  tools: named(["notes_read"]),
+};
 
 const namesSent = (call: { tools?: { name: string }[] }) =>
   (call.tools ?? []).map((t) => t.name);
@@ -73,7 +84,7 @@ describe("a big server's tools on demand", () => {
     expect(tools.bitrix_create_deal?.deferLoading).toBe(true);
     expect(tools.notes_read?.deferLoading).toBeUndefined();
     expect(tools[FIND_TOOLS]?.description).toContain(
-      "Битрикс — 15 tools named bitrix_…"
+      "Битрикс (CRM компании — сделки и задачи) — 15 tools named bitrix_…"
     );
     expect(lendTools([small], new Set())[FIND_TOOLS]).toBeUndefined();
   });
@@ -134,5 +145,21 @@ describe("a big server's tools on demand", () => {
     expect(namesSent(second ?? {})).not.toContain("bitrix_task_0");
     expect(calls).toEqual(["bitrix_create_deal"]);
     expect(result.text).toBe("Готово.");
+  });
+});
+
+describe("what the model is told of the chat's services", () => {
+  it("names each by its prefix with the admin's word, and where a big one's tools are found", () => {
+    expect(servicesNote([big, small])).toBe(
+      [
+        "MCP services connected in this chat:",
+        `- Битрикс (tools named bitrix_…): CRM компании — сделки и задачи. Its tools are found with ${FIND_TOOLS}.`,
+        "- Заметки (tools named notes_…)",
+      ].join("\n")
+    );
+  });
+
+  it("says nothing without servers", () => {
+    expect(servicesNote([])).toBeUndefined();
   });
 });
