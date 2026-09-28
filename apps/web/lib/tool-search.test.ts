@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import {
   FIND_TOOLS,
+  NAMES_LISTED_UP_TO,
   ON_DEMAND_AFTER,
   lendTools,
   servicesNote,
@@ -87,6 +88,24 @@ describe("a big server's tools on demand", () => {
       "Битрикс (CRM компании — сделки и задачи) — 15 tools named bitrix_…"
     );
     expect(lendTools([small], new Set())[FIND_TOOLS]).toBeUndefined();
+  });
+
+  it("lists a lent server's tool names up to a few dozen, the words of them beyond", () => {
+    expect(lendTools([big], new Set())[FIND_TOOLS]?.description).toContain(
+      "15 tools named bitrix_…: bitrix_create_deal, bitrix_deal_stage_list"
+    );
+    const huge = {
+      ...big,
+      tools: named(
+        Array.from(
+          { length: NAMES_LISTED_UP_TO + 1 },
+          (_, i) => `bitrix_deal_${i}`
+        )
+      ),
+    };
+    const description = lendTools([huge], new Set())[FIND_TOOLS]?.description;
+    expect(description).toContain("mostly about deal");
+    expect(description).not.toContain("bitrix_deal_0");
   });
 
   it("loads at once the tools the thread has already called", () => {

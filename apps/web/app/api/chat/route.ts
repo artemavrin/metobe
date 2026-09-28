@@ -36,6 +36,7 @@ import { applyApprovals } from "@/lib/approvals";
 import { getAuth } from "@/lib/auth";
 import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
 import { mentionedIn } from "@/lib/mentions";
+import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 import { lendTools, servicesNote } from "@/lib/tool-search";
 
@@ -299,9 +300,10 @@ export const POST = async (request: Request) => {
           console.error("chat: the model failed", model.id, causes(error));
           return record({ latencyMs: firstChunk, status: "error" });
         },
+        // A tool's result goes back to the model until it answers in words — within reason; the last step answers.
+        prepareStep: lastStepAnswers,
         providerOptions: prompt.providerOptions,
-        // A tool's result goes back to the model until it answers in words — within reason.
-        stopWhen: isStepCount(10),
+        stopWhen: isStepCount(MAX_STEPS),
         tools,
       });
       // Runs the generation to its end on the server, so the answer is saved even when the client has left.
