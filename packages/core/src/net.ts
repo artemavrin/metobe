@@ -6,6 +6,7 @@ import type { Dispatcher } from "undici";
 
 import { onConfigChange } from "./config-bus";
 import { getDb } from "./db";
+import { probeExit } from "./net-echo";
 import { resolveRoute } from "./net-route";
 import type { Route, Target } from "./net-route";
 import {
@@ -184,9 +185,6 @@ export const addProxy = async (config: ProxyConfig, title = config.host) => {
   return row.id;
 };
 
-/** Where the check goes through the proxy: it answers with the exit IP and its country. */
-export const IP_ECHO_URL = "https://ipinfo.io/json";
-
 /** A real request through the proxy; the result is stored on the proxy and shown in the list. */
 export const checkProxy = async (proxyId: string): Promise<ProxyHealth> => {
   const { db } = getDb();
@@ -198,16 +196,11 @@ export const checkProxy = async (proxyId: string): Promise<ProxyHealth> => {
   const started = Date.now();
   let health: ProxyHealth;
   try {
-    const res = await fetchWith(
-      dispatcherFor(`${proxyId}:plain`, () => proxyDispatcher(config))
-    )(IP_ECHO_URL, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) {
-      throw new Error(`${IP_ECHO_URL} answered ${res.status}`);
-    }
-    const body = (await res.json()) as { ip?: string; country?: string };
+    const body = await probeExit(
+      fetchWith(
+        dispatcherFor(`${proxyId}:plain`, () => proxyDispatcher(config))
+      )
+    );
     health = {
       checkedAt: new Date().toISOString(),
       country: body.country,
