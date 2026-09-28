@@ -60,7 +60,9 @@ const shape = (parts: Part[]) => {
       if (s.kind === "tool") {
         return `tool:${s.calls.map((c) => c.toolCallId).join("+")}`;
       }
-      return s.kind === "search" ? `search:${s.key}` : `${s.kind}:${s.text}`;
+      return s.kind === "search" || s.kind === "web"
+        ? `${s.kind}:${s.key}`
+        : `${s.kind}:${s.text}`;
     }),
   };
 };

@@ -5,6 +5,10 @@ export type ToolPart = Extract<Part, { type: "dynamic-tool" }>;
 export type TablePart = Extract<Part, { type: "tool-show_table" }>;
 export type ChartPart = Extract<Part, { type: "tool-show_chart" }>;
 export type SearchPart = Extract<Part, { type: "tool-find_tools" }>;
+export type WebPart = Extract<
+  Part,
+  { type: "tool-web_search" } | { type: "tool-web_fetch" }
+>;
 
 export type WorkStep =
   | { kind: "thought"; key: string; text: string }
@@ -12,7 +16,9 @@ export type WorkStep =
   /** The same tool called several times in a row is one step. */
   | { kind: "tool"; key: string; calls: ToolPart[] }
   /** The model looking for a big server's tools. */
-  | { kind: "search"; key: string; part: SearchPart };
+  | { kind: "search"; key: string; part: SearchPart }
+  /** A web search or a page read. */
+  | { kind: "web"; key: string; part: WebPart };
 
 /** What the answer shows, in order: its words and the tables and charts the model built. */
 export type AnswerBlock =
@@ -38,12 +44,17 @@ const addWords = (
   }
 };
 
-/** Where the work ends: the last call of a server's tool or of the search for them; -1 without any. */
+/** Where the work ends: the last call of a server's tool, of the search for them or of the web; -1 without any. */
 const lastToolAt = (parts: Part[]) => {
   // findLastIndex is past the ES2022 target.
   let at = -1;
   for (const [i, p] of parts.entries()) {
-    if (p.type === "dynamic-tool" || p.type === "tool-find_tools") {
+    if (
+      p.type === "dynamic-tool" ||
+      p.type === "tool-find_tools" ||
+      p.type === "tool-web_search" ||
+      p.type === "tool-web_fetch"
+    ) {
       at = i;
     }
   }
@@ -74,6 +85,11 @@ export const answerWork = (parts: Part[]) => {
       }
     } else if (part.type === "tool-find_tools") {
       steps.push({ key: part.toolCallId, kind: "search", part });
+    } else if (
+      part.type === "tool-web_search" ||
+      part.type === "tool-web_fetch"
+    ) {
+      steps.push({ key: part.toolCallId, kind: "web", part });
     } else if (part.type === "dynamic-tool") {
       if (last?.kind === "tool" && last.calls[0]?.toolName === part.toolName) {
         last.calls.push(part);

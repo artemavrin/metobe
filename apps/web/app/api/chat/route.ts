@@ -20,6 +20,7 @@ import {
 import { recordRun, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
+import { webToolsOn } from "@metobe/core/web-settings";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -39,6 +40,12 @@ import { mentionedIn } from "@/lib/mentions";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 import { lendTools, servicesNote } from "@/lib/tool-search";
+import {
+  WEB_FETCH,
+  WEB_SEARCH,
+  webFetchTool,
+  webSearchTool,
+} from "@/lib/web-tools";
 
 // POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
 // the last answer's approvals — and the history comes from the database. The user's message is saved before the model is called, the answer when the stream ends —
@@ -247,8 +254,8 @@ export const POST = async (request: Request) => {
         }
       };
       // The MCP servers the thread mentions (ARCH §8) — a big one's tools on demand, each told to the model with what
-      // it is for — and our own table and chart; a model that says it cannot call tools gets none. Ours come last, so
-      // a server's tool of the same name cannot replace them.
+      // it is for — and our own table, chart and the web; a model that says it cannot call tools gets none. Ours come
+      // last, so a server's tool of the same name cannot replace them.
       const servers =
         model.capabilities.tools === false
           ? []
@@ -256,6 +263,8 @@ export const POST = async (request: Request) => {
               session.user.id,
               await serversOf(session.user.id, uiMessages)
             );
+      // The web as the admin left it (ARCH §8.1): search needs a SearXNG, reading pages does not.
+      const web = await webToolsOn();
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -263,6 +272,8 @@ export const POST = async (request: Request) => {
               ...lendTools(servers, calledIn(uiMessages)),
               [CHART_TOOL]: chartTool,
               [TABLE_TOOL]: tableTool,
+              ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
+              ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
             };
       const result = streamText({
         instructions: servicesNote(servers),
