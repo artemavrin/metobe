@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "@metobe/ui/components/skeleton";
+import { cn } from "@metobe/ui/lib/utils";
 import { GridLoader } from "gridora";
 import type { ReactNode } from "react";
 
@@ -14,6 +15,7 @@ export const WidgetFrame = ({
   streaming,
   building,
   actions,
+  framed = true,
   children,
 }: {
   title: string;
@@ -22,15 +24,25 @@ export const WidgetFrame = ({
   /** What is going on while the model writes: «Собирает таблицу…». */
   building: string;
   actions?: ReactNode;
+  /** A card with a border (a table); without it the widget stands on the page (a chart). */
+  framed?: boolean;
   children: ReactNode;
 }) => (
   // A border, not a ring: a grid's rows paint over a ring's sides; `overflow-hidden` clips inside a border.
   <section
     aria-busy={streaming}
     aria-label={title || undefined}
-    className="bg-card border-foreground/10 w-full overflow-hidden rounded-xl border"
+    className={cn(
+      "w-full",
+      framed && "bg-card border-foreground/10 overflow-hidden rounded-xl border"
+    )}
   >
-    <header className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
+    <header
+      className={cn(
+        "flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 py-2",
+        framed ? "border-b px-3" : "px-1"
+      )}
+    >
       <div className="me-auto flex min-w-0 items-baseline gap-2">
         {title ? (
           <h3 className="truncate text-sm font-medium">{title}</h3>

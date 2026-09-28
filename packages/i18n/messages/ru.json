@@ -260,7 +260,9 @@
       "points": "{count, plural, one {# точка} few {# точки} many {# точек} other {# точки}}",
       "total": "всего {value}",
       "other": "Прочее",
-      "noData": "Нет данных"
+      "noData": "Нет данных",
+      "showData": "Данные",
+      "showChart": "График"
     },
     "connectRequest": {
       "needed": "Нужен вход в {server}",

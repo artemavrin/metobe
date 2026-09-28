@@ -1,3 +1,4 @@
+import { chartKinds } from "@metobe/contracts/chart";
 import type {
   ChartAxisType,
   ChartKind,
@@ -11,6 +12,8 @@ export interface ChartSeries {
   key: string;
   label: string;
   unit?: string;
+  /** Composed: bars or a line. */
+  as: "bar" | "line";
 }
 
 export type ChartPoint = { x: string | number } & Record<
@@ -26,6 +29,14 @@ export interface ChartView {
   series: ChartSeries[];
   points: ChartPoint[];
   stacked: boolean;
+  /** Stacked as shares of 100%. */
+  percent: boolean;
+  /** Bars on their side. */
+  horizontal: boolean;
+  /** Curved between points; false — straight. */
+  smooth: boolean;
+  /** A pie with a hole. */
+  donut: boolean;
   /** The model is still writing it. */
   streaming: boolean;
 }
@@ -35,12 +46,16 @@ interface PartialInput {
   title?: string;
   kind?: string;
   x?: { label?: string; type?: string };
-  series?: ({ label?: string; unit?: string } | undefined)[];
+  series?: ({ label?: string; unit?: string; as?: string } | undefined)[];
   stacked?: boolean;
+  percent?: boolean;
+  horizontal?: boolean;
+  smooth?: boolean;
+  donut?: boolean;
   points?: (ChartValue[] | undefined)[];
 }
 
-const KINDS = new Set<string>(["bar", "line", "area", "pie"]);
+const KINDS = new Set<string>(chartKinds);
 const AXES = new Set<string>(["category", "date", "number"]);
 
 /** A number out of what the model wrote — 12, "12", "12,5", "1 200"; anything else is a gap. */
@@ -55,6 +70,14 @@ export const toNumber = (value: ChartValue | undefined): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+/** Composed: what the model said a series is, else the first as bars and the rest as lines. */
+const composedAs = (said: string | undefined, index: number) => {
+  if (said === "bar" || said === "line") {
+    return said;
+  }
+  return index === 0 ? "bar" : "line";
+};
+
 /**
  * What of a chart can be drawn now. While the model writes, only whole things: the series once it has moved on to
  * the points, and every point but the last — the last may be cut mid-number. When it is done, all of it.
@@ -67,7 +90,14 @@ export const chartView = (part: ChartPart): ChartView => {
     ? (input.series ?? []).flatMap((s, i) =>
         s?.label === undefined
           ? []
-          : [{ key: `s${i}`, label: s.label, unit: s.unit || undefined }]
+          : [
+              {
+                as: composedAs(s.as, i),
+                key: `s${i}`,
+                label: s.label,
+                unit: s.unit || undefined,
+              },
+            ]
       )
     : [];
   const written = input.points ?? [];
@@ -86,10 +116,14 @@ export const chartView = (part: ChartPart): ChartView => {
       })
     : [];
   return {
+    donut: input.donut !== false,
+    horizontal: input.horizontal === true,
     kind: KINDS.has(input.kind ?? "") ? (input.kind as ChartKind) : "bar",
+    percent: input.percent === true,
     points,
     series,
-    stacked: input.stacked === true,
+    smooth: input.smooth !== false,
+    stacked: input.stacked === true || input.percent === true,
     streaming,
     title: input.title ?? "",
     x: {
@@ -101,10 +135,10 @@ export const chartView = (part: ChartPart): ChartView => {
   };
 };
 
-/** The theme's five chart colors: a pie of more slices keeps the biggest four and puts the rest together. */
-const MAX_SLICES = 5;
+/** The theme's eight chart colors: more slices keep the biggest seven and put the rest together. */
+const MAX_SLICES = 8;
 
-/** A pie's slices, the biggest first; past five, the rest go together under `other`. */
+/** A pie's slices, the biggest first; past eight, the rest go together under `other` (flagged, so it can be neutral). */
 export const pieSlices = (view: ChartView, other: string) => {
   const key = view.series[0]?.key;
   if (!key) {
@@ -120,10 +154,15 @@ export const pieSlices = (view: ChartView, other: string) => {
   // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own copy
   slices.sort((a, b) => b.value - a.value);
   if (slices.length <= MAX_SLICES) {
-    return slices;
+    return slices.map((slice) => ({ ...slice, other: false }));
   }
   const rest = slices
     .slice(MAX_SLICES - 1)
     .reduce((sum, s) => sum + s.value, 0);
-  return [...slices.slice(0, MAX_SLICES - 1), { name: other, value: rest }];
+  return [
+    ...slices
+      .slice(0, MAX_SLICES - 1)
+      .map((slice) => ({ ...slice, other: false })),
+    { name: other, other: true, value: rest },
+  ];
 };
