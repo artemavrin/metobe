@@ -19,7 +19,9 @@ import {
 } from "@metobe/core/chat";
 import { recordRun, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
+import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
+import type { ChatServer } from "@metobe/core/mcp";
 import { webToolsOn } from "@metobe/core/web-settings";
 import {
   consumeStream,
@@ -34,9 +36,15 @@ import {
 import type { ToolSet } from "ai";
 import { headers } from "next/headers";
 
-import { applyApprovals } from "@/lib/approvals";
+import { applyApprovals, applyConnections, settleAsks } from "@/lib/approvals";
 import { getAuth } from "@/lib/auth";
 import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
+import {
+  MAIL_KEY,
+  REQUEST_CONNECTION,
+  requestConnectionTool,
+} from "@/lib/connect-tool";
+import { emailTools } from "@/lib/email-tools";
 import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
@@ -97,22 +105,35 @@ const provisionalTitle = (message: ChatMessage) =>
 /** What a request makes of the chat: the messages the model gets, the one to save, and where to cut first. */
 interface Prepared {
   messages: ChatMessage[];
-  save: ChatMessage;
+  save: ChatMessage[];
   dropFrom?: string;
 }
 
 const askAnew = (stored: ChatMessage[], message: ChatMessage): Prepared => {
   const again = stored.findIndex((m) => m.id === message.id);
+  const before = again === -1 ? stored : stored.slice(0, again);
+  // An ask for a connection the user passed by with this question: «not connected», saved so.
+  const last = before.at(-1);
+  const settled = last?.role === "assistant" ? settleAsks(last) : last;
+  const changed = settled && settled !== last ? [settled] : [];
   return {
     dropFrom: again === -1 ? undefined : message.id,
-    messages: [...(again === -1 ? stored : stored.slice(0, again)), message],
-    save: message,
+    messages: [
+      ...before.slice(0, changed.length ? -1 : undefined),
+      ...changed,
+      message,
+    ],
+    save: [...changed, message],
   };
 };
 
-/** The user's answers to the last answer's approvals, applied to the server's copy; null when they fit nothing. */
+/**
+ * The user's answers to the last answer's approvals and «connect X to go on», applied to the server's copy; null
+ * when they fit nothing. Whether a server is connected is the server's to say (`connected`), not the client's.
+ */
 const applyToLast = (
   stored: ChatMessage[],
+  connected: (server: string) => boolean,
   approvals?: Approvals
 ): Prepared | null => {
   const last = stored.at(-1);
@@ -123,26 +144,50 @@ const applyToLast = (
   ) {
     return null;
   }
-  const answered = applyApprovals(last, approvals.answers);
-  return answered
-    ? { messages: [...stored.slice(0, -1), answered], save: answered }
+  const approved = approvals.answers.length
+    ? applyApprovals(last, approvals.answers)
+    : last;
+  const answered =
+    approved && approvals.connections.length
+      ? applyConnections(approved, approvals.connections, connected)
+      : approved;
+  return answered && answered !== last
+    ? { messages: [...stored.slice(0, -1), answered], save: [answered] }
     : null;
 };
 
 /**
  * The MCP servers whose tools the model gets: those the thread's questions mention (`@Title`, read as the thread
- * draws its badges). A server stays on while a question that names it is in the thread — an edited or dropped
- * question takes its servers along.
+ * draws its badges), and those the user connected when an answer asked. A server stays on while a question that
+ * names it is in the thread — an edited or dropped question takes its servers along.
  */
-const serversOf = async (userId: string, thread: ChatMessage[]) =>
-  mentionedIn(
+const serversOf = (servers: ChatServer[], thread: ChatMessage[]) => {
+  const mentioned = mentionedIn(
     thread.flatMap((m) =>
       m.role === "user"
         ? m.parts.flatMap((p) => (p.type === "text" ? [p.text] : []))
         : []
     ),
-    await listChatServers(userId)
+    servers
   );
+  const asked = new Set(
+    thread.flatMap((m) =>
+      m.parts.flatMap((p) =>
+        p.type === "tool-request_connection" &&
+        p.state === "output-available" &&
+        p.output.connected
+          ? [p.input.server]
+          : []
+      )
+    )
+  );
+  return [
+    ...new Set([
+      ...mentioned,
+      ...servers.filter((s) => asked.has(s.key)).map((s) => s.id),
+    ]),
+  ];
+};
 
 /** The MCP tools the thread has called: a big server loads them at once for the next question. */
 const calledIn = (thread: ChatMessage[]) =>
@@ -169,10 +214,18 @@ export const POST = async (request: Request) => {
   if (chat && chat.userId !== session.user.id) {
     return fail("forbidden", 403);
   }
-  const stored = chat ? await listMessages(id) : [];
+  const [stored, chatServers, boxes] = await Promise.all([
+    chat ? listMessages(id) : [],
+    listChatServers(session.user.id),
+    listMailboxes(session.user.id),
+  ]);
+  const ready = (key: string) =>
+    key === MAIL_KEY
+      ? boxes.length > 0
+      : chatServers.some((s) => s.key === key && s.signIn === "ready");
   const prepared = message
     ? askAnew(stored, message)
-    : applyToLast(stored, body.data.approvals);
+    : applyToLast(stored, ready, body.data.approvals);
   if (!prepared) {
     return fail("bad-request", 400);
   }
@@ -213,7 +266,7 @@ export const POST = async (request: Request) => {
   if (prepared.dropFrom) {
     await deleteMessagesFrom(id, prepared.dropFrom);
   }
-  await saveMessages(id, [prepared.save]);
+  await saveMessages(id, prepared.save);
   // Carrying on after approvals writes into the same answer.
   const originalMessages = message ? undefined : uiMessages;
   // «Stop» reaches the model through this (D6): what was written by then is saved as the answer.
@@ -265,10 +318,11 @@ export const POST = async (request: Request) => {
           ? []
           : await toolsForUser(
               session.user.id,
-              await serversOf(session.user.id, uiMessages)
+              serversOf(chatServers, uiMessages)
             );
       // The web as the admin left it (ARCH §8.1): search needs a SearXNG, reading pages does not.
       const web = await webToolsOn();
+      const waiting = chatServers.filter((s) => s.signIn === "self");
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -278,6 +332,16 @@ export const POST = async (request: Request) => {
               [TABLE_TOOL]: tableTool,
               ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
               ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
+              // The user's own mail, when they have a box (ARCH §17.7).
+              ...(boxes.length > 0 ? emailTools(session.user.id, boxes) : {}),
+              // «Connect X to go on», while there is a per-user service or mail the user has not connected.
+              ...(waiting.length > 0 || boxes.length === 0
+                ? {
+                    [REQUEST_CONNECTION]: requestConnectionTool(waiting, {
+                      mail: boxes.length === 0,
+                    }),
+                  }
+                : {}),
             };
       const result = streamText({
         abortSignal: generation.signal,

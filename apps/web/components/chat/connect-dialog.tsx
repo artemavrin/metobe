@@ -24,18 +24,25 @@ import { useState, useTransition } from "react";
  */
 export const ConnectDialog = ({
   server,
+  reason,
   onClose,
   onConnect,
 }: {
   server: ChatServer | null;
+  /** Why the answer asks for it, in the model's words. */
+  reason?: string;
   onClose: () => void;
-  /** Saves and checks; false when the server refused the credentials. */
-  onConnect: (secret: string, username?: string) => Promise<boolean>;
+  /** Saves and checks: `refused` — the server did not take the credentials; `error` — it did not answer. */
+  onConnect: (
+    secret: string,
+    username?: string
+  ) => Promise<"ok" | "refused" | "error">;
 }) => {
   const t = useTranslations("chat.mcp");
   const [username, setUsername] = useState("");
   const [secret, setSecret] = useState("");
-  const [refused, setRefused] = useState(false);
+  const [problem, setProblem] = useState<"refused" | "error" | null>(null);
+  const refused = problem !== null;
   const [pending, start] = useTransition();
   const basic = server?.auth === "basic";
   let label = t("token");
@@ -46,23 +53,23 @@ export const ConnectDialog = ({
   }
   const submit = () =>
     start(async () => {
-      setRefused(false);
-      const ok = await onConnect(
+      setProblem(null);
+      const result = await onConnect(
         secret.trim(),
         basic ? username.trim() : undefined
       );
-      if (ok) {
+      if (result === "ok") {
         setSecret("");
         setUsername("");
       } else {
-        setRefused(true);
+        setProblem(result);
       }
     });
   return (
     <Dialog
       onOpenChange={(open) => {
         if (!open) {
-          setRefused(false);
+          setProblem(null);
           onClose();
         }
       }}
@@ -73,7 +80,7 @@ export const ConnectDialog = ({
           <DialogTitle>
             {t("connectTitle", { server: server?.title ?? "" })}
           </DialogTitle>
-          <DialogDescription>{t("connectText")}</DialogDescription>
+          <DialogDescription>{reason ?? t("connectText")}</DialogDescription>
         </DialogHeader>
         <form
           className="flex flex-col gap-4"
@@ -112,7 +119,13 @@ export const ConnectDialog = ({
                 value={secret}
               />
             </InputGroup>
-            {refused && <FieldError>{t("refused")}</FieldError>}
+            {problem && (
+              <FieldError>
+                {problem === "refused"
+                  ? t("refused")
+                  : t("unreachable", { server: server?.title ?? "" })}
+              </FieldError>
+            )}
           </Field>
         </form>
         <DialogFooter>

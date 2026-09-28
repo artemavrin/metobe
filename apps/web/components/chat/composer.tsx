@@ -484,7 +484,7 @@ export const Composer = ({
         onConnect={async (secret, username) => {
           const server = connecting;
           if (!server) {
-            return false;
+            return "error";
           }
           const result = await connectServer({
             catalogId: server.id,
@@ -493,12 +493,12 @@ export const Composer = ({
             username,
           });
           if (result.state !== "ok") {
-            return false;
+            return result.state === "refused" ? "refused" : "error";
           }
           setConnecting(null);
           onServerReady(server.id);
           insert(server);
-          return true;
+          return "ok";
         }}
         server={connecting}
       />

@@ -36,6 +36,7 @@ import { PickerDataProvider } from "@/components/chat/picker/data";
 import type { PickerModel } from "@/components/chat/picker/data";
 import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { chatProblem } from "@/lib/chat-errors";
+import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
 import { threadRows } from "@/lib/thread-rows";
 import type { ThreadRow } from "@/lib/thread-rows";
 
@@ -178,6 +179,7 @@ export const ChatView = ({
                 ? {
                     approvals: {
                       answers: decisionsOf(last),
+                      connections: connectionsOf(last),
                       messageId: last.id,
                     },
                     id: chatId,
@@ -195,6 +197,7 @@ export const ChatView = ({
   );
   const {
     addToolApprovalResponse,
+    addToolOutput,
     clearError,
     error,
     messages,
@@ -213,8 +216,11 @@ export const ChatView = ({
         touch({ id, title: part.data });
       }
     },
-    // Once every asked call of the last answer has the user's yes or no, the answer carries on by itself.
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+    // Once every asked call of the last answer has the user's yes or no, or the user answered its ask to connect a
+    // service, the answer carries on by itself.
+    sendAutomaticallyWhen: (options) =>
+      lastAssistantMessageIsCompleteWithApprovalResponses(options) ||
+      answeredAsk(options.messages),
     transport,
   });
   const busy = status === "submitted" || status === "streaming";
@@ -312,7 +318,15 @@ export const ChatView = ({
         onApprove={(approvalId, approved) =>
           addToolApprovalResponse({ approved, id: approvalId })
         }
+        onAsk={(toolCallId, connected) =>
+          addToolOutput({
+            output: { connected },
+            tool: "request_connection",
+            toolCallId,
+          })
+        }
         onRegenerate={busy ? undefined : regenerateFrom}
+        onServerReady={serverReady}
         servers={servers}
       />
     );

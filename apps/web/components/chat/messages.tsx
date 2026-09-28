@@ -37,6 +37,7 @@ import {
   CircleX,
   Copy,
   ListChecks,
+  Mail,
   Pencil,
   RefreshCw,
   Search,
@@ -49,6 +50,8 @@ import { Streamdown } from "streamdown";
 import { BrandLogo } from "@/components/brand-logo";
 import { AnswerChart } from "@/components/chat/answer-chart";
 import { AnswerTable } from "@/components/chat/answer-table";
+import { ApprovalCard } from "@/components/chat/approval-card";
+import { ConnectRequest } from "@/components/chat/connect-request";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { WebSources, WebStep } from "@/components/chat/web-step";
@@ -60,6 +63,12 @@ import "gridora/styles.css";
 import "streamdown/styles.css";
 
 const NO_SERVERS: ChatServer[] = [];
+
+/** The user's own mail's tools (lib/email-tools). */
+const isMailTool = (
+  name: string
+): name is "email_send" | "email_search" | "email_read" =>
+  name === "email_send" || name === "email_search" || name === "email_read";
 
 /** A tool's server, by its name's prefix — the longest wins: `kaskad_hr` over `kaskad` — and its name without it. */
 const toolOwner = (toolName: string, servers: ChatServer[]) => {
@@ -120,18 +129,17 @@ const stateOf = (calls: ToolPart[]): CallState => {
 /**
  * A step of the work: a tool called once or several times in a row, as a line — the server's picture, the tool's
  * name, where it stands (the grid while it runs). It unfolds into what went in and what came back, call by call;
- * a call that asks first carries its «Разрешить / Отклонить» here.
+ * a call that asks first has its card in the answer (ApprovalCard), the step only says it waits.
  */
 const ToolStep = ({
   calls,
   servers,
-  onApprove,
 }: {
   calls: ToolPart[];
   servers: ChatServer[];
-  onApprove?: (approvalId: string, approved: boolean) => void;
 }) => {
   const t = useTranslations("chat.tools");
+  const tMail = useTranslations("mail.tools");
   const state = stateOf(calls);
   // Asked first: what would go in is shown at once, so the user sees what they allow.
   const [open, setOpen] = useState(state === "waiting");
@@ -139,12 +147,23 @@ const ToolStep = ({
   if (!first) {
     return null;
   }
-  const { label, server } = toolLook(first, servers);
-  let icon = server ? (
-    <BrandLogo label={server.title} logo={server.logo ?? undefined} size={14} />
-  ) : (
-    <Wrench />
-  );
+  const look = toolLook(first, servers);
+  const { server } = look;
+  // The user's own mail: named in their words, with its envelope.
+  const mail = isMailTool(first.toolName) ? first.toolName : null;
+  const label = mail ? tMail(mail) : look.label;
+  let icon = <Wrench />;
+  if (server) {
+    icon = (
+      <BrandLogo
+        label={server.title}
+        logo={server.logo ?? undefined}
+        size={14}
+      />
+    );
+  } else if (mail) {
+    icon = <Mail />;
+  }
   if (state === "running") {
     icon = (
       <GridLoader
@@ -219,26 +238,6 @@ const ToolStep = ({
           ))}
         </div>
       </CollapsibleContent>
-      {onApprove &&
-        calls.map((call) =>
-          call.state === "approval-requested" ? (
-            <div className="mt-2 flex gap-2" key={call.approval.id}>
-              <Button
-                onClick={() => onApprove(call.approval.id, true)}
-                size="sm"
-              >
-                {t("approve")}
-              </Button>
-              <Button
-                onClick={() => onApprove(call.approval.id, false)}
-                size="sm"
-                variant="ghost"
-              >
-                {t("deny")}
-              </Button>
-            </div>
-          ) : null
-        )}
     </Collapsible>
   );
 };
@@ -369,16 +368,13 @@ const WorkBlock = ({
   working,
   workMs,
   servers,
-  onApprove,
 }: {
   steps: WorkStep[];
   working: boolean;
   workMs?: number;
   servers: ChatServer[];
-  onApprove?: (approvalId: string, approved: boolean) => void;
 }) => {
   const t = useTranslations("chat.work");
-  const [open, setOpen] = useAutoOpen(working);
   // A search or a page read is a call too; the search for a server's tools is not.
   let calls = 0;
   for (const s of steps) {
@@ -390,11 +386,24 @@ const WorkBlock = ({
   }
   const seconds =
     workMs === undefined ? null : Math.max(1, Math.round(workMs / 1000));
-  // A call waiting for the user's yes is read whole: what would go in, and the buttons.
+  // A call waiting for the user's yes: its card is in the answer, the work only says it waits.
   const asking = steps.some(
     (s) =>
       s.kind === "tool" && s.calls.some((c) => c.state === "approval-requested")
   );
+  const [open, setOpen] = useAutoOpen(working);
+  let summary = [
+    t("done"),
+    t("calls", { count: calls }),
+    seconds && t("seconds", { seconds }),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (working) {
+    summary = t("working");
+  } else if (asking) {
+    summary = t("asking");
+  }
   return (
     <Collapsible
       className="flex flex-col items-start"
@@ -419,15 +428,7 @@ const WorkBlock = ({
           )}
         </MarkerIcon>
         <MarkerContent className={cn(working && "shimmer")}>
-          {working
-            ? t("working")
-            : [
-                t("done"),
-                t("calls", { count: calls }),
-                seconds && t("seconds", { seconds }),
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+          {summary}
         </MarkerContent>
         <MarkerIcon className="-ml-1">
           <ChevronRight
@@ -440,7 +441,7 @@ const WorkBlock = ({
       </Marker>
       <CollapsibleContent className="h-(--collapsible-panel-height) w-full overflow-hidden transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none">
         <ThoughtWindow
-          bounded={!asking}
+          bounded
           className="border-border mt-2 border-l pl-3"
           following={working}
           startAtEnd={working}
@@ -452,7 +453,6 @@ const WorkBlock = ({
                   <ToolStep
                     calls={step.calls}
                     key={step.key}
-                    onApprove={onApprove}
                     servers={servers}
                   />
                 );
@@ -896,6 +896,49 @@ const AnswerFooter = ({
   );
 };
 
+/** An answer's reasoning as one text. */
+const reasoningOf = (message?: ChatMessage) =>
+  (message?.parts ?? [])
+    .flatMap((p) => (p.type === "reasoning" ? [p.text] : []))
+    .join("\n\n")
+    .trim();
+
+type Waiting = Extract<ToolPart, { state: "approval-requested" }>;
+
+/** The work's calls that wait for the user's yes. */
+const waitingCalls = (steps: WorkStep[]) =>
+  steps.flatMap((s) =>
+    s.kind === "tool"
+      ? s.calls.filter((c): c is Waiting => c.state === "approval-requested")
+      : []
+  );
+
+/** Their cards, in the answer: who asks, what would go, yes or no. */
+const ApprovalCards = ({
+  calls,
+  servers,
+  onApprove,
+}: {
+  calls: Waiting[];
+  servers: ChatServer[];
+  onApprove: (approvalId: string, approved: boolean) => void;
+}) => {
+  const tMail = useTranslations("mail.tools");
+  return calls.map((call) => {
+    const look = toolLook(call, servers);
+    const mail = isMailTool(call.toolName) ? call.toolName : null;
+    return (
+      <ApprovalCard
+        call={call}
+        key={call.approval.id}
+        label={mail ? tMail(mail) : look.label}
+        onApprove={onApprove}
+        server={look.server}
+      />
+    );
+  });
+};
+
 /**
  * An answer: the status line (the wait, the reasoning folded), then the text as markdown — new words fade in while
  * it streams. Under it, once it is done: the model that wrote it, when, copy and regenerate.
@@ -906,6 +949,8 @@ export const AssistantMessage = ({
   live,
   onRegenerate,
   onApprove,
+  onAsk,
+  onServerReady,
   servers = NO_SERVERS,
 }: {
   /** Absent while the question waits for the stream to start. */
@@ -917,6 +962,10 @@ export const AssistantMessage = ({
   onRegenerate?: (messageId: string) => void;
   /** The user's yes or no on a tool call the model asked to make. */
   onApprove?: (approvalId: string, approved: boolean) => void;
+  /** The user's answer to «connect X to go on»: connected or not now. */
+  onAsk?: (toolCallId: string, connected: boolean) => void;
+  /** A server the user just connected from the answer. */
+  onServerReady?: (id: string) => void;
   /** The chat's MCP servers: their pictures and prefixes name the tools in the work. */
   servers?: ChatServer[];
 }) => {
@@ -924,13 +973,16 @@ export const AssistantMessage = ({
   const hasWork = steps.length > 0;
   // The answer has begun: its first words or a table.
   const answering = blocks.length > 0;
+  // Calls waiting for the user's yes: their cards stand in the answer, not in the work.
+  const waiting = waitingCalls(steps);
+  // Waiting on the user — to connect a service, or to allow a call: not done, so no footer yet.
+  const asking =
+    waiting.length > 0 ||
+    blocks.some(
+      (b) => b.kind === "connect" && b.part.state === "input-available"
+    );
   // Without tools the status line keeps the reasoning; with them the reasoning is a step of the work.
-  const reasoning = hasWork
-    ? ""
-    : (message?.parts ?? [])
-        .flatMap((p) => (p.type === "reasoning" ? [p.text] : []))
-        .join("\n\n")
-        .trim();
+  const reasoning = hasWork ? "" : reasoningOf(message);
   return (
     <Message>
       <MessageContent className="gap-2">
@@ -941,11 +993,17 @@ export const AssistantMessage = ({
         />
         {hasWork && (
           <WorkBlock
-            onApprove={onApprove}
             servers={servers}
             steps={steps}
             workMs={message?.metadata?.workMs}
             working={live && !answering}
+          />
+        )}
+        {onApprove && (
+          <ApprovalCards
+            calls={waiting}
+            onApprove={onApprove}
+            servers={servers}
           />
         )}
         {blocks.map((block, i) => {
@@ -954,6 +1012,17 @@ export const AssistantMessage = ({
           }
           if (block.kind === "chart") {
             return <AnswerChart key={block.key} part={block.part} />;
+          }
+          if (block.kind === "connect") {
+            return (
+              <ConnectRequest
+                key={block.key}
+                onAnswer={(id, connected) => onAsk?.(id, connected)}
+                onServerReady={(id) => onServerReady?.(id)}
+                part={block.part}
+                servers={servers}
+              />
+            );
           }
           return (
             <Bubble className="w-full" key={block.key} variant="ghost">
@@ -974,7 +1043,7 @@ export const AssistantMessage = ({
             parts={steps.flatMap((s) => (s.kind === "web" ? [s.part] : []))}
           />
         )}
-        {!live && message && (
+        {!live && message && !asking && (
           <AnswerFooter
             copy={answer || undefined}
             label={label}

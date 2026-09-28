@@ -1,0 +1,1 @@
+ALTER TABLE "mailboxes" ADD COLUMN "tool_policy" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -111,6 +111,13 @@ const GROUPS: { title: string; description: string; entries: Entry[] }[] = [
         status: "выбрано",
         title: "Мои подключения",
       },
+      {
+        description: "Модели нужен сервис без вашей учётки: «Подключите X, чтобы продолжить» — в ответе с формой, строкой с диалогом или над композером. После подключения ответ продолжается сам.",
+        href: "/dev/prototypes/request-connection",
+        icon: Plug,
+        status: "выбираем",
+        title: "Запрос подключения из чата",
+      },
     ],
     title: "P8 · Подключения",
   },

@@ -160,7 +160,8 @@
       "username": "Login",
       "password": "Password",
       "connect": "Connect",
-      "refused": "That did not work — check the details"
+      "refused": "That did not work — check the details",
+      "unreachable": "{server} does not answer — try again a bit later"
     },
     "add": {
       "label": "Add",
@@ -185,7 +186,8 @@
       "working": "Working…",
       "done": "Work",
       "calls": "{count, plural, one {# call} other {# calls}}",
-      "seconds": "{seconds}s"
+      "seconds": "{seconds}s",
+      "asking": "Waiting for your decision"
     },
     "table": {
       "building": "Building the table…",
@@ -259,6 +261,29 @@
       "total": "{value} in total",
       "other": "Other",
       "noData": "No data"
+    },
+    "connectRequest": {
+      "needed": "Sign in to {server}",
+      "notNow": "Not now",
+      "connect": "Connect",
+      "signIn": "Sign in",
+      "carryOn": "Carry on",
+      "connected": "{server} is connected",
+      "skipped": "{server} is not connected"
+    },
+    "approval": {
+      "title": "Allow «{tool}»?",
+      "hint": "The model wants to act in {server}. This is what goes:",
+      "letterTitle": "Send the letter?",
+      "letterHint": "The model wrote a letter in your name — check it before it goes.",
+      "from": "From",
+      "to": "To",
+      "cc": "Cc",
+      "subject": "Subject",
+      "send": "Send",
+      "dontSend": "Don't send",
+      "approve": "Allow",
+      "deny": "Deny"
     }
   },
   "login": {
@@ -1161,6 +1186,105 @@
       "unreachable": "Does not answer: {detail}",
       "json-off": "JSON is off — add json to search.formats in settings.yml",
       "status": "Answered with an error: {detail}"
+    }
+  },
+  "mail": {
+    "form": {
+      "service": "Mail",
+      "presets": {
+        "yandex": "Yandex",
+        "gmail": "Gmail",
+        "mailru": "Mail.ru",
+        "custom": "Other"
+      },
+      "address": "Address",
+      "username": "Login",
+      "usernameHint": "usually the address",
+      "password": "Password",
+      "appPassword": "App password",
+      "hints": {
+        "yandex": "Yandex does not let mail apps in with the ordinary password — make a separate password for apps.",
+        "gmail": "You need an app password: it appears once 2-Step Verification is on in your Google account.",
+        "mailru": "It needs a password for external apps, not the mailbox's own. One can be made once a phone is linked to the account."
+      },
+      "makeAppPassword": "Make one",
+      "smtp": "Sending (SMTP)",
+      "imap": "Inbox (IMAP)",
+      "port": "Port",
+      "security": "Encryption",
+      "securities": {
+        "ssl": "SSL/TLS",
+        "starttls": "STARTTLS",
+        "none": "None"
+      },
+      "submit": "Check and connect",
+      "checking": "Checking…",
+      "cancel": "Cancel",
+      "problems": {
+        "authPreset": "The mail did not take the address or password. It needs an app password, not the mailbox's own.",
+        "auth": "The server did not take the login or password.",
+        "unreachable": "The {server} server does not answer — check the address and port.",
+        "tls": "The {server} server answered with an encryption error — check the port and the encryption.",
+        "private": "That is an address on the internal network — not for personal mail. Ask the admin to add the server to the catalog.",
+        "busy": "Too many checks in a row — wait a few minutes."
+      }
+    },
+    "list": {
+      "group": "Mail",
+      "add": "Add mail",
+      "sendsReads": "Sending and inbox",
+      "empty": "Connect mail"
+    },
+    "page": {
+      "title": "New mail",
+      "description": "The model can send letters from this address (each with your yes), search and read the inbox.",
+      "servers": "Servers",
+      "smtp": "Sending",
+      "imap": "Inbox",
+      "login": "Login",
+      "password": "Password",
+      "reconnect": "Change password",
+      "state": "State",
+      "used": "used {when}",
+      "notUsed": "not used yet",
+      "leave": "Disconnect",
+      "leaveHint": "The password is removed and the model stops seeing this box. The letters in it stay as they are.",
+      "leaveButton": "Disconnect {address}",
+      "leaveTitle": "Disconnect {address}?",
+      "leaveConfirm": "Disconnect",
+      "cancel": "Cancel"
+    },
+    "status": {
+      "active": "Works",
+      "needs_reauth": "Sign in again",
+      "error": "Does not work"
+    },
+    "tools": {
+      "email_send": "Letter",
+      "email_search": "Mail search",
+      "email_read": "Reading a letter"
+    },
+    "policy": {
+      "title": "What the model can do",
+      "values": {
+        "ask": "Ask first",
+        "auto": "Without asking",
+        "deny": "Off"
+      },
+      "tools": {
+        "email_send": {
+          "label": "Send letters",
+          "hint": "In your name — a sent letter cannot be taken back"
+        },
+        "email_search": {
+          "label": "Search letters",
+          "hint": "By words, sender, date"
+        },
+        "email_read": {
+          "label": "Read letters",
+          "hint": "The text and the attachments' names"
+        }
+      }
     }
   }
 }
