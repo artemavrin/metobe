@@ -16,7 +16,8 @@ export type OwnerType =
   | "catalog_item"
   | "connection"
   | "search_backend"
-  | "proxy";
+  | "proxy"
+  | "mailbox";
 export type Purpose =
   | "api_key"
   | "password"

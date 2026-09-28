@@ -1,5 +1,6 @@
 import "server-only";
 import { listCatalog } from "@metobe/core/catalog";
+import { listMailboxes } from "@metobe/core/mailboxes";
 import { listMyConnections } from "@metobe/core/mcp";
 import type { MyServer } from "@metobe/core/mcp";
 import { listProviders } from "@metobe/core/providers";
@@ -30,6 +31,17 @@ export interface ListEntry {
   count?: number;
   /** A heading the entry sits under; entries of a group come together. */
   group?: string;
+  /** Instead of a logo: a kind's own picture (a mailbox's envelope). */
+  icon?: "mail";
+}
+
+/** A group of the user's own connections of one kind, after the list's entries: its own «+», and a row when empty. */
+export interface ListSection {
+  title: string;
+  add: { label: string; href: string };
+  /** The row an empty section shows, leading to `add`. */
+  empty: string;
+  entries: ListEntry[];
 }
 
 export interface SettingsList {
@@ -37,6 +49,7 @@ export interface SettingsList {
   meta: string;
   add?: { label: string; href: string };
   entries: ListEntry[];
+  sections?: ListSection[];
 }
 
 export type SettingsLists = Partial<Record<SettingsSectionId, SettingsList>>;
@@ -205,9 +218,11 @@ const mcpList = async (): Promise<SettingsList> => {
  * with where it stands: when it was last used, or what it needs.
  */
 const connectionsList = async (userId: string): Promise<SettingsList> => {
-  const [rows, t, format] = await Promise.all([
+  const [rows, boxes, t, tm, format] = await Promise.all([
     listMyConnections(userId),
+    listMailboxes(userId),
     getTranslations("myConnections"),
+    getTranslations("mail"),
     getFormatter(),
   ]);
   const now = new Date();
@@ -231,11 +246,37 @@ const connectionsList = async (userId: string): Promise<SettingsList> => {
       title: r.title,
     };
   };
+  // The user's own mailboxes, after the servers: each with when it was used, or what it needs.
+  const mailSub = (b: (typeof boxes)[number]) => {
+    if (b.status !== "active") {
+      return tm(`status.${b.status}`);
+    }
+    return b.lastUsedAt
+      ? t("used", { when: format.relativeTime(b.lastUsedAt, now) })
+      : t("notUsed");
+  };
+  const mail = boxes.map((b): ListEntry => ({
+    href: `/settings/connections/mail/${b.id}`,
+    icon: "mail",
+    id: b.id,
+    logo: undefined,
+    state: standingDot(b.status),
+    sub: mailSub(b),
+    title: b.address,
+  }));
+  const working = connected + boxes.filter((b) => b.status === "active").length;
+  const total = own.length + boxes.length;
   return {
     entries: [...own, ...rows.filter((r) => r.mode === "shared")].map(entry),
-    meta: own.length
-      ? t("meta", { connected, total: own.length })
-      : t("metaEmpty"),
+    meta: total ? t("meta", { connected: working, total }) : t("metaEmpty"),
+    sections: [
+      {
+        add: { href: "/settings/connections/mail/new", label: tm("list.add") },
+        empty: tm("list.empty"),
+        entries: mail,
+        title: tm("list.group"),
+      },
+    ],
     title: t("title"),
   };
 };

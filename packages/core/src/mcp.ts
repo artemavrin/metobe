@@ -297,6 +297,7 @@ export const listChatServers = async (userId: string) => {
       config: catalogItems.config,
       connection: connections.status,
       credentialMode: catalogItems.credentialMode,
+      description: catalogItems.description,
       health: catalogItems.health,
       id: catalogItems.id,
       key: catalogItems.key,
@@ -323,6 +324,8 @@ export const listChatServers = async (userId: string) => {
     }
     return {
       auth: r.config.auth,
+      /** The admin's words on what the service is for, told to the model. */
+      description: r.description,
       headerName: r.config.headerName,
       id: r.id,
       /** Its tools' prefix in a chat (`<key>_<tool>`). */

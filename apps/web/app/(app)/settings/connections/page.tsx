@@ -1,3 +1,4 @@
+import { listMailboxes } from "@metobe/core/mailboxes";
 import { listMyConnections } from "@metobe/core/mcp";
 import { Button } from "@metobe/ui/components/button";
 import {
@@ -23,12 +24,21 @@ const ConnectionsPage = async () => {
   if (!user) {
     notFound();
   }
-  const servers = await listMyConnections(user.id);
+  const [servers, boxes] = await Promise.all([
+    listMyConnections(user.id),
+    listMailboxes(user.id),
+  ]);
   const first = servers.find((s) => s.mode === "per_user") ?? servers[0];
   if (first) {
     redirect(`/settings/connections/${first.id}`);
   }
-  const t = await getTranslations("myConnections");
+  if (boxes[0]) {
+    redirect(`/settings/connections/mail/${boxes[0].id}`);
+  }
+  const [t, tm] = await Promise.all([
+    getTranslations("myConnections"),
+    getTranslations("mail.list"),
+  ]);
   return (
     <div className="flex min-h-[60dvh] items-center justify-center px-6">
       <Empty>
@@ -43,8 +53,14 @@ const ConnectionsPage = async () => {
             {admin ? t("empty.textAdmin") : t("empty.text")}
           </EmptyDescription>
         </EmptyHeader>
-        {admin && (
-          <EmptyContent>
+        <EmptyContent className="flex-row justify-center">
+          <Button
+            nativeButton={false}
+            render={<Link href="/settings/connections/mail/new" />}
+          >
+            {tm("add")}
+          </Button>
+          {admin && (
             <Button
               nativeButton={false}
               render={<Link href="/settings/mcp" />}
@@ -52,8 +68,8 @@ const ConnectionsPage = async () => {
             >
               {t("empty.catalog")}
             </Button>
-          </EmptyContent>
-        )}
+          )}
+        </EmptyContent>
       </Empty>
     </div>
   );

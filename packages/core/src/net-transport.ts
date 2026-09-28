@@ -249,3 +249,23 @@ export const parseProxyAddress = (
     ? { host: groups.host, port, type }
     : null;
 };
+
+/** The name resolved here and checked public — for SSRF-guarded traffic that is not HTTP (a user's own mail). */
+export const resolvePublic = (hostname: string) =>
+  pin(hostname, isPublicAddress);
+
+/**
+ * A proxy as a URL for libraries that take one (nodemailer, imapflow). The destination given to it is an IP we
+ * checked, so a `socks5h` proxy has no name to resolve and is used as SOCKS5.
+ */
+export const proxyUrlOf = (proxy: ProxyConfig) => {
+  if (proxy.type === "socks5" || proxy.type === "socks5h") {
+    const url = new URL(`socks5://${proxy.host}:${proxy.port}`);
+    if (proxy.username) {
+      url.username = encodeURIComponent(proxy.username);
+      url.password = encodeURIComponent(proxy.password ?? "");
+    }
+    return url.toString();
+  }
+  return proxyUrl(proxy).toString();
+};

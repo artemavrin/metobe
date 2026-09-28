@@ -42,6 +42,11 @@ export type ChatTools = {
     input: { query: string };
     output: { tools: { name: string; description?: string }[] };
   };
+  /** The model asks the user to connect a per-user server this answer needs; the user's answer comes back as output. */
+  request_connection: {
+    input: RequestConnectionInput;
+    output: RequestConnectionOutput;
+  };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_table: { input: TableInput; output: TableOutput };
   web_fetch: { input: WebFetchInput; output: WebFetchOutput };
@@ -79,6 +84,23 @@ export const chatTitleFrom = (text: string) => {
   return line.length > 80 ? `${line.slice(0, 79)}…` : line;
 };
 
+/** «Connect X to go on»: which server (its key) and, in a line, why this answer needs it. */
+export const requestConnectionInputSchema = z.object({
+  reason: z.string().min(1).max(300),
+  server: z.string().min(1).max(100),
+});
+export type RequestConnectionInput = z.infer<
+  typeof requestConnectionInputSchema
+>;
+
+/** Whether the server is connected now — as the server saw it, not as the client said. */
+export const requestConnectionOutputSchema = z.object({
+  connected: z.boolean(),
+});
+export type RequestConnectionOutput = z.infer<
+  typeof requestConnectionOutputSchema
+>;
+
 /** A generous bound for one message: long pastes are normal, a runaway client is not. */
 const MAX_TEXT = 100_000;
 
@@ -98,19 +120,30 @@ export const userMessageSchema = z.object({
  * The user's answers to «ask first?» on the last answer's tool calls: which answer, and yes or no per request. Only
  * the decisions travel — the server applies them to its own copy of the answer and carries it on.
  */
-export const approvalsSchema = z.object({
-  answers: z
-    .array(
-      z.object({
-        approved: z.boolean(),
-        id: z.string().min(1).max(200),
-        reason: z.string().max(500).optional(),
-      })
-    )
-    .min(1)
-    .max(20),
-  messageId: z.uuid(),
-});
+export const approvalsSchema = z
+  .object({
+    answers: z
+      .array(
+        z.object({
+          approved: z.boolean(),
+          id: z.string().min(1).max(200),
+          reason: z.string().max(500).optional(),
+        })
+      )
+      .max(20)
+      .default([]),
+    /** The user's answers to «connect X to go on», by tool call; the server checks the connection itself. */
+    connections: z
+      .array(
+        z.object({ connected: z.boolean(), id: z.string().min(1).max(200) })
+      )
+      .max(10)
+      .default([]),
+    messageId: z.uuid(),
+  })
+  .refine((a) => a.answers.length + a.connections.length > 0, {
+    message: "an approval or a connection",
+  });
 export type Approvals = z.infer<typeof approvalsSchema>;
 
 /**

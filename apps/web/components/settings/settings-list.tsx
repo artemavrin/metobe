@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
-import { ChevronLeft, Plus, Search } from "lucide-react";
+import { ChevronLeft, Mail, Plus, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -66,6 +66,142 @@ const useListHighlight = (activeKey: string | undefined, count: number) => {
     />
   ) : null;
   return { highlight, ref };
+};
+
+/** A kind's own picture in a tile, in place of a logo. */
+const KindTile = ({ children }: { children: React.ReactNode }) => (
+  <span className="bg-background text-muted-foreground grid size-7 shrink-0 place-items-center rounded-md border [&_svg]:size-3.5">
+    {children}
+  </span>
+);
+
+type Entry = SettingsList["entries"][number];
+
+/** One row: its picture, its title, where it stands. */
+const EntryRow = ({
+  entry,
+  active,
+  onPick,
+}: {
+  entry: Entry;
+  active: boolean;
+  onPick: () => void;
+}) => (
+  <Link
+    aria-current={active ? "page" : undefined}
+    className={cn(
+      "relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99]",
+      !active && "hover:bg-sidebar-accent/60"
+    )}
+    data-active={active}
+    data-entry={entry.id}
+    href={entry.href}
+    onClick={onPick}
+  >
+    {entry.icon === "mail" && (
+      <KindTile>
+        <Mail />
+      </KindTile>
+    )}
+    {!entry.icon &&
+      (entry.mark ? (
+        <ProxyMark flag={entry.mark.flag} size={28} />
+      ) : (
+        <BrandLogo label={entry.title} logo={entry.logo} size={28} />
+      ))}
+    <span className="flex min-w-0 flex-1 flex-col">
+      <span className="truncate font-medium">{entry.title}</span>
+      <span
+        className={cn(
+          "flex items-center gap-1.5 truncate text-xs",
+          entry.state === "error" ? "text-destructive" : "text-muted-foreground"
+        )}
+      >
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full transition-colors duration-200",
+            DOT[entry.state]
+          )}
+        />
+        {entry.sub}
+      </span>
+    </span>
+    {entry.count !== undefined && (
+      <span className="text-muted-foreground text-xs tabular-nums">
+        {entry.count}
+      </span>
+    )}
+  </Link>
+);
+
+/**
+ * A group of the user's own connections of one kind: its heading with its own «+», its entries — or, while it has
+ * none, one row that adds the first.
+ */
+const Section = ({
+  section,
+  activeId,
+  query,
+  onPick,
+}: {
+  section: NonNullable<SettingsList["sections"]>[number];
+  activeId: string | undefined;
+  query: string;
+  onPick: () => void;
+}) => {
+  const entries = query
+    ? section.entries.filter((e) => e.title.toLowerCase().includes(query))
+    : section.entries;
+  if (query && entries.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      <div className="flex items-center justify-between pt-3 pr-1 pb-1 pl-2.5">
+        <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+          {section.title}
+        </p>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label={section.add.label}
+                className="text-muted-foreground"
+                nativeButton={false}
+                onClick={onPick}
+                render={<Link href={section.add.href} />}
+                size="icon-xs"
+                variant="ghost"
+              />
+            }
+          >
+            <Plus />
+          </TooltipTrigger>
+          <TooltipContent>{section.add.label}</TooltipContent>
+        </Tooltip>
+      </div>
+      {entries.map((e) => (
+        <EntryRow
+          active={e.id === activeId}
+          entry={e}
+          key={e.id}
+          onPick={onPick}
+        />
+      ))}
+      {entries.length === 0 && (
+        <Link
+          className="text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60 flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-[background-color,color] duration-150"
+          href={section.add.href}
+          onClick={onPick}
+        >
+          <span className="grid size-7 shrink-0 place-items-center rounded-md border border-dashed [&_svg]:size-3.5">
+            <Plus />
+          </span>
+          {section.empty}
+        </Link>
+      )}
+    </>
+  );
 };
 
 export const SettingsListLevel = ({
@@ -137,7 +273,7 @@ export const SettingsListLevel = ({
       <div className="min-h-0 flex-1 overflow-y-auto pt-1">
         <nav className="relative flex flex-col gap-0.5 px-2 pb-3" ref={ref}>
           {highlight}
-          {entries.length === 0 && (
+          {entries.length === 0 && !list.sections?.length && (
             <p className="text-muted-foreground px-2.5 py-2 text-sm">
               {t("nothing")}
             </p>
@@ -154,50 +290,19 @@ export const SettingsListLevel = ({
                     {heading}
                   </p>
                 )}
-                <Link
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99]",
-                    !active && "hover:bg-sidebar-accent/60"
-                  )}
-                  data-active={active}
-                  data-entry={e.id}
-                  href={e.href}
-                  onClick={close}
-                >
-                  {e.mark ? (
-                    <ProxyMark flag={e.mark.flag} size={28} />
-                  ) : (
-                    <BrandLogo label={e.title} logo={e.logo} size={28} />
-                  )}
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate font-medium">{e.title}</span>
-                    <span
-                      className={cn(
-                        "flex items-center gap-1.5 truncate text-xs",
-                        e.state === "error"
-                          ? "text-destructive"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "size-1.5 shrink-0 rounded-full transition-colors duration-200",
-                          DOT[e.state]
-                        )}
-                      />
-                      {e.sub}
-                    </span>
-                  </span>
-                  {e.count !== undefined && (
-                    <span className="text-muted-foreground text-xs tabular-nums">
-                      {e.count}
-                    </span>
-                  )}
-                </Link>
+                <EntryRow active={active} entry={e} onPick={close} />
               </Fragment>
             );
           })}
+          {list.sections?.map((section) => (
+            <Section
+              activeId={activeId}
+              key={section.title}
+              onPick={close}
+              query={q}
+              section={section}
+            />
+          ))}
         </nav>
       </div>
     </>

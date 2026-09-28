@@ -4,6 +4,7 @@ type Part = ChatMessage["parts"][number];
 export type ToolPart = Extract<Part, { type: "dynamic-tool" }>;
 export type TablePart = Extract<Part, { type: "tool-show_table" }>;
 export type ChartPart = Extract<Part, { type: "tool-show_chart" }>;
+export type ConnectPart = Extract<Part, { type: "tool-request_connection" }>;
 export type SearchPart = Extract<Part, { type: "tool-find_tools" }>;
 export type WebPart = Extract<
   Part,
@@ -20,11 +21,13 @@ export type WorkStep =
   /** A web search or a page read. */
   | { kind: "web"; key: string; part: WebPart };
 
-/** What the answer shows, in order: its words and the tables and charts the model built. */
+/** What the answer shows, in order: its words, the tables and charts the model built, and its asks to connect. */
 export type AnswerBlock =
   | { kind: "text"; key: string; text: string }
   | { kind: "table"; key: string; part: TablePart }
-  | { kind: "chart"; key: string; part: ChartPart };
+  | { kind: "chart"; key: string; part: ChartPart }
+  /** «Connect X to go on»: the answer waits on the user there. */
+  | { kind: "connect"; key: string; part: ConnectPart };
 
 /** Reasoning or words between tool calls: one step, or more of the step before it when it is of the same kind. */
 const addWords = (
@@ -61,6 +64,24 @@ const lastToolAt = (parts: Part[]) => {
   return at;
 };
 
+/** A part that is a block of the answer of its own: a table, a chart, an ask to connect; null for anything else. */
+const blockOf = (part: Part): AnswerBlock | null => {
+  switch (part.type) {
+    case "tool-show_table": {
+      return { key: part.toolCallId, kind: "table", part };
+    }
+    case "tool-show_chart": {
+      return { key: part.toolCallId, kind: "chart", part };
+    }
+    case "tool-request_connection": {
+      return { key: part.toolCallId, kind: "connect", part };
+    }
+    default: {
+      return null;
+    }
+  }
+};
+
 /**
  * An answer split in two: its work — reasoning, tool calls and what the model said between them, everything up to
  * its last tool call — and the answer itself: the words after it and the tables and charts, wherever they come. Without tools
@@ -73,10 +94,9 @@ export const answerWork = (parts: Part[]) => {
   for (const [i, part] of parts.entries()) {
     const last = steps.at(-1);
     const lastBlock = blocks.at(-1);
-    if (part.type === "tool-show_table") {
-      blocks.push({ key: part.toolCallId, kind: "table", part });
-    } else if (part.type === "tool-show_chart") {
-      blocks.push({ key: part.toolCallId, kind: "chart", part });
+    const block = blockOf(part);
+    if (block) {
+      blocks.push(block);
     } else if (part.type === "text" && i > lastTool) {
       if (lastBlock?.kind === "text") {
         lastBlock.text += part.text;
