@@ -16,6 +16,7 @@ import {
 
 import { connectServer } from "@/app/(app)/(chat)/actions";
 import { AddMenu } from "@/components/chat/add-menu";
+import { useChatPrefs } from "@/components/chat/chat-shell";
 import { ConnectDialog } from "@/components/chat/connect-dialog";
 import { MentionMenu } from "@/components/chat/mention-menu";
 import { ModelChooser } from "@/components/chat/picker/chooser";
@@ -194,6 +195,7 @@ export const Composer = ({
   onServerReady: (id: string) => void;
 }) => {
   const t = useTranslations("chat");
+  const { sendKey } = useChatPrefs();
   const editor = useRef<EditorHandle>(null);
   const box = useRef<HTMLDivElement>(null);
   const nav = useRef<NavSource>("snap");
@@ -409,6 +411,7 @@ export const Composer = ({
               <TokenEditor
                 autoFocus
                 className="col-start-2 row-start-1 max-h-60 min-h-9 px-2 py-1.5 leading-6 group-data-tall/deck:col-span-3 group-data-tall/deck:col-start-1 md:leading-6"
+                modEnterSends={sendKey === "mod-enter"}
                 onChange={onDraft}
                 onEmptyChange={onEmptyChange}
                 onKeyDown={(e) => {

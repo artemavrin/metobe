@@ -204,6 +204,7 @@ export const TokenEditor = ({
   onTrigger,
   onKeyDown,
   onSubmit,
+  modEnterSends = false,
 }: {
   ref: React.Ref<EditorHandle>;
   placeholder: string;
@@ -217,6 +218,8 @@ export const TokenEditor = ({
   /** Returns true when the key was handled (an open menu takes arrows, Enter, Tab, Esc). */
   onKeyDown: (e: React.KeyboardEvent) => boolean;
   onSubmit: () => void;
+  /** ⌘/Ctrl+Enter sends and a plain Enter breaks the line, instead of the other way round. */
+  modEnterSends?: boolean;
 }) => {
   const root = useRef<HTMLDivElement>(null);
   const templates = useRef<HTMLDivElement>(null);
@@ -401,10 +404,12 @@ export const TokenEditor = ({
           taken.current = null;
           if (e.key === "Enter" && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            if (e.shiftKey) {
-              insertText("\n");
-            } else {
+            // Enter sends and Shift+Enter breaks the line — or, as the user chose, ⌘/Ctrl+Enter sends and Enter breaks it.
+            const sends = modEnterSends ? e.metaKey || e.ctrlKey : !e.shiftKey;
+            if (sends) {
               onSubmit();
+            } else {
+              insertText("\n");
             }
           }
         }}

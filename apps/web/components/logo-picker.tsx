@@ -18,6 +18,8 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { BrandLogo, LOGOS } from "@/components/brand-logo";
+import { UserAvatar } from "@/components/user-avatar";
+import { cropAvatar } from "@/lib/avatar-crop";
 
 // Click a logo to change it (prototype P7): the built-in set, an image of your own (upload, drop or paste), or back
 // to the automatic one. Uploaded images are kept as data URLs until there is file storage, hence the size cap.
@@ -31,6 +33,7 @@ export const LogoPicker = ({
   onPick,
   size = 64,
   hosts = false,
+  person = false,
 }: {
   value: string | undefined;
   label: string;
@@ -39,6 +42,8 @@ export const LogoPicker = ({
   size?: number;
   /** Servers and services first (for sources), makers first otherwise. */
   hosts?: boolean;
+  /** A person's picture: a round avatar with their initials, no built-in set, cropped to a square on upload. */
+  person?: boolean;
 }) => {
   const t = useTranslations("logoPicker");
   const file = useRef<HTMLInputElement>(null);
@@ -52,9 +57,22 @@ export const LogoPicker = ({
     setBump((n) => n + 1);
     setOpen(false);
   };
+  const takePerson = async (f: File) => {
+    const data = await cropAvatar(f);
+    if (data) {
+      pick(data);
+    } else {
+      setError(true);
+    }
+  };
   const take = (f: File | null | undefined) => {
     if (!f?.type.startsWith("image/")) {
       return false;
+    }
+    if (person) {
+      // A photo may be big: it is cut and shrunk here, and only the small square is kept.
+      void takePerson(f);
+      return true;
     }
     if (f.size > MAX_BYTES) {
       setError(true);
@@ -80,7 +98,7 @@ export const LogoPicker = ({
         return;
       }
       const text = e.clipboardData?.getData("text/plain").trim() ?? "";
-      if (text.startsWith("<svg") && text.length <= MAX_BYTES) {
+      if (!person && text.startsWith("<svg") && text.length <= MAX_BYTES) {
         e.preventDefault();
         pick(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`);
       }
@@ -105,8 +123,11 @@ export const LogoPicker = ({
       <PopoverTrigger
         render={
           <button
-            aria-label={t("change")}
-            className="group relative shrink-0 rounded-[28%] transition-transform duration-150 ease-out active:scale-[0.97]"
+            aria-label={person ? t("avatarChange") : t("change")}
+            className={cn(
+              "group relative shrink-0 transition-transform duration-150 ease-out active:scale-[0.97]",
+              "rounded-[28%]"
+            )}
             type="button"
           />
         }
@@ -119,9 +140,24 @@ export const LogoPicker = ({
           )}
           key={bump}
         >
-          <BrandLogo label={label} logo={value} size={size} />
+          {person ? (
+            <span className="block" style={{ height: size, width: size }}>
+              <UserAvatar
+                className="size-full text-base"
+                image={value}
+                name={label}
+              />
+            </span>
+          ) : (
+            <BrandLogo label={label} logo={value} size={size} />
+          )}
         </span>
-        <span className="bg-foreground/35 text-background absolute inset-0 flex items-center justify-center rounded-[28%] opacity-0 backdrop-blur-[2px] transition-opacity duration-150 group-hover:opacity-100">
+        <span
+          className={cn(
+            "bg-foreground/35 text-background absolute inset-0 flex items-center justify-center opacity-0 backdrop-blur-[2px] transition-opacity duration-150 group-hover:opacity-100",
+            "rounded-[28%]"
+          )}
+        >
           <ImageUp className="size-5" />
         </span>
       </PopoverTrigger>
@@ -147,27 +183,38 @@ export const LogoPicker = ({
               {t("drop")}
             </span>
           )}
-          <span className="text-sm font-medium">{t("title")}</span>
-          <div className="grid grid-cols-7 gap-1.5">
-            {logos.map(([slug, l]) => (
-              <button
-                aria-label={l.label}
-                className={cn(
-                  "rounded-lg p-1 transition-transform duration-150 ease-out active:scale-[0.97]",
-                  value === slug
-                    ? "bg-muted ring-primary ring-2"
-                    : "hover:bg-muted"
-                )}
-                key={slug}
-                onClick={() => pick(slug)}
-                title={l.label}
-                type="button"
-              >
-                <BrandLogo label={l.label} logo={slug} size={28} />
-              </button>
-            ))}
-          </div>
-          {error && <p className="text-destructive text-xs">{t("tooBig")}</p>}
+          <span className="text-sm font-medium">
+            {person ? t("avatarTitle") : t("title")}
+          </span>
+          {!person && (
+            <div className="grid grid-cols-7 gap-1.5">
+              {logos.map(([slug, l]) => (
+                <button
+                  aria-label={l.label}
+                  className={cn(
+                    "rounded-lg p-1 transition-transform duration-150 ease-out active:scale-[0.97]",
+                    value === slug
+                      ? "bg-muted ring-primary ring-2"
+                      : "hover:bg-muted"
+                  )}
+                  key={slug}
+                  onClick={() => pick(slug)}
+                  title={l.label}
+                  type="button"
+                >
+                  <BrandLogo label={l.label} logo={slug} size={28} />
+                </button>
+              ))}
+            </div>
+          )}
+          {person && (
+            <p className="text-muted-foreground text-xs">{t("avatarHint")}</p>
+          )}
+          {error && (
+            <p className="text-destructive text-xs">
+              {person ? t("avatarBroken") : t("tooBig")}
+            </p>
+          )}
           <div className="flex items-center justify-between gap-2 border-t pt-3">
             <Button
               onClick={() => file.current?.click()}
@@ -175,13 +222,14 @@ export const LogoPicker = ({
               title={t("uploadHint")}
               variant="outline"
             >
-              <ImageUp /> {t("upload")} <Kbd className="ml-1">⌘V</Kbd>
+              <ImageUp /> {person ? t("avatarUpload") : t("upload")}{" "}
+              <Kbd className="ml-1">⌘V</Kbd>
             </Button>
             <Tooltip>
               <TooltipTrigger
                 render={
                   <Button
-                    aria-label={t("auto")}
+                    aria-label={person ? t("avatarAuto") : t("auto")}
                     onClick={() => pick(null)}
                     size="icon-sm"
                     variant="ghost"
@@ -190,11 +238,17 @@ export const LogoPicker = ({
               >
                 <RotateCcw />
               </TooltipTrigger>
-              <TooltipContent>{t("auto")}</TooltipContent>
+              <TooltipContent>
+                {person ? t("avatarAuto") : t("auto")}
+              </TooltipContent>
             </Tooltip>
           </div>
           <input
-            accept="image/png,image/svg+xml,image/jpeg,image/webp"
+            accept={
+              person
+                ? "image/png,image/jpeg,image/webp,image/gif"
+                : "image/png,image/svg+xml,image/jpeg,image/webp"
+            }
             className="hidden"
             onChange={(e) => take(e.target.files?.[0])}
             ref={file}

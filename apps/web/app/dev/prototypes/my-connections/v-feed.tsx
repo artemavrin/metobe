@@ -10,7 +10,7 @@ import {
 } from "@metobe/ui/components/dropdown-menu";
 import { Spinner } from "@metobe/ui/components/spinner";
 import { cn } from "@metobe/ui/lib/utils";
-import { Ellipsis, Languages, Palette, Plug } from "lucide-react";
+import { Ellipsis, Plug, UserRound } from "lucide-react";
 import { LayoutGroup, MotionConfig, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useState, useTransition } from "react";
@@ -186,8 +186,7 @@ export const Feed = () => {
       onOpen={setSection}
       personal={[
         { badge: attention.length || undefined, icon: Plug, id: "connections", kind: "screen", label: "Подключения" },
-        { icon: Languages, id: "region", kind: "screen", label: t("sections.region.label") },
-        { icon: Palette, id: "appearance", kind: "screen", label: t("sections.appearance.label") },
+        { icon: UserRound, id: "account", kind: "screen", label: t("sections.account.label") },
       ]}
     >
       {section === "connections" && (

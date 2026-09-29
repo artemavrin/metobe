@@ -1,18 +1,18 @@
 import {
   Blocks,
+  ChartColumn,
   Cog,
   Factory,
   HardDrive,
   Info,
-  Languages,
   Mail,
   Network,
-  Palette,
   Plug,
   Search,
   Server,
   Shield,
   Sparkles,
+  UserRound,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -36,9 +36,9 @@ interface NavGroup {
 export const SETTINGS_NAV = [
   {
     items: [
-      { icon: Languages, id: "region", kind: "screen" },
-      { icon: Palette, id: "appearance", kind: "screen" },
+      { icon: UserRound, id: "account", kind: "screen" },
       { icon: Plug, id: "connections", kind: "list" },
+      { icon: ChartColumn, id: "usage", kind: "screen" },
     ],
     key: "account",
     scope: "user",

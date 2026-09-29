@@ -153,84 +153,78 @@ export const RegionForm = ({
   const now = minute === null ? null : new Date(minute * 60_000);
 
   return (
-    <>
-      <Section title={t("languageSection")}>
-        <Rows>
-          <Row hint={t("languageHint")} label={t("language")}>
-            <Pick
-              autoTag={t("auto")}
-              label={t("language")}
-              onChange={(v) => {
-                setLang(v as Locale);
-                save({ lang: v as Locale });
-              }}
-              options={locales.map((l) => ({
-                label: localeNames[l],
-                value: l,
-              }))}
-              value={lang}
-            />
-          </Row>
-        </Rows>
-      </Section>
-      <Section
-        meta={
-          now
-            ? t("now", {
-                date: formatNumericDate(now, {
-                  dateFormat: date,
-                  locale: lang,
-                  timeZone: effectiveZone,
-                }),
-                time: new Intl.DateTimeFormat(lang, {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  timeZone: effectiveZone,
-                }).format(now),
-              })
-            : undefined
-        }
-        title={t("dateTimeSection")}
-      >
-        <Rows>
-          <Row hint={t("timeZoneHint")} label={t("timeZone")}>
-            <Pick
-              autoTag={t("auto")}
-              label={t("timeZone")}
-              onChange={(v) => {
-                setZone(v);
-                save({ zone: v });
-              }}
-              options={zones}
-              value={zone}
-            />
-          </Row>
-          <Row hint={t("weekStartHint")} label={t("weekStart")}>
-            <Pick
-              autoTag={t("auto")}
-              label={t("weekStart")}
-              onChange={(v) => {
-                setWeek(v);
-                save({ week: v });
-              }}
-              options={weeks}
-              value={week}
-            />
-          </Row>
-          <Row hint={t("dateFormatHint")} label={t("dateFormat")}>
-            <Pick
-              autoTag={t("auto")}
-              label={t("dateFormat")}
-              onChange={(v) => {
-                setDate(v as DateFormat);
-                save({ date: v as DateFormat });
-              }}
-              options={dates}
-              value={date}
-            />
-          </Row>
-        </Rows>
-      </Section>
-    </>
+    <Section
+      meta={
+        now
+          ? t("now", {
+              date: formatNumericDate(now, {
+                dateFormat: date,
+                locale: lang,
+                timeZone: effectiveZone,
+              }),
+              time: new Intl.DateTimeFormat(lang, {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: effectiveZone,
+              }).format(now),
+            })
+          : undefined
+      }
+      title={t("title")}
+    >
+      <Rows>
+        <Row hint={t("languageHint")} label={t("language")}>
+          <Pick
+            autoTag={t("auto")}
+            label={t("language")}
+            onChange={(v) => {
+              setLang(v as Locale);
+              save({ lang: v as Locale });
+            }}
+            options={locales.map((l) => ({
+              label: localeNames[l],
+              value: l,
+            }))}
+            value={lang}
+          />
+        </Row>
+        <Row hint={t("timeZoneHint")} label={t("timeZone")}>
+          <Pick
+            autoTag={t("auto")}
+            label={t("timeZone")}
+            onChange={(v) => {
+              setZone(v);
+              save({ zone: v });
+            }}
+            options={zones}
+            value={zone}
+          />
+        </Row>
+        <Row hint={t("weekStartHint")} label={t("weekStart")}>
+          <Pick
+            autoTag={t("auto")}
+            label={t("weekStart")}
+            onChange={(v) => {
+              setWeek(v);
+              save({ week: v });
+            }}
+            options={weeks}
+            value={week}
+          />
+        </Row>
+        <Row hint={t("dateFormatHint")} label={t("dateFormat")}>
+          <Pick
+            autoTag={t("auto")}
+            label={t("dateFormat")}
+            onChange={(v) => {
+              setDate(v as DateFormat);
+              save({ date: v as DateFormat });
+            }}
+            options={dates}
+            value={date}
+          />
+        </Row>
+      </Rows>
+    </Section>
   );
 };
