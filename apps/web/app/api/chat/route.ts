@@ -18,7 +18,7 @@ import {
   listMessages,
   saveMessages,
 } from "@metobe/core/chat";
-import { recordRun, withPromptCache } from "@metobe/core/chat-run";
+import { recordRun, sumUsage, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
@@ -352,9 +352,18 @@ export const POST = async (request: Request) => {
         messages: prompt.messages,
         model: languageModel,
         // The model's own end frees the chat for «stop» — not the client's: it may leave, the model writes on.
-        onAbort: () => {
+        onAbort: ({ steps }) => {
           endGeneration(id, generation);
-          return record({ latencyMs: firstChunk, status: "aborted" });
+          // What the steps finished before «stop» used and cost — it was billed, so it is counted.
+          return record({
+            latencyMs: firstChunk,
+            status: "aborted",
+            stepsMetadata: steps.map((step) => step.providerMetadata),
+            usage:
+              steps.length > 0
+                ? sumUsage(steps.map((s) => s.usage))
+                : undefined,
+          });
         },
         onChunk: ({ chunk }) => {
           // Time to the first thing the user sees, not to the stream's own bookkeeping.
@@ -375,12 +384,14 @@ export const POST = async (request: Request) => {
             reasoningTo ??= Date.now();
           }
         },
-        onEnd: ({ providerMetadata, totalUsage }) => {
+        onEnd: ({ providerMetadata, steps, totalUsage }) => {
           endGeneration(id, generation);
           return record({
             latencyMs: firstChunk,
             providerMetadata,
             status: "ok",
+            // The cost of every step — the answer's tokens are the total of them, so its cost must be too.
+            stepsMetadata: steps.map((step) => step.providerMetadata),
             usage: totalUsage,
           });
         },
