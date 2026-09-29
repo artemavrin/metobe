@@ -33,11 +33,44 @@ export const createChat = async (chat: {
 export const listChats = (userId: string, limit = 200) => {
   const { db } = getDb();
   return db
-    .select({ id: chats.id, title: chats.title, updatedAt: chats.updatedAt })
+    .select({
+      id: chats.id,
+      pinnedAt: chats.pinnedAt,
+      title: chats.title,
+      updatedAt: chats.updatedAt,
+    })
     .from(chats)
     .where(and(eq(chats.userId, userId), eq(chats.kind, "chat")))
     .orderBy(desc(chats.updatedAt))
     .limit(limit);
+};
+
+// The user's own chats only: every change is scoped by the owner, so a guessed id changes nothing.
+const own = (userId: string, id: string) =>
+  and(eq(chats.id, id), eq(chats.userId, userId), eq(chats.kind, "chat"));
+
+export const renameChat = async (userId: string, id: string, title: string) => {
+  const { db } = getDb();
+  await db.update(chats).set({ title }).where(own(userId, id));
+};
+
+/** Pins a chat to the top of the list, or lets it go back to its day. */
+export const setChatPinned = async (
+  userId: string,
+  id: string,
+  pinned: boolean
+) => {
+  const { db } = getDb();
+  await db
+    .update(chats)
+    .set({ pinnedAt: pinned ? new Date() : null })
+    .where(own(userId, id));
+};
+
+/** Deletes a chat with its messages (they go with it by foreign key); what it cost stays in the usage. */
+export const deleteChat = async (userId: string, id: string) => {
+  const { db } = getDb();
+  await db.delete(chats).where(own(userId, id));
 };
 
 /** A chat's messages in order, ready for `useChat` and `convertToModelMessages`. */

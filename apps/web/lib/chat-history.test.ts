@@ -55,3 +55,15 @@ describe("the sidebar's chat groups", () => {
     ]);
   });
 });
+
+describe("pinned chats", () => {
+  it("stand in a group of their own, on top of the days", () => {
+    const groups = groupChats([
+      { group: "pinned" as const, id: "a" },
+      { group: "today" as const, id: "b" },
+      { group: "pinned" as const, id: "c" },
+    ]);
+    expect(groups.map((g) => g.group)).toEqual(["pinned", "today"]);
+    expect(groups[0]?.chats.map((c) => c.id)).toEqual(["a", "c"]);
+  });
+});
