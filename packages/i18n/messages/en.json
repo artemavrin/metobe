@@ -183,13 +183,6 @@
       "sources": "Sources",
       "more": "{count} more"
     },
-    "work": {
-      "working": "Working…",
-      "done": "Work",
-      "calls": "{count, plural, one {# call} other {# calls}}",
-      "seconds": "{seconds}s",
-      "asking": "Waiting for your decision"
-    },
     "table": {
       "building": "Building the table…",
       "rows": "{count, plural, one {# row} other {# rows}}",
@@ -307,6 +300,17 @@
       "deleteTitle": "Delete the chat?",
       "deleteText": "The chat “{title}” and all its messages will be deleted for good. It cannot be brought back.",
       "cancel": "Cancel"
+    },
+    "activity": {
+      "working": "Working",
+      "asking": "Waiting for permission",
+      "done": "Done",
+      "doneIn": "Worked for {seconds} s",
+      "steps": "{count, plural, one {# step} other {# steps}}",
+      "more": "{count, plural, one {# more step} other {# more steps}}",
+      "thought": "Thought",
+      "note": "Note",
+      "sec": "s"
     }
   },
   "login": {

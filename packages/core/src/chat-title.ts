@@ -45,11 +45,14 @@ export const generateChatTitle = async (run: {
   chatId: string;
   userId: string;
   text: string;
+  /** Called once a model has the job, before it is asked: the chat can say it is being named. */
+  onStart?: () => void;
 }) => {
   const model = await getSlotModel("titles");
   if (!model) {
     return null;
   }
+  run.onStart?.();
   const started = Date.now();
   try {
     const result = await titleText(

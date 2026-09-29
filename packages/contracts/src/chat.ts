@@ -22,15 +22,20 @@ export const chatMessageMetadataSchema = z.object({
   createdAt: z.iso.datetime().optional(),
   modelId: z.uuid().optional(),
   reasoningMs: z.number().int().nonnegative().optional(),
+  /** How long each tool call took, by its call id, from the call to its result; a call the server did not see through — none. */
+  toolMs: z.record(z.string(), z.number().int().nonnegative()).optional(),
   /** How long the work with tools took, to its last tool result, as the server measured it. */
   workMs: z.number().int().nonnegative().optional(),
 });
 export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 
-/** Data the stream sends besides the answer; `title` — a new chat's name from the titles model (not stored). */
+/**
+ * Data the stream sends besides the answer; `title` — a new chat's name from the titles model, `naming` — that the
+ * request for it has begun, so the sidebar shows the chat being named (neither is stored).
+ */
 // A type alias, not an interface: AI SDK wants a Record, and an interface is not assignable to one.
 // oxlint-disable-next-line typescript/consistent-type-definitions -- see above
-export type ChatDataParts = { title: string };
+export type ChatDataParts = { title: string; naming: boolean };
 
 /**
  * Our own tools (MCP tools arrive as dynamic tools): the table and the chart drawn in the answer, searching the web
