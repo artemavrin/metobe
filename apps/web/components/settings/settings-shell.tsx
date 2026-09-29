@@ -23,7 +23,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { SettingsListLevel } from "@/components/settings/settings-list";
@@ -195,11 +195,23 @@ export const SettingsShell = ({
   // The section being opened from the menu: its list shows at once, not the previous page's list until the
   // navigation lands.
   const [opening, setOpening] = useState<string | null>(null);
+  // «‹ Настройки» is a way back: the page beside the sidebar returns too, to the last screen the user was on before
+  // they went into a list — not only the sidebar to its menu.
+  const [backing, setBacking] = useState(false);
+  const lastScreen = useRef(
+    `/settings/${SETTINGS_NAV[0]?.items[0]?.id ?? "account"}`
+  );
+  useEffect(() => {
+    if (findSection(section)?.kind === "screen") {
+      lastScreen.current = pathname;
+    }
+  }, [pathname, section]);
   const [seenSection, setSeenSection] = useState(section);
   if (seenSection !== section) {
     setSeenSection(section);
     setOpening(null);
-    setDir(1);
+    setDir(backing ? -1 : 1);
+    setBacking(false);
     setDrilled(true);
   }
   const shownSection = opening ?? section;
@@ -244,7 +256,14 @@ export const SettingsShell = ({
                       : undefined
                   }
                   list={list}
-                  onBack={() => go(false)}
+                  onBack={() => {
+                    go(false);
+                    // Leaving a list for the page it came from; a screen already there stays put.
+                    if (findSection(section)?.kind === "list") {
+                      setBacking(true);
+                      router.push(lastScreen.current);
+                    }
+                  }}
                 />
               ) : (
                 <>

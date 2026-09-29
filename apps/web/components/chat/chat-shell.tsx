@@ -1,14 +1,5 @@
 "use client";
 
-import { buttonVariants } from "@metobe/ui/components/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from "@metobe/ui/components/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -26,14 +17,15 @@ import {
   useSidebar,
 } from "@metobe/ui/components/sidebar";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { LogOut, Settings, SquarePen } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-import { signOut } from "@/app/(app)/(chat)/actions";
+import { AccountMenu } from "@/components/chat/account-menu";
+import type { Person } from "@/components/chat/account-menu";
 import { groupChats } from "@/lib/chat-history";
 import type { ChatGroup } from "@/lib/chat-history";
 
@@ -51,6 +43,13 @@ const ChatListContext = createContext<
   ((chat: { id: string; title?: string }) => void) | null
 >(null);
 
+/** The user's own choices for the chat that its screens read: which key sends a message. */
+const ChatPrefsContext = createContext<{ sendKey: "enter" | "mod-enter" }>({
+  sendKey: "enter",
+});
+
+export const useChatPrefs = () => useContext(ChatPrefsContext);
+
 export const useTouchChat = () => {
   const touch = useContext(ChatListContext);
   if (!touch) {
@@ -58,14 +57,6 @@ export const useTouchChat = () => {
   }
   return touch;
 };
-
-const initials = (name: string) =>
-  name
-    .split(/\s+/u)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
 const Brand = () => (
   <span className="flex items-center gap-2 text-sm font-semibold">
@@ -125,52 +116,6 @@ const NewChat = () => {
   );
 };
 
-/** The same account row as in settings; its menu leads there and out. */
-const Account = ({ user }: { user: { name: string; role: string } }) => {
-  const t = useTranslations("chat");
-  return (
-    <SidebarFooter className="flex-row items-center gap-1">
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <SidebarMenuButton className="min-w-0 flex-1" size="lg">
-              <span className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                {initials(user.name)}
-              </span>
-              <span className="flex min-w-0 flex-col leading-tight">
-                <span className="truncate text-sm font-medium">
-                  {user.name}
-                </span>
-                <span className="text-muted-foreground truncate text-xs">
-                  {user.role}
-                </span>
-              </span>
-            </SidebarMenuButton>
-          }
-        />
-        <DropdownMenuContent align="start" className="w-56" side="top">
-          <DropdownMenuItem render={<Link href="/settings" />}>
-            <Settings /> {t("settings")}
-            <DropdownMenuShortcut>⌘,</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => signOut()}>
-            <LogOut /> {t("signOut")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Link
-        aria-label={t("settings")}
-        className={buttonVariants({ size: "icon", variant: "ghost" })}
-        href="/settings"
-        title={`${t("settings")} (⌘,)`}
-      >
-        <Settings />
-      </Link>
-    </SidebarFooter>
-  );
-};
-
 /**
  * The chat's shell (P1 «Режимы»): a light floating sidebar with the user's chats by day, the chat beside it.
  * Settings are a place you visit: ⌘, opens them, and their own shell leads back here.
@@ -178,15 +123,19 @@ const Account = ({ user }: { user: { name: string; role: string } }) => {
 export const ChatShell = ({
   chats: initialChats,
   user,
+  sendKey,
   children,
 }: {
   /** The user's chats, latest first, each in its day group by the user's calendar. */
   chats: ChatItem[];
-  user: { name: string; role: string };
+  user: Person;
+  /** The key that sends a message, as the user chose it. */
+  sendKey: "enter" | "mod-enter";
   children: ReactNode;
 }) => {
   const t = useTranslations("chat");
   const router = useRouter();
+  const prefs = useMemo(() => ({ sendKey }), [sendKey]);
   const [chats, setChats] = useState(initialChats);
   // A fresh list from the server (a reload of the layout) replaces the local one.
   const [seen, setSeen] = useState(initialChats);
@@ -212,27 +161,31 @@ export const ChatShell = ({
 
   return (
     <ChatListContext.Provider value={touch}>
-      <SidebarProvider>
-        <Sidebar variant="floating">
-          <SidebarHeader>
-            <div className="flex h-8 items-center px-1">
-              <Brand />
-            </div>
-            <NewChat />
-          </SidebarHeader>
-          <SidebarContent>
-            <History chats={chats} />
-          </SidebarContent>
-          <Account user={user} />
-        </Sidebar>
-        {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
-        <SidebarInset className="h-dvh min-h-0 overflow-hidden">
-          <header className="flex h-12 shrink-0 items-center gap-2 px-3">
-            <SidebarTrigger aria-label={t("openSidebar")} />
-          </header>
-          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-        </SidebarInset>
-      </SidebarProvider>
+      <ChatPrefsContext.Provider value={prefs}>
+        <SidebarProvider>
+          <Sidebar variant="floating">
+            <SidebarHeader>
+              <div className="flex h-8 items-center px-1">
+                <Brand />
+              </div>
+              <NewChat />
+            </SidebarHeader>
+            <SidebarContent>
+              <History chats={chats} />
+            </SidebarContent>
+            <SidebarFooter>
+              <AccountMenu user={user} />
+            </SidebarFooter>
+          </Sidebar>
+          {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
+          <SidebarInset className="h-dvh min-h-0 overflow-hidden">
+            <header className="flex h-12 shrink-0 items-center gap-2 px-3">
+              <SidebarTrigger aria-label={t("openSidebar")} />
+            </header>
+            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+          </SidebarInset>
+        </SidebarProvider>
+      </ChatPrefsContext.Provider>
     </ChatListContext.Provider>
   );
 };

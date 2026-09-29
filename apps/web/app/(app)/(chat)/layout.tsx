@@ -1,3 +1,4 @@
+import { getAccount } from "@metobe/core/account";
 import { listChats } from "@metobe/core/chat";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
@@ -31,7 +32,10 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
   }
   // Days by the user's calendar, counted here once; the sidebar only keeps the order.
   const now = new Date();
-  const list = await listChats(user.id);
+  const [list, account] = await Promise.all([
+    listChats(user.id),
+    getAccount(user.id),
+  ]);
   const chats = list.map((chat) => ({
     group: chatGroupOf(chat.updatedAt, now, prefs.timeZone),
     id: chat.id,
@@ -41,7 +45,13 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
   return (
     <ChatShell
       chats={chats}
-      user={{ name: user.name || user.email, role: t(roleKey) }}
+      sendKey={account?.sendKey === "mod-enter" ? "mod-enter" : "enter"}
+      user={{
+        email: user.email,
+        image: user.image ?? null,
+        name: user.name || user.email,
+        role: t(roleKey),
+      }}
     >
       {children}
     </ChatShell>

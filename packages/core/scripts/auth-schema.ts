@@ -7,6 +7,7 @@ import { buildAuthOptions } from "../src/auth-options";
 export const auth = betterAuth(
   buildAuthOptions({
     db: createDb(process.env.DATABASE_URL ?? "postgres://localhost/metobe").db,
+    sendAccountCode: () => Promise.resolve(),
     sendSignInCode: () => Promise.resolve(),
   })
 );

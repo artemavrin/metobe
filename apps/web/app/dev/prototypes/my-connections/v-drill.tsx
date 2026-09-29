@@ -3,7 +3,7 @@
 import { Button } from "@metobe/ui/components/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@metobe/ui/components/empty";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@metobe/ui/components/reui/alert";
-import { CircleAlert, Languages, Palette, Plug } from "lucide-react";
+import { CircleAlert, Plug, UserRound } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
@@ -259,8 +259,7 @@ export const Drill = ({ v2 = false }: { v2?: boolean } = {}) => {
       onOpen={setSection}
       personal={[
         { icon: Plug, id: "connections", kind: "list", label: "Подключения" },
-        { icon: Languages, id: "region", kind: "screen", label: t("sections.region.label") },
-        { icon: Palette, id: "appearance", kind: "screen", label: t("sections.appearance.label") },
+        { icon: UserRound, id: "account", kind: "screen", label: t("sections.account.label") },
       ]}
     >
       {section === "connections" &&

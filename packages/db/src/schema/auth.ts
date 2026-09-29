@@ -17,6 +17,8 @@ export const user = pgTable("user", {
   timeZone: text("time_zone"),
   weekStart: integer("week_start"),
   dateFormat: text("date_format"),
+  instructions: text("instructions"),
+  sendKey: text("send_key"),
 });
 
 export const session = pgTable(

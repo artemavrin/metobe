@@ -1,6 +1,7 @@
 import "server-only";
 import { defaultLocale, isLocale } from "@metobe/i18n/config";
 import type { Locale } from "@metobe/i18n/config";
+import { resolvePrefs } from "@metobe/i18n/prefs";
 import { getTranslator } from "@metobe/i18n/translator";
 import { betterAuth } from "better-auth";
 import type { BetterAuthPlugin } from "better-auth";
@@ -30,11 +31,44 @@ export const sendSignInCode = async (
   });
 };
 
+/** The language a request speaks: its locale cookie, else its Accept-Language, else the default. */
+const localeOf = (request?: Headers | null): Locale => {
+  if (!request) {
+    return defaultLocale;
+  }
+  const cookies = request.get("cookie") ?? "";
+  return resolvePrefs(
+    (name) => new RegExp(`(?:^|;\\s*)${name}=([^;]*)`, "u").exec(cookies)?.[1],
+    request.get("accept-language")
+  ).locale;
+};
+
+/** The code for changing the email, in the recipient's language: from the current address, then from the new one. */
+export const sendAccountCode = async (
+  email: string,
+  code: string,
+  step: "current" | "new",
+  request?: Headers | null
+) => {
+  const recipient = await findUserByEmail(email);
+  const t = await getTranslator(
+    isLocale(recipient?.locale) ? recipient.locale : localeOf(request)
+  );
+  const key = step === "current" ? "email.changeCurrent" : "email.changeNew";
+  await sendMail({
+    html: `<p>${t(`${key}.intro`)}</p><p style="font-size:24px;letter-spacing:4px"><b>${code}</b></p><p>${t("email.changeTtl")}</p><p>${t("email.changeIgnore")}</p>`,
+    subject: t(`${key}.subject`, { code }),
+    text: `${t(`${key}.intro`)}\n\n${code}\n\n${t("email.changeTtl")}\n${t("email.changeIgnore")}`,
+    to: email,
+  });
+};
+
 export const createAuth = (plugins: BetterAuthPlugin[] = []) =>
   betterAuth(
     buildAuthOptions({
       db: getDb().db,
       plugins,
+      sendAccountCode,
       sendSignInCode: (email, code) => sendSignInCode(email, code),
     })
   );

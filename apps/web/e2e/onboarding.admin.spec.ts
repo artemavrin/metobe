@@ -25,11 +25,11 @@ test("a source out of reach asks for a proxy, and back returns to the list", asy
   await expect(page.getByText("Step 1 · Source")).toBeVisible();
 });
 
-test("settings open on language and region, with the admin sections", async ({
+test("settings open on the account, with the admin sections", async ({
   page,
 }) => {
   await page.goto("/settings");
-  await expect(page).toHaveURL(/\/settings\/region$/u);
+  await expect(page).toHaveURL(/\/settings\/account$/u);
   await Promise.all(
     ["Sources", "Providers", "Proxies"].map((name) =>
       expect(page.getByRole("link", { name })).toBeVisible()

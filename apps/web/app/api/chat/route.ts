@@ -8,6 +8,7 @@ import type {
   ChatErrorCode,
   ChatMessage,
 } from "@metobe/contracts/chat";
+import { getInstructions } from "@metobe/core/account";
 import { getLanguageModel } from "@metobe/core/ai";
 import {
   createChat,
@@ -50,6 +51,7 @@ import { mentionedIn } from "@/lib/mentions";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 import { lendTools, servicesNote } from "@/lib/tool-search";
+import { withNotes } from "@/lib/user-notes";
 import {
   WEB_FETCH,
   WEB_SEARCH,
@@ -214,10 +216,11 @@ export const POST = async (request: Request) => {
   if (chat && chat.userId !== session.user.id) {
     return fail("forbidden", 403);
   }
-  const [stored, chatServers, boxes] = await Promise.all([
+  const [stored, chatServers, boxes, notes] = await Promise.all([
     chat ? listMessages(id) : [],
     listChatServers(session.user.id),
     listMailboxes(session.user.id),
+    getInstructions(session.user.id),
   ]);
   const ready = (key: string) =>
     key === MAIL_KEY
@@ -345,7 +348,7 @@ export const POST = async (request: Request) => {
             };
       const result = streamText({
         abortSignal: generation.signal,
-        instructions: servicesNote(servers),
+        instructions: withNotes(notes, servicesNote(servers)),
         messages: prompt.messages,
         model: languageModel,
         // The model's own end frees the chat for «stop» — not the client's: it may leave, the model writes on.

@@ -286,6 +286,15 @@
       "dontSend": "Don't send",
       "approve": "Allow",
       "deny": "Deny"
+    },
+    "account": {
+      "theme": "Theme",
+      "themes": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "As the system"
+      },
+      "language": "Language"
     }
   },
   "login": {
@@ -371,7 +380,17 @@
       "button": "Sign in",
       "code": "Or enter the code: {code}",
       "ttl": "The link and the code are valid for 10 minutes."
-    }
+    },
+    "changeCurrent": {
+      "subject": "Code to change your Metobe email: {code}",
+      "intro": "Someone in your Metobe account is changing the email. The code to confirm from the old address:"
+    },
+    "changeNew": {
+      "subject": "Code for your new Metobe address: {code}",
+      "intro": "This address will become your sign-in email for Metobe. The code to confirm:"
+    },
+    "changeTtl": "The code is valid for 10 minutes.",
+    "changeIgnore": "If it was not you, just ignore this email."
   },
   "cli": {
     "claimLink": "Create the administrator account: {link}\n  The link is single-use and valid for 24 hours.",
@@ -399,13 +418,9 @@
       "system": "System"
     },
     "sections": {
-      "appearance": {
-        "label": "Appearance",
-        "hint": "Light, dark or as in the system"
-      },
-      "region": {
-        "label": "Language and region",
-        "hint": "Language, time zone, first day of the week, date format"
+      "account": {
+        "label": "Account",
+        "hint": "Profile, look, notes for the model, sessions and data"
       },
       "sources": {
         "label": "Sources",
@@ -458,6 +473,10 @@
       "service": {
         "label": "Service models",
         "hint": "Who does the work outside the chat: chat titles"
+      },
+      "usage": {
+        "label": "Usage",
+        "hint": "Your requests and cost by month"
       }
     },
     "appearance": {
@@ -981,7 +1000,13 @@
     "upload": "Upload your own",
     "uploadHint": "Or paste from the clipboard, or drop a file here",
     "auto": "Back to automatic",
-    "tooBig": "The file is over 256 KB — a logo needs far less."
+    "tooBig": "The file is over 256 KB — a logo needs far less.",
+    "avatarChange": "Change avatar",
+    "avatarTitle": "Avatar",
+    "avatarHint": "The picture is cropped to a square from its middle. Drop a file or paste from the clipboard.",
+    "avatarUpload": "Upload",
+    "avatarAuto": "Back to initials",
+    "avatarBroken": "Could not read the picture"
   },
   "onboarding": {
     "title": "Metobe setup",
@@ -1288,5 +1313,128 @@
         }
       }
     }
+  },
+  "profile": {
+    "title": "Profile",
+    "description": "How you appear in Metobe: your name, picture and the email you sign in with.",
+    "about": "About you",
+    "avatar": {
+      "label": "Avatar",
+      "hint": "Click the picture to change it",
+      "failed": "The picture could not be saved"
+    },
+    "name": {
+      "label": "Name",
+      "hint": "How Metobe calls you and others see you",
+      "invalid": "The name cannot be empty"
+    },
+    "email": {
+      "label": "Email",
+      "hint": "Sign-in codes come here. Changing it takes codes from both addresses",
+      "mailOff": "Changing the email appears once the system can send mail",
+      "change": "Change",
+      "title": "Change email",
+      "stepAddress": "You sign in with {email} now. Enter the new address — a confirmation code goes to the current one.",
+      "stepCurrent": "We sent a code to {email}. Enter it — then a code goes to the new address.",
+      "stepNew": "A code is sent to {address}. Enter it and the email changes.",
+      "newLabel": "New email",
+      "codeLabel": "Code from the email",
+      "cancel": "Cancel",
+      "next": {
+        "address": "Send code",
+        "current": "Confirm",
+        "new": "Change email"
+      },
+      "problems": {
+        "invalid": "That does not look like an email address",
+        "same": "That is your current email",
+        "code": "The code did not fit or has expired — check the email",
+        "mail": "The system cannot send mail"
+      }
+    },
+    "role": {
+      "label": "Role",
+      "hint": "Set by the owner of Metobe"
+    },
+    "sessions": {
+      "title": "Active sessions",
+      "revokeOthers": "End other sessions",
+      "revoke": "End session",
+      "thisDevice": "current session",
+      "on": "on",
+      "unknown": "Unknown device"
+    }
+  },
+  "personalization": {
+    "title": "Personalization",
+    "description": "What the model knows about you and how the chat works.",
+    "aboutTitle": "Information for the model",
+    "placeholder": "For example: I am an accountant at a trading company, answer briefly and to the point, sums in rubles, dates as day.month.",
+    "aboutHint": "This information is passed to the model in every chat. State who you are and what matters to you.",
+    "chatTitle": "Chat",
+    "sendKey": {
+      "label": "Sending a message",
+      "hint": "The other key makes a new line",
+      "values": {
+        "enter": "Enter sends",
+        "mod-enter": "⌘/Ctrl+Enter sends"
+      }
+    },
+    "status": {
+      "saving": "Saving…",
+      "saved": "Saved",
+      "failed": "Could not save"
+    }
+  },
+  "data": {
+    "title": "Data and privacy",
+    "description": "You can download your data or delete it.",
+    "exportTitle": "Data",
+    "export": {
+      "label": "Download all data",
+      "hint": "Profile, chats with their messages, the names of connections and mailboxes — one JSON file. No passwords or tokens in it",
+      "button": "Download JSON"
+    },
+    "deleteTitle": "Danger zone",
+    "chats": {
+      "label": "Delete all chats",
+      "hint": "Chats and messages are gone for good. What they cost stays in the usage, without the chats",
+      "button": "Delete chats",
+      "title": "Delete all chats?",
+      "text": "All your chats and messages are deleted for good. They cannot be brought back.",
+      "done": "Done: {count} chats deleted.",
+      "confirm": "Delete all",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "account": {
+      "label": "Delete account",
+      "hint": "The profile, chats, connections and mailboxes are deleted for good",
+      "button": "Delete account",
+      "title": "Delete the account?",
+      "text": "Your profile, all chats, connections to servers and mailboxes with their passwords are deleted. They cannot be brought back.",
+      "type": "To confirm, type your email: {email}",
+      "confirm": "Delete for good",
+      "cancel": "Cancel",
+      "problems": {
+        "confirm": "The email is not typed in full",
+        "lastOwner": "You are the only owner of Metobe: hand the ownership to someone else first, or nobody will run the system"
+      }
+    }
+  },
+  "usage": {
+    "title": "Usage",
+    "description": "Model usage over a month. Cost is given in each model's own currency: rubles and dollars are not added.",
+    "previous": "Previous month",
+    "next": "Next month",
+    "summary": "{requests} requests · {cost}",
+    "empty": "No requests this month",
+    "model": "Model",
+    "requests": "Requests",
+    "input": "In",
+    "output": "Out",
+    "cost": "Cost",
+    "removed": "Removed model",
+    "cached": "From cache: {count}"
   }
 }
