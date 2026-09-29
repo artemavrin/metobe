@@ -24,16 +24,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+import {
+  deleteChatAction,
+  pinChatAction,
+  renameChatAction,
+} from "@/app/(app)/(chat)/actions";
 import { AccountMenu } from "@/components/chat/account-menu";
 import type { Person } from "@/components/chat/account-menu";
+import { ChatRow } from "@/components/chat/chat-item";
+import type { ChatItem, ChatOps } from "@/components/chat/chat-item";
 import { groupChats } from "@/lib/chat-history";
-import type { ChatGroup } from "@/lib/chat-history";
-
-interface ChatItem {
-  id: string;
-  title: string;
-  group: ChatGroup;
-}
 
 /**
  * Lets the chat screen put a chat on top of the list the moment it gets a message. A title names it (a new chat);
@@ -67,7 +67,7 @@ const Brand = () => (
   </span>
 );
 
-const History = ({ chats }: { chats: ChatItem[] }) => {
+const History = ({ chats, ops }: { chats: ChatItem[]; ops: ChatOps }) => {
   const t = useTranslations("chat");
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -78,20 +78,22 @@ const History = ({ chats }: { chats: ChatItem[] }) => {
     );
   }
   return groups.map((g) => (
-    <SidebarGroup className="py-1" key={g.group}>
+    // The pinned stand apart from the days: more air under them than between the days.
+    <SidebarGroup
+      className={g.group === "pinned" ? "pt-1 pb-4" : "py-1"}
+      key={g.group}
+    >
       <SidebarGroupLabel>{t(`groups.${g.group}`)}</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {g.chats.map((chat) => (
-            <SidebarMenuItem key={chat.id}>
-              <SidebarMenuButton
-                isActive={pathname === `/chat/${chat.id}`}
-                onClick={() => isMobile && setOpenMobile(false)}
-                render={<Link href={`/chat/${chat.id}`} />}
-              >
-                <span className="truncate">{chat.title}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <ChatRow
+              active={pathname === `/chat/${chat.id}`}
+              chat={chat}
+              key={chat.id}
+              onNavigate={() => isMobile && setOpenMobile(false)}
+              ops={ops}
+            />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
@@ -146,7 +148,14 @@ export const ChatShell = ({
   const touch = useMemo(
     () => (chat: { id: string; title?: string }) =>
       setChats((list) => {
-        const title = chat.title ?? list.find((c) => c.id === chat.id)?.title;
+        const known = list.find((c) => c.id === chat.id);
+        const title = chat.title ?? known?.title;
+        if (known?.group === "pinned") {
+          // A pinned chat keeps its place; only its title may change.
+          return title === undefined
+            ? list
+            : list.map((c) => (c.id === chat.id ? { ...c, title } : c));
+        }
         return title === undefined
           ? list
           : [
@@ -156,6 +165,35 @@ export const ChatShell = ({
       }),
     []
   );
+  const pathname = usePathname();
+  // Rename and delete show at once and tell the server; pinning waits for the server's list, which knows the
+  // day a chat goes back to. A refused change is put right by reading the list again.
+  const ops = useMemo<ChatOps>(() => {
+    const settle = async (task: Promise<{ ok: boolean }>) => {
+      const result = await task;
+      if (!result.ok) {
+        router.refresh();
+      }
+    };
+    return {
+      pin: (id, pinned) => {
+        settle(pinChatAction(id, pinned));
+      },
+      remove: (id) => {
+        setChats((list) => list.filter((c) => c.id !== id));
+        if (pathname === `/chat/${id}`) {
+          router.push("/");
+        }
+        settle(deleteChatAction(id));
+      },
+      rename: (id, title) => {
+        setChats((list) =>
+          list.map((c) => (c.id === id ? { ...c, title } : c))
+        );
+        settle(renameChatAction(id, title));
+      },
+    };
+  }, [pathname, router]);
   // ⌘, (Ctrl+, elsewhere) from anywhere, text fields included; the physical key, so ЙЦУКЕН works too.
   useHotkey("Mod+,", () => router.push("/settings"), { ignoreInputs: false });
 
@@ -171,7 +209,7 @@ export const ChatShell = ({
               <NewChat />
             </SidebarHeader>
             <SidebarContent>
-              <History chats={chats} />
+              <History chats={chats} ops={ops} />
             </SidebarContent>
             <SidebarFooter>
               <AccountMenu user={user} />

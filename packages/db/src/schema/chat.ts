@@ -31,6 +31,8 @@ export const chats = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     /** An agent run is an ordinary chat (ARCH §16). */
     kind: text("kind").$type<ChatKind>().notNull().default("chat"),
+    /** When the user pinned the chat; pinned chats stand on top, the latest pinned first. Null — not pinned. */
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     title: text("title").notNull(),
     /** Moves with every message, so the sidebar shows the latest chats first. */
     updatedAt: timestamp("updated_at", { withTimezone: true })

@@ -36,11 +36,23 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
     listChats(user.id),
     getAccount(user.id),
   ]);
-  const chats = list.map((chat) => ({
-    group: chatGroupOf(chat.updatedAt, now, prefs.timeZone),
-    id: chat.id,
-    title: chat.title,
-  }));
+  // The pinned first, the latest pinned on top of them; the rest keep the order of their last message.
+  // toSorted is past the ES2022 target; the filter gives a fresh array to sort.
+  const pinned = list
+    .filter((chat) => chat.pinnedAt)
+    // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own copy
+    .sort(
+      (a, b) => (b.pinnedAt?.getTime() ?? 0) - (a.pinnedAt?.getTime() ?? 0)
+    );
+  const chats = [...pinned, ...list.filter((chat) => !chat.pinnedAt)].map(
+    (chat) => ({
+      group: chat.pinnedAt
+        ? ("pinned" as const)
+        : chatGroupOf(chat.updatedAt, now, prefs.timeZone),
+      id: chat.id,
+      title: chat.title,
+    })
+  );
   const roleKey = role === "superuser" || role === "admin" ? role : "user";
   return (
     <ChatShell

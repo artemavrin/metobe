@@ -1,7 +1,14 @@
 // The sidebar's chat groups. Days are counted in the user's time zone, not the server's: a chat from 23:50 last
 // night is «yesterday» for the user even where the server's clock says otherwise.
 
-const CHAT_GROUPS = ["today", "yesterday", "week", "earlier"] as const;
+// «pinned» is not a day: the user's own choice, on top of the days.
+const CHAT_GROUPS = [
+  "pinned",
+  "today",
+  "yesterday",
+  "week",
+  "earlier",
+] as const;
 export type ChatGroup = (typeof CHAT_GROUPS)[number];
 
 const DAY = 86_400_000;
@@ -23,7 +30,7 @@ export const chatGroupOf = (
   updatedAt: Date,
   now: Date,
   timeZone: string
-): ChatGroup => {
+): Exclude<ChatGroup, "pinned"> => {
   const days = dayNumber(now, timeZone) - dayNumber(updatedAt, timeZone);
   if (days <= 0) {
     return "today";

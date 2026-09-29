@@ -5,8 +5,10 @@ import {
   getCatalogItem,
   setCatalogToken,
 } from "@metobe/core/catalog";
+import { deleteChat, renameChat, setChatPinned } from "@metobe/core/chat";
 import { listChatServers } from "@metobe/core/mcp";
 import { setFavoriteModels } from "@metobe/core/model-choices";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -81,4 +83,49 @@ export const connectServer = async (input: {
     return { state: "signIn", url: result.authorizationUrl };
   }
   return { state: result.health.state === "auth" ? "refused" : "error" };
+};
+
+const chatId = z.uuid();
+const chatTitle = z.string().trim().min(1).max(200);
+
+const userId = async () => {
+  const session = await getAuth().api.getSession({ headers: await headers() });
+  return session?.user.id;
+};
+
+/** The user's own name for a chat; the sidebar re-reads the list. */
+export const renameChatAction = async (id: string, title: string) => {
+  const user = await userId();
+  const parsed = {
+    id: chatId.safeParse(id),
+    title: chatTitle.safeParse(title),
+  };
+  if (!(user && parsed.id.success && parsed.title.success)) {
+    return { ok: false as const };
+  }
+  await renameChat(user, parsed.id.data, parsed.title.data);
+  revalidatePath("/", "layout");
+  return { ok: true as const };
+};
+
+export const pinChatAction = async (id: string, pinned: boolean) => {
+  const user = await userId();
+  const parsed = chatId.safeParse(id);
+  if (!(user && parsed.success)) {
+    return { ok: false as const };
+  }
+  await setChatPinned(user, parsed.data, pinned);
+  revalidatePath("/", "layout");
+  return { ok: true as const };
+};
+
+export const deleteChatAction = async (id: string) => {
+  const user = await userId();
+  const parsed = chatId.safeParse(id);
+  if (!(user && parsed.success)) {
+    return { ok: false as const };
+  }
+  await deleteChat(user, parsed.data);
+  revalidatePath("/", "layout");
+  return { ok: true as const };
 };

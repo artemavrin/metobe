@@ -57,6 +57,7 @@
     "settings": "Settings",
     "signOut": "Sign out",
     "groups": {
+      "pinned": "Pinned",
       "today": "Today",
       "yesterday": "Yesterday",
       "week": "Previous 7 days",
@@ -295,6 +296,17 @@
         "system": "As the system"
       },
       "language": "Language"
+    },
+    "item": {
+      "actions": "Chat actions",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "rename": "Rename",
+      "renameLabel": "Chat name",
+      "delete": "Delete",
+      "deleteTitle": "Delete the chat?",
+      "deleteText": "The chat “{title}” and all its messages will be deleted for good. It cannot be brought back.",
+      "cancel": "Cancel"
     }
   },
   "login": {
