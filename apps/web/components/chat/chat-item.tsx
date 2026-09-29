@@ -31,12 +31,15 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
+import { GibberishTitle } from "@/components/chat/gibberish-title";
 import type { ChatGroup } from "@/lib/chat-history";
 
 export interface ChatItem {
   id: string;
   title: string;
   group: ChatGroup;
+  /** The titles model is naming this chat: its title is only its first line so far. */
+  naming?: boolean;
 }
 
 /** What the sidebar does with a chat: each changes the list at once and tells the server. */
@@ -197,6 +200,11 @@ export const ChatRow = ({
   const { isMobile } = useSidebar();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  // Once a chat is seen being named it keeps the gibberish until the name has settled.
+  const [gibberish, setGibberish] = useState(Boolean(chat.naming));
+  if (chat.naming && !gibberish) {
+    setGibberish(true);
+  }
   const pinned = chat.group === "pinned";
   if (editing) {
     return (
@@ -220,7 +228,15 @@ export const ChatRow = ({
         onClick={onNavigate}
         render={<Link href={`/chat/${chat.id}`} />}
       >
-        <MarqueeTitle title={chat.title} />
+        {gibberish ? (
+          <GibberishTitle
+            loading={Boolean(chat.naming)}
+            onSettled={() => setGibberish(false)}
+            text={chat.title}
+          />
+        ) : (
+          <MarqueeTitle title={chat.title} />
+        )}
       </SidebarMenuButton>
       <DropdownMenu>
         <DropdownMenuTrigger

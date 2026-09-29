@@ -183,13 +183,6 @@
       "sources": "Источники",
       "more": "ещё {count}"
     },
-    "work": {
-      "working": "Работает…",
-      "done": "Ход работы",
-      "calls": "{count, plural, one {# вызов} few {# вызова} many {# вызовов} other {# вызова}}",
-      "seconds": "{seconds} с",
-      "asking": "Ждёт вашего решения"
-    },
     "table": {
       "building": "Собирает таблицу…",
       "rows": "{count, plural, one {# строка} few {# строки} many {# строк} other {# строки}}",
@@ -307,6 +300,17 @@
       "deleteTitle": "Удалить чат?",
       "deleteText": "Чат «{title}» и все его сообщения удалятся насовсем. Вернуть их будет нельзя.",
       "cancel": "Отмена"
+    },
+    "activity": {
+      "working": "Работает",
+      "asking": "Ждёт разрешения",
+      "done": "Готово",
+      "doneIn": "Работал {seconds} с",
+      "steps": "{count, plural, one {# шаг} few {# шага} many {# шагов} other {# шага}}",
+      "more": "Ещё {count, plural, one {# шаг} few {# шага} many {# шагов} other {# шага}}",
+      "thought": "Подумал",
+      "note": "Пояснение",
+      "sec": "с"
     }
   },
   "login": {

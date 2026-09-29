@@ -23,6 +23,7 @@ export const ThoughtWindow = ({
   following,
   startAtEnd = false,
   bounded = true,
+  maxHeightClass = "max-h-48",
   className,
   children,
 }: {
@@ -32,6 +33,8 @@ export const ThoughtWindow = ({
   startAtEnd?: boolean;
   /** A few lines high; off, it shows everything (a call waiting for the user's yes must be read whole). */
   bounded?: boolean;
+  /** How high the window is: a max-height, or a fixed height for a slot that must not change size. */
+  maxHeightClass?: string;
   className?: string;
   children: ReactNode;
 }) => {
@@ -82,7 +85,7 @@ export const ThoughtWindow = ({
       <div
         className={cn(
           "no-scrollbar outline-none motion-safe:scroll-smooth",
-          bounded && "max-h-48 overflow-y-auto",
+          bounded && cn(maxHeightClass, "overflow-y-auto"),
           overflows && "scroll-fade-y scroll-fade-8"
         )}
         // Only the reader lets go — the wheel up, a finger, the keys (the window has the focus then); not a scroll

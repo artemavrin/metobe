@@ -284,6 +284,13 @@ export const POST = async (request: Request) => {
             ? null
             : await generateChatTitle({
                 chatId: id,
+                // The sidebar shows the chat being named from here to its title (or the end of the answer).
+                onStart: () =>
+                  writer.write({
+                    data: true,
+                    transient: true,
+                    type: "data-naming",
+                  }),
                 text: textOf(message),
                 userId: session.user.id,
               });
@@ -303,6 +310,9 @@ export const POST = async (request: Request) => {
       let reasoningTo: number | null = null;
       // How long the work with tools took: to the last tool result (the folded work says it).
       let workTo: number | null = null;
+      // Each tool call's own time, from its call to its result: the ribbon of the work says it per step.
+      const toolStarts = new Map<string, number>();
+      const toolMs: Record<string, number> = {};
       const run = { chatId: id, model, userId: session.user.id };
       const record = async (
         r: Omit<Parameters<typeof recordRun>[0], keyof typeof run>
@@ -378,6 +388,21 @@ export const POST = async (request: Request) => {
           ) {
             workTo = Date.now();
           }
+          if (chunk.type === "tool-input-start") {
+            toolStarts.set(chunk.id, Date.now());
+          } else if (chunk.type === "tool-call") {
+            if (!toolStarts.has(chunk.toolCallId)) {
+              toolStarts.set(chunk.toolCallId, Date.now());
+            }
+          } else if (
+            chunk.type === "tool-result" ||
+            chunk.type === "tool-error"
+          ) {
+            const from = toolStarts.get(chunk.toolCallId);
+            if (from !== undefined) {
+              toolMs[chunk.toolCallId] = Date.now() - from;
+            }
+          }
           if (chunk.type === "reasoning-delta") {
             reasoningFrom ??= Date.now();
           } else if (chunk.type === "text-delta" && reasoningFrom !== null) {
@@ -425,6 +450,7 @@ export const POST = async (request: Request) => {
                 ? {}
                 : { reasoningMs: (reasoningTo ?? Date.now()) - reasoningFrom }),
               ...(workTo === null ? {} : { workMs: workTo - started }),
+              ...(Object.keys(toolMs).length === 0 ? {} : { toolMs }),
             };
           },
           originalMessages,

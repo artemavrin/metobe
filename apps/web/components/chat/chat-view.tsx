@@ -164,6 +164,8 @@ export const ChatView = ({
     );
   const favorites = useFavorites(initialFavorites);
   const titled = useRef<string | null>(null);
+  // The titles model is naming this chat: from the server's «naming» to its title or the end of the answer.
+  const naming = useRef(false);
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
@@ -211,9 +213,13 @@ export const ChatView = ({
     messages: initialMessages,
     // A new chat's name from the titles model: the sidebar shows it as soon as it comes.
     onData: (part) => {
-      if (part.type === "data-title") {
+      if (part.type === "data-naming") {
+        naming.current = true;
+        touch({ id, naming: true });
+      } else if (part.type === "data-title") {
         titled.current = part.data;
-        touch({ id, title: part.data });
+        naming.current = false;
+        touch({ id, naming: false, title: part.data });
       }
     },
     // Once every asked call of the last answer has the user's yes or no, or the user answered its ask to connect a
@@ -239,6 +245,11 @@ export const ChatView = ({
   useEffect(() => {
     if (status !== "streaming") {
       touched.current = false;
+      // The answer ended and no title came (no model, or it failed): the chat keeps its first line, naming is over.
+      if (status === "ready" && naming.current) {
+        naming.current = false;
+        touch({ id, naming: false });
+      }
       return;
     }
     if (touched.current) {
@@ -256,7 +267,11 @@ export const ChatView = ({
       first?.parts
         .flatMap((p) => (p.type === "text" ? [p.text] : []))
         .join(" ") ?? "";
-    touch({ id, title: titled.current ?? chatTitleFrom(text) });
+    touch({
+      id,
+      naming: naming.current && titled.current === null,
+      title: titled.current ?? chatTitleFrom(text),
+    });
   }, [status, messages, id, touch]);
 
   // The model a question went to: marks a switch for the answer that has not started yet.

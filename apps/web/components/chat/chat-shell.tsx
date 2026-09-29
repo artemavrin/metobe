@@ -40,7 +40,7 @@ import { groupChats } from "@/lib/chat-history";
  * without one, the chat keeps the title it has.
  */
 const ChatListContext = createContext<
-  ((chat: { id: string; title?: string }) => void) | null
+  ((chat: { id: string; title?: string; naming?: boolean }) => void) | null
 >(null);
 
 /** The user's own choices for the chat that its screens read: which key sends a message. */
@@ -146,20 +146,22 @@ export const ChatShell = ({
     setChats(initialChats);
   }
   const touch = useMemo(
-    () => (chat: { id: string; title?: string }) =>
+    () => (chat: { id: string; title?: string; naming?: boolean }) =>
       setChats((list) => {
         const known = list.find((c) => c.id === chat.id);
         const title = chat.title ?? known?.title;
+        // Whether the chat is being named: what is said now, else what it was.
+        const naming = chat.naming ?? known?.naming;
         if (known?.group === "pinned") {
           // A pinned chat keeps its place; only its title may change.
           return title === undefined
             ? list
-            : list.map((c) => (c.id === chat.id ? { ...c, title } : c));
+            : list.map((c) => (c.id === chat.id ? { ...c, naming, title } : c));
         }
         return title === undefined
           ? list
           : [
-              { group: "today" as const, id: chat.id, title },
+              { group: "today" as const, id: chat.id, naming, title },
               ...list.filter((c) => c.id !== chat.id),
             ];
       }),
