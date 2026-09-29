@@ -63,7 +63,7 @@ test("the browser reports its time zone once", async ({ browser }) => {
 });
 
 test("settings need a signed-in user", async ({ page }) => {
-  await page.goto("/settings/region");
+  await page.goto("/settings/account");
   // After signing in the user comes back here.
-  await expect(page).toHaveURL(/\/login\?next=%2Fsettings%2Fregion$/u);
+  await expect(page).toHaveURL(/\/login\?next=%2Fsettings%2Faccount$/u);
 });
