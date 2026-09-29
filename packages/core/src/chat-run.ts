@@ -56,12 +56,55 @@ const reportedCost = (metadata: ProviderMetadata | undefined) => {
     : null;
 };
 
+/**
+ * What an answer cost as the Gateway reported it: the sum over ALL its steps. An answer with tools is several
+ * requests to the model — the history goes again after every tool result — and each is billed; the final step's
+ * metadata alone (what the SDK's `providerMetadata` is) is only the last of them. Null when no step reported.
+ */
+export const reportedCostOf = (steps: (ProviderMetadata | undefined)[]) => {
+  const costs = steps.flatMap((metadata) => {
+    const cost = reportedCost(metadata);
+    return cost === null ? [] : [Number(cost)];
+  });
+  return costs.length === 0 ? null : String(costs.reduce((a, b) => a + b, 0));
+};
+
+/** The tokens of several steps as one usage — what an answer stopped halfway used up to its last finished step. */
+export const sumUsage = (usages: LanguageModelUsage[]): LanguageModelUsage => {
+  const add = (pick: (u: LanguageModelUsage) => number | undefined) => {
+    const known = usages.flatMap((u) => {
+      const value = pick(u);
+      return value === undefined ? [] : [value];
+    });
+    return known.length === 0 ? undefined : known.reduce((a, b) => a + b, 0);
+  };
+  const inputTokens = add((u) => u.inputTokens);
+  const outputTokens = add((u) => u.outputTokens);
+  return {
+    inputTokenDetails: {
+      cacheReadTokens: add((u) => u.inputTokenDetails.cacheReadTokens),
+      cacheWriteTokens: add((u) => u.inputTokenDetails.cacheWriteTokens),
+      noCacheTokens: add((u) => u.inputTokenDetails.noCacheTokens),
+    },
+    inputTokens,
+    outputTokenDetails: {
+      reasoningTokens: add((u) => u.outputTokenDetails.reasoningTokens),
+      textTokens: add((u) => u.outputTokenDetails.textTokens),
+    },
+    outputTokens,
+    raw: undefined,
+    totalTokens: add((u) => u.totalTokens),
+  } as LanguageModelUsage;
+};
+
 export const recordRun = async (run: {
   chatId: string;
   userId: string;
   model: ChatModel;
   status: RunStatus;
   usage?: LanguageModelUsage;
+  /** The metadata of every step of the answer, for the Gateway's cost; else the one of its last step. */
+  stepsMetadata?: (ProviderMetadata | undefined)[];
   providerMetadata?: ProviderMetadata;
   latencyMs: number | null;
   /** A chat's answer by default; service jobs say which. */
@@ -75,7 +118,9 @@ export const recordRun = async (run: {
     usage?.inputTokenDetails.noCacheTokens ??
     Math.max(0, (usage?.inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens);
   const outputTokens = usage?.outputTokens ?? 0;
-  const reported = reportedCost(run.providerMetadata);
+  const reported =
+    reportedCostOf(run.stepsMetadata ?? []) ??
+    reportedCost(run.providerMetadata);
   const priced =
     model.priceUnitTokens === null
       ? null
