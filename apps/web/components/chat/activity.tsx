@@ -17,11 +17,12 @@ import {
   Search,
   Wrench,
 } from "lucide-react";
-import { useFormatter, useNow, useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { useClock } from "@/components/chat/server-clock";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import {
   activityRows,
@@ -107,14 +108,23 @@ const useSeconds = () => {
     `${f.number(ms / 1000, { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ${t("sec")}`;
 };
 
-/** Time that runs while its step is busy (from when it appeared here — the server's own figure comes with the end). */
-const LiveTime = () => {
+/**
+ * Time that runs while a step is busy: from when the server says it began (plus what its finished calls took), by the
+ * server's clock — so a page reloaded in the middle of it shows the time of one that never left. Without a start
+ * from the server it counts from when it appeared here.
+ */
+// The counters of steps still going are off for now (the page felt jerky while they ticked): a step shows its time
+// once it is done. Set to true to bring them back.
+const LIVE_TIMERS = false;
+
+const LiveTime = ({ since, base = 0 }: { since?: number; base?: number }) => {
   const seconds = useSeconds();
-  // The start is fixed when the step appears; nothing ever sets it again.
+  const { client, server } = useClock(100);
+  // Only the fallback: fixed when the step appears; nothing ever sets it again.
   // oxlint-disable-next-line react/hook-use-state
-  const [from] = useState(() => Date.now());
-  const now = useNow({ updateInterval: 100 });
-  return <>{seconds(Math.max(0, now.getTime() - from))}</>;
+  const [appeared] = useState(client);
+  const elapsed = since === undefined ? client - appeared : server - since;
+  return <>{seconds(base + Math.max(0, elapsed))}</>;
 };
 
 const RowIcon = ({
@@ -559,7 +569,9 @@ const Row = ({
   const expandable = hasDetail(row);
   let time: ReactNode = null;
   if (row.state === "running") {
-    time = <LiveTime />;
+    time = LIVE_TIMERS ? (
+      <LiveTime base={row.ms} since={row.startedAt} />
+    ) : null;
   } else if (row.state !== "waiting" && row.ms !== undefined) {
     time = seconds(row.ms);
   }
@@ -626,12 +638,20 @@ export const ActivityBlock = ({
   steps: Parameters<typeof activityRows>[0];
   working: boolean;
   /** What the server measured: the work's time and each call's time. */
-  metadata?: { workMs?: number; toolMs?: Record<string, number> };
+  metadata?: {
+    createdAt?: string;
+    workMs?: number;
+    stepMs?: Record<string, number>;
+    stepStartedAt?: Record<string, number>;
+  };
   servers: ChatServer[];
 }) => {
   const t = useTranslations("chat.activity");
   const seconds = useSeconds();
-  const rows = activityRows(steps, working, metadata?.toolMs);
+  const rows = activityRows(steps, working, {
+    stepMs: metadata?.stepMs,
+    stepStartedAt: metadata?.stepStartedAt,
+  });
   const asking = rows.some((r) => r.state === "waiting");
   const [open, setOpen] = useAutoOpen(working);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
@@ -650,6 +670,9 @@ export const ActivityBlock = ({
   } else if (working) {
     phase = "working";
   }
+  const startedAt = metadata?.createdAt
+    ? Date.parse(metadata.createdAt)
+    : undefined;
   const summary = [
     facts.seconds === null
       ? t("done")
@@ -692,9 +715,9 @@ export const ActivityBlock = ({
               <span className="font-medium">
                 {phase === "asking" ? t("asking") : t("working")}
               </span>
-              {phase === "working" && (
+              {phase === "working" && LIVE_TIMERS && (
                 <span className="text-muted-foreground text-xs tabular-nums">
-                  <LiveTime />
+                  <LiveTime since={startedAt} />
                 </span>
               )}
             </>

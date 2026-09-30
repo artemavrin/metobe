@@ -12,8 +12,8 @@ export type WebPart = Extract<
 >;
 
 export type WorkStep =
-  | { kind: "thought"; key: string; text: string }
-  | { kind: "note"; key: string; text: string }
+  | { kind: "thought"; key: string; text: string; timed: string[] }
+  | { kind: "note"; key: string; text: string; timed: string[] }
   /** The same tool called several times in a row is one step. */
   | { kind: "tool"; key: string; calls: ToolPart[] }
   /** The model looking for a big server's tools. */
@@ -34,7 +34,8 @@ const addWords = (
   steps: WorkStep[],
   kind: "thought" | "note",
   text: string,
-  at: number
+  at: number,
+  timed: string
 ) => {
   if (!text.trim()) {
     return;
@@ -42,9 +43,23 @@ const addWords = (
   const last = steps.at(-1);
   if (last?.kind === kind) {
     last.text += text;
+    last.timed.push(timed);
   } else {
-    steps.push({ key: `${kind}:${at}`, kind, text });
+    steps.push({ key: `${kind}:${at}`, kind, text, timed: [timed] });
   }
+};
+
+/** A thought's or a text's place among the answer's own: the key the server times it by; none for other parts. */
+const wordKey = (
+  part: Part,
+  seen: { reasoning: number; text: number }
+): string => {
+  if (part.type !== "reasoning" && part.type !== "text") {
+    return "";
+  }
+  const key = `${part.type}:${seen[part.type]}`;
+  seen[part.type] += 1;
+  return key;
 };
 
 /** Where the work ends: the last call of a server's tool, of the search for them or of the web; -1 without any. */
@@ -91,8 +106,11 @@ export const answerWork = (parts: Part[]) => {
   const lastTool = lastToolAt(parts);
   const steps: WorkStep[] = [];
   const blocks: AnswerBlock[] = [];
+  // The place of each thought and each text among the answer's own: the key the server times it by.
+  const seen = { reasoning: 0, text: 0 };
   for (const [i, part] of parts.entries()) {
     const last = steps.at(-1);
+    const timed = wordKey(part, seen);
     const lastBlock = blocks.at(-1);
     const block = blockOf(part);
     if (block) {
@@ -125,7 +143,8 @@ export const answerWork = (parts: Part[]) => {
         steps,
         part.type === "reasoning" ? "thought" : "note",
         part.text,
-        i
+        i,
+        timed
       );
     }
   }

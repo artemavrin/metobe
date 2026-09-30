@@ -35,6 +35,7 @@ export const getSlotModel = async (slot: ModelSlot) => {
   const [model] = await db
     .select({
       capabilities: models.capabilities,
+      contextWindow: models.contextWindow,
       id: models.id,
       kind: sources.kind,
       modelId: models.modelId,

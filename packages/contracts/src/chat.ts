@@ -22,8 +22,12 @@ export const chatMessageMetadataSchema = z.object({
   createdAt: z.iso.datetime().optional(),
   modelId: z.uuid().optional(),
   reasoningMs: z.number().int().nonnegative().optional(),
-  /** How long each tool call took, by its call id, from the call to its result; a call the server did not see through — none. */
-  toolMs: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  /** How long each step took, by its key — a tool call's id, `reasoning:N` or `text:N` for the N-th thought or note of the answer; a step the server did not see through — none. */
+  stepMs: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  /** When each step began (the server's clock, ms since 1970), by the same key: the time of a step still going. */
+  stepStartedAt: z
+    .record(z.string(), z.number().int().nonnegative())
+    .optional(),
   /** How long the work with tools took, to its last tool result, as the server measured it. */
   workMs: z.number().int().nonnegative().optional(),
 });
@@ -31,11 +35,12 @@ export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 
 /**
  * Data the stream sends besides the answer; `title` — a new chat's name from the titles model, `naming` — that the
- * request for it has begun, so the sidebar shows the chat being named (neither is stored).
+ * request for it has begun, so the sidebar shows the chat being named, `clock` — the server's time now, so the page can
+ * count a running step from the server's clock (none of them is stored).
  */
 // A type alias, not an interface: AI SDK wants a Record, and an interface is not assignable to one.
 // oxlint-disable-next-line typescript/consistent-type-definitions -- see above
-export type ChatDataParts = { title: string; naming: boolean };
+export type ChatDataParts = { title: string; naming: boolean; clock: number };
 
 /**
  * Our own tools (MCP tools arrive as dynamic tools): the table and the chart drawn in the answer, searching the web
@@ -51,6 +56,11 @@ export type ChatTools = {
   request_connection: {
     input: RequestConnectionInput;
     output: RequestConnectionOutput;
+  };
+  /** The clock: the model has none of its own. Not drawn in the answer. */
+  current_time: {
+    input: { timeZone?: string };
+    output: { local: string; timeZone: string; utc: string };
   };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_table: { input: TableInput; output: TableOutput };
@@ -71,6 +81,7 @@ export const chatErrorCodes = [
   "forbidden",
   "model-unavailable",
   "generation-failed",
+  "context-full",
 ] as const;
 export type ChatErrorCode = (typeof chatErrorCodes)[number];
 

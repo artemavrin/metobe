@@ -6,10 +6,13 @@ import {
   DataGrid,
   dataGridFeatures,
 } from "@metobe/ui/components/reui/data-grid/data-grid";
-import type { DataGridFeatures } from "@metobe/ui/components/reui/data-grid/data-grid";
 import { DataGridColumnHeader } from "@metobe/ui/components/reui/data-grid/data-grid-column-header";
 import { DataGridScrollArea } from "@metobe/ui/components/reui/data-grid/data-grid-scroll-area";
-import { DataGridTable } from "@metobe/ui/components/reui/data-grid/data-grid-table";
+import {
+  DataGridTable,
+  DataGridTableFootRow,
+  DataGridTableFootRowCell,
+} from "@metobe/ui/components/reui/data-grid/data-grid-table";
 import { Filters } from "@metobe/ui/components/reui/filters/filters";
 import { createFilterQuery } from "@metobe/ui/components/reui/filters/filters-query";
 import type {
@@ -19,9 +22,21 @@ import type {
 } from "@metobe/ui/components/reui/filters/filters-types";
 import { Skeleton } from "@metobe/ui/components/skeleton";
 import { cn } from "@metobe/ui/lib/utils";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { useTable } from "@tanstack/react-table";
+import type {
+  ColumnDef,
+  ExpandedState,
+  Row,
+  SortingState,
+} from "@tanstack/react-table";
+import {
+  columnGroupingFeature,
+  createGroupedRowModel,
+  tableFeatures,
+  useTable,
+} from "@tanstack/react-table";
+import { ChevronRight } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { WidgetFrame } from "@/components/chat/widget-frame";
@@ -30,9 +45,20 @@ import {
   categoryValues,
   firstSeen,
   matchesQuery,
+  numbersOf,
+  summarize,
   tableView,
 } from "@/lib/table-data";
 import type { TableColumn, TableRow } from "@/lib/table-data";
+
+// The grid's own features and the grouping ReUI leaves out by default (data-grid-grouping-3): the model may group the
+// rows by one or two columns, sum a number column up in the group rows and at the foot, and tint a column by its value.
+const features = tableFeatures({
+  ...dataGridFeatures,
+  columnGroupingFeature,
+  groupedRowModel: createGroupedRowModel(),
+});
+type Features = typeof features;
 
 // A table the model builds in its answer (ReUI Data Grid + Filters): columns first, then rows landing one by one as
 // the model writes them, a skeleton row where the next one comes. Sorted from the headers, filtered from the bar.
@@ -45,6 +71,7 @@ const TABLE_CSS = `
 .table-row-in { animation: table-row-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both }
 @keyframes table-chip-in { from { opacity: 0; transform: scale(0.96) } to { opacity: 1; transform: none } }
 [data-slot="filters"] [data-slot="filter-chip"] { animation: table-chip-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both; transform-origin: right center }
+[data-slot="data-grid-table-body"] > tr:has([data-group-row]) { background: color-mix(in oklab, var(--muted) 55%, transparent); font-weight: 500 }
 @media (prefers-reduced-motion: reduce) {
   .table-row-in { animation: table-row-fade 160ms ease both }
   [data-slot="filters"] [data-slot="filter-chip"] { animation: table-row-fade 160ms ease both }
@@ -136,6 +163,78 @@ const CellValue = ({
     <span className="line-clamp-2 min-w-[12ch]" title={String(value)}>
       {String(value)}
     </span>
+  );
+};
+
+/** A number column tinted by its value: the least to the greatest of the column, from a whisper to a clear colour. */
+const HEAT_COLOR = {
+  bad: "var(--color-rose-500)",
+  good: "var(--color-emerald-500)",
+  scale: "var(--color-sky-500)",
+} as const;
+
+const Tint = ({
+  value,
+  range,
+  heat,
+  children,
+}: {
+  value: TableCell;
+  range: { min: number; max: number };
+  heat: keyof typeof HEAT_COLOR;
+  children: ReactNode;
+}) => {
+  const n = typeof value === "number" ? value : Number(value);
+  if (value === null || value === "" || !Number.isFinite(n)) {
+    return children;
+  }
+  const t =
+    range.max === range.min ? 1 : (n - range.min) / (range.max - range.min);
+  // The cell's padding is taken back so the tint fills the whole cell, not a box inside it.
+  return (
+    <span
+      className="-mx-2 -my-1.5 block px-2 py-1.5"
+      style={{
+        backgroundColor: `color-mix(in oklab, ${HEAT_COLOR[heat]} ${Math.round(8 + t * 32)}%, transparent)`,
+      }}
+    >
+      {children}
+    </span>
+  );
+};
+
+/** A group's row: the toggle, its value, and how many rows it holds. */
+const GroupLabel = ({
+  row,
+  children,
+}: {
+  row: Row<Features, TableRow>;
+  children: ReactNode;
+}) => {
+  const t = useTranslations("chat.table");
+  const open = row.getIsExpanded();
+  const label = String(row.groupingValue ?? "");
+  return (
+    <button
+      aria-expanded={open}
+      aria-label={t(open ? "collapseGroup" : "expandGroup", { label })}
+      className="flex min-w-0 items-center gap-1.5 text-left"
+      data-group-row=""
+      onClick={() => row.toggleExpanded()}
+      type="button"
+    >
+      <ChevronRight
+        aria-hidden="true"
+        className={cn(
+          "text-muted-foreground size-3.5 shrink-0 transition-transform duration-150",
+          open && "rotate-90"
+        )}
+      />
+      <span className="min-w-0 truncate">{children}</span>
+      <span className="text-muted-foreground shrink-0 text-xs font-normal tabular-nums">
+        {row.getLeafRows().length}
+      </span>
+    </button>
   );
 };
 
@@ -246,6 +345,8 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
   const view = tableView(part);
   const [query, setQuery] = useState<FilterQuery>(() => createFilterQuery([]));
   const [sorting, setSorting] = useState<SortingState>([]);
+  // Every group open to start with: the user came for the rows.
+  const [expanded, setExpanded] = useState<ExpandedState>(true);
   const box = useFollowRows(view.rows.length, view.streaming);
 
   // A category's values: most frequent first for the filter's options, in the order they came for the colours.
@@ -259,6 +360,14 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
     const at = order[index]?.indexOf(String(value)) ?? -1;
     return at === -1 ? OTHER_TONE : (TONES[at] ?? OTHER_TONE);
   };
+
+  // A tinted column's span: from its least to its greatest, over every row that has come.
+  const ranges = view.columns.map((c, i) => {
+    const nums = c.heat ? numbersOf(view.rows, i) : [];
+    return nums.length === 0
+      ? undefined
+      : { max: Math.max(...nums), min: Math.min(...nums) };
+  });
 
   const fields: FilterField[] = view.columns.map((c, i) => {
     if (c.type === "category") {
@@ -280,50 +389,127 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
       : { defaultOperator: "contains", id: c.id, label: c.label, type: "text" };
   });
 
-  const columns: ColumnDef<DataGridFeatures, TableRow>[] = view.columns.map(
-    (c, i) => ({
-      accessorFn: (row) => sortValue(row.cells[i] ?? null, c.type),
-      // oxlint-disable-next-line react/no-unstable-nested-components -- TanStack's cell renderer, not a component
-      cell: ({ row }) => (
-        <CellValue
-          tone={
-            c.type === "category"
-              ? toneOf(i, row.original.cells[i] ?? null)
-              : undefined
-          }
-          type={c.type}
-          value={row.original.cells[i] ?? null}
-        />
-      ),
-      enableSorting: true,
-      // oxlint-disable-next-line react/no-unstable-nested-components -- TanStack's header renderer, not a component
-      header: ({ column }) => (
-        <DataGridColumnHeader column={column} title={c.label} />
-      ),
-      id: c.id,
-      meta: ALIGN_END.has(c.type)
-        ? {
-            cellClassName: "text-end",
-            headerClassName: "[&>div]:justify-end",
-          }
-        : undefined,
-      sortFn: c.type === "number" ? "basic" : "alphanumeric",
-      sortUndefined: "last",
-    })
-  );
+  const columns: ColumnDef<Features, TableRow>[] = view.columns.map((c, i) => ({
+    accessorFn: (row) => sortValue(row.cells[i] ?? null, c.type),
+    // oxlint-disable-next-line react/no-unstable-nested-components -- TanStack's cell renderer, not a component
+    cell: ({ row, cell }) => {
+      const value = row.original?.cells[i] ?? null;
+      const tone =
+        c.type === "category"
+          ? toneOf(
+              i,
+              (row.getIsGrouped() ? row.groupingValue : value) as TableCell
+            )
+          : undefined;
+      if (cell.getIsGrouped()) {
+        return (
+          <GroupLabel row={row}>
+            <CellValue
+              tone={tone}
+              type={c.type}
+              value={(row.groupingValue ?? null) as TableCell}
+            />
+          </GroupLabel>
+        );
+      }
+      if (row.getIsGrouped()) {
+        // A group's row: the figure the model asked for, and nothing in the columns that hold no figure.
+        const figure =
+          c.summary && !cell.getIsPlaceholder()
+            ? summarize(
+                numbersOf(
+                  row.getLeafRows().map((r) => r.original),
+                  i
+                ),
+                c.summary
+              )
+            : undefined;
+        return figure === undefined ? null : (
+          <CellValue type="number" value={figure} />
+        );
+      }
+      if (cell.getIsPlaceholder()) {
+        return null;
+      }
+      const plain = <CellValue tone={tone} type={c.type} value={value} />;
+      const range = ranges[i];
+      return c.heat && range ? (
+        <Tint heat={c.heat} range={range} value={value}>
+          {plain}
+        </Tint>
+      ) : (
+        plain
+      );
+    },
+    enableSorting: true,
+    // oxlint-disable-next-line react/no-unstable-nested-components -- TanStack's header renderer, not a component
+    header: ({ column }) => (
+      // The header is typed for the grid's own features; the grouping added to them does not touch what it reads.
+      <DataGridColumnHeader column={column as never} title={c.label} />
+    ),
+    id: c.id,
+    meta: ALIGN_END.has(c.type)
+      ? {
+          cellClassName: "text-end",
+          headerClassName: "[&>div]:justify-end",
+        }
+      : undefined,
+    sortFn: c.type === "number" ? "basic" : "alphanumeric",
+    sortUndefined: "last",
+  }));
 
   const rows = view.rows.filter((r) => matchesQuery(r, query));
   const filtered = rows.length !== view.rows.length;
 
   const table = useTable({
+    // Rows keep arriving, and the grid would close every group each time: the state is ours.
+    autoResetExpanded: false,
     columns,
     data: rows,
-    features: dataGridFeatures,
+    features,
     getRowId: (row: TableRow) => row.id,
+    onExpandedChange: setExpanded,
     onSortingChange: setSorting,
-    // One page: the table scrolls within its height, it does not page.
-    state: { pagination: { pageIndex: 0, pageSize: TABLE_MAX_ROWS }, sorting },
+    state: {
+      expanded,
+      grouping: view.groups,
+      // One page: the table scrolls within its height, it does not page.
+      pagination: { pageIndex: 0, pageSize: TABLE_MAX_ROWS },
+      sorting,
+    },
   });
+
+  // The total row: shown when the model asked for a figure anywhere; over the rows the filters leave.
+  const footer = view.columns.some((c) => c.summary) && (
+    <DataGridTableFootRow>
+      {table.getVisibleLeafColumns().map((col, at) => {
+        const index = view.columns.findIndex((c) => c.id === col.id);
+        const c = view.columns[index];
+        const figure =
+          c?.summary && summarize(numbersOf(rows, index), c.summary);
+        return (
+          <DataGridTableFootRowCell
+            className={cn("bg-muted", c && ALIGN_END.has(c.type) && "text-end")}
+            key={col.id}
+          >
+            {at === 0 && (
+              <span className="text-foreground">
+                {t("total")}
+                <span className="text-muted-foreground ms-1.5 text-xs font-normal tabular-nums">
+                  {rows.length}
+                </span>
+              </span>
+            )}
+            {typeof figure === "number" && (
+              <span className="text-foreground">
+                <CellValue type="number" value={figure} />
+              </span>
+            )}
+          </DataGridTableFootRowCell>
+        );
+      })}
+    </DataGridTableFootRow>
+  );
 
   const ready = view.columns.length > 0;
   return (
@@ -370,9 +556,12 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
             table={table}
             tableClassNames={{
               bodyRow: view.streaming ? "table-row-in" : undefined,
+              // The total stays in sight while the rows scroll under it.
+              footer: "sticky bottom-0 z-10",
             }}
             tableLayout={{
               dense: true,
+              footerBackground: true,
               headerBackground: true,
               headerSticky: true,
               width: "auto",
@@ -381,7 +570,7 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
             {/* The height caps the viewport, not the root: the viewport is `size-full`, and a percentage of a
                 max-height is no height at all — the rows were cut off and nothing scrolled. */}
             <DataGridScrollArea className="[&_[data-slot=scroll-area-viewport]]:max-h-[26rem]">
-              <DataGridTable />
+              <DataGridTable footerContent={footer} />
             </DataGridScrollArea>
           </DataGrid>
         </div>

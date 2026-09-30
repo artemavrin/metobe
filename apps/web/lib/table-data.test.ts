@@ -9,6 +9,8 @@ import {
   categoryValues,
   firstSeen,
   matchesQuery,
+  numbersOf,
+  summarize,
   tableView,
 } from "./table-data";
 
@@ -121,5 +123,51 @@ describe("filters over the rows", () => {
       "Борис",
       "Вера",
     ]);
+  });
+});
+
+const done = (extra: object, cols = columns) =>
+  tableView(
+    part("input-available", {
+      columns: cols,
+      rows: [["А", "Москва", 100]],
+      title: "Т",
+      ...extra,
+    })
+  );
+
+describe("grouping, figures and tints the model asks for", () => {
+  it("groups by the columns whose labels the model wrote, and only by those", () => {
+    expect(done({ groupBy: ["Город", "Нет такой"] }).groups).toEqual(["c1"]);
+    expect(done({}).groups).toEqual([]);
+  });
+
+  it("keeps a summary and a heat for a number column only", () => {
+    const view = done({}, [
+      { label: "Имя", summary: "sum", type: "text" },
+      { heat: "good", label: "Оклад", summary: "avg", type: "number" },
+      { heat: "hot", label: "Стаж", summary: "median", type: "number" },
+    ] as never);
+    expect(view.columns.map((c) => [c.summary, c.heat])).toEqual([
+      [undefined, undefined],
+      ["avg", "good"],
+      [undefined, undefined],
+    ]);
+  });
+
+  it("sums a column up from its numbers, leaving out what is no number", () => {
+    const rows = [
+      { cells: ["a", 10], id: "1" },
+      { cells: ["b", null], id: "2" },
+      { cells: ["c", "30"], id: "3" },
+      { cells: ["d", "n/a"], id: "4" },
+    ];
+    const nums = numbersOf(rows, 1);
+    expect(nums).toEqual([10, 30]);
+    expect(summarize(nums, "sum")).toBe(40);
+    expect(summarize(nums, "avg")).toBe(20);
+    expect(summarize(nums, "min")).toBe(10);
+    expect(summarize(nums, "max")).toBe(30);
+    expect(summarize([], "sum")).toBeUndefined();
   });
 });
