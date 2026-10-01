@@ -1,0 +1,23 @@
+# Spike S6: SeaweedFS as the bundled S3 (D4). `weed mini` — master, volume, filer and S3 in one process; the bucket
+# and the keys come from the environment.
+name: s6
+services:
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    # Only what Metobe uses: no Admin UI (its auth is off without a password).
+    command: ["mini", "-dir=/data", "-admin.ui=false"]
+    environment:
+      AWS_ACCESS_KEY_ID: metobe
+      AWS_SECRET_ACCESS_KEY: s6-secret-not-for-real-use
+      S3_BUCKET: metobe
+    ports:
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  data:
