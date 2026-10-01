@@ -5,7 +5,9 @@ import { ensureSecretsCanary } from "@metobe/core/secrets";
 const keepAlive = setInterval(async () => {
   const health = await checkHealth();
   if (health.status !== "ok") {
-    console.error("worker: database is unreachable");
+    console.error(
+      `worker: unhealthy — db ${health.services.db}, s3 ${health.services.s3}`
+    );
   }
 }, 60_000);
 
@@ -22,7 +24,9 @@ try {
   const health = await checkHealth();
   // The worker decrypts secrets too, so it must not start with a key the installation does not know.
   await ensureSecretsCanary();
-  console.log(`worker started, db: ${health.services.db}`);
+  console.log(
+    `worker started, db: ${health.services.db}, s3: ${health.services.s3}`
+  );
 } catch (error) {
   console.error(error);
   process.exit(1);

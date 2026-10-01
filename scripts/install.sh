@@ -6,7 +6,9 @@
 # Installs into ./metobe (METOBE_DIR to change). Running it again updates to the latest release and keeps .env.
 # From a git checkout it installs that checkout instead (METOBE_BUILD=1 builds the image from source).
 #
-# Non-interactive: METOBE_YES=1 plus METOBE_URL, METOBE_PORT, METOBE_DATABASE_URL, METOBE_PROXY, METOBE_SMTP_URL as needed.
+# Non-interactive: METOBE_YES=1 plus METOBE_URL, METOBE_PORT, METOBE_DATABASE_URL, METOBE_PROXY, METOBE_SMTP_URL,
+# METOBE_S3_CHOICE (1 bundled, 2 your own S3 via METOBE_S3_ENDPOINT/_BUCKET/_ACCESS_KEY/_SECRET_KEY/_REGION, 3 none)
+# as needed.
 # Inputs are METOBE_-prefixed on purpose: a shell-wide HTTPS_PROXY must not leak into the containers.
 set -euo pipefail
 
@@ -68,6 +70,49 @@ compose() { docker compose -f compose.yml --env-file .env "$@" </dev/null; }
 say "${bold}Metobe${off}${METOBE_VERSION:+ $METOBE_VERSION} — $(pwd)"
 say
 
+# --- file storage (D4, D34) -------------------------------------------------------------------------
+# Asks once: the bundled SeaweedFS (profile s3), an S3 of your own, or none for now. Prints the .env lines.
+storage_env() {
+  ask METOBE_S3_CHOICE "Хранилище файлов: 1 — встроенное, 2 — своё S3, 3 — пока без файлов" "1" >&2
+  case "$METOBE_S3_CHOICE" in
+    1)
+      echo "S3_ENDPOINT=http://s3:8333"
+      echo "S3_BUCKET=metobe"
+      echo "S3_ACCESS_KEY=metobe"
+      echo "S3_SECRET_KEY=$(password)"
+      ;;
+    2)
+      ask METOBE_S3_ENDPOINT "Адрес S3 (пусто — сам AWS)" "" >&2
+      ask METOBE_S3_BUCKET "Бакет" "" >&2
+      ask METOBE_S3_ACCESS_KEY "Access key" "" >&2
+      ask METOBE_S3_SECRET_KEY "Secret key" "" >&2
+      ask METOBE_S3_REGION "Регион" "us-east-1" >&2
+      [ -n "$METOBE_S3_BUCKET" ] && [ -n "$METOBE_S3_ACCESS_KEY" ] && [ -n "$METOBE_S3_SECRET_KEY" ] ||
+        fail "для своего S3 нужны бакет и ключи"
+      [ -z "$METOBE_S3_ENDPOINT" ] || echo "S3_ENDPOINT=$METOBE_S3_ENDPOINT"
+      echo "S3_BUCKET=$METOBE_S3_BUCKET"
+      echo "S3_ACCESS_KEY=$METOBE_S3_ACCESS_KEY"
+      echo "S3_SECRET_KEY=$METOBE_S3_SECRET_KEY"
+      echo "S3_REGION=$METOBE_S3_REGION"
+      ;;
+    3) echo "# No file storage: attachments are off until S3_* are set (or rerun install.sh after removing this line)."
+       echo "S3_NONE=1" ;;
+    *) fail "выберите 1, 2 или 3" ;;
+  esac
+}
+
+# Adds a profile to COMPOSE_PROFILES in .env (bundled services run only when their profile is on).
+add_profile() {
+  local profile="$1" current
+  current="$(sed -nE 's/^COMPOSE_PROFILES=(.*)$/\1/p' .env | tail -1)"
+  case ",$current," in *",$profile,"*) return ;; esac
+  if grep -q '^COMPOSE_PROFILES=' .env; then
+    sed -i.bak -E "s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=${current:+$current,}$profile/" .env && rm -f .env.bak
+  else
+    echo "COMPOSE_PROFILES=$profile" >> .env
+  fi
+}
+
 # --- .env ------------------------------------------------------------------------------------------
 if [ -f .env ]; then
   say "Найден .env — секреты не меняю."
@@ -75,6 +120,12 @@ if [ -f .env ]; then
     sed -i.bak "s#^METOBE_IMAGE=.*#METOBE_IMAGE=$image#" .env && rm -f .env.bak
   else
     echo "METOBE_IMAGE=$image" >> .env
+  fi
+  # An installation from before file storage: asked once, then remembered in .env.
+  if ! grep -qE '^(S3_BUCKET|S3_NONE)=' .env; then
+    say "В этой версии появилось хранилище файлов (вложения в чате)."
+    storage_env >> .env
+    if grep -q '^S3_ENDPOINT=http://s3:8333$' .env; then add_profile s3; fi
   fi
 else
   ask METOBE_URL "По какому адресу будут открывать Metobe" "http://localhost:3000"
@@ -88,6 +139,7 @@ else
   fi
   ask METOBE_PROXY "Исходящий прокси, если нужен (http://… или socks5://…)" ""
   ask METOBE_SMTP_URL "Почта для писем со входом (smtp://user:pass@host:587), можно позже в настройках" ""
+  storage=$(storage_env)
 
   umask 077
   {
@@ -99,12 +151,16 @@ else
     echo "# Encrypts source keys and connection secrets. Losing it makes them unrecoverable."
     echo "SECRETS_KEY=$(secret)"
     echo "SEARXNG_SECRET=$(password)"
+    profiles=""
     if [ -n "${METOBE_DATABASE_URL:-}" ]; then
       echo "APP_DATABASE_URL=$METOBE_DATABASE_URL"
     else
-      echo "COMPOSE_PROFILES=db"
+      profiles="db"
       echo "POSTGRES_PASSWORD=$(password)"
     fi
+    echo "$storage"
+    case "$storage" in *"S3_ENDPOINT=http://s3:8333"*) profiles="${profiles:+$profiles,}s3" ;; esac
+    [ -z "$profiles" ] || echo "COMPOSE_PROFILES=$profiles"
     [ -z "$METOBE_PROXY" ] || echo "HTTPS_PROXY=$METOBE_PROXY"
     [ -z "$METOBE_SMTP_URL" ] || echo "SMTP_URL=$METOBE_SMTP_URL"
   } > .env

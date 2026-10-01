@@ -1,4 +1,4 @@
-# Local development on top of compose.yml: host ports for the databases, SearXNG and Mailpit.
+# Local development on top of compose.yml: host ports for the databases, S3, SearXNG and Mailpit.
 # Used via COMPOSE_FILE in the dev .env; installations use compose.yml alone.
 services:
   postgres:
@@ -8,6 +8,11 @@ services:
   redis:
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+
+  # S3_ENDPOINT=http://localhost:8333 in the dev .env.
+  s3:
+    ports:
+      - "127.0.0.1:${S3_PORT:-8333}:8333"
 
   # The app runs on the host in development: SEARXNG_URL=http://localhost:8888 in the dev .env.
   searxng:
