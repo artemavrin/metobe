@@ -17,6 +17,9 @@ services:
       postgres:
         condition: service_healthy
         required: false
+      s3:
+        condition: service_healthy
+        required: false
       redis:
         condition: service_healthy
     ports:
@@ -56,6 +59,28 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Bundled file storage (D4, spike S6): SeaweedFS `weed mini` — master, volume, filer and S3 in one process, the bucket
+  # made at start. Inside the network only: the browser reaches files through the app. Skipped when install.sh points
+  # S3_* at an S3 of your own. It refuses to start without a secret — `weed mini` without keys would serve anyone.
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    profiles: ["s3"]
+    restart: unless-stopped
+    entrypoint: ["sh", "-c"]
+    command:
+      - '[ -n "$$AWS_SECRET_ACCESS_KEY" ] || { echo "S3_SECRET_KEY is not set" >&2; exit 1; }; exec /entrypoint.sh mini -dir=/data -admin.ui=false'
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-}
+      S3_BUCKET: ${S3_BUCKET:-metobe}
+    volumes:
+      - s3:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   redis:
     image: redis:8-alpine
@@ -112,3 +137,4 @@ configs:
 volumes:
   postgres:
   redis:
+  s3:
