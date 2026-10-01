@@ -46,6 +46,7 @@
     "errors": {
       "model-unavailable": "The model is unavailable right now. Try again later.",
       "generation-failed": "The model didn’t answer. Try again.",
+      "context-full": "The model’s context is full: the chat’s history is too long. Start a new chat or pick a model with a bigger window.",
       "network": "Can’t reach the server. Check your connection.",
       "forbidden": "This chat isn’t yours.",
       "unauthorized": "Your session has ended — sign in again.",
@@ -188,6 +189,9 @@
       "rows": "{count, plural, one {# row} other {# rows}}",
       "shown": "{shown} of {total}",
       "noMatch": "No rows match these filters",
+      "total": "Total",
+      "expandGroup": "Expand group “{label}”",
+      "collapseGroup": "Collapse group “{label}”",
       "noRows": "No rows",
       "empty": "—",
       "filters": {

@@ -225,6 +225,7 @@ export const getChatModel = async (id: string) => {
   const [model] = await db
     .select({
       capabilities: models.capabilities,
+      contextWindow: models.contextWindow,
       id: models.id,
       kind: sources.kind,
       modelId: models.modelId,

@@ -34,7 +34,7 @@ import {
   toUIMessageStream,
   validateUIMessages,
 } from "ai";
-import type { ToolSet } from "ai";
+import type { ToolSet, UIMessageChunk } from "ai";
 import { headers } from "next/headers";
 
 import { applyApprovals, applyConnections, settleAsks } from "@/lib/approvals";
@@ -45,11 +45,15 @@ import {
   REQUEST_CONNECTION,
   requestConnectionTool,
 } from "@/lib/connect-tool";
+import { budgetMessages, isContextOverflow } from "@/lib/context-budget";
 import { emailTools } from "@/lib/email-tools";
 import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
+import { getPrefs } from "@/lib/prefs";
+import { recordStream } from "@/lib/resume-stream";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
+import { TIME_NOTE, TIME_TOOL, timeTool } from "@/lib/time-tool";
 import { lendTools, servicesNote } from "@/lib/tool-search";
 import { withNotes } from "@/lib/user-notes";
 import {
@@ -216,6 +220,8 @@ export const POST = async (request: Request) => {
   if (chat && chat.userId !== session.user.id) {
     return fail("forbidden", 403);
   }
+  // The user's own zone (their choice, else the browser's): the clock the model asks tells the time in it.
+  const { timeZone } = await getPrefs();
   const [stored, chatServers, boxes, notes] = await Promise.all([
     chat ? listMessages(id) : [],
     listChatServers(session.user.id),
@@ -274,9 +280,13 @@ export const POST = async (request: Request) => {
   const originalMessages = message ? undefined : uiMessages;
   // «Stop» reaches the model through this (D6): what was written by then is saved as the answer.
   const generation = startGeneration(id);
+  // Called once the answer is saved: a page reloaded before that finds the answer being written and joins it (D5).
+  const recording: { saved?: () => void } = {};
 
   const stream = createUIMessageStream<ChatMessage>({
     execute: async ({ writer }) => {
+      // The server's time, for the page to count a running step by (a reloaded page gets its own, from the record).
+      writer.write({ data: Date.now(), transient: true, type: "data-clock" });
       // A new chat gets its name from the titles model while the answer streams; the sidebar takes it at once.
       const name = async () => {
         const title =
@@ -299,9 +309,12 @@ export const POST = async (request: Request) => {
         }
       };
       const naming = name();
+      // What the model is sent of the history (lib/context-budget): tool results cut at a cap, the oldest ones cleared
+      // once the chat is long. The stored history stays whole — only this copy is trimmed.
+      const budget = { window: model.contextWindow };
       const prompt = withPromptCache(
         model.kind,
-        await convertToModelMessages(uiMessages)
+        budgetMessages(await convertToModelMessages(uiMessages), budget)
       );
       const started = Date.now();
       let firstChunk: number | null = null;
@@ -311,8 +324,43 @@ export const POST = async (request: Request) => {
       // How long the work with tools took: to the last tool result (the folded work says it).
       let workTo: number | null = null;
       // Each tool call's own time, from its call to its result: the ribbon of the work says it per step.
-      const toolStarts = new Map<string, number>();
-      const toolMs: Record<string, number> = {};
+      const stepStarts = new Map<string, number>();
+      const stepMs: Record<string, number> = {};
+      // Thoughts and notes are told apart by their place: an answer carried on after approvals counts on from those it has.
+      const wordKeys = new Map<string, string>();
+      const carried = originalMessages?.at(-1)?.parts ?? [];
+      const counts = {
+        reasoning: carried.filter((p) => p.type === "reasoning").length,
+        text: carried.filter((p) => p.type === "text").length,
+      };
+      /** The step a stream part begins or ends: a tool call by its id, a thought or a note by its place. */
+      const stepEvent = (part: {
+        type: string;
+        id?: string;
+        toolCallId?: string;
+      }): { begun?: string; ended?: string } => {
+        if (part.type === "reasoning-start" || part.type === "text-start") {
+          const kind = part.type === "text-start" ? "text" : "reasoning";
+          const key = `${kind}:${counts[kind]}`;
+          counts[kind] += 1;
+          wordKeys.set(`${kind}:${part.id}`, key);
+          return { begun: key };
+        }
+        if (part.type === "reasoning-end" || part.type === "text-end") {
+          const kind = part.type === "text-end" ? "text" : "reasoning";
+          return { ended: wordKeys.get(`${kind}:${part.id}`) };
+        }
+        if (part.type === "tool-input-start") {
+          return { begun: part.id };
+        }
+        if (part.type === "tool-call") {
+          return { begun: part.toolCallId };
+        }
+        if (part.type === "tool-result" || part.type === "tool-error") {
+          return { ended: part.toolCallId };
+        }
+        return {};
+      };
       const run = { chatId: id, model, userId: session.user.id };
       const record = async (
         r: Omit<Parameters<typeof recordRun>[0], keyof typeof run>
@@ -343,6 +391,7 @@ export const POST = async (request: Request) => {
               ...lendTools(servers, calledIn(uiMessages)),
               [CHART_TOOL]: chartTool,
               [TABLE_TOOL]: tableTool,
+              [TIME_TOOL]: timeTool(timeZone),
               ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
               ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
               // The user's own mail, when they have a box (ARCH §17.7).
@@ -358,7 +407,9 @@ export const POST = async (request: Request) => {
             };
       const result = streamText({
         abortSignal: generation.signal,
-        instructions: withNotes(notes, servicesNote(servers)),
+        instructions: [TIME_NOTE, withNotes(notes, servicesNote(servers))]
+          .filter(Boolean)
+          .join("\n\n"),
         messages: prompt.messages,
         model: languageModel,
         // The model's own end frees the chat for «stop» — not the client's: it may leave, the model writes on.
@@ -384,24 +435,10 @@ export const POST = async (request: Request) => {
           if (
             (chunk.type === "tool-result" || chunk.type === "tool-error") &&
             chunk.toolName !== TABLE_TOOL &&
-            chunk.toolName !== CHART_TOOL
+            chunk.toolName !== CHART_TOOL &&
+            chunk.toolName !== TIME_TOOL
           ) {
             workTo = Date.now();
-          }
-          if (chunk.type === "tool-input-start") {
-            toolStarts.set(chunk.id, Date.now());
-          } else if (chunk.type === "tool-call") {
-            if (!toolStarts.has(chunk.toolCallId)) {
-              toolStarts.set(chunk.toolCallId, Date.now());
-            }
-          } else if (
-            chunk.type === "tool-result" ||
-            chunk.type === "tool-error"
-          ) {
-            const from = toolStarts.get(chunk.toolCallId);
-            if (from !== undefined) {
-              toolMs[chunk.toolCallId] = Date.now() - from;
-            }
           }
           if (chunk.type === "reasoning-delta") {
             reasoningFrom ??= Date.now();
@@ -427,7 +464,15 @@ export const POST = async (request: Request) => {
           return record({ latencyMs: firstChunk, status: "error" });
         },
         // A tool's result goes back to the model until it answers in words — within reason; the last step answers.
-        prepareStep: lastStepAnswers,
+        // Inside an answer the history grows with every tool result: the same budget, step by step (a returned
+        // `messages` carries on to the later steps), then the last step, which answers.
+        prepareStep: (options) => {
+          const trimmed = budgetMessages(options.messages, budget);
+          return {
+            ...(trimmed === options.messages ? {} : { messages: trimmed }),
+            ...lastStepAnswers(options),
+          };
+        },
         providerOptions: prompt.providerOptions,
         stopWhen: isStepCount(MAX_STEPS),
         tools,
@@ -442,6 +487,25 @@ export const POST = async (request: Request) => {
             if (part.type === "start") {
               return { createdAt: new Date().toISOString(), modelId: model.id };
             }
+            // Each step's start and, when it ends, its time go to the page as they happen — so a step still going is
+            // counted from the server's clock (also on a page reloaded in the middle of it), and a finished one shows
+            // its time at once rather than at the end of the answer. A tool call is keyed by its id, a thought or a
+            // note by its place among the answer's own.
+            const { begun, ended } = stepEvent(part);
+            if (begun !== undefined && !stepStarts.has(begun)) {
+              const at = Date.now();
+              stepStarts.set(begun, at);
+              return { stepStartedAt: { [begun]: at } };
+            }
+            if (ended !== undefined) {
+              const from = stepStarts.get(ended);
+              if (from === undefined) {
+                return;
+              }
+              const ms = Date.now() - from;
+              stepMs[ended] = ms;
+              return { stepMs: { [ended]: ms } };
+            }
             if (part.type !== "finish") {
               return;
             }
@@ -450,9 +514,13 @@ export const POST = async (request: Request) => {
                 ? {}
                 : { reasoningMs: (reasoningTo ?? Date.now()) - reasoningFrom }),
               ...(workTo === null ? {} : { workMs: workTo - started }),
-              ...(Object.keys(toolMs).length === 0 ? {} : { toolMs }),
+              ...(Object.keys(stepMs).length === 0 ? {} : { stepMs }),
             };
           },
+          // The model's own error reaches the page here, not through the wrapper's: a history too long for its window
+          // is said as that; any other keeps what the SDK says by itself.
+          onError: (error) =>
+            isContextOverflow(error) ? "context-full" : "An error occurred.",
           originalMessages,
           sendReasoning: true,
           stream: result.stream,
@@ -462,20 +530,33 @@ export const POST = async (request: Request) => {
     },
     generateId: () => crypto.randomUUID(),
     onEnd: async ({ messages: finished }) => {
-      await saveMessages(id, finished);
+      try {
+        await saveMessages(id, finished);
+      } finally {
+        recording.saved?.();
+      }
     },
     onError: (error) => {
       endGeneration(id, generation);
       console.error("chat: generation failed", model.id, error);
-      return "generation-failed" satisfies ChatErrorCode;
+      // A history too long for the model's window is said as that, not as «the model did not answer».
+      return (
+        isContextOverflow(error) ? "context-full" : "generation-failed"
+      ) satisfies ChatErrorCode;
     },
     originalMessages,
   });
 
+  // The stream goes two ways: to the client, and to the record a reloaded page joins (GET /api/chat/[id]/stream).
+  const [toClient, toRecord] = stream.tee();
+  recording.saved = recordStream(
+    id,
+    toRecord as ReadableStream<UIMessageChunk>
+  );
   // The server reads its own copy to the end: an answer is saved whole when the client leaves halfway, and only
   // «stop» (above) cuts it short.
   return createUIMessageStreamResponse({
     consumeSseStream: consumeStream,
-    stream,
+    stream: toClient,
   });
 };

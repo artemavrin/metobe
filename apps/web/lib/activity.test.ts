@@ -27,12 +27,14 @@ const thought = (id: string): WorkStep => ({
   key: id,
   kind: "thought",
   text: "…",
+  timed: [`reasoning:${id}`],
 });
 
 const row = (state: ActivityRow["state"], count = 1): ActivityRow => ({
   count,
   key: state,
   ms: undefined,
+  startedAt: undefined,
   state,
   step: thought("t"),
 });
@@ -49,7 +51,7 @@ describe("the rows of the work", () => {
         toolStep("b", call("c3", "output-available")),
       ],
       false,
-      { c1: 800, c2: 700 }
+      { stepMs: { c1: 800, c2: 700 } }
     );
     expect(rows[0]?.ms).toBe(1500);
     expect(rows[0]?.count).toBe(2);
@@ -88,6 +90,38 @@ describe("the rows of the work", () => {
   });
 });
 
+describe("the time of a step that is still going", () => {
+  it("runs from the server's start of the call, and keeps what the finished calls of the step took", () => {
+    const [only] = activityRows(
+      [
+        toolStep(
+          "a",
+          call("c1", "output-available"),
+          call("c2", "input-available")
+        ),
+      ],
+      true,
+      { stepMs: { c1: 800 }, stepStartedAt: { c1: 1000, c2: 5000 } }
+    );
+    expect(only?.startedAt).toBe(5000);
+    expect(only?.ms).toBe(800);
+  });
+
+  it("has no start when the server did not say it, and none once the step is done", () => {
+    const [going] = activityRows(
+      [toolStep("a", call("c1", "input-available"))],
+      true
+    );
+    expect(going?.startedAt).toBeUndefined();
+    const [done] = activityRows(
+      [toolStep("a", call("c1", "output-available"))],
+      false,
+      { stepStartedAt: { c1: 1000 } }
+    );
+    expect(done?.startedAt).toBeUndefined();
+  });
+});
+
 describe("folding a long series", () => {
   it("folds nothing while the series is short", () => {
     expect(foldCount(Array.from({ length: 5 }, () => row("done")))).toBe(0);
@@ -121,5 +155,17 @@ describe("the summary", () => {
       steps: 6,
     });
     expect(summaryFacts(rows, 100).seconds).toBe(1);
+  });
+
+  it("times a thought by its own key, and counts on from its start while it goes", () => {
+    const done = activityRows([thought("0")], false, {
+      stepMs: { "reasoning:0": 1800 },
+    });
+    expect(done[0]?.ms).toBe(1800);
+    const going = activityRows([thought("1")], true, {
+      stepMs: {},
+      stepStartedAt: { "reasoning:1": 5000 },
+    });
+    expect(going[0]).toMatchObject({ ms: undefined, startedAt: 5000 });
   });
 });

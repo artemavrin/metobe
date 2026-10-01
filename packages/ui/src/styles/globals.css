@@ -257,3 +257,55 @@
     opacity: 1;
   }
 }
+
+/*
+ * A table in an answer (Streamdown): one frame, not a frame in a frame with a row of buttons above it. The buttons
+ * (copy, download, full screen) float over the header's corner — on hover with a mouse, always on touch — and the
+ * header is a soft band of the same surface. The full-screen view keeps Streamdown's own layout.
+ */
+[data-streamdown="table-wrapper"]:not([data-streamdown="table-fullscreen"] *) {
+  position: relative;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+[data-streamdown="table-wrapper"]:not([data-streamdown="table-fullscreen"] *)
+  > div:has(> table) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+[data-streamdown="table-wrapper"]:not([data-streamdown="table-fullscreen"] *)
+  > div:not(:has(> table)) {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  z-index: 1;
+  border-radius: 0.375rem;
+  padding: 0.125rem;
+  background: color-mix(in oklab, var(--background) 85%, transparent);
+  backdrop-filter: blur(4px);
+}
+[data-streamdown="table-header"] {
+  background: color-mix(in oklab, var(--muted) 60%, transparent);
+}
+[data-streamdown="table-header-cell"] {
+  padding-block: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-streamdown="table-wrapper"]:not([data-streamdown="table-fullscreen"] *)
+    > div:not(:has(> table)) {
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  [data-streamdown="table-wrapper"]:not(
+      [data-streamdown="table-fullscreen"] *
+    ):is(:hover, :focus-within)
+    > div:not(:has(> table)) {
+    opacity: 1;
+  }
+}

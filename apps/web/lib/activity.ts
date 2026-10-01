@@ -79,8 +79,11 @@ export interface ActivityRow {
   key: string;
   step: WorkStep;
   state: CallState;
-  /** How long the step took as the server measured it; none for words, and for a call it did not see through. */
+  /** How long the step took as the server measured it; none for words, and for a call it did not see through. While a
+   * call of the step still goes — the time of those that finished. */
   ms: number | undefined;
+  /** When the call that still goes began (the server's clock): its time runs from there; none when not known. */
+  startedAt: number | undefined;
   /** How many steps of the work this row counts: a tool called three times in a row is three. */
   count: number;
 }
@@ -92,40 +95,64 @@ export interface ActivityRow {
 export const activityRows = (
   steps: WorkStep[],
   working: boolean,
-  toolMs?: Record<string, number>
+  timing: {
+    stepMs?: Record<string, number>;
+    stepStartedAt?: Record<string, number>;
+  } = {}
 ): ActivityRow[] =>
   steps.map((step, i) => {
     const last = i === steps.length - 1;
     switch (step.kind) {
       case "thought":
       case "note": {
+        // Every part of the step is timed by its own key; the step is their sum, and while the last is still
+        // going, it counts on from its start.
+        const known = step.timed.flatMap((k) => {
+          const ms = timing.stepMs?.[k];
+          return ms === undefined ? [] : [ms];
+        });
+        const going = step.timed.find(
+          (k) => timing.stepMs?.[k] === undefined && timing.stepStartedAt?.[k]
+        );
         return {
           count: 1,
           key: step.key,
-          ms: undefined,
+          ms: known.length === 0 ? undefined : known.reduce((a, b) => a + b, 0),
+          startedAt: going ? timing.stepStartedAt?.[going] : undefined,
           state: working && last ? "running" : "done",
           step,
         };
       }
       case "tool": {
         const known = step.calls.flatMap((c) => {
-          const ms = toolMs?.[c.toolCallId];
+          const ms = timing.stepMs?.[c.toolCallId];
           return ms === undefined ? [] : [ms];
         });
+        const going = step.calls.find(
+          (c) => c.state === "input-streaming" || c.state === "input-available"
+        );
         return {
           count: step.calls.length,
           key: step.key,
           ms: known.length === 0 ? undefined : known.reduce((a, b) => a + b, 0),
+          startedAt: going
+            ? timing.stepStartedAt?.[going.toolCallId]
+            : undefined,
           state: stateOf(step.calls),
           step,
         };
       }
       default: {
+        const state = partState(step.part);
         return {
           count: 1,
           key: step.key,
-          ms: toolMs?.[step.part.toolCallId],
-          state: partState(step.part),
+          ms: timing.stepMs?.[step.part.toolCallId],
+          startedAt:
+            state === "running"
+              ? timing.stepStartedAt?.[step.part.toolCallId]
+              : undefined,
+          state,
           step,
         };
       }

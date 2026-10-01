@@ -1,7 +1,9 @@
 import type {
   TableCell,
   TableColumnType,
+  TableHeat,
   TableInput,
+  TableSummary,
 } from "@metobe/contracts/table";
 import { isFilterRule } from "@metobe/ui/components/reui/filters/filters-query";
 import type {
@@ -16,6 +18,10 @@ export interface TableColumn {
   id: string;
   label: string;
   type: TableColumnType;
+  /** What a group's row shows in this column; none — nothing. */
+  summary?: TableSummary;
+  /** How the column's cells are tinted; none — plain. */
+  heat?: TableHeat;
 }
 
 export interface TableRow {
@@ -28,6 +34,8 @@ export interface TableView {
   /** Empty until the model has written them all: a header that grows column by column would jump. */
   columns: TableColumn[];
   rows: TableRow[];
+  /** The ids of the columns the rows are grouped by, outer first; none — a flat table. */
+  groups: string[];
   /** The model is still writing it. */
   streaming: boolean;
 }
@@ -35,11 +43,17 @@ export interface TableView {
 // The input while it streams is a partial parse: any field may be missing or cut off.
 interface PartialInput {
   title?: string;
-  columns?: ({ label?: string; type?: string } | undefined)[];
+  columns?: (
+    | { label?: string; type?: string; summary?: string; heat?: string }
+    | undefined
+  )[];
+  groupBy?: (string | undefined)[];
   rows?: (TableCell[] | undefined)[];
 }
 
 const TYPES = new Set<string>(["text", "number", "date", "category"]);
+const SUMMARIES = new Set<string>(["sum", "avg", "min", "max"]);
+const HEATS = new Set<string>(["scale", "good", "bad"]);
 
 /**
  * What of a table the grid can show now. While the model writes, only whole things: the columns once it has moved
@@ -61,6 +75,13 @@ export const tableView = (part: TablePart): TableView => {
                 type: (TYPES.has(c.type ?? "")
                   ? c.type
                   : "text") as TableColumnType,
+                // A total means something for numbers only.
+                ...(c.type === "number" && SUMMARIES.has(c.summary ?? "")
+                  ? { summary: c.summary as TableSummary }
+                  : {}),
+                ...(c.type === "number" && HEATS.has(c.heat ?? "")
+                  ? { heat: c.heat as TableHeat }
+                  : {}),
               },
             ]
       )
@@ -73,7 +94,14 @@ export const tableView = (part: TablePart): TableView => {
         id: `r${i}`,
       }))
     : [];
-  return { columns, rows, streaming, title: partial.title ?? "" };
+  // Only the labels the columns have: a name the model got wrong groups nothing, and a table is better flat than empty.
+  const groups = columns.length
+    ? (partial.groupBy ?? []).flatMap((label) => {
+        const found = columns.find((c) => c.label === label);
+        return found ? [found.id] : [];
+      })
+    : [];
+  return { columns, groups, rows, streaming, title: partial.title ?? "" };
 };
 
 /** The values a category column holds, most frequent first — the filter's options. */
@@ -162,4 +190,36 @@ export const matchesQuery = (row: TableRow, node: FilterNode): boolean => {
   return node.combinator === "and"
     ? node.rules.every((child) => matchesQuery(row, child))
     : node.rules.some((child) => matchesQuery(row, child));
+};
+
+/** The numbers among a column's values: what a total and a tint are made of. */
+export const numbersOf = (rows: TableRow[], index: number) =>
+  rows.flatMap((r) => {
+    const v = r.cells[index];
+    if (v === null || v === undefined || v === "") {
+      return [];
+    }
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? [n] : [];
+  });
+
+/** A group's or the table's figure for a column; none when there is no number to sum up. */
+export const summarize = (values: number[], kind: TableSummary) => {
+  if (values.length === 0) {
+    return;
+  }
+  switch (kind) {
+    case "sum": {
+      return values.reduce((a, b) => a + b, 0);
+    }
+    case "avg": {
+      return values.reduce((a, b) => a + b, 0) / values.length;
+    }
+    case "min": {
+      return Math.min(...values);
+    }
+    default: {
+      return Math.max(...values);
+    }
+  }
 };

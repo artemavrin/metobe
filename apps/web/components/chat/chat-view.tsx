@@ -13,6 +13,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "@metobe/ui/components/message-scroller";
 import { cn } from "@metobe/ui/lib/utils";
 import {
@@ -23,7 +24,15 @@ import { ArrowDown, TriangleAlert } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useTouchChat } from "@/components/chat/chat-shell";
 import { Composer } from "@/components/chat/composer";
@@ -35,6 +44,7 @@ import {
 import { PickerDataProvider } from "@/components/chat/picker/data";
 import type { PickerModel } from "@/components/chat/picker/data";
 import { useFavorites } from "@/components/chat/picker/use-favorites";
+import { ServerClockProvider } from "@/components/chat/server-clock";
 import { chatProblem } from "@/lib/chat-errors";
 import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
 import { threadRows } from "@/lib/thread-rows";
@@ -80,6 +90,59 @@ const decisionsOf = (answer: ChatMessage) =>
 
 /** A message's time as the client knows it until the server's copy comes back with its own. */
 const stamp = () => ({ createdAt: new Date().toISOString() });
+
+/**
+ * A chat opened on a question still being answered (a reload mid-answer): the scroller would put the end of the thread
+ * in view, and the question would sit against the composer with the answer written under the edge. It settles at the
+ * top instead, where a question just sent settles.
+ */
+const SeatQuestion = ({ rowKey }: { rowKey?: string }) => {
+  const { scrollToMessage } = useMessageScroller();
+  // Once, on opening: later questions are seated by the scroller itself.
+  const seated = useRef(false);
+  useLayoutEffect(() => {
+    if (rowKey && !seated.current) {
+      seated.current = true;
+      scrollToMessage(rowKey, { align: "start" });
+    }
+  }, [rowKey, scrollToMessage]);
+  return null;
+};
+
+/**
+ * A row of the thread. While an answer is written only its own row changes; the others (their markdown, their ribbon
+ * of steps) are not drawn again on every word — in a long chat that is what made the page heavy. A row is drawn again
+ * when its message, its being live or the thread's state (`sig`: busy or not, how many messages, the models' names)
+ * changes; the closures it draws with are the latest ones at that moment.
+ */
+const same = (a: ThreadRow, b: ThreadRow) =>
+  a.key === b.key &&
+  a.role === b.role &&
+  ("message" in a ? a.message : undefined) ===
+    ("message" in b ? b.message : undefined) &&
+  ("live" in a ? a.live : false) === ("live" in b ? b.live : false);
+
+const RowView = ({
+  row,
+  render,
+}: {
+  row: ThreadRow;
+  render: (row: ThreadRow) => ReactNode;
+  sig: string;
+}) => render(row);
+const ThreadRowView = memo(
+  RowView,
+  (a, b) => same(a.row, b.row) && a.sig === b.sig
+);
+
+/** The key of the thread's last question. */
+const lastQuestionKey = (rows: { key: string; role: string }[]) => {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    if (rows[i]?.role === "user") {
+      return rows[i]?.key;
+    }
+  }
+};
 
 const ChatError = ({
   error,
@@ -153,6 +216,8 @@ export const ChatView = ({
   const [id] = useState(() => givenId ?? crypto.randomUUID());
   const reduce = useReducedMotion() ?? false;
   const touch = useTouchChat();
+  // oxlint-disable-next-line react/hook-use-state -- decided once and never changed: no setter to name
+  const [resume] = useState(() => initialMessages.at(-1)?.role === "user");
   const [model, setModel] = useState(initialModel);
   // A server connected from the chat is ready at once, without a reload (a new chat would lose its draft).
   const [servers, setServers] = useState(initialServers);
@@ -166,6 +231,8 @@ export const ChatView = ({
   const titled = useRef<string | null>(null);
   // The titles model is naming this chat: from the server's «naming» to its title or the end of the answer.
   const naming = useRef(false);
+  // How far this browser's clock is ahead of the server's: the ribbon counts a running step by the server's clock.
+  const [clockOffset, setClockOffset] = useState(0);
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
@@ -216,12 +283,18 @@ export const ChatView = ({
       if (part.type === "data-naming") {
         naming.current = true;
         touch({ id, naming: true });
+      } else if (part.type === "data-clock") {
+        setClockOffset(Date.now() - part.data);
       } else if (part.type === "data-title") {
         titled.current = part.data;
         naming.current = false;
         touch({ id, naming: false, title: part.data });
       }
     },
+    // The thread ends with the user's own message: its answer may still be being written (the page was reloaded in
+    // the middle of it) — join it. Decided once, on opening the chat: a later refresh of the page's data must not
+    // start a second reading of an answer this page is already reading.
+    resume,
     // Once every asked call of the last answer has the user's yes or no, or the user answered its ask to connect a
     // service, the answer carries on by itself.
     sendAutomaticallyWhen: (options) =>
@@ -347,6 +420,11 @@ export const ChatView = ({
     );
   };
 
+  const sig = `${busy}:${messages.length}:${servers.length}:${models.length}`;
+  const rows = threadRows(messages, status, asked).filter(
+    (row) => row.role !== "switch" || labelOf(row.modelId)
+  );
+
   return (
     <PickerDataProvider models={models} recent={recent}>
       <div className="relative flex min-h-0 flex-1 flex-col">
@@ -358,44 +436,45 @@ export const ChatView = ({
           question.
         */}
         <div className="relative min-h-0 flex-1">
-          <MessageScrollerProvider
-            autoScroll
-            defaultScrollPosition="last-anchor"
-          >
-            <MessageScroller>
-              <MessageScrollerViewport aria-label={t("thread")}>
-                <MessageScrollerContent
-                  className={cn(
-                    "mx-auto w-full max-w-4xl px-4 text-sm md:px-6",
-                    !empty && "py-6"
-                  )}
-                >
-                  {threadRows(messages, status, asked)
-                    .filter(
-                      (row) => row.role !== "switch" || labelOf(row.modelId)
-                    )
-                    .map((row) => (
+          <ServerClockProvider value={clockOffset}>
+            <MessageScrollerProvider
+              autoScroll
+              defaultScrollPosition="last-anchor"
+            >
+              <MessageScroller>
+                <MessageScrollerViewport aria-label={t("thread")}>
+                  <MessageScrollerContent
+                    className={cn(
+                      "mx-auto w-full max-w-4xl px-4 text-sm md:px-6",
+                      !empty && "py-6"
+                    )}
+                  >
+                    {rows.map((row) => (
                       <MessageScrollerItem
                         key={row.key}
                         messageId={row.key}
                         scrollAnchor={row.role === "user"}
                       >
-                        {rowOf(row)}
+                        <ThreadRowView render={rowOf} row={row} sig={sig} />
                       </MessageScrollerItem>
                     ))}
-                  {error && !busy && (
-                    <MessageScrollerItem messageId="error">
-                      <ChatError error={error} onRetry={retry} />
-                    </MessageScrollerItem>
-                  )}
-                </MessageScrollerContent>
-              </MessageScrollerViewport>
-              <MessageScrollerButton>
-                <ArrowDown />
-                <span className="sr-only">{t("toLatest")}</span>
-              </MessageScrollerButton>
-            </MessageScroller>
-          </MessageScrollerProvider>
+                    {error && !busy && (
+                      <MessageScrollerItem messageId="error">
+                        <ChatError error={error} onRetry={retry} />
+                      </MessageScrollerItem>
+                    )}
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton>
+                  <ArrowDown />
+                  <span className="sr-only">{t("toLatest")}</span>
+                </MessageScrollerButton>
+              </MessageScroller>
+              <SeatQuestion
+                rowKey={resume ? lastQuestionKey(rows) : undefined}
+              />
+            </MessageScrollerProvider>
+          </ServerClockProvider>
         </div>
         <AnimatePresence initial={false} mode="popLayout">
           {empty && greeting && (
