@@ -11,6 +11,7 @@ import {
   CircleX,
   Clock,
   FileText,
+  Paperclip,
   Globe,
   Mail,
   MessageSquareText,
@@ -30,13 +31,14 @@ import {
   isMailTool,
   opensByItself,
   outputText,
+  readFailed,
   stateOf,
   summaryFacts,
   toolLook,
   toolOwner,
 } from "@/lib/activity";
 import type { ActivityRow } from "@/lib/activity";
-import type { ToolPart } from "@/lib/answer-work";
+import type { ReadPart, ToolPart } from "@/lib/answer-work";
 
 // The work of an answer as a ribbon (prototype P4 «Лента»): one line of status, and under it the steps — a line down
 // the left, an icon by kind, the time on the right. The busy step shows what it does and the finished ones fold into
@@ -153,6 +155,8 @@ const RowIcon = ({
     inner = <MessageSquareText className="size-3.5" />;
   } else if (step.kind === "search") {
     inner = <Search className="size-3.5" />;
+  } else if (step.kind === "read") {
+    inner = <Paperclip className="size-3.5" />;
   } else if (step.kind === "web") {
     inner =
       step.part.type === "tool-web_fetch" ? (
@@ -207,6 +211,7 @@ const useSay = () => ({
   activity: useTranslations("chat.activity"),
   chat: useTranslations("chat"),
   mail: useTranslations("mail.tools"),
+  read: useTranslations("chat.read"),
   tools: useTranslations("chat.tools"),
   web: useTranslations("chat.web"),
 });
@@ -275,6 +280,23 @@ const webTitle = (
   return query ? `${head} · ${say.web("query", { query })}` : head;
 };
 
+/** «Прочитал файл · договор.docx · страница 2 из 5»: the name and the page are known once the file came back. */
+const readTitle = (
+  row: ActivityRow & { step: Extract<ActivityRow["step"], { kind: "read" }> },
+  say: Say
+) => {
+  const { part } = row.step;
+  if (row.state === "failed") {
+    return say.read("failed");
+  }
+  if (part.state !== "output-available" || "error" in part.output) {
+    return say.read("reading");
+  }
+  const { name, page, pages } = part.output;
+  const where = pages > 1 ? ` · ${say.read("page", { page, pages })}` : "";
+  return `${say.read("done")} · ${name}${where}`;
+};
+
 /** The step's line: what it is and where it stands, as the chat already says it. */
 const useTitle = (row: ActivityRow, servers: ChatServer[]) => {
   const say = useSay();
@@ -293,6 +315,9 @@ const useTitle = (row: ActivityRow, servers: ChatServer[]) => {
     }
     case "search": {
       return searchTitle({ ...row, step }, say);
+    }
+    case "read": {
+      return readTitle({ ...row, step }, say);
     }
     default: {
       return webTitle({ ...row, step }, say);
@@ -404,6 +429,22 @@ const CallSlot = ({ calls }: { calls: ToolPart[] }) => {
   );
 };
 
+/** Why a file could not be read, in the chat's words; the known case — no «Vision» model — says where to set it up. */
+const ReadFailure = ({ part }: { part: ReadPart }) => {
+  const t = useTranslations("chat.read");
+  const error =
+    "error" in (part.output ?? {})
+      ? (part.output as { error: string }).error
+      : "";
+  return (
+    <p className="text-muted-foreground text-xs">
+      {error.startsWith("No model is set up")
+        ? t("noVision")
+        : t("failedDetail")}
+    </p>
+  );
+};
+
 /** What the step holds: the words, the calls with what went in and came back, the tools found, the links. */
 const RowDetail = ({
   row,
@@ -466,6 +507,8 @@ const RowDetail = ({
         })}
       </ul>
     );
+  } else if (step.kind === "read") {
+    body = readFailed(step.part) ? <ReadFailure part={step.part} /> : null;
   } else if (
     step.part.type === "tool-web_search" &&
     step.part.state === "output-available"
@@ -543,6 +586,9 @@ const hasDetail = (row: ActivityRow) => {
       step.part.state === "output-available" &&
       step.part.output.tools.length > 0
     );
+  }
+  if (step.kind === "read") {
+    return readFailed(step.part);
   }
   if (step.part.type === "tool-web_search") {
     return (

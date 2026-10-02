@@ -1,6 +1,12 @@
 import type { ChatServer } from "@metobe/core/mcp";
 
-import type { SearchPart, ToolPart, WebPart, WorkStep } from "./answer-work";
+import type {
+  ReadPart,
+  SearchPart,
+  ToolPart,
+  WebPart,
+  WorkStep,
+} from "./answer-work";
 
 // The work of an answer as a ribbon of steps: what each step is, where it stands, how long it took. Only a way to
 // draw the message — its parts, and what the model is sent, stay as they are.
@@ -67,10 +73,17 @@ export const stateOf = (calls: ToolPart[]): CallState => {
   return calls.every((c) => c.state === "output-denied") ? "denied" : "done";
 };
 
-/** Where a search for tools, or of the web, or a page read stands. */
-const partState = (part: SearchPart | WebPart): CallState => {
+/** A file read that came back with an `error` (the tool says it so, it does not throw). */
+export const readFailed = (part: ReadPart) =>
+  part.state === "output-available" && "error" in part.output;
+
+/** Where a search for tools, or of the web, or a page read, or a file read stands. */
+const partState = (part: SearchPart | WebPart | ReadPart): CallState => {
   if (part.state === "input-streaming" || part.state === "input-available") {
     return "running";
+  }
+  if (part.type === "tool-read_attachment" && readFailed(part)) {
+    return "failed";
   }
   return part.state === "output-error" ? "failed" : "done";
 };

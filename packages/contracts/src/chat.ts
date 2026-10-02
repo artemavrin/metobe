@@ -2,6 +2,7 @@ import type { UIMessage } from "ai";
 import { z } from "zod";
 
 import type { ChartInput, ChartOutput } from "./chart";
+import { FILES_PER_MESSAGE } from "./files";
 import type { TableInput, TableOutput } from "./table";
 import type {
   WebFetchInput,
@@ -44,7 +45,7 @@ export type ChatDataParts = { title: string; naming: boolean; clock: number };
 
 /**
  * Our own tools (MCP tools arrive as dynamic tools): the table and the chart drawn in the answer, searching the web
- * and reading its pages, and the search a big server's tools are found with (AI SDK's tool search).
+ * and reading its pages, reading the user's attached files, and the search a big server's tools are found with (AI SDK's tool search).
  */
 // oxlint-disable-next-line typescript/consistent-type-definitions -- a Record for AI SDK, as above
 export type ChatTools = {
@@ -61,6 +62,19 @@ export type ChatTools = {
   current_time: {
     input: { timeZone?: string };
     output: { local: string; timeZone: string; utc: string };
+  };
+  /** Reads an attached file as text, a page at a time; a failure comes back as `{ error }`, not as a thrown error. */
+  read_attachment: {
+    input: { id: string; page?: number };
+    output:
+      | {
+          name: string;
+          page: number;
+          pages: number;
+          text: string;
+          note?: string;
+        }
+      | { error: string };
   };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_table: { input: TableInput; output: TableOutput };
@@ -125,10 +139,28 @@ const textPartSchema = z.object({
   type: z.literal("text"),
 });
 
-/** The one message the client sends; the history comes from the database. Attachments arrive with M3.3. */
+/** An attachment (D33): our URL only — the server takes the name and the type from its own row. */
+const filePartSchema = z.object({
+  filename: z.string().max(255).optional(),
+  mediaType: z.string().max(100),
+  type: z.literal("file"),
+  url: z.string().regex(/^\/api\/files\/[0-9a-f-]{36}$/u),
+});
+
+/** The one message the client sends; the history comes from the database. Text, files, or both. */
 export const userMessageSchema = z.object({
   id: z.uuid(),
-  parts: z.array(textPartSchema).min(1).max(20),
+  parts: z
+    .array(z.union([textPartSchema, filePartSchema]))
+    .min(1)
+    .max(20)
+    .refine(
+      (parts) =>
+        parts.filter((p) => p.type === "file").length <= FILES_PER_MESSAGE,
+      {
+        message: "too many files",
+      }
+    ),
   role: z.literal("user"),
 });
 

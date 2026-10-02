@@ -40,6 +40,15 @@ const chart = (id: string): Part =>
     type: "tool-show_chart",
   }) as Part;
 
+const read = (id: string): Part =>
+  ({
+    input: { id: "9f1c2b7e-0000-4000-8000-000000000000" },
+    output: { name: "счёт.pdf", page: 1, pages: 3, text: "…" },
+    state: "output-available",
+    toolCallId: id,
+    type: "tool-read_attachment",
+  }) as Part;
+
 const search = (id: string): Part =>
   ({
     input: { query: "create deal" },
@@ -60,7 +69,7 @@ const shape = (parts: Part[]) => {
       if (s.kind === "tool") {
         return `tool:${s.calls.map((c) => c.toolCallId).join("+")}`;
       }
-      return s.kind === "search" || s.kind === "web"
+      return s.kind === "search" || s.kind === "web" || s.kind === "read"
         ? `${s.kind}:${s.key}`
         : `${s.kind}:${s.text}`;
     }),
@@ -96,6 +105,21 @@ describe("an answer's work and its answer", () => {
         "tool:b",
         "thought:736, проверю уволенных",
       ],
+    });
+  });
+
+  it("makes the reading of a file a step of the work, and the words after it the answer", () => {
+    expect(
+      shape([
+        text("Посмотрю файл."),
+        read("r1"),
+        read("r2"),
+        text("В счёте три страницы."),
+      ])
+    ).toEqual({
+      answer: "В счёте три страницы.",
+      blocks: ["text"],
+      steps: ["note:Посмотрю файл.", "read:r1", "read:r2"],
     });
   });
 

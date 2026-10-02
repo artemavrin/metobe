@@ -178,7 +178,10 @@ export const modelRuns = pgTable(
       "model_runs_status",
       sql`${table.status} in ('ok', 'error', 'aborted')`
     ),
-    check("model_runs_purpose", sql`${table.purpose} in ('chat', 'title')`),
+    check(
+      "model_runs_purpose",
+      sql`${table.purpose} in ('chat', 'describe', 'title')`
+    ),
   ]
 );
 

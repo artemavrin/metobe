@@ -7,7 +7,7 @@ import {
   summaryFacts,
 } from "./activity";
 import type { ActivityRow } from "./activity";
-import type { ToolPart, WorkStep } from "./answer-work";
+import type { ReadPart, ToolPart, WorkStep } from "./answer-work";
 
 const call = (id: string, state: ToolPart["state"], name = "onec_stock") =>
   ({
@@ -17,6 +17,12 @@ const call = (id: string, state: ToolPart["state"], name = "onec_stock") =>
     toolName: name,
     type: "dynamic-tool",
   }) as ToolPart;
+
+const readStep = (id: string, part: Partial<ReadPart>): WorkStep => ({
+  key: id,
+  kind: "read",
+  part: { toolCallId: id, type: "tool-read_attachment", ...part } as ReadPart,
+});
 
 const toolStep = (id: string, ...calls: ToolPart[]): WorkStep => ({
   calls,
@@ -87,6 +93,40 @@ describe("the rows of the work", () => {
       true
     ).map((r) => r.state);
     expect(states).toEqual(["waiting", "failed", "denied", "running"]);
+  });
+});
+
+describe("the reading of a file", () => {
+  it("is running while the file is read, done once it came back, and failed when the tool says so", () => {
+    const rows = activityRows(
+      [
+        readStep("a", { input: { id: "x" }, state: "input-available" }),
+        readStep("b", {
+          output: { name: "счёт.pdf", page: 1, pages: 3, text: "…" },
+          state: "output-available",
+        }),
+        readStep("c", {
+          output: { error: "No such file." },
+          state: "output-available",
+        }),
+        readStep("d", { errorText: "boom", state: "output-error" }),
+      ],
+      true
+    ).map((r) => r.state);
+    expect(rows).toEqual(["running", "done", "failed", "failed"]);
+  });
+
+  it("keeps a failed reading in sight", () => {
+    const [failed] = activityRows(
+      [
+        readStep("c", {
+          output: { error: "No such file." },
+          state: "output-available",
+        }),
+      ],
+      false
+    );
+    expect(failed && opensByItself(failed)).toBe(true);
   });
 });
 

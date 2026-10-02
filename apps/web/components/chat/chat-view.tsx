@@ -20,13 +20,15 @@ import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithApprovalResponses,
 } from "ai";
-import { ArrowDown, TriangleAlert } from "lucide-react";
+import type { FileUIPart } from "ai";
+import { ArrowDown, Paperclip, TriangleAlert } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   memo,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -34,6 +36,7 @@ import {
   useState,
 } from "react";
 
+import { FileSinkContext, useAttachments } from "@/components/chat/attachments";
 import { useTouchChat } from "@/components/chat/chat-shell";
 import { Composer } from "@/components/chat/composer";
 import {
@@ -142,6 +145,93 @@ const lastQuestionKey = (rows: { key: string; role: string }[]) => {
       return rows[i]?.key;
     }
   }
+};
+
+/**
+ * Files dragged over the window: the whole chat lights up as the place to drop them; dropped, they join the composer.
+ * Counted by enter/leave so moving over children does not flicker it.
+ */
+const useFileDrop = (onFiles: (files: File[]) => void) => {
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (e: DragEvent) =>
+      e.dataTransfer?.types.includes("Files") ?? false;
+    const enter = (e: DragEvent) => {
+      if (hasFiles(e)) {
+        depth += 1;
+        setDragging(true);
+      }
+    };
+    const leave = (e: DragEvent) => {
+      if (hasFiles(e)) {
+        depth = Math.max(0, depth - 1);
+        if (depth === 0) {
+          setDragging(false);
+        }
+      }
+    };
+    const over = (e: DragEvent) => {
+      if (hasFiles(e)) {
+        e.preventDefault();
+      }
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) {
+        return;
+      }
+      e.preventDefault();
+      depth = 0;
+      setDragging(false);
+      onFiles([...(e.dataTransfer?.files ?? [])]);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("dragover", over);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("drop", drop);
+    };
+  }, [onFiles]);
+  return dragging;
+};
+
+/** The drop target over the chat: fades in (150 ms), its words rise from 0.96 (180 ms); reduced motion — the fade. */
+const DropZone = ({ shown }: { shown: boolean }) => {
+  const t = useTranslations("chat.files");
+  const reduce = useReducedMotion();
+  return (
+    <AnimatePresence>
+      {shown && (
+        <motion.div
+          animate={{ opacity: 1 }}
+          className="bg-background/80 border-foreground/25 pointer-events-none absolute inset-2 z-40 grid place-items-center rounded-2xl border-2 border-dashed backdrop-blur-[2px]"
+          exit={{ opacity: 0, transition: { duration: 0.12 } }}
+          initial={{ opacity: 0 }}
+          transition={{ duration: 0.15, ease: EASE_OUT }}
+        >
+          <motion.div
+            animate={{ opacity: 1, transform: "scale(1)" }}
+            className="flex flex-col items-center gap-2 text-center"
+            initial={{
+              opacity: 0,
+              transform: reduce ? "scale(1)" : "scale(0.96)",
+            }}
+            transition={{ duration: 0.18, ease: EASE_OUT }}
+          >
+            <Paperclip className="text-muted-foreground size-6" />
+            <span className="text-sm font-medium">{t("drop")}</span>
+            <span className="text-muted-foreground text-xs">
+              {t("dropHint")}
+            </span>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 };
 
 const ChatError = ({
@@ -349,21 +439,39 @@ export const ChatView = ({
 
   // The model a question went to: marks a switch for the answer that has not started yet.
   const [asked, setAsked] = useState<string>();
+  const attachments = useAttachments();
+  // A file dropped on the screen joins the message being edited, when one is open; else the composer.
+  const toEdit = useRef<((files: File[]) => void) | null>(null);
+  const { add: addToComposer } = attachments;
+  const sink = useMemo(
+    () => ({
+      set: (take: ((files: File[]) => void) | null) => {
+        toEdit.current = take;
+      },
+    }),
+    []
+  );
+  const dropFiles = useCallback(
+    (files: File[]) => (toEdit.current ?? addToComposer)(files),
+    [addToComposer]
+  );
+  const dragging = useFileDrop(dropFiles);
   // A mention is the `@Name` in the text: the server reads the thread's questions for the servers to use.
-  const send = (text: string) => {
+  const send = (text: string, files: FileUIPart[] = []) => {
     clearError();
     setAsked(model.id);
     void sendMessage(
-      { metadata: stamp(), text },
+      text ? { files, metadata: stamp(), text } : { files, metadata: stamp() },
       { body: { modelId: model.id } }
     );
   };
-  // An edited message replaces its old self and drops what followed; the server does the same with its copy.
-  const edit = (messageId: string, text: string) => {
+  // An edited message replaces its old self and drops what followed; the server does the same with its copy. Its
+  // files are the ones the edit left on it, old and new.
+  const edit = (messageId: string, text: string, files: FileUIPart[]) => {
     clearError();
     setAsked(model.id);
     void sendMessage(
-      { messageId, metadata: stamp(), text },
+      { files, messageId, metadata: stamp(), text },
       { body: { modelId: model.id } }
     );
   };
@@ -394,7 +502,11 @@ export const ChatView = ({
         <UserMessage
           mentions={servers}
           message={row.message}
-          onEdit={busy ? undefined : (text) => edit(row.message.id, text)}
+          onEdit={
+            busy
+              ? undefined
+              : (text, files) => edit(row.message.id, text, files)
+          }
         />
       );
     }
@@ -427,99 +539,103 @@ export const ChatView = ({
 
   return (
     <PickerDataProvider models={models} recent={recent}>
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <style>{SCREEN_CSS}</style>
-        {/*
+      <FileSinkContext value={sink}>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <style>{SCREEN_CSS}</style>
+          <DropZone shown={dragging} />
+          {/*
           The thread (shadcn MessageScroller): a question that goes settles near the top with its answer growing
           under it, and once the answer runs past the view, the view follows the words — while the reader stays at
           the end; scrolling up to read stops that, the button brings the end back. A saved chat opens on its last
           question.
         */}
-        <div className="relative min-h-0 flex-1">
-          <ServerClockProvider value={clockOffset}>
-            <MessageScrollerProvider
-              autoScroll
-              defaultScrollPosition="last-anchor"
-            >
-              <MessageScroller>
-                <MessageScrollerViewport aria-label={t("thread")}>
-                  <MessageScrollerContent
-                    className={cn(
-                      "mx-auto w-full max-w-4xl px-4 text-sm md:px-6",
-                      !empty && "py-6"
-                    )}
-                  >
-                    {rows.map((row) => (
-                      <MessageScrollerItem
-                        key={row.key}
-                        messageId={row.key}
-                        scrollAnchor={row.role === "user"}
-                      >
-                        <ThreadRowView render={rowOf} row={row} sig={sig} />
-                      </MessageScrollerItem>
-                    ))}
-                    {error && !busy && (
-                      <MessageScrollerItem messageId="error">
-                        <ChatError error={error} onRetry={retry} />
-                      </MessageScrollerItem>
-                    )}
-                  </MessageScrollerContent>
-                </MessageScrollerViewport>
-                <MessageScrollerButton>
-                  <ArrowDown />
-                  <span className="sr-only">{t("toLatest")}</span>
-                </MessageScrollerButton>
-              </MessageScroller>
-              <SeatQuestion
-                rowKey={resume ? lastQuestionKey(rows) : undefined}
-              />
-            </MessageScrollerProvider>
-          </ServerClockProvider>
-        </div>
-        <AnimatePresence initial={false} mode="popLayout">
-          {empty && greeting && (
-            <motion.h1
-              className="chat-rise w-full px-6 pb-6 text-center text-2xl font-semibold tracking-tight"
-              exit={{
-                opacity: 0,
-                transition: { duration: 0.15, ease: EASE_OUT },
-              }}
-              key="greeting"
-            >
-              {greeting}
-            </motion.h1>
-          )}
-        </AnimatePresence>
-        <motion.div
-          className={cn(
-            "chat-rise chat-rise-next w-full px-4 md:px-6",
-            !empty && "pb-4"
-          )}
-          layout="position"
-          transition={reduce ? SNAP : SPRING}
-        >
-          {/* An empty chat's composer is narrower; the thread's takes the column, the width easing out on the first send */}
-          <div
-            className={cn(
-              "mx-auto transition-[max-width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-              empty ? "max-w-2xl" : "max-w-4xl"
-            )}
-          >
-            <Composer
-              busy={busy}
-              favorites={favorites}
-              model={model}
-              onModel={setModel}
-              onSend={send}
-              onStop={halt}
-              onServerReady={serverReady}
-              servers={servers}
-            />
+          <div className="relative min-h-0 flex-1">
+            <ServerClockProvider value={clockOffset}>
+              <MessageScrollerProvider
+                autoScroll
+                defaultScrollPosition="last-anchor"
+              >
+                <MessageScroller>
+                  <MessageScrollerViewport aria-label={t("thread")}>
+                    <MessageScrollerContent
+                      className={cn(
+                        "mx-auto w-full max-w-4xl px-4 text-sm md:px-6",
+                        !empty && "py-6"
+                      )}
+                    >
+                      {rows.map((row) => (
+                        <MessageScrollerItem
+                          key={row.key}
+                          messageId={row.key}
+                          scrollAnchor={row.role === "user"}
+                        >
+                          <ThreadRowView render={rowOf} row={row} sig={sig} />
+                        </MessageScrollerItem>
+                      ))}
+                      {error && !busy && (
+                        <MessageScrollerItem messageId="error">
+                          <ChatError error={error} onRetry={retry} />
+                        </MessageScrollerItem>
+                      )}
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton>
+                    <ArrowDown />
+                    <span className="sr-only">{t("toLatest")}</span>
+                  </MessageScrollerButton>
+                </MessageScroller>
+                <SeatQuestion
+                  rowKey={resume ? lastQuestionKey(rows) : undefined}
+                />
+              </MessageScrollerProvider>
+            </ServerClockProvider>
           </div>
-        </motion.div>
-        {/* Below an empty chat's composer: its share of the free space and a bit more, so the pair sits above the middle */}
-        {empty && <div className="flex-1 pb-[14vh]" />}
-      </div>
+          <AnimatePresence initial={false} mode="popLayout">
+            {empty && greeting && (
+              <motion.h1
+                className="chat-rise w-full px-6 pb-6 text-center text-2xl font-semibold tracking-tight"
+                exit={{
+                  opacity: 0,
+                  transition: { duration: 0.15, ease: EASE_OUT },
+                }}
+                key="greeting"
+              >
+                {greeting}
+              </motion.h1>
+            )}
+          </AnimatePresence>
+          <motion.div
+            className={cn(
+              "chat-rise chat-rise-next w-full px-4 md:px-6",
+              !empty && "pb-4"
+            )}
+            layout="position"
+            transition={reduce ? SNAP : SPRING}
+          >
+            {/* An empty chat's composer is narrower; the thread's takes the column, the width easing out on the first send */}
+            <div
+              className={cn(
+                "mx-auto transition-[max-width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+                empty ? "max-w-2xl" : "max-w-4xl"
+              )}
+            >
+              <Composer
+                busy={busy}
+                favorites={favorites}
+                model={model}
+                onModel={setModel}
+                onSend={send}
+                onStop={halt}
+                attachments={attachments}
+                onServerReady={serverReady}
+                servers={servers}
+              />
+            </div>
+          </motion.div>
+          {/* Below an empty chat's composer: its share of the free space and a bit more, so the pair sits above the middle */}
+          {empty && <div className="flex-1 pb-[14vh]" />}
+        </div>
+      </FileSinkContext>
     </PickerDataProvider>
   );
 };

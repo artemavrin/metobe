@@ -7,6 +7,7 @@ import { modelRuns, models, sources } from "@metobe/db/schema/models";
 import { and, asc, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
+import { deleteUserObjects } from "./files";
 import { removeSecrets } from "./secrets";
 
 // The user's own account (ARCH §17.6): the profile they edit, what the model is told about them, their data — to
@@ -86,7 +87,7 @@ export class LastOwnerError extends Error {
 
 /**
  * Deletes the account: the profile, sessions, chats, connections and mailboxes go with it (foreign keys), and the
- * secrets of the connections and mailboxes are removed by hand — they hang on no key. What the runs cost stays, with no
+ * secrets of the connections and mailboxes and the files' objects in S3 are removed by hand — they hang on no key. What the runs cost stays, with no
  * name on it. The last owner cannot leave: nobody would be left to run the install.
  */
 export const deleteAccount = async (userId: string) => {
@@ -120,6 +121,8 @@ export const deleteAccount = async (userId: string) => {
   await Promise.all([
     ...mine.map((c) => removeSecrets({ id: c.id, type: "connection" })),
     ...boxes.map((b) => removeSecrets({ id: b.id, type: "mailbox" })),
+    // The files' objects in S3 hang on no key either.
+    deleteUserObjects(userId),
   ]);
   await db.delete(user).where(eq(user.id, userId));
 };

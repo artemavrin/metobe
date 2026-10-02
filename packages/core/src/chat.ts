@@ -10,6 +10,7 @@ import {
 import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
+import { deleteChatObjects } from "./files";
 
 // Chats and their messages (ARCH §5.3, §6): what `api/chat` reads and writes. Messages are AI SDK UI messages
 // stored as they are; the history is always read from here, the client sends only its newest message.
@@ -70,6 +71,15 @@ export const setChatPinned = async (
 /** Deletes a chat with its messages (they go with it by foreign key); what it cost stays in the usage. */
 export const deleteChat = async (userId: string, id: string) => {
   const { db } = getDb();
+  const [mine] = await db
+    .select({ id: chats.id })
+    .from(chats)
+    .where(own(userId, id));
+  if (!mine) {
+    return;
+  }
+  // The files' objects first: their rows go with the chat, and after that nothing would name the objects.
+  await deleteChatObjects(id);
   await db.delete(chats).where(own(userId, id));
 };
 

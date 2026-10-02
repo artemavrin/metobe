@@ -13,6 +13,13 @@ const body = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const filePart = (url = `/api/files/${crypto.randomUUID()}`) => ({
+  filename: "скрин ошибки.png",
+  mediaType: "image/png",
+  type: "file",
+  url,
+});
+
 describe("chatRequestSchema", () => {
   it("takes one user message with text", () => {
     expect(chatRequestSchema.safeParse(body()).success).toBe(true);
@@ -25,6 +32,26 @@ describe("chatRequestSchema", () => {
       body({ message: { ...message, role: "assistant" } }),
       body({ message: { ...message, parts: [] } }),
       body({ message: { ...message, parts: [{ text: "", type: "text" }] } }),
+    ]) {
+      expect(chatRequestSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("takes our files with text or alone, and nothing else", () => {
+    const { message } = body();
+    const withParts = (parts: unknown[]) =>
+      body({ message: { ...message, parts } });
+    expect(
+      chatRequestSchema.safeParse(withParts([...message.parts, filePart()]))
+        .success
+    ).toBe(true);
+    expect(chatRequestSchema.safeParse(withParts([filePart()])).success).toBe(
+      true
+    );
+    for (const bad of [
+      withParts([filePart("https://example.com/x.png")]),
+      withParts([filePart("data:image/png;base64,AAAA")]),
+      withParts(Array.from({ length: 11 }, () => filePart())),
     ]) {
       expect(chatRequestSchema.safeParse(bad).success).toBe(false);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatMessage } from "@metobe/contracts/chat";
+import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
 import { Bubble, BubbleContent } from "@metobe/ui/components/bubble";
@@ -10,6 +11,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@metobe/ui/components/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@metobe/ui/components/dialog";
+import { Kbd } from "@metobe/ui/components/kbd";
 import {
   Marker,
   MarkerContent,
@@ -28,6 +35,7 @@ import {
 } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import { code } from "@streamdown/code";
+import type { FileUIPart } from "ai";
 import { GridLoader } from "gridora";
 import {
   Brain,
@@ -35,16 +43,25 @@ import {
   ChevronRight,
   Copy,
   Pencil,
+  Plus,
   RefreshCw,
 } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
 import { ActivityBlock } from "@/components/chat/activity";
 import { AnswerChart } from "@/components/chat/answer-chart";
 import { AnswerTable } from "@/components/chat/answer-table";
 import { ApprovalCard } from "@/components/chat/approval-card";
+import {
+  ComposerShelf,
+  FileChip,
+  FileSinkContext,
+  Shelf,
+  kindOfMedia,
+  useAttachments,
+} from "@/components/chat/attachments";
 import { ConnectRequest } from "@/components/chat/connect-request";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
@@ -164,60 +181,130 @@ const When = ({ at }: { at?: string }) => {
   );
 };
 
-/** The user's message edited in place: Enter sends it anew and asks for a new answer (what followed it goes), Esc leaves it as it was. */
+/**
+ * The user's message edited in place: the bubble itself becomes the field, with the composer's own «+» at its left
+ * (it opens the file picker at once; a file dropped on the screen or pasted joins too). Its files stand above as
+ * chips, each comes off with ×. Enter sends it anew and asks for a new answer (what followed it goes), Esc leaves it
+ * as it was.
+ */
 const EditMessage = ({
   initial,
+  files,
   onCancel,
   onSend,
 }: {
   initial: string;
+  files: FileUIPart[];
   onCancel: () => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, files: FileUIPart[]) => void;
 }) => {
   const t = useTranslations("chat");
   const [text, setText] = useState(initial);
+  const attachments = useAttachments(files);
+  const picker = useRef<HTMLInputElement>(null);
+  const sink = useContext(FileSinkContext);
+  const { add } = attachments;
+  // While the edit is open, a file dropped anywhere on the screen lands here, not in the composer.
+  useEffect(() => {
+    sink.set(add);
+    return () => sink.set(null);
+  }, [sink, add]);
+  const empty = !text.trim() && attachments.parts.length === 0;
+  const blocked = empty || attachments.uploading > 0;
   const submit = () => {
-    const next = text.trim();
-    if (!next) {
+    if (blocked) {
       return;
     }
     // Sent even unchanged: sending from an edit always asks for a new answer.
-    onSend(next);
+    onSend(text.trim(), attachments.parts);
+  };
+  const cancel = () => {
+    attachments.release();
+    onCancel();
   };
   return (
     <form
-      className="bg-muted flex w-full max-w-[80%] flex-col gap-2 self-end rounded-2xl p-2"
+      className="animate-in fade-in zoom-in-[0.99] flex w-full max-w-[85%] flex-col items-end gap-1.5 self-end duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:animate-none"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
     >
-      <Textarea
-        aria-label={t("edit")}
-        autoFocus
-        className="bg-background dark:bg-background max-h-80 min-h-12 resize-none"
-        onChange={(e) => setText(e.target.value)}
-        onFocus={(e) => {
-          const end = e.currentTarget.value.length;
-          e.currentTarget.setSelectionRange(end, end);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            submit();
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-          }
-        }}
-        value={text}
-      />
-      <div className="flex justify-end gap-2">
-        <Button onClick={onCancel} size="sm" type="button" variant="ghost">
-          {t("cancel")}
-        </Button>
-        <Button disabled={!text.trim()} size="sm" type="submit">
+      <div className="w-full">
+        <ComposerShelf attachments={attachments} wrap />
+      </div>
+      <div className="bg-muted ring-foreground/20 focus-within:ring-foreground/35 flex w-full items-end gap-0.5 rounded-2xl rounded-br-md py-0.5 pr-4 pl-1 ring-2 [transition:box-shadow_150ms_ease] ring-inset">
+        <button
+          aria-label={t("files.attach")}
+          className="text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground inline-flex size-9 shrink-0 items-center justify-center rounded-full [transition:scale_160ms_cubic-bezier(0.23,1,0.32,1),background-color_150ms_ease,color_150ms_ease] active:scale-[0.97] motion-reduce:active:scale-100"
+          onClick={() => picker.current?.click()}
+          title={t("files.attach")}
+          type="button"
+        >
+          <Plus className="size-[18px]" />
+        </button>
+        <input
+          accept={ACCEPT_ATTRIBUTE}
+          className="hidden"
+          multiple
+          onChange={(e) => {
+            attachments.add([...(e.target.files ?? [])]);
+            e.target.value = "";
+          }}
+          ref={picker}
+          tabIndex={-1}
+          type="file"
+        />
+        <Textarea
+          aria-label={t("edit")}
+          autoFocus
+          className="max-h-80 min-h-9 resize-none rounded-none border-0 bg-transparent px-1.5 py-1.5 leading-6 shadow-none focus-visible:ring-0 dark:bg-transparent"
+          onChange={(e) => setText(e.target.value)}
+          onFocus={(e) => {
+            const end = e.currentTarget.value.length;
+            e.currentTarget.setSelectionRange(end, end);
+          }}
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              submit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              cancel();
+            }
+          }}
+          onPaste={(e) => {
+            const pasted = [...e.clipboardData.files];
+            if (pasted.length > 0) {
+              e.preventDefault();
+              attachments.add(pasted);
+            }
+          }}
+          value={text}
+        />
+      </div>
+      <div className="text-muted-foreground flex h-7 items-center gap-2 text-xs">
+        <button
+          className="hover:text-foreground inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 [transition:color_150ms_ease]"
+          onClick={cancel}
+          type="button"
+        >
+          {t("cancel")} <Kbd>Esc</Kbd>
+        </button>
+        <Button
+          className="h-7 rounded-full px-3 text-xs"
+          disabled={blocked}
+          size="sm"
+          type="submit"
+        >
           {t("send")}
+          <Kbd className="bg-primary-foreground/15 text-primary-foreground">
+            ⏎
+          </Kbd>
         </Button>
       </div>
     </form>
@@ -247,6 +334,65 @@ const Mentioned = ({
 };
 
 /** The user's message: a bubble on the right that rises in when it goes; its time, copy and edit under it. */
+/**
+ * A question's files above its words — the composer's chips, without ×: a picture opens large here, anything else
+ * in a new tab (a PDF reads there, other files download).
+ */
+const SentFiles = ({ message }: { message: ChatMessage }) => {
+  const t = useTranslations("chat.files");
+  const [viewing, setViewing] = useState<{ url: string; name: string } | null>(
+    null
+  );
+  const list = message.parts.filter((p) => p.type === "file");
+  if (list.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      <Shelf scroll={false}>
+        {list.map((p) => {
+          const name = p.filename ?? t("unnamed");
+          const image = p.mediaType.startsWith("image/");
+          return (
+            <FileChip
+              file={{
+                key: p.url,
+                kind: kindOfMedia(p.mediaType),
+                name,
+                preview: image ? p.url : undefined,
+                progress: 1,
+                status: "done",
+              }}
+              key={p.url}
+              onOpen={() =>
+                image
+                  ? setViewing({ name, url: p.url })
+                  : window.open(p.url, "_blank", "noopener")
+              }
+            />
+          );
+        })}
+      </Shelf>
+      <Dialog
+        onOpenChange={(open) => !open && setViewing(null)}
+        open={viewing !== null}
+      >
+        <DialogContent className="max-w-3xl p-2 sm:max-w-3xl">
+          <DialogTitle className="sr-only">{viewing?.name}</DialogTitle>
+          {viewing && (
+            // oxlint-disable-next-line nextjs/no-img-element -- the user's own file, shown as it is
+            <img
+              alt={viewing.name}
+              className="max-h-[80vh] w-full rounded-lg object-contain"
+              src={viewing.url}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
 export const UserMessage = ({
   message,
   onEdit,
@@ -254,7 +400,7 @@ export const UserMessage = ({
 }: {
   message: ChatMessage;
   /** Absent while an answer is on its way: a message is edited between answers. */
-  onEdit?: (text: string) => void;
+  onEdit?: (text: string, files: FileUIPart[]) => void;
   /** Servers whose `@Name` in the text is drawn as a badge. */
   mentions?: { title: string; logo: string | null }[];
 }) => {
@@ -269,20 +415,26 @@ export const UserMessage = ({
       <MessageContent className="gap-1">
         {editing && onEdit ? (
           <EditMessage
+            files={message.parts.filter(
+              (p): p is FileUIPart => p.type === "file"
+            )}
             initial={text}
             onCancel={() => setEditing(false)}
-            onSend={(next) => {
+            onSend={(next, kept) => {
               setEditing(false);
-              onEdit(next);
+              onEdit(next, kept);
             }}
           />
         ) : (
           <>
-            <Bubble align="end" variant="muted">
-              <BubbleContent className="rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap">
-                <Mentioned mentions={mentions} text={text} />
-              </BubbleContent>
-            </Bubble>
+            <SentFiles message={message} />
+            {text && (
+              <Bubble align="end" variant="muted">
+                <BubbleContent className="rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap">
+                  <Mentioned mentions={mentions} text={text} />
+                </BubbleContent>
+              </Bubble>
+            )}
             <MessageFooter className={TOOLBAR}>
               <span className="px-1">
                 <When at={message.metadata?.createdAt} />
