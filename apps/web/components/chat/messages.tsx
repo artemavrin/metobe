@@ -63,6 +63,7 @@ import {
   useAttachments,
 } from "@/components/chat/attachments";
 import { ConnectRequest } from "@/components/chat/connect-request";
+import { SecretNote } from "@/components/chat/secret-note";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { WebSources } from "@/components/chat/web-step";
@@ -70,6 +71,7 @@ import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
 import type { ToolPart, WorkStep } from "@/lib/answer-work";
 import { splitMentions } from "@/lib/mentions";
+import { looksLikeSecret } from "@/lib/secret-hint";
 
 import "gridora/styles.css";
 import "streamdown/styles.css";
@@ -287,7 +289,8 @@ const EditMessage = ({
           value={text}
         />
       </div>
-      <div className="text-muted-foreground flex h-7 items-center gap-2 text-xs">
+      <div className="text-muted-foreground flex min-h-7 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs">
+        {looksLikeSecret(text) && <SecretNote />}
         <button
           className="hover:text-foreground inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 [transition:color_150ms_ease]"
           onClick={cancel}

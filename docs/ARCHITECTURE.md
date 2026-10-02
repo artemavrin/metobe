@@ -153,7 +153,7 @@ apps/
         connections/            POST — создание подключения из формы (минуя модель, §17.7)
         health/
         notifications/stream/   GET — SSE уведомлений для открытых вкладок — v2
-        oauth/callback/                 v2 — поток находится по state
+        mcp/oauth/callback/             поток находится по state — v1
     modules/            фича-модули: api / model / components
       chat/ widgets/ settings/ agents/ usage/
     artifacts/          v2
@@ -242,7 +242,7 @@ documents; // PK (id, created_at) — версии артефактов, v2
 catalog_items; // каталог админа — всё, к чему подключаются: MCP и коннекторы (§17)
 // key, title, type: 'mcp' | 'email' | 'http_api' | 'database' | 'telegram_bot' | 'webhook_out'
 // config jsonb — по type: для mcp — url, transport ('http' | 'sse' — v1, 'stdio' — v3, D18),
-//   auth ('none'|'bearer'|'header'|'basic'|'oauth2' — oauth2 в v2);
+//   auth ('none'|'bearer'|'header'|'basic'|'oauth');
 //   для database/http_api/email — хост, порт, base URL и т.п.
 // credential_mode: 'shared' | 'per_user'
 // connection_fields jsonb — что спросить у пользователя при per_user (§17.7)
@@ -254,7 +254,7 @@ connections; // подключение пользователя: к пункту
 //   (для своих подключений — всё; для каталожных — только то, что спросили у пользователя)
 // status: 'active' | 'needs_reauth' | 'error', last_used_at, last_error
 // секретные поля — строки secrets с owner_type = 'connection'
-oauth_flows; // состояние PKCE — v2
+oauth_flows; // состояние PKCE — v1
 search_backends; // kind: 'searxng' | 'yandex' | 'tinyfish' | 'tavily', config jsonb, is_default, enabled,
 // proxy_mode, proxy_id? — только для облачных бэкендов; SearXNG ходит в интернет сам (§18.2)
 proxies; // name, type: 'http' | 'https' | 'socks5' | 'socks5h', host, port, username?
@@ -771,6 +771,7 @@ BullMQ job scheduler «agents-dispatch», cron * * * * * — один на вс�
 - **Через прокси проверка должна работать так же** (§18.4): адрес резолвится у нас, проверяется, и прокси получает уже **IP**, а не имя. Иначе прокси, который сам стоит во внутренней сети, разрешит имя по своему DNS и пустит запрос внутрь.
 - `verify` при подключении ограничен по частоте, чтобы форма не превращалась в сканер портов.
 - Внутренние системы — корпоративный SMTP, 1С, базы, внутренние API — админ добавляет в каталог. Каталог в v1 (M4).
+- **Статус в коде (2026-10-02):** политики `personalConnections` и `personalApprovalDefaults` пока не реализованы — придут вместе с экраном «Доступы». Сейчас свои подключения вне каталога есть только у почты, и приватные адреса для неё запрещены всегда (как `public_only`); подтверждения почты задаёт политика самого ящика.
 
 Термины: **подключение к каталогу** — пользователь вводит свои креды к пункту, который завёл админ (`per_user`). **Своё подключение** — пользователь сам задаёт и адрес.
 
@@ -801,12 +802,12 @@ secrets; // id, owner_type: 'system' | 'source' | 'catalog_item' | 'connection' 
 - **В логи.** Логгер маскирует `authorization`, `apiKey`, `token`, `password`.
 - **В бэкап в открытом виде.** Дамп БД содержит только шифртекст, без `SECRETS_KEY` он бесполезен (§14).
 
-### 17.4 OAuth для MCP — v2
+### 17.4 OAuth для MCP — v1 (сделано, D25 уточнено 2026-10-02)
 
 Многие публичные MCP-серверы (GitHub, Linear, Notion и т.п.) авторизуются через OAuth 2.1 с PKCE по спецификации MCP. Поток:
 
 1. кнопка «Подключить» открывает окно авторизации;
-2. callback приходит на `/api/oauth/callback?state=…` — по `state` находится поток в `oauth_flows`, а через него пункт каталога или своё подключение;
+2. callback приходит на `/api/mcp/oauth/callback?state=…` — по `state` находится поток в `oauth_flows`, а через него пункт каталога или своё подключение;
 3. токены сохраняются в `secrets`, PKCE-состояние — в `oauth_flows`.
 
 В `@ai-sdk/mcp` для этого есть `authProvider` — реализуем его поверх нашей БД и обновляем токен по `expires_at` перед вызовом. Точный интерфейс — **проверить** (S10).
@@ -851,7 +852,7 @@ connectorTypes.email = {
   }),
   presets: { yandex: { host: 'smtp.yandex.ru', port: 465, security: 'ssl', hint: 'нужен пароль приложения' }, … },
   verify: (c) => transporter.verify(),      // nodemailer: проверить соединение до сохранения
-  tools: ['email_send'],                     // + 'email_search' через IMAP — позже
+  tools: ['email_send', 'email_search', 'email_read'], // IMAP — в v1 (D27)
 }
 ```
 
@@ -861,11 +862,10 @@ connectorTypes.email = {
 
 | type | Поля | Тулы агента | Проверка | Когда |
 | --- | --- | --- | --- | --- |
-| `mcp` | `connection_fields` пункта каталога; OAuth — v2 | тулы сервера | `client.tools()` | v1 |
-| `email` | пресет, SMTP-хост, порт, SSL/STARTTLS, логин, пароль | `email_send` | `verify()` | v1 |
+| `mcp` | `connection_fields` пункта каталога; авторизация: нет / bearer / заголовок / basic / OAuth | тулы сервера | `client.tools()` | v1 |
+| `email` | пресет, SMTP- и IMAP-хост, порт, SSL/STARTTLS, логин, пароль; в коде — своя таблица `mailboxes`, не `connections` (D27) | `email_send`, `email_search`, `email_read` | `verify()` и вход по IMAP | v1 |
 | `http_api` | base URL, авторизация (bearer / заголовок / basic / query), OpenAPI-спека по желанию | тул на каждую операцию из спеки, иначе общий `http_request` | тестовый запрос | v1 |
 | `database` | тип (Postgres / MySQL / MSSQL / ClickHouse), хост, порт, база, логин, пароль, SSL | `sql_query` — только чтение, таймаут, лимит строк | `SELECT 1` | v2 |
-| `email` + IMAP | те же поля + IMAP-хост | `email_search`, `email_read` | вход по IMAP | v2 |
 | `telegram_bot` | токен бота, chat id | `telegram_send` | `getMe` | v2 |
 | `webhook_out` | URL, секрет | `webhook_send` (Slack, Teams, n8n, Discord) | тестовая отправка | v2 |
 | CalDAV / CardDAV | сервер, логин, пароль | календарь, контакты | вход | позже |

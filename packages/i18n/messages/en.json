@@ -184,6 +184,10 @@
       "sources": "Sources",
       "more": "{count} more"
     },
+    "secret": {
+      "text": "This looks like a password or a key. Do not send it in the chat: connect the service in",
+      "link": "My connections"
+    },
     "read": {
       "reading": "Reading a file",
       "done": "Read the file",
