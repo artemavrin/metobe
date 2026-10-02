@@ -28,15 +28,19 @@ const Soon = () => {
 };
 
 /**
- * The composer's «+»: what a question can bring along. Files and skills come later (shown, not yet usable); an MCP
- * server is mentioned from here as from `@` — its badge where the caret was, a sign-in first when it needs one.
+ * The composer's «+»: what a question can bring along. Files open the system picker; skills come later (shown, not yet
+ * usable); an MCP server is mentioned from here as from `@` — its badge where the caret was, a sign-in first when it
+ * needs one.
  */
 export const AddMenu = ({
   servers,
   mentioned,
   onPick,
+  onFiles,
   field,
 }: {
+  /** Opens the file picker. */
+  onFiles: () => void;
   servers: ChatServer[];
   /** The servers the draft already mentions: marked, not added twice. */
   mentioned: () => Set<string>;
@@ -78,10 +82,9 @@ export const AddMenu = ({
         side="top"
         sideOffset={8}
       >
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem onClick={onFiles}>
           <Paperclip />
           {t("files")}
-          <Soon />
         </DropdownMenuItem>
         <DropdownMenuItem disabled>
           <Sparkles />

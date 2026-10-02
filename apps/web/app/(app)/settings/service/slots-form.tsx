@@ -5,7 +5,7 @@ import type { ModelSlot } from "@metobe/contracts/models";
 import { Button } from "@metobe/ui/components/button";
 import { ChevronDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { PickerDataProvider } from "@/components/chat/picker/data";
@@ -36,6 +36,14 @@ export const SlotsForm = ({
   const [values, setValues] = useState(assigned);
   const [open, setOpen] = useState<ModelSlot | null>(null);
   const [, startTransition] = useTransition();
+  // Sight is the job: a model known not to see is not offered for it (one whose sight is unknown may be tried).
+  const choices = useMemo(
+    () =>
+      open === "vision"
+        ? models.filter((m) => m.caps.vision !== false)
+        : models,
+    [models, open]
+  );
   const save = (slot: ModelSlot, modelId: string | null) => {
     setValues((v) => ({ ...v, [slot]: modelId }));
     startTransition(() => saveSlot(slot, modelId));
@@ -45,7 +53,7 @@ export const SlotsForm = ({
   }
   const byId = (id: string | null) => models.find((m) => m.id === id);
   return (
-    <PickerDataProvider models={models} recent={recent}>
+    <PickerDataProvider models={choices} recent={recent}>
       <Section title={t("jobs")}>
         <Rows>
           {modelSlots.map((slot) => {

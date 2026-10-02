@@ -7,6 +7,7 @@ import type {
   Approvals,
   ChatErrorCode,
   ChatMessage,
+  ChatRequest,
 } from "@metobe/contracts/chat";
 import { getInstructions } from "@metobe/core/account";
 import { getLanguageModel } from "@metobe/core/ai";
@@ -20,6 +21,7 @@ import {
 } from "@metobe/core/chat";
 import { recordRun, sumUsage, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
+import { attachFiles, pruneChatFiles } from "@metobe/core/files";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
@@ -38,6 +40,12 @@ import type { ToolSet, UIMessageChunk } from "ai";
 import { headers } from "next/headers";
 
 import { applyApprovals, applyConnections, settleAsks } from "@/lib/approvals";
+import {
+  ATTACHMENT_NOTE,
+  READ_ATTACHMENT,
+  readAttachmentTool,
+} from "@/lib/attachment-tool";
+import { fileIdsOf, forModel, ownFiles, readsPdf } from "@/lib/attachments";
 import { getAuth } from "@/lib/auth";
 import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
 import {
@@ -102,8 +110,15 @@ const causes = (error: unknown) => {
 const textOf = (message: ChatMessage) =>
   message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(" ");
 
+/** A chat started with files only is named by its first file until the titles model names it. */
+const titleSource = (message: ChatMessage) =>
+  textOf(message) ||
+  message.parts
+    .flatMap((p) => (p.type === "file" ? [p.filename ?? ""] : []))
+    .join(", ");
+
 const provisionalTitle = (message: ChatMessage) =>
-  chatTitleFrom(textOf(message));
+  chatTitleFrom(titleSource(message));
 
 /**
  * A new question: the same message again (a retry, an edit) drops itself and what followed, then goes anew.
@@ -203,6 +218,27 @@ const calledIn = (thread: ChatMessage[]) =>
     )
   );
 
+/**
+ * The question's files join the chat. A message sent again over an old one (an edit, a retry) may have taken files
+ * out, and what it dropped may have carried some: the files no message in the history carries any more go.
+ */
+const settleFiles = async (
+  userId: string,
+  chatId: string,
+  message: ChatMessage | undefined,
+  dropFrom: string | undefined,
+  history: ChatMessage[]
+) => {
+  await attachFiles(userId, chatId, fileIdsOf(message));
+  if (message && dropFrom) {
+    await pruneChatFiles(chatId, history.flatMap(fileIdsOf));
+  }
+};
+
+/** The client's message, its files checked to be the user's own with name and type from our rows (D33); null — invalid. */
+const readMessage = (userId: string, message: ChatRequest["message"]) =>
+  message ? ownFiles(userId, message as ChatMessage) : undefined;
+
 export const POST = async (request: Request) => {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) {
@@ -214,7 +250,11 @@ export const POST = async (request: Request) => {
   if (!body.success) {
     return fail("bad-request", 400);
   }
-  const { id, message, modelId } = body.data;
+  const { id, modelId } = body.data;
+  const message = await readMessage(session.user.id, body.data.message);
+  if (message === null) {
+    return fail("bad-request", 400);
+  }
 
   const chat = await getChat(id);
   if (chat && chat.userId !== session.user.id) {
@@ -276,6 +316,14 @@ export const POST = async (request: Request) => {
     await deleteMessagesFrom(id, prepared.dropFrom);
   }
   await saveMessages(id, prepared.save);
+  // The question's files join the chat (approvals carry no message — nothing to join).
+  await settleFiles(
+    session.user.id,
+    id,
+    message,
+    prepared.dropFrom,
+    uiMessages
+  );
   // Carrying on after approvals writes into the same answer.
   const originalMessages = message ? undefined : uiMessages;
   // «Stop» reaches the model through this (D6): what was written by then is saved as the answer.
@@ -301,7 +349,7 @@ export const POST = async (request: Request) => {
                     transient: true,
                     type: "data-naming",
                   }),
-                text: textOf(message),
+                text: titleSource(message),
                 userId: session.user.id,
               });
         if (title) {
@@ -314,7 +362,16 @@ export const POST = async (request: Request) => {
       const budget = { window: model.contextWindow };
       const prompt = withPromptCache(
         model.kind,
-        budgetMessages(await convertToModelMessages(uiMessages), budget)
+        budgetMessages(
+          await convertToModelMessages(
+            await forModel(session.user.id, uiMessages, {
+              pdf: readsPdf(model.kind, model.modelId),
+              tools: model.capabilities.tools !== false,
+              vision: model.capabilities.vision,
+            })
+          ),
+          budget
+        )
       );
       const started = Date.now();
       let firstChunk: number | null = null;
@@ -384,6 +441,7 @@ export const POST = async (request: Request) => {
       // The web as the admin left it (ARCH §8.1): search needs a SearXNG, reading pages does not.
       const web = await webToolsOn();
       const waiting = chatServers.filter((s) => s.signIn === "self");
+      const hasFiles = uiMessages.some((m) => fileIdsOf(m).length > 0);
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -392,6 +450,10 @@ export const POST = async (request: Request) => {
               [CHART_TOOL]: chartTool,
               [TABLE_TOOL]: tableTool,
               [TIME_TOOL]: timeTool(timeZone),
+              // The files of the thread, for a model that cannot see them itself.
+              ...(hasFiles
+                ? { [READ_ATTACHMENT]: readAttachmentTool(session.user.id, id) }
+                : {}),
               ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
               ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
               // The user's own mail, when they have a box (ARCH §17.7).
@@ -407,7 +469,11 @@ export const POST = async (request: Request) => {
             };
       const result = streamText({
         abortSignal: generation.signal,
-        instructions: [TIME_NOTE, withNotes(notes, servicesNote(servers))]
+        instructions: [
+          TIME_NOTE,
+          hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
+          withNotes(notes, servicesNote(servers)),
+        ]
           .filter(Boolean)
           .join("\n\n"),
         messages: prompt.messages,

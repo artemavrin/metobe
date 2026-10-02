@@ -1,5 +1,6 @@
 "use client";
 
+import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
 import type { ChatServer } from "@metobe/core/mcp";
 import { Button } from "@metobe/ui/components/button";
 import { Kbd } from "@metobe/ui/components/kbd";
@@ -16,6 +17,8 @@ import {
 
 import { connectServer } from "@/app/(app)/(chat)/actions";
 import { AddMenu } from "@/components/chat/add-menu";
+import { ComposerShelf } from "@/components/chat/attachments";
+import type { useAttachments } from "@/components/chat/attachments";
 import { useChatPrefs } from "@/components/chat/chat-shell";
 import { ConnectDialog } from "@/components/chat/connect-dialog";
 import { MentionMenu } from "@/components/chat/mention-menu";
@@ -170,6 +173,13 @@ const SendButton = ({
  * to the model; one the user has not connected yet is connected from here — its OAuth page, or their token in a
  * small dialog.
  */
+/** The editor's draft as the message text: tokens as `@label`. */
+const textOf = (handle: EditorHandle | null) =>
+  (handle?.value() ?? [])
+    .map((x) => (typeof x === "string" ? x : `@${x.label}`))
+    .join("")
+    .trim();
+
 export const Composer = ({
   model,
   favorites,
@@ -179,15 +189,21 @@ export const Composer = ({
   onStop,
   servers,
   onServerReady,
+  attachments,
 }: {
+  /** The files waiting in the composer (the chat screen owns them: a file dropped anywhere on it lands here). */
+  attachments: ReturnType<typeof useAttachments>;
   /** The model the next message goes to, and the user's favorites to pick another from. */
   model: PickerModel;
   favorites: Favorites;
   onModel: (m: PickerModel) => void;
   /** An answer is on its way: the button stops it instead of sending. */
   busy: boolean;
-  /** The text; a mention reads `@Name` — the servers a question names give the model their tools. */
-  onSend: (text: string) => void;
+  /** The text and the files; a mention reads `@Name` — the servers a question names give the model their tools. */
+  onSend: (
+    text: string,
+    files: ReturnType<typeof useAttachments>["parts"]
+  ) => void;
   onStop: () => void;
   /** The MCP servers the user may mention here. */
   servers: ChatServer[];
@@ -230,6 +246,10 @@ export const Composer = ({
     );
   }, []);
   const onEmptyChange = useCallback((empty: boolean) => setReady(!empty), []);
+  const filesInput = useRef<HTMLInputElement>(null);
+  // A question sent while its files still upload waits for them in the editor, dimmed, then goes as it reads then.
+  const [pending, setPending] = useState(false);
+  const hasFiles = attachments.parts.length > 0 || attachments.uploading > 0;
 
   // One line while the draft fits beside the buttons; past that — or at a line break — the text above them.
   const frame = useRef<HTMLDivElement>(null);
@@ -335,27 +355,60 @@ export const Composer = ({
   };
 
   const submit = () => {
-    const segments = editor.current?.value() ?? [];
-    const text = segments
-      .map((x) => (typeof x === "string" ? x : `@${x.label}`))
-      .join("")
-      .trim();
-    if (!text || busy) {
+    if ((!textOf(editor.current) && !hasFiles) || busy || pending) {
       return;
     }
-    onSend(text);
+    if (attachments.uploading > 0) {
+      setPending(true);
+      return;
+    }
+    onSend(textOf(editor.current), attachments.parts);
     editor.current?.clear();
+    attachments.clearSent();
   };
+  // The files are up: the question that waited for them goes.
+  useEffect(() => {
+    if (!pending || attachments.uploading > 0) {
+      return;
+    }
+    const text = textOf(editor.current);
+    if (text || attachments.parts.length > 0) {
+      onSend(text, attachments.parts);
+      editor.current?.clear();
+      attachments.clearSent();
+    }
+    // oxlint-disable-next-line react/set-state-in-effect -- the question waits on the uploads (outside React) to finish
+    setPending(false);
+  }, [pending, attachments, onSend]);
 
   return (
     <>
       <form
         data-composer
+        onPaste={(e) => {
+          // A pasted screenshot or file joins the shelf; pasted text stays the editor's.
+          const files = [...e.clipboardData.files];
+          if (files.length > 0) {
+            e.preventDefault();
+            attachments.add(files);
+          }
+        }}
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
       >
+        <input
+          accept={ACCEPT_ATTRIBUTE}
+          className="hidden"
+          multiple
+          onChange={(e) => {
+            attachments.add([...(e.target.files ?? [])]);
+            e.target.value = "";
+          }}
+          ref={filesInput}
+          type="file"
+        />
         {/* One pill; radius 24 = half its one-line height (36 + 2 × 6 of padding) */}
         <div
           className={cn(
@@ -378,6 +431,7 @@ export const Composer = ({
               trigger={trigger.at}
             />
           )}
+          <ComposerShelf attachments={attachments} />
           {/* The height clip, with room around for the buttons' focus rings */}
           <div
             className="-m-1.5 overflow-hidden p-1.5 transition-[height] duration-0 ease-[cubic-bezier(0.23,1,0.32,1)] data-morph:duration-200 motion-reduce:transition-none"
@@ -401,6 +455,7 @@ export const Composer = ({
                   mentioned={() =>
                     new Set(editor.current?.tokens().map((x) => x.id))
                   }
+                  onFiles={() => filesInput.current?.click()}
                   onPick={(server) => {
                     place.current = "add";
                     pick(server);
@@ -410,7 +465,10 @@ export const Composer = ({
               </div>
               <TokenEditor
                 autoFocus
-                className="col-start-2 row-start-1 max-h-60 min-h-9 px-2 py-1.5 leading-6 group-data-tall/deck:col-span-3 group-data-tall/deck:col-start-1 md:leading-6"
+                className={cn(
+                  "col-start-2 row-start-1 max-h-60 min-h-9 px-2 py-1.5 leading-6 group-data-tall/deck:col-span-3 group-data-tall/deck:col-start-1 md:leading-6",
+                  pending && "opacity-60 [transition:opacity_150ms_ease]"
+                )}
                 modEnterSends={sendKey === "mod-enter"}
                 onChange={onDraft}
                 onEmptyChange={onEmptyChange}
@@ -469,7 +527,7 @@ export const Composer = ({
                 />
                 <SendButton
                   onStop={onStop}
-                  ready={ready}
+                  ready={(ready || hasFiles) && !pending}
                   state={busy ? "stop" : "send"}
                 />
               </div>
@@ -477,8 +535,14 @@ export const Composer = ({
           </div>
         </div>
         <p className="text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-xs">
-          {t("disclaimer")} <span className="opacity-50">·</span> <Kbd>⌘/</Kbd>{" "}
-          {t("allModels")}
+          {pending ? (
+            <span className="shimmer">{t("files.waiting")}</span>
+          ) : (
+            <>
+              {t("disclaimer")} <span className="opacity-50">·</span>{" "}
+              <Kbd>⌘/</Kbd> {t("allModels")}
+            </>
+          )}
         </p>
       </form>
       {/* Outside the form: React events bubble through portals, and its submit would send the draft */}

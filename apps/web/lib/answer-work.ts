@@ -6,6 +6,7 @@ export type TablePart = Extract<Part, { type: "tool-show_table" }>;
 export type ChartPart = Extract<Part, { type: "tool-show_chart" }>;
 export type ConnectPart = Extract<Part, { type: "tool-request_connection" }>;
 export type SearchPart = Extract<Part, { type: "tool-find_tools" }>;
+export type ReadPart = Extract<Part, { type: "tool-read_attachment" }>;
 export type WebPart = Extract<
   Part,
   { type: "tool-web_search" } | { type: "tool-web_fetch" }
@@ -19,7 +20,9 @@ export type WorkStep =
   /** The model looking for a big server's tools. */
   | { kind: "search"; key: string; part: SearchPart }
   /** A web search or a page read. */
-  | { kind: "web"; key: string; part: WebPart };
+  | { kind: "web"; key: string; part: WebPart }
+  /** The model reading a file the user attached. */
+  | { kind: "read"; key: string; part: ReadPart };
 
 /** What the answer shows, in order: its words, the tables and charts the model built, and its asks to connect. */
 export type AnswerBlock =
@@ -71,7 +74,8 @@ const lastToolAt = (parts: Part[]) => {
       p.type === "dynamic-tool" ||
       p.type === "tool-find_tools" ||
       p.type === "tool-web_search" ||
-      p.type === "tool-web_fetch"
+      p.type === "tool-web_fetch" ||
+      p.type === "tool-read_attachment"
     ) {
       at = i;
     }
@@ -128,6 +132,8 @@ export const answerWork = (parts: Part[]) => {
       part.type === "tool-web_fetch"
     ) {
       steps.push({ key: part.toolCallId, kind: "web", part });
+    } else if (part.type === "tool-read_attachment") {
+      steps.push({ key: part.toolCallId, kind: "read", part });
     } else if (part.type === "dynamic-tool") {
       if (last?.kind === "tool" && last.calls[0]?.toolName === part.toolName) {
         last.calls.push(part);

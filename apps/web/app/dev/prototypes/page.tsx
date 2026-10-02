@@ -21,6 +21,8 @@ import {
   LayoutDashboard,
   LogIn,
   Unplug,
+  Paperclip,
+  Pencil,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
@@ -62,6 +64,8 @@ const ENTRIES: Entry[] = [
   { about: "Профиль, персонализация, сеансы и данные под общей шапкой", area: "settings", chosen: "«Сплошная»", href: "/dev/prototypes/account", icon: UserRound, status: "chosen", title: "Аккаунт" },
   { about: "Что открывается из строки с аватаром внизу боковой панели: тема, язык, переходы, выход", area: "chat", chosen: "«В одну строку»", href: "/dev/prototypes/account-menu", icon: CircleUserRound, status: "chosen", title: "Меню аккаунта" },
   { about: "Чем ограничить высоту ленты шагов: окно, каждый шаг, одна строка или полоса и сцена", area: "chat", chosen: "«Каждый шаг»", href: "/dev/prototypes/activity-height", icon: ListChecks, status: "chosen", title: "Высота ленты" },
+  { about: "Файл в композере и в сообщении: полка, колода, лоток, чипы в строке или стопка", area: "chat", chosen: "«Полка»", href: "/dev/prototypes/attachments", icon: Paperclip, status: "chosen", title: "Вложения в чате" },
+  { about: "Правка отправленного сообщения вместе с файлами: на месте, в композере, с последствиями или в окне", area: "chat", chosen: "«На месте», «+» открывает выбор файлов сразу", href: "/dev/prototypes/edit-message", icon: Pencil, status: "chosen", title: "Правка сообщения" },
   { about: "Что модель делает, пока отвечает: шаги, подтверждение, итог; лента, строка или панель", area: "chat", chosen: "«Лента», без рамки и «Остановить»", href: "/dev/prototypes/activity", icon: ListChecks, status: "chosen", title: "Активность ответа" },
   { about: "Чат с лёгким боковым меню; настройки отдельным режимом", area: "chat", chosen: "«Режимы»", href: "/dev/prototypes/app-shell", icon: PanelsTopLeft, status: "chosen", title: "Оболочка приложения" },
   { about: "Поле ввода и выбор модели", area: "chat", chosen: "«Избранное + палитра»", href: "/dev/prototypes/composer", icon: MessageSquare, status: "chosen", title: "Поле ввода и выбор модели" },
