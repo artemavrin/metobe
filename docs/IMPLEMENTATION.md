@@ -175,10 +175,10 @@ docs/
 
 ### M4. Подключения, MCP, поиск
 
-1. Схема `catalog_items`, `connections`, `search_backends`.
+1. Схема `catalog_items`, `connections`, `oauth_flows`, `mailboxes`. `search_backends` — со вторым поисковым бэкендом: пока SearXNG настраивается в `system_settings.policies` (`web-settings.ts`).
 2. `@metobe/core/mcp`: `@ai-sdk/mcp`, allowlist, префиксы, `approval_policy`.
-3. `@metobe/core/connectors`: `email` (nodemailer, пресеты, `verify`), `http_api` (авторизация, генерация тулов из OpenAPI), SSRF-guard для своих подключений.
-4. `request_connection` + форма в ленте + `POST /api/connections`. Предупреждение о пароле в composer.
+3. Коннекторы: ✓ `email` в `@metobe/core/mailboxes` (nodemailer и imapflow, пресеты, `verify`, SSRF-guard); `http_api` (авторизация, генерация тулов из OpenAPI) — не сделан, модуль `connectors` с ним и появится.
+4. `request_connection` + форма в ленте + `POST /api/connections`. ✓ Предупреждение о пароле в composer и в правке сообщения (`lib/secret-hint.ts`).
 5. `web_search` / `web_fetch` на SearXNG, `source-url`-части, карточка источников.
 6. UI каталога, «Мои подключения», карточки вызовов тулов и подтверждения — прототипы P4, P8.
 
@@ -201,8 +201,7 @@ docs/
 Детальный план пишется после v1: к тому времени spikes и прототипы поменяют половину допущений. Порядок v2 — из PLAN:
 
 1. фоновые агенты: `apps/worker`, диспетчер, `executeRun`, входящие, уведомления;
-2. OAuth MCP;
-3. остальное.
+2. остальное (OAuth MCP уже в v1).
 
 ## 6. Проверки на каждом этапе
 

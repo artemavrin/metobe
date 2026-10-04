@@ -25,12 +25,14 @@ import { MentionMenu } from "@/components/chat/mention-menu";
 import { ModelChooser } from "@/components/chat/picker/chooser";
 import type { Favorites, PickerModel } from "@/components/chat/picker/data";
 import type { NavSource } from "@/components/chat/picker/motion";
+import { SecretNote } from "@/components/chat/secret-note";
 import { TokenEditor } from "@/components/chat/token-editor";
 import type { EditorHandle, Trigger } from "@/components/chat/token-editor";
 import {
   OAuthWindowDialog,
   useOAuthWindow,
 } from "@/components/mcp/oauth-window";
+import { looksLikeSecret } from "@/lib/secret-hint";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
@@ -275,10 +277,13 @@ export const Composer = ({
     // A little less room to come back to one line, so a draft right at the edge does not flip back and forth.
     setTall((was) => !fitsOneLine(at, was ? room - 8 : room));
   }, []);
+  // The draft looks like it holds a password or a key: a line says so under the field (the send is not blocked).
+  const [leaky, setLeaky] = useState(false);
   const onDraft = useCallback(
     (el: HTMLDivElement) => {
       field.current = el;
       measure();
+      setLeaky(looksLikeSecret(el.textContent ?? ""));
     },
     [measure]
   );
@@ -380,6 +385,20 @@ export const Composer = ({
     // oxlint-disable-next-line react/set-state-in-effect -- the question waits on the uploads (outside React) to finish
     setPending(false);
   }, [pending, attachments, onSend]);
+
+  // The line under the field: a draft that looks like a secret comes first, then the wait for files, else the usual.
+  let hint: React.ReactNode = (
+    <>
+      {t("disclaimer")} <span className="opacity-50">·</span> <Kbd>⌘/</Kbd>{" "}
+      {t("allModels")}
+    </>
+  );
+  if (pending) {
+    hint = <span className="shimmer">{t("files.waiting")}</span>;
+  }
+  if (leaky) {
+    hint = <SecretNote />;
+  }
 
   return (
     <>
@@ -535,14 +554,7 @@ export const Composer = ({
           </div>
         </div>
         <p className="text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-xs">
-          {pending ? (
-            <span className="shimmer">{t("files.waiting")}</span>
-          ) : (
-            <>
-              {t("disclaimer")} <span className="opacity-50">·</span>{" "}
-              <Kbd>⌘/</Kbd> {t("allModels")}
-            </>
-          )}
+          {hint}
         </p>
       </form>
       {/* Outside the form: React events bubble through portals, and its submit would send the draft */}
