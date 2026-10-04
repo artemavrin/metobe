@@ -39,6 +39,7 @@ import {
 import { FileSinkContext, useAttachments } from "@/components/chat/attachments";
 import { useTouchChat } from "@/components/chat/chat-shell";
 import { Composer } from "@/components/chat/composer";
+import type { ComposerHandle } from "@/components/chat/composer";
 import {
   AssistantMessage,
   ModelSwitch,
@@ -48,19 +49,19 @@ import { PickerDataProvider } from "@/components/chat/picker/data";
 import type { PickerModel } from "@/components/chat/picker/data";
 import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { ServerClockProvider } from "@/components/chat/server-clock";
+import { Welcome } from "@/components/chat/welcome";
+import type { WelcomeData } from "@/components/chat/welcome";
 import { chatProblem } from "@/lib/chat-errors";
 import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
 import { threadRows } from "@/lib/thread-rows";
 import type { ThreadRow } from "@/lib/thread-rows";
+import { uuid } from "@/lib/uuid";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
-/** The composer's move to the bottom: a spring with a hint of bounce, for a large move that must feel physical. */
-const SPRING = { bounce: 0.1, duration: 0.5, type: "spring" } as const;
-const SNAP = { duration: 0 } as const;
 
-// The screen's own entrance: an empty chat opens with the greeting rising in, the composer 60ms after it. A CSS
-// animation (off the main thread, smooth while the page hydrates) on `translate`, so it never fights the composer's
-// layout transform; `backwards` keeps both hidden through the delay and leaves nothing behind.
+// The screen's own entrance: a new chat opens with its welcome rising in, the composer 60ms after it. A CSS
+// animation (off the main thread, smooth while the page hydrates) on `translate`; `backwards` keeps both hidden
+// through the delay and leaves nothing behind.
 const SCREEN_CSS = `
 @keyframes chat-rise { from { opacity: 0; translate: 0 8px; } }
 @keyframes chat-rise-fade { from { opacity: 0; } }
@@ -270,9 +271,9 @@ const ChatError = ({
 };
 
 /**
- * A chat: the thread and the composer in one tree. An empty chat has the greeting and the composer in the middle;
- * when the first message goes, the same composer travels to its place at the bottom (a layout animation) and keeps
- * its focus, instead of one vanishing in the middle and another appearing below.
+ * A chat: the thread and the composer in one tree. A new chat has its welcome over the empty thread and the
+ * composer already at the bottom, where the thread keeps it: the first message fades the welcome out, the question
+ * rises in, and the composer keeps its place and its focus.
  */
 export const ChatView = ({
   id: givenId,
@@ -282,7 +283,7 @@ export const ChatView = ({
   favorites: initialFavorites,
   recent,
   labels,
-  greeting,
+  welcome,
   servers: initialServers,
 }: {
   /** An existing chat's id; a new chat makes its own, once, in the browser. */
@@ -299,12 +300,13 @@ export const ChatView = ({
   /** Names of models that wrote answers here but have left the chat since. */
   labels: ModelLabel[];
   /** A new chat greets the user; an existing one opens on its history. */
-  greeting?: string;
+  welcome?: WelcomeData;
 }) => {
   const t = useTranslations("chat");
   // oxlint-disable-next-line react/hook-use-state -- made once and never changed: no setter to name
-  const [id] = useState(() => givenId ?? crypto.randomUUID());
-  const reduce = useReducedMotion() ?? false;
+  const [id] = useState(() => givenId ?? uuid());
+  // The welcome's rows put a server, words or files into the draft.
+  const composer = useRef<ComposerHandle>(null);
   const touch = useTouchChat();
   // oxlint-disable-next-line react/hook-use-state -- decided once and never changed: no setter to name
   const [resume] = useState(() => initialMessages.at(-1)?.role === "user");
@@ -365,7 +367,7 @@ export const ChatView = ({
     status,
     stop,
   } = useChat<ChatMessage>({
-    generateId: () => crypto.randomUUID(),
+    generateId: uuid,
     id,
     messages: initialMessages,
     // A new chat's name from the titles model: the sidebar shows it as soon as it comes.
@@ -589,36 +591,29 @@ export const ChatView = ({
                 />
               </MessageScrollerProvider>
             </ServerClockProvider>
-          </div>
-          <AnimatePresence initial={false} mode="popLayout">
-            {empty && greeting && (
-              <motion.h1
-                className="chat-rise w-full px-6 pb-6 text-center text-2xl font-semibold tracking-tight"
-                exit={{
-                  opacity: 0,
-                  transition: { duration: 0.15, ease: EASE_OUT },
-                }}
-                key="greeting"
-              >
-                {greeting}
-              </motion.h1>
-            )}
-          </AnimatePresence>
-          <motion.div
-            className={cn(
-              "chat-rise chat-rise-next w-full px-4 md:px-6",
-              !empty && "pb-4"
-            )}
-            layout="position"
-            transition={reduce ? SNAP : SPRING}
-          >
-            {/* An empty chat's composer is narrower; the thread's takes the column, the width easing out on the first send */}
-            <div
-              className={cn(
-                "mx-auto transition-[max-width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-                empty ? "max-w-2xl" : "max-w-4xl"
+            {/* A new chat's screen over the empty thread: the first question fades it out and rises in under it */}
+            <AnimatePresence initial={false}>
+              {empty && welcome && (
+                <motion.div
+                  className="chat-rise absolute inset-0 overflow-y-auto"
+                  exit={{
+                    opacity: 0,
+                    transition: { duration: 0.15, ease: EASE_OUT },
+                  }}
+                  key="welcome"
+                >
+                  <Welcome
+                    composer={composer}
+                    data={welcome}
+                    servers={servers}
+                  />
+                </motion.div>
               )}
-            >
+            </AnimatePresence>
+          </div>
+          {/* The composer stands where the thread keeps it from the start: the first question moves nothing */}
+          <div className="chat-rise chat-rise-next w-full px-4 pb-4 md:px-6">
+            <div className="mx-auto max-w-4xl">
               <Composer
                 busy={busy}
                 favorites={favorites}
@@ -628,12 +623,11 @@ export const ChatView = ({
                 onStop={halt}
                 attachments={attachments}
                 onServerReady={serverReady}
+                ref={composer}
                 servers={servers}
               />
             </div>
-          </motion.div>
-          {/* Below an empty chat's composer: its share of the free space and a bit more, so the pair sits above the middle */}
-          {empty && <div className="flex-1 pb-[14vh]" />}
+          </div>
         </div>
       </FileSinkContext>
     </PickerDataProvider>

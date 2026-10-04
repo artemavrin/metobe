@@ -1,9 +1,16 @@
+import { networkInterfaces } from "node:os";
 import path from "node:path";
 
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
+// This machine's own LAN addresses, so a phone on the same network can open the dev server by IP.
+const lanAddresses = Object.values(networkInterfaces())
+  .flat()
+  .flatMap((a) => (a && a.family === "IPv4" && !a.internal ? [a.address] : []));
+
 const nextConfig: NextConfig = {
+  allowedDevOrigins: lanAddresses,
   output: "standalone",
   // Trace from the monorepo root so workspace packages end up in the standalone build.
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
