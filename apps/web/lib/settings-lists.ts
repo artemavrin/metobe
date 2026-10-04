@@ -7,6 +7,7 @@ import { listProviders } from "@metobe/core/providers";
 import { listProxies } from "@metobe/core/proxies";
 import { listSources } from "@metobe/core/sources-read";
 import type { SourceSummary } from "@metobe/core/sources-read";
+import { listMembers } from "@metobe/core/users";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 
 import { standingDot, standingOf } from "@/lib/my-connections";
@@ -176,6 +177,27 @@ const proxiesList = async (): Promise<SettingsList> => {
   };
 };
 
+/** The people of the install by name, each with their role and address; «+» invites someone. */
+const usersList = async (): Promise<SettingsList> => {
+  const [rows, t] = await Promise.all([
+    listMembers(),
+    getTranslations("users"),
+  ]);
+  return {
+    add: { href: "/settings/users/new", label: t("add") },
+    entries: rows.map((m) => ({
+      href: `/settings/users/${m.id}`,
+      id: m.id,
+      logo: undefined,
+      state: "none",
+      sub: `${t(`roles.${m.role}`)} · ${m.email}`,
+      title: m.name,
+    })),
+    meta: t("meta"),
+    title: t("title"),
+  };
+};
+
 /** The admin's catalog of MCP servers by name; each with its tools count, or that it wants a sign-in, or fails. */
 const mcpList = async (): Promise<SettingsList> => {
   const [rows, t] = await Promise.all([
@@ -290,11 +312,12 @@ export const getSettingsLists = async (
   if (!admin) {
     return connections ? { connections } : {};
   }
-  const [sources, providers, proxies, mcp] = await Promise.all([
+  const [sources, providers, proxies, mcp, users] = await Promise.all([
     sourcesList(),
     providersList(),
     proxiesList(),
     mcpList(),
+    usersList(),
   ]);
-  return { connections, mcp, providers, proxies, sources };
+  return { connections, mcp, providers, proxies, sources, users };
 };

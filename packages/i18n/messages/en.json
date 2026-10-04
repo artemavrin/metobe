@@ -1127,6 +1127,74 @@
     "clear": "Remove the model",
     "choose": "Choose a model: {job}"
   },
+  "users": {
+    "title": "Users",
+    "meta": "who is in the service",
+    "description": "The people of this service: roles, invitations, removal",
+    "add": "Invite",
+    "roles": {
+      "superuser": "Owner",
+      "admin": "Administrator",
+      "user": "User"
+    },
+    "roleHints": {
+      "superuser": "One per service, made at the first sign-in",
+      "admin": "Changes the service's settings: sources, connections, proxies",
+      "user": "Uses the chat and their own connections"
+    },
+    "detail": {
+      "you": "This is you",
+      "role": "Role",
+      "roleOnlyOwner": "Only the owner changes a role",
+      "joined": "Joined",
+      "lastSeen": "Last seen",
+      "never": "has not signed in yet",
+      "remove": {
+        "section": "Removal",
+        "action": "Remove",
+        "label": "Remove the user",
+        "hint": "Their chats, connections and files go. Costs stay, without a name",
+        "confirm": "Remove {name}?",
+        "text": "This user's chats, connections, mailboxes and files will be deleted for good.",
+        "cancel": "Cancel",
+        "cannot": "The owner and yourself cannot be removed"
+      }
+    },
+    "invite": {
+      "title": "Invitation",
+      "description": "The link makes an account and signs it in by itself. No mail is needed: send the link any way you like.",
+      "role": "Role",
+      "email": "Address",
+      "emailHint": "Optional. When given, the link accepts only this address",
+      "emailPlaceholder": "name@company.com",
+      "create": "Create a link",
+      "ready": "The link is ready",
+      "readyHint": "Valid for {days, plural, one {# day} other {# days}} and works once. Shown only now",
+      "copy": "Copy",
+      "copied": "Copied",
+      "another": "Create another",
+      "failed": "Could not create the invitation",
+      "open": {
+        "section": "Open invitations",
+        "empty": "There are no open invitations",
+        "until": "until {date}",
+        "for": "for {email}",
+        "by": "made by {name}",
+        "revoke": "Revoke"
+      }
+    }
+  },
+  "invite": {
+    "title": "You are invited",
+    "first": "Say who you are and you are in",
+    "name": "Your name",
+    "email": "Email",
+    "create": "Sign in",
+    "invalidToken": "The link is not valid or has been used. Ask whoever invited you for a new one.",
+    "wrongEmail": "This link was made for another address.",
+    "emailTaken": "This email is already registered. Sign in on the sign-in page.",
+    "toLogin": "Go to sign-in"
+  },
   "mcpOAuth": {
     "title": "Sign in to {server}",
     "phase": {
