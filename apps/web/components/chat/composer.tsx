@@ -10,10 +10,12 @@ import { useTranslations } from "next-intl";
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+import type { Ref } from "react";
 
 import { connectServer } from "@/app/(app)/(chat)/actions";
 import { AddMenu } from "@/components/chat/add-menu";
@@ -175,6 +177,16 @@ const SendButton = ({
  * to the model; one the user has not connected yet is connected from here — its OAuth page, or their token in a
  * small dialog.
  */
+/** What the new chat's screen puts into the composer from outside it. */
+export interface ComposerHandle {
+  /** A server's badge in the draft, as a pick from «+» puts it — signing in first when it asks for that. */
+  mention: (server: ChatServer) => void;
+  /** Words at the end of the draft. */
+  say: (text: string) => void;
+  /** The file dialog. */
+  pickFiles: () => void;
+}
+
 /** The editor's draft as the message text: tokens as `@label`. */
 const textOf = (handle: EditorHandle | null) =>
   (handle?.value() ?? [])
@@ -192,7 +204,9 @@ export const Composer = ({
   servers,
   onServerReady,
   attachments,
+  ref,
 }: {
+  ref?: Ref<ComposerHandle>;
   /** The files waiting in the composer (the chat screen owns them: a file dropped anywhere on it lands here). */
   attachments: ReturnType<typeof useAttachments>;
   /** The model the next message goes to, and the user's favorites to pick another from. */
@@ -358,6 +372,15 @@ export const Composer = ({
       connectServer({ catalogId: server.id, returnTo })
     );
   };
+
+  useImperativeHandle(ref, () => ({
+    mention: (server) => {
+      place.current = "add";
+      pick(server);
+    },
+    pickFiles: () => filesInput.current?.click(),
+    say: (text) => editor.current?.addText(text),
+  }));
 
   const submit = () => {
     if ((!textOf(editor.current) && !hasFiles) || busy || pending) {

@@ -9,6 +9,14 @@
       "evening": "{hasName, select, yes {Good evening, {name}} other {Good evening}}",
       "night": "{hasName, select, yes {Hello, {name}} other {Hello}}"
     },
+    "welcome": {
+      "start": "Start with",
+      "resume": "Continue",
+      "mail": "Unread mail",
+      "mailAsk": "What is unread in my mail?",
+      "file": "Go through a file",
+      "fileHint": "PDF, Word, Excel, images"
+    },
     "placeholder": "Ask anything…",
     "send": "Send",
     "stop": "Stop (Esc)",

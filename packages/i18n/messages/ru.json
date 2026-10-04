@@ -9,6 +9,14 @@
       "evening": "{hasName, select, yes {Добрый вечер, {name}} other {Добрый вечер}}",
       "night": "{hasName, select, yes {Доброй ночи, {name}} other {Доброй ночи}}"
     },
+    "welcome": {
+      "start": "Начать с",
+      "resume": "Продолжить",
+      "mail": "Непрочитанное в почте",
+      "mailAsk": "Что непрочитанного в почте?",
+      "file": "Разобрать файл",
+      "fileHint": "PDF, Word, Excel, картинки"
+    },
     "placeholder": "Спросите что-нибудь…",
     "send": "Отправить",
     "stop": "Остановить (Esc)",
