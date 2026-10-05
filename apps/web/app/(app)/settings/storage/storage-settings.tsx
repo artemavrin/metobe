@@ -1,5 +1,6 @@
 "use client";
 
+import { fileKinds } from "@metobe/contracts/files";
 import type { FileKind } from "@metobe/contracts/files";
 import type { StorageProbe } from "@metobe/core/storage";
 import { Button } from "@metobe/ui/components/button";
@@ -103,6 +104,56 @@ const State = ({ found, state }: { found: Found; state: "ok" | "down" }) => {
   );
 };
 
+/** A kind's color: the theme's categorical one, fixed per kind, so images are the same color whatever they take. */
+const color = (kind: string) =>
+  `var(--chart-${fileKinds.indexOf(kind as FileKind) + 1})`;
+
+/** What the files take: one bar split by kind, largest first, and the kinds under it. */
+const UsageBar = ({ usage }: { usage: Usage }) => {
+  const t = useTranslations("storage");
+  const size = useSize();
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts a fresh copy; toSorted is past this project's ES target
+  const kinds = [...usage.kinds].sort((a, b) => b.bytes - a.bytes);
+  return (
+    <div className="rounded-lg border">
+      <div
+        aria-hidden
+        className="m-4 flex h-2.5 gap-0.5 overflow-hidden rounded-full"
+      >
+        {kinds.map((k) => (
+          <div
+            className="min-w-1 first:rounded-l-full last:rounded-r-full"
+            key={k.kind}
+            style={{
+              background: color(k.kind),
+              flexGrow: k.bytes,
+            }}
+          />
+        ))}
+      </div>
+      <ul className="divide-y border-t">
+        {kinds.map((k) => (
+          <li
+            className="flex items-center justify-between gap-3 px-4 py-3"
+            key={k.kind}
+          >
+            <span className="flex items-center gap-2.5 font-medium">
+              <span
+                className="size-2.5 shrink-0 rounded-full"
+                style={{ background: color(k.kind) }}
+              />
+              {t(`kinds.${k.kind as FileKind}`)}
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {t("usage.files", { count: k.count })} · {size(k.bytes)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 export const StorageSettings = ({
   info,
   state,
@@ -170,24 +221,17 @@ export const StorageSettings = ({
         <p className="text-muted-foreground text-xs">{t("keys")}</p>
       </Section>
 
-      <Section title={t("usage.title")}>
+      <Section
+        meta={
+          usage.count > 0 &&
+          `${t("usage.files", { count: usage.count })} · ${size(usage.bytes)}`
+        }
+        title={t("usage.title")}
+      >
         {usage.count === 0 ? (
           <p className="text-muted-foreground text-sm">{t("usage.empty")}</p>
         ) : (
-          <Rows>
-            <Row label={t("usage.all")}>
-              <span className="tabular-nums">
-                {t("usage.files", { count: usage.count })} · {size(usage.bytes)}
-              </span>
-            </Row>
-            {usage.kinds.map((k) => (
-              <Row key={k.kind} label={t(`kinds.${k.kind as FileKind}`)}>
-                <span className="text-muted-foreground tabular-nums">
-                  {t("usage.files", { count: k.count })} · {size(k.bytes)}
-                </span>
-              </Row>
-            ))}
-          </Rows>
+          <UsageBar usage={usage} />
         )}
       </Section>
     </>

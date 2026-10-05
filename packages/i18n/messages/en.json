@@ -1618,7 +1618,6 @@
     "usage": {
       "title": "Files",
       "empty": "No files yet",
-      "all": "Total",
       "files": "{count, plural, one {# file} other {# files}}"
     },
     "kinds": {

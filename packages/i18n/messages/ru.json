@@ -1618,7 +1618,6 @@
     "usage": {
       "title": "Файлы",
       "empty": "Файлов пока нет",
-      "all": "Всего",
       "files": "{count, plural, one {# файл} few {# файла} other {# файлов}}"
     },
     "kinds": {
