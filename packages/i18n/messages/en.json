@@ -447,12 +447,14 @@
       "ignore": "If you did not ask for a code, ignore this letter: no one gets in without it."
     },
     "changeCurrent": {
-      "subject": "Code to change your Metobe email: {code}",
-      "intro": "Someone in your Metobe account is changing the email. The code to confirm from the old address:"
+      "subject": "{code} — code to change your Metobe email",
+      "heading": "Changing your email",
+      "intro": "Someone in your Metobe account is changing the email. The code to confirm from the old address."
     },
     "changeNew": {
-      "subject": "Code for your new Metobe address: {code}",
-      "intro": "This address will become your sign-in email for Metobe. The code to confirm:"
+      "subject": "{code} — code for your new Metobe address",
+      "heading": "A new sign-in address",
+      "intro": "This address will become your sign-in email for Metobe. The code to confirm."
     },
     "changeTtl": "The code is valid for 10 minutes.",
     "changeIgnore": "If it was not you, just ignore this email.",
