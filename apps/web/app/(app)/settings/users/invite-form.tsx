@@ -13,6 +13,7 @@ import {
 import { Spinner } from "@metobe/ui/components/spinner";
 import { Check, Copy } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -37,9 +38,12 @@ const DAYS = 7;
 export const InviteForm = ({
   roles,
   open,
+  mailOn,
 }: {
   roles: InvitableRole[];
   open: Open[];
+  /** The service can send letters: a link with no address then checks the mailbox by a code, and one with it is mailed. */
+  mailOn: boolean;
 }) => {
   const t = useTranslations("users");
   const f = useFormatter();
@@ -49,10 +53,12 @@ export const InviteForm = ({
   const [made, setMade] = useState<Extract<InviteResult, { ok: true }> | null>(
     null
   );
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [creating, startCreate] = useTransition();
   const [revoking, startRevoke] = useTransition();
+
+  const needsAddress = !(mailOn || email.trim());
 
   const copy = async () => {
     if (!made) {
@@ -88,6 +94,13 @@ export const InviteForm = ({
                 {copied ? t("invite.copied") : t("invite.copy")}
               </Button>
             </div>
+            {made.mailed !== null && (
+              <p className="text-sm">
+                {t(made.mailed ? "invite.mailed" : "invite.notMailed", {
+                  email,
+                })}
+              </p>
+            )}
             <p className="text-muted-foreground text-xs">
               {t("invite.readyHint", { days: DAYS })}
             </p>
@@ -126,7 +139,10 @@ export const InviteForm = ({
                 </SelectContent>
               </Select>
             </Row>
-            <Row hint={t("invite.emailHint")} label={t("invite.email")}>
+            <Row
+              hint={t(mailOn ? "invite.emailHint" : "invite.emailHintNoMail")}
+              label={t("invite.email")}
+            >
               <Input
                 autoComplete="off"
                 className="w-64"
@@ -140,16 +156,35 @@ export const InviteForm = ({
           </Rows>
           {failed && (
             <p className="text-destructive text-sm" role="alert">
-              {t("invite.failed")}
+              {failed}
+            </p>
+          )}
+          {needsAddress && (
+            <p className="text-muted-foreground text-sm">
+              {t("invite.needMail")}{" "}
+              <Link
+                className="text-foreground underline-offset-2 hover:underline"
+                href="/settings/mail"
+              >
+                {t("invite.toMail")}
+              </Link>
             </p>
           )}
           <div>
             <Button
-              disabled={creating}
+              disabled={creating || needsAddress}
               onClick={() =>
                 startCreate(async () => {
                   const result = await createInvite(role, email);
-                  setFailed(!result.ok);
+                  setFailed(
+                    result.ok
+                      ? null
+                      : t(
+                          result.reason === "mail"
+                            ? "invite.failedMail"
+                            : "invite.failed"
+                        )
+                  );
                   if (result.ok) {
                     setMade(result);
                     router.refresh();
