@@ -1523,10 +1523,7 @@
       "public": "This is a public mail service: anyone can make an address on it, and anyone would get in.",
       "listed": "This domain is already listed."
     },
-    "leave": {
-      "title": "Leaving",
-      "text": "Removing a domain keeps those who already signed in, and keeps new people of that mail out. Someone you already have is deleted in «Users»: as long as their domain is listed, they can sign in again and start from scratch."
-    }
+    "note": "Remove a domain and new people from it can no longer sign in; those already in stay. If you delete someone in «Users», they can sign in again as long as their domain is listed."
   },
   "profile": {
     "title": "Profile",

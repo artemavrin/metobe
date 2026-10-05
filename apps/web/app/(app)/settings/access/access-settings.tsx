@@ -15,7 +15,7 @@ import { addDomain, removeDomain } from "./actions";
 
 // Who may sign in by themselves (D17): the email domains whose people get in by the code from the mail, with an account
 // made at the first sign-in and the role «user». Nothing opens without the service's mail; a person already in needs
-// no domain, and one removed from «Пользователи» can come back for as long as their domain is listed.
+// no domain, and one deleted in «Пользователи» can sign in again for as long as their domain is listed.
 
 const NO_AUTOFILL = {
   autoComplete: "off",
@@ -115,49 +115,44 @@ export const AccessSettings = ({
   const t = useTranslations("access");
   const [removing, start] = useTransition();
   return (
-    <>
-      <Section title={t("domains.title")}>
-        {!mailOn && (
-          <p className="text-muted-foreground -mt-1 text-sm">
-            {t("noMail")}{" "}
-            <Link
-              className="text-foreground underline-offset-2 hover:underline"
-              href="/settings/mail"
-            >
-              {t("toMail")}
-            </Link>
-          </p>
-        )}
-        {domains.length > 0 ? (
-          <Rows>
-            {domains.map((domain) => (
-              <Row
-                action={
-                  <Button
-                    aria-label={t("remove", { domain })}
-                    disabled={removing}
-                    onClick={() => start(() => removeDomain(domain))}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <X />
-                  </Button>
-                }
-                hint={mailOn ? t("domains.hint") : t("domains.paused")}
-                key={domain}
-                label={`@${domain}`}
-              />
-            ))}
-          </Rows>
-        ) : (
-          <p className="text-muted-foreground text-sm">{t("domains.empty")}</p>
-        )}
-        <AddDomain disabled={!mailOn} senderDomain={senderDomain} />
-      </Section>
-
-      <Section title={t("leave.title")}>
-        <p className="text-muted-foreground text-sm">{t("leave.text")}</p>
-      </Section>
-    </>
+    <Section title={t("domains.title")}>
+      {!mailOn && (
+        <p className="text-muted-foreground -mt-1 text-sm">
+          {t("noMail")}{" "}
+          <Link
+            className="text-foreground underline-offset-2 hover:underline"
+            href="/settings/mail"
+          >
+            {t("toMail")}
+          </Link>
+        </p>
+      )}
+      {domains.length > 0 ? (
+        <Rows>
+          {domains.map((domain) => (
+            <Row
+              action={
+                <Button
+                  aria-label={t("remove", { domain })}
+                  disabled={removing}
+                  onClick={() => start(() => removeDomain(domain))}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <X />
+                </Button>
+              }
+              hint={mailOn ? t("domains.hint") : t("domains.paused")}
+              key={domain}
+              label={`@${domain}`}
+            />
+          ))}
+        </Rows>
+      ) : (
+        <p className="text-muted-foreground text-sm">{t("domains.empty")}</p>
+      )}
+      <AddDomain disabled={!mailOn} senderDomain={senderDomain} />
+      <p className="text-muted-foreground text-xs">{t("note")}</p>
+    </Section>
   );
 };
