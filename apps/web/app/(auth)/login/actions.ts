@@ -1,6 +1,7 @@
 "use server";
 
 import { emailSchema, verifyFormSchema } from "@metobe/contracts/auth";
+import { mayReceiveSignInCode } from "@metobe/core/access";
 import { sendSignInCode } from "@metobe/core/auth";
 import { findUserByEmail } from "@metobe/core/users";
 import { getTranslations } from "next-intl/server";
@@ -34,9 +35,10 @@ export const sendCode = async (
     };
   }
   const email = parsed.data;
-  // Same answer whether the user exists or not, so the form cannot be used to probe emails.
+  // Same answer whether the code went or not, so the form cannot be used to probe emails: it goes to someone in the
+  // install and to someone whose domain the admin listed (their account is made when they enter it).
   // The code is issued here and mailed by us, so the email can follow the language of this page.
-  if (await findUserByEmail(email)) {
+  if (await mayReceiveSignInCode(email)) {
     const code = await getAuth().api.createVerificationOTP({
       body: { email, type: "sign-in" },
     });
@@ -74,5 +76,6 @@ export const verifyCode = async (
   if (signedIn) {
     await writePrefsCookies(signedIn);
   }
-  redirect("/");
+  // Someone who made their account by this code has no name yet: one question before the first chat.
+  redirect(signedIn?.name.trim() ? "/" : "/login/name");
 };

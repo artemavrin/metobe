@@ -10,6 +10,10 @@ const AppLayout = async ({ children }: { children: React.ReactNode }) => {
   if (!session) {
     redirect("/login");
   }
+  // An account made by a first sign-in has no name until it is asked for.
+  if (!session.user.name.trim()) {
+    redirect("/login/name");
+  }
   return children;
 };
 

@@ -15,6 +15,11 @@ export const findUserByEmail = async (email: string) => {
   return found ?? null;
 };
 
+/** Names someone: what a person who signed in by a code for the first time says about themselves. */
+export const setUserName = async (userId: string, name: string) => {
+  await getDb().db.update(user).set({ name }).where(eq(user.id, userId));
+};
+
 export interface UserPrefs {
   locale: string | null;
   timeZone: string | null;
