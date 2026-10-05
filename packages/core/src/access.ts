@@ -70,6 +70,11 @@ export const canSignUp = async (email: string) => {
   return mail && domains.includes(domain);
 };
 
-/** Whether a sign-in code may go to this address: it is someone's in the install, or someone who may make an account. */
-export const mayReceiveSignInCode = async (email: string) =>
-  Boolean(await findUserByEmail(email)) || (await canSignUp(email));
+/**
+ * Whether a sign-in code may go to this address: it is someone's in the install and their account is not turned off,
+ * or it is someone who may make an account. A turned-off account is not made again by its domain.
+ */
+export const mayReceiveSignInCode = async (email: string) => {
+  const found = await findUserByEmail(email);
+  return found ? !found.disabledAt : canSignUp(email);
+};

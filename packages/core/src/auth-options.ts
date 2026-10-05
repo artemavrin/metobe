@@ -21,12 +21,15 @@ type SendAccountCode = (
 // first sign-in by the code — only for an address `canSignUp` allows (the admin's domains): every other way to make an
 // account through Better Auth is refused in the hook, however the request got there.
 export const buildAuthOptions = ({
+  canSignIn,
   canSignUp,
   db,
   plugins = [],
   sendSignInCode,
   sendAccountCode,
 }: {
+  /** Whether this account may have a session: the one way in for everything, a code or a link alike. */
+  canSignIn: (userId: string) => Promise<boolean>;
   canSignUp: (email: string) => Promise<boolean>;
   db: Db;
   plugins?: BetterAuthPlugin[];
@@ -34,8 +37,16 @@ export const buildAuthOptions = ({
   sendAccountCode: SendAccountCode;
 }) =>
   ({
+    // Ids as the users made by the claim and by invitations have them: the people's pages take a UUID.
+    advanced: { database: { generateId: () => crypto.randomUUID() } },
     database: drizzleAdapter(db, { provider: "pg" }),
     databaseHooks: {
+      session: {
+        create: {
+          before: async (created) =>
+            (await canSignIn(created.userId)) ? { data: created } : false,
+        },
+      },
       user: {
         create: {
           before: async (created) =>

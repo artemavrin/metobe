@@ -1189,6 +1189,35 @@
         "text": "This user's chats, connections, mailboxes and files will be deleted for good.",
         "cancel": "Cancel",
         "cannot": "The owner and yourself cannot be removed"
+      },
+      "access": {
+        "section": "Access",
+        "off": {
+          "label": "Turn the account off",
+          "hint": "They are signed out at once and cannot sign in until you turn it on again. Chats and connections stay",
+          "action": "Turn off",
+          "title": "Turn {name} off?",
+          "text": "Every session of theirs ends at once. No sign-in code goes to them, even if their domain is allowed. Chats, files and connections stay, and all comes back when you turn them on.",
+          "cancel": "Cancel"
+        },
+        "on": {
+          "label": "The account is off",
+          "hint": "Cannot sign in since {date}",
+          "action": "Turn on"
+        },
+        "link": {
+          "label": "Sign-in link",
+          "hint": "For when the letter does not arrive or the service has no mail. Works for 10 minutes, once: send it to them yourself",
+          "action": "Make a link",
+          "title": "Sign-in link",
+          "ready": "Open it on the device they will sign in on. Shown only now",
+          "copy": "Copy",
+          "copied": "Copied",
+          "close": "Close",
+          "failed": "Could not make the link",
+          "disabled": "Turn the account on first"
+        },
+        "unverified": "This account's mailbox is not checked: they need the code from a letter to this address"
       }
     },
     "invite": {
@@ -1219,6 +1248,10 @@
       "mailed": "The letter with the link went to {email}. You can copy it too",
       "notMailed": "The letter to {email} did not go: send the link yourself. Check the service's mail",
       "failedMail": "An invitation without an address cannot be made until the service's mail is set up"
+    },
+    "states": {
+      "disabled": "Turned off",
+      "unverified": "Mailbox not checked"
     }
   },
   "invite": {
