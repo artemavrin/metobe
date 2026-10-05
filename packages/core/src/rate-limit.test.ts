@@ -20,6 +20,15 @@ describe("the limit on how often something may be asked", () => {
     expect(await allow(b, 1, 60)).toBe(true);
   });
 
+  it("says how long until the window that said no is over", async () => {
+    const { retryIn } = await import("./rate-limit");
+    const key = `r:${crypto.randomUUID()}`;
+    expect(await retryIn(key, 1, 60)).toBeNull();
+    const wait = await retryIn(key, 1, 60);
+    expect(wait).toBeGreaterThan(55);
+    expect(wait).toBeLessThanOrEqual(60);
+  });
+
   it("starts over when the window is over", async () => {
     vi.useFakeTimers();
     try {

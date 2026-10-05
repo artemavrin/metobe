@@ -26,3 +26,15 @@ export const chatProblem = (error: Error): ChatProblem => {
   }
   return error instanceof TypeError ? "network" : "unknown";
 };
+
+/** When a request refused for a limit may go again, from the refusal's body; null for anything else. */
+export const retryAtOf = (error: Error): Date | null => {
+  try {
+    const at: unknown = (JSON.parse(error.message) as { retryAt?: unknown })
+      .retryAt;
+    const date = typeof at === "string" ? new Date(at) : null;
+    return date && !Number.isNaN(date.getTime()) ? date : null;
+  } catch {
+    return null;
+  }
+};

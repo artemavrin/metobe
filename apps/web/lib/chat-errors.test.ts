@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chatProblem } from "./chat-errors";
+import { chatProblem, retryAtOf } from "./chat-errors";
 
 describe("what went wrong with a chat request", () => {
   it("reads our code from a refused request's body", () => {
@@ -23,5 +23,14 @@ describe("what went wrong with a chat request", () => {
     expect(chatProblem(new TypeError("Failed to fetch"))).toBe("network");
     expect(chatProblem(new Error('{"error":"nope"}'))).toBe("unknown");
     expect(chatProblem(new Error("<html>Bad gateway</html>"))).toBe("unknown");
+  });
+
+  it("reads when a limited request may go again", () => {
+    const at = "2026-10-07T11:30:00.000Z";
+    expect(
+      retryAtOf(new Error(`{"error":"daily-limit","retryAt":"${at}"}`))
+    ).toEqual(new Date(at));
+    expect(retryAtOf(new Error('{"error":"forbidden"}'))).toBeNull();
+    expect(retryAtOf(new Error("generation-failed"))).toBeNull();
   });
 });

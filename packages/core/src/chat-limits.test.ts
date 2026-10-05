@@ -17,7 +17,8 @@ const send = async (user: Parameters<typeof checkChatLimit>[0], n: number) => {
   const answers = [];
   for (let i = 0; i < n; i += 1) {
     // oxlint-disable-next-line no-await-in-loop -- each message is counted after the one before it
-    answers.push(await checkChatLimit(user));
+    const limited = await checkChatLimit(user);
+    answers.push(limited?.code ?? null);
   }
   return answers;
 };
@@ -37,11 +38,7 @@ describe("the limit on chat messages", () => {
       admin: { perDay: 2, perMinute: 100 },
       user: { perDay: null, perMinute: null },
     });
-    const admin = {
-      id: crypto.randomUUID(),
-      role: "admin",
-      timeZone: "Europe/Moscow",
-    };
+    const admin = { id: crypto.randomUUID(), role: "admin" };
     expect(await send(admin, 3)).toEqual([null, null, "daily-limit"]);
   });
 
@@ -57,5 +54,19 @@ describe("the limit on chat messages", () => {
       null,
       "too-fast",
     ]);
+  });
+
+  it("says when the next message may go", async () => {
+    await setChatLimits({
+      admin: { perDay: null, perMinute: null },
+      user: { perDay: 1, perMinute: null },
+    });
+    const user = { id: crypto.randomUUID(), role: "user" };
+    await checkChatLimit(user);
+    const limited = await checkChatLimit(user);
+    const hours = ((limited?.retryAt.getTime() ?? 0) - Date.now()) / 3_600_000;
+    expect(limited?.code).toBe("daily-limit");
+    expect(hours).toBeGreaterThan(23.9);
+    expect(hours).toBeLessThanOrEqual(24);
   });
 });

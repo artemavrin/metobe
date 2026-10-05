@@ -240,7 +240,7 @@ const settleFiles = async (
 const readMessage = (userId: string, message: ChatRequest["message"]) =>
   message ? ownFiles(userId, message as ChatMessage) : undefined;
 
-/** Why this person may not post to this chat now — not theirs, or over their role's limit; null — go on. */
+/** Why this person may not post to this chat now — not theirs, or over their role's limit (and until when); null — go on. */
 const refuse = async (
   chat: { userId: string } | null | undefined,
   user: Parameters<typeof checkChatLimit>[0]
@@ -249,7 +249,12 @@ const refuse = async (
     return fail("forbidden", 403);
   }
   const limited = await checkChatLimit(user);
-  return limited ? fail(limited, 429) : null;
+  return limited
+    ? Response.json(
+        { error: limited.code, retryAt: limited.retryAt.toISOString() },
+        { status: 429 }
+      )
+    : null;
 };
 
 export const POST = async (request: Request) => {

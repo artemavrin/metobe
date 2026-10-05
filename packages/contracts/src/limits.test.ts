@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  DEFAULT_CHAT_LIMITS,
-  chatLimitFor,
-  chatLimitsOf,
-  dayIn,
-} from "./limits";
+import { DEFAULT_CHAT_LIMITS, chatLimitFor, chatLimitsOf } from "./limits";
 
 describe("the chat limits stored", () => {
   it("are the defaults when nothing is stored", () => {
@@ -32,19 +27,5 @@ describe("the chat limits stored", () => {
     expect(chatLimitFor("admin", DEFAULT_CHAT_LIMITS)).toEqual(
       DEFAULT_CHAT_LIMITS.admin
     );
-  });
-});
-
-describe("the person's day", () => {
-  const lateUtc = new Date("2026-10-06T22:30:00Z");
-
-  it("is the date where they are", () => {
-    expect(dayIn("Europe/Moscow", lateUtc)).toBe("2026-10-07");
-    expect(dayIn("America/New_York", lateUtc)).toBe("2026-10-06");
-  });
-
-  it("is UTC's without a zone or with a wrong one", () => {
-    expect(dayIn(null, lateUtc)).toBe("2026-10-06");
-    expect(dayIn("Mars/Olympus", lateUtc)).toBe("2026-10-06");
   });
 });

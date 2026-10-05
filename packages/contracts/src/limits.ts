@@ -40,19 +40,3 @@ export const chatLimitFor = (role: Role, limits: ChatLimits): ChatLimit =>
   role === "superuser"
     ? { perDay: null, perMinute: null }
     : limits[role === "admin" ? "admin" : "user"];
-
-/** The person's calendar day, «2026-10-06», in their time zone; UTC when it is unknown or not a zone. */
-export const dayIn = (timeZone: string | null | undefined, now: Date) => {
-  const format = (zone: string) =>
-    new Intl.DateTimeFormat("en-CA", {
-      day: "2-digit",
-      month: "2-digit",
-      timeZone: zone,
-      year: "numeric",
-    }).format(now);
-  try {
-    return format(timeZone || "UTC");
-  } catch {
-    return format("UTC");
-  }
-};

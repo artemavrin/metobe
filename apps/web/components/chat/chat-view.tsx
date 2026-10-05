@@ -23,7 +23,7 @@ import {
 import type { FileUIPart } from "ai";
 import { ArrowDown, Paperclip, TriangleAlert } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
@@ -51,7 +51,7 @@ import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { ServerClockProvider } from "@/components/chat/server-clock";
 import { Welcome } from "@/components/chat/welcome";
 import type { WelcomeData } from "@/components/chat/welcome";
-import { chatProblem } from "@/lib/chat-errors";
+import { chatProblem, retryAtOf } from "@/lib/chat-errors";
 import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
 import { threadRows } from "@/lib/thread-rows";
 import type { ThreadRow } from "@/lib/thread-rows";
@@ -243,12 +243,20 @@ const ChatError = ({
   onRetry: () => void;
 }) => {
   const t = useTranslations("chat");
+  const format = useFormatter();
   const problem = chatProblem(error);
+  // A limit says when the next message may go — today or tomorrow, at the person's own time.
+  const at = retryAtOf(error) ?? new Date();
+  const dayOf = (date: Date) => format.dateTime(date, { dateStyle: "short" });
+  const when = {
+    day: dayOf(at) === dayOf(new Date()) ? "today" : "other",
+    time: format.dateTime(at, { timeStyle: "short" }),
+  };
   return (
     <div className="flex items-center gap-3" role="alert">
       <TriangleAlert className="text-destructive size-[22px] shrink-0 p-0.5" />
       <span className="text-muted-foreground min-w-0 flex-1">
-        {t(`errors.${problem}`)}
+        {t(`errors.${problem}`, when)}
       </span>
       {problem === "unauthorized" ? (
         <Button

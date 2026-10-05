@@ -61,7 +61,7 @@
       "bad-request": "The message wasn’t sent.",
       "unknown": "Something went wrong.",
       "too-fast": "Too many messages in a row. Wait a minute.",
-      "daily-limit": "You've used today's messages. The limit resets tomorrow; ask an admin if you need more."
+      "daily-limit": "You've reached the daily message limit. You can write again {day, select, today {today} other {tomorrow}} at {time}. Ask an admin if you need more."
     },
     "newChat": "New chat",
     "openSidebar": "Open menu",
@@ -1776,6 +1776,6 @@
     },
     "empty": "no limit",
     "invalid": "Enter a whole number above zero, or leave it empty",
-    "note": "Empty means no limit. A day is counted in the person's time zone."
+    "note": "Empty means no limit. A day counts from the first message."
   }
 }
