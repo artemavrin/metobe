@@ -6,6 +6,7 @@ import { getTranslator } from "@metobe/i18n/translator";
 import { betterAuth } from "better-auth";
 import type { BetterAuthPlugin } from "better-auth";
 
+import { canSignUp, mayReceiveSignInCode } from "./access";
 import { buildAuthOptions } from "./auth-options";
 import { getDb } from "./db";
 import { buildLoginLink } from "./login-link";
@@ -77,10 +78,17 @@ export const sendAccountCode = async (
 export const createAuth = (plugins: BetterAuthPlugin[] = []) =>
   betterAuth(
     buildAuthOptions({
+      canSignUp,
       db: getDb().db,
       plugins,
       sendAccountCode,
-      sendSignInCode: (email, code) => sendSignInCode(email, code),
+      // The code goes only to someone in the install or who may join it: the send route is public, and with
+      // sign-up open it would answer any address.
+      sendSignInCode: async (email, code) => {
+        if (await mayReceiveSignInCode(email)) {
+          await sendSignInCode(email, code);
+        }
+      },
     })
   );
 

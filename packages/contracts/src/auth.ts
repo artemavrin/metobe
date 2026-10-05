@@ -14,6 +14,10 @@ export const claimFormSchema = z.object({
   token: z.string().min(1),
 });
 
+export const nameFormSchema = z.object({
+  name: z.string().trim().min(1, "name").max(100),
+});
+
 export const verifyFormSchema = z.object({
   code: signInCodeSchema,
   email: emailSchema,

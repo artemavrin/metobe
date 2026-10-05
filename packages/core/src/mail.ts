@@ -1,12 +1,10 @@
 import "server-only";
 import { mailPresetIds, mailServerSchema } from "@metobe/contracts/email";
 import type { MailServer, ServiceMailInput } from "@metobe/contracts/email";
-import { systemSettings } from "@metobe/db/schema/system";
-import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { getDb } from "./db";
 import { mailProxyFor } from "./net";
+import { mergePolicies, readPolicies } from "./policies";
 import { removeSecrets, setSecret, withSecret } from "./secrets";
 import { parseSmtpEnv, problemOf, smtpTransport } from "./smtp";
 import type { Credentials, MailProblem } from "./smtp";
@@ -58,26 +56,8 @@ const failure = (error: unknown) => ({
   problem: problemOf(error),
 });
 
-const readPolicies = async () => {
-  const [row] = await getDb()
-    .db.select({ policies: systemSettings.policies })
-    .from(systemSettings)
-    .where(eq(systemSettings.id, 1));
-  return row?.policies ?? {};
-};
-
-/** Replaces the mail part of the policies in one statement; the rest of them stays as it is. */
-const writeMail = (mail: ServiceMail | null) =>
-  getDb()
-    .db.insert(systemSettings)
-    .values({ id: 1, policies: { mail } })
-    .onConflictDoUpdate({
-      set: {
-        policies: sql`${systemSettings.policies} || excluded.policies`,
-        updatedAt: new Date(),
-      },
-      target: systemSettings.id,
-    });
+/** Replaces the mail part of the policies; null — the admin turned the mail off. */
+const writeMail = (mail: ServiceMail | null) => mergePolicies({ mail });
 
 /** The service's mail as kept; null — there is none. */
 export const getServiceMail = async (): Promise<ServiceMail | null> => {

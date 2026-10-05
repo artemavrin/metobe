@@ -368,7 +368,13 @@
     "orLink": "Or just open the link from the email.",
     "otherEmail": "Use a different email",
     "resend": "Send again",
-    "resendIn": "Send again in {seconds}s"
+    "resendIn": "Send again in {seconds}s",
+    "name": {
+      "title": "What should we call you?",
+      "description": "Your account is ready. Tell us your name, so we can greet you by it.",
+      "label": "Your name",
+      "continue": "Continue"
+    }
   },
   "claim": {
     "title": "Administrator account",
@@ -513,8 +519,8 @@
         "hint": "Invitations, roles, who can do what"
       },
       "access": {
-        "label": "Access",
-        "hint": "Who can use which models and connections"
+        "label": "Sign-in",
+        "hint": "Who can sign in by themselves"
       },
       "proxies": {
         "label": "Proxies",
@@ -1492,6 +1498,34 @@
       "confirmTitle": "Turn the service's mail off?",
       "confirm": "Turn off",
       "cancel": "Cancel"
+    }
+  },
+  "access": {
+    "title": "Sign-in",
+    "description": "Who can sign in by themselves: people with an address on these domains get a code and enter the service without an invitation.",
+    "domains": {
+      "title": "Allowed domains",
+      "hint": "Sign in by themselves · role «User»",
+      "paused": "Off until the service has mail",
+      "empty": "No one yet: only the invited, and those already in, can sign in."
+    },
+    "noMail": "The code comes by email, so the service needs its mail.",
+    "toMail": "Set up the mail",
+    "add": {
+      "label": "Domain",
+      "button": "Add",
+      "sender": "Letters are sent from {domain}.",
+      "use": "Allow {domain}"
+    },
+    "remove": "Remove @{domain}",
+    "problems": {
+      "invalid": "A domain like example.com",
+      "public": "This is a public mail service: anyone can make an address on it, and anyone would get in.",
+      "listed": "This domain is already listed."
+    },
+    "leave": {
+      "title": "Leaving",
+      "text": "Removing a domain keeps those who already signed in, and keeps new people of that mail out. Someone you already have is deleted in «Users»: as long as their domain is listed, they can sign in again and start from scratch."
     }
   },
   "profile": {

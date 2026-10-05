@@ -17,13 +17,17 @@ type SendAccountCode = (
 ) => Promise<void>;
 
 // Kept free of `server-only` so the Better Auth CLI can load it to generate the schema.
-// Passwordless: email OTP only. Public sign-up is closed; users come from claim or invites.
+// Passwordless: email OTP only. Accounts come from the claim link and invitations, which write them directly, and from a
+// first sign-in by the code — only for an address `canSignUp` allows (the admin's domains): every other way to make an
+// account through Better Auth is refused in the hook, however the request got there.
 export const buildAuthOptions = ({
+  canSignUp,
   db,
   plugins = [],
   sendSignInCode,
   sendAccountCode,
 }: {
+  canSignUp: (email: string) => Promise<boolean>;
   db: Db;
   plugins?: BetterAuthPlugin[];
   sendSignInCode: SendCode;
@@ -31,12 +35,19 @@ export const buildAuthOptions = ({
 }) =>
   ({
     database: drizzleAdapter(db, { provider: "pg" }),
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (created) =>
+            (await canSignUp(created.email)) ? { data: created } : false,
+        },
+      },
+    },
     plugins: [
       emailOTP({
         allowedAttempts: 5,
         // Changing the email takes a code from the current address and one from the new: the mailbox is the account.
         changeEmail: { enabled: true, verifyCurrentEmail: true },
-        disableSignUp: true,
         expiresIn: CODE_TTL_SECONDS,
         sendVerificationOTP: async ({ email, otp, type }, ctx) => {
           if (type === "sign-in") {
