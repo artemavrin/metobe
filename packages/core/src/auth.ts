@@ -11,7 +11,7 @@ import { buildAuthOptions } from "./auth-options";
 import { getDb } from "./db";
 import { buildLoginLink } from "./login-link";
 import { sendMail } from "./mail";
-import { findUserByEmail } from "./users";
+import { findUserByEmail, isSignInAllowed } from "./users";
 
 /** The sign-in letter in the recipient's language: their profile's choice, else the language they asked in. */
 export const sendSignInCode = async (
@@ -78,6 +78,7 @@ export const sendAccountCode = async (
 export const createAuth = (plugins: BetterAuthPlugin[] = []) =>
   betterAuth(
     buildAuthOptions({
+      canSignIn: isSignInAllowed,
       canSignUp,
       db: getDb().db,
       plugins,

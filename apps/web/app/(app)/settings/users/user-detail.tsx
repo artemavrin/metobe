@@ -29,6 +29,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { Row, Rows, Section } from "@/components/settings/rows";
 
 import { changeRole, removeUser } from "./actions";
+import { AccessSection } from "./user-access";
 
 // One person (P7 list and detail): who they are, their role (the owner changes it), when they joined and were last
 // seen, and removal with its consequences said before it is done.
@@ -40,10 +41,15 @@ interface Props {
     email: string;
     role: Role;
     createdAt: string;
+    /** When the account was turned off; null — it works. */
+    disabledAt: string | null;
+    emailVerified: boolean;
     lastSeenAt: string | null;
   };
   you: boolean;
   canChangeRole: boolean;
+  /** Turning the account off and handing it a sign-in link: the rule for removing. */
+  canManageAccess: boolean;
   canRemove: boolean;
 }
 
@@ -51,6 +57,7 @@ export const UserDetail = ({
   member,
   you,
   canChangeRole: mayRole,
+  canManageAccess: mayManage,
   canRemove: mayRemove,
 }: Props) => {
   const t = useTranslations("users");
@@ -131,6 +138,8 @@ export const UserDetail = ({
           </Row>
         </Rows>
       </Section>
+
+      {mayManage && <AccessSection member={member} />}
 
       <Section title={t("detail.remove.section")}>
         <Rows>

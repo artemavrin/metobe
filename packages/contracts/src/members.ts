@@ -29,6 +29,13 @@ export const canRemove = (actor: Role, target: Role) =>
   target !== "superuser" &&
   (actor === "superuser" || (actor === "admin" && target === "user"));
 
+/**
+ * Turning someone's account off, and handing them a one-time sign-in link, follow the rule for removing them: an admin
+ * must never get into the owner's account by a link of their own, and no one acts on an owner. (Never on oneself —
+ * callers check that, as for removing.)
+ */
+export const canManageAccess = canRemove;
+
 /** An invitation lives this long. */
 export const INVITATION_TTL_DAYS = 7;
 

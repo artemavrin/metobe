@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { canChangeRole, canInvite, canRemove, isRole } from "./members";
+import {
+  canChangeRole,
+  canInvite,
+  canManageAccess,
+  canRemove,
+  isRole,
+} from "./members";
 
 describe("who may do what to whom", () => {
   it("lets the owner invite admins and users, an admin only users, a user nobody", () => {
@@ -27,6 +33,14 @@ describe("who may do what to whom", () => {
     expect(canRemove("admin", "admin")).toBe(false);
     expect(canRemove("admin", "superuser")).toBe(false);
     expect(canRemove("user", "user")).toBe(false);
+  });
+
+  it("keeps an admin out of the owner's account, by a link or by turning it off", () => {
+    expect(canManageAccess("superuser", "admin")).toBe(true);
+    expect(canManageAccess("admin", "user")).toBe(true);
+    expect(canManageAccess("admin", "superuser")).toBe(false);
+    expect(canManageAccess("admin", "admin")).toBe(false);
+    expect(canManageAccess("superuser", "superuser")).toBe(false);
   });
 
   it("knows a role when it sees one", () => {

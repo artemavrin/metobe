@@ -134,6 +134,19 @@ const CodeInput = ({
         </div>
         {state.error && <FieldError>{state.error}</FieldError>}
       </Field>
+      {/* A link from the letter brings the whole code: it waits for a press — a mail scanner that opens links must not
+          use the code up — and a rejected one clears the slots and the button with them. */}
+      {initialCode.length === CODE_SLOTS.length &&
+        code.length === CODE_SLOTS.length && (
+          <Button
+            className="mt-4 h-10 w-full"
+            disabled={pending}
+            onClick={() => submit(code)}
+            type="button"
+          >
+            {t("signIn")}
+          </Button>
+        )}
     </div>
   );
 };

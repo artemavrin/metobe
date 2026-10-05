@@ -1,4 +1,8 @@
-import { canChangeRole, canRemove } from "@metobe/contracts/members";
+import {
+  canChangeRole,
+  canManageAccess,
+  canRemove,
+} from "@metobe/contracts/members";
 import { getMember } from "@metobe/core/users";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -21,11 +25,14 @@ const UserPage = async ({ params }: { params: Promise<{ id: string }> }) => {
     <SettingsPageFrame>
       <UserDetail
         canChangeRole={!you && canChangeRole(viewer, member.role)}
+        canManageAccess={!you && canManageAccess(viewer, member.role)}
         canRemove={!you && canRemove(viewer, member.role)}
         key={member.id}
         member={{
           ...member,
           createdAt: member.createdAt.toISOString(),
+          disabledAt: member.disabledAt?.toISOString() ?? null,
+          emailVerified: member.emailVerified,
           lastSeenAt: member.lastSeenAt?.toISOString() ?? null,
         }}
         you={you}

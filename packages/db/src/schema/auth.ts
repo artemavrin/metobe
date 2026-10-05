@@ -19,6 +19,8 @@ export const user = pgTable("user", {
   dateFormat: text("date_format"),
   instructions: text("instructions"),
   sendKey: text("send_key"),
+  // When an admin turned the account off: no sign-in, no code, no sessions; null — it works.
+  disabledAt: timestamp("disabled_at"),
 });
 
 export const session = pgTable(

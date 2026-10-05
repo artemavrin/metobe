@@ -1,5 +1,9 @@
 import "server-only";
-import { canChangeRole, isRole } from "@metobe/contracts/members";
+import {
+  canChangeRole,
+  canManageAccess,
+  isRole,
+} from "@metobe/contracts/members";
 import type { InvitableRole, Role } from "@metobe/contracts/members";
 import { session, user } from "@metobe/db/schema/auth";
 import { asc, eq, max } from "drizzle-orm";
@@ -47,7 +51,9 @@ export const listMembers = async () => {
   const rows = await db
     .select({
       createdAt: user.createdAt,
+      disabledAt: user.disabledAt,
       email: user.email,
+      emailVerified: user.emailVerified,
       id: user.id,
       lastSeenAt: max(session.updatedAt),
       name: user.name,
@@ -86,4 +92,42 @@ export const setMemberRole = async (
   }
   await getDb().db.update(user).set({ role }).where(eq(user.id, id));
   return true;
+};
+
+/**
+ * Turns an account off or on, when the actor may (the rule for removing, never one's own). Turning it off ends the
+ * sessions it has; while it is off no code goes to it and no sign-in makes a session.
+ */
+export const setMemberDisabled = async (
+  actor: { id: string; role: Role },
+  id: string,
+  disabled: boolean
+) => {
+  const target = await getMember(id);
+  if (
+    !target ||
+    target.id === actor.id ||
+    !canManageAccess(actor.role, target.role)
+  ) {
+    return false;
+  }
+  const { db } = getDb();
+  await db
+    .update(user)
+    .set({ disabledAt: disabled ? new Date() : null })
+    .where(eq(user.id, id));
+  if (disabled) {
+    await db.delete(session).where(eq(session.userId, id));
+  }
+  return true;
+};
+
+/** Whether an account may have a session: it is not turned off. Someone who is not there is not turned off either. */
+export const isSignInAllowed = async (userId: string) => {
+  const [found] = await getDb()
+    .db.select({ disabledAt: user.disabledAt })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  return !found?.disabledAt;
 };

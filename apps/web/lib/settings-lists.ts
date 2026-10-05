@@ -177,6 +177,28 @@ const proxiesList = async (): Promise<SettingsList> => {
   };
 };
 
+/** A person's dot: off when turned off, a warning while their mailbox is not checked, none otherwise. */
+const memberState = (m: {
+  disabledAt: Date | null;
+  emailVerified: boolean;
+}) => {
+  if (m.disabledAt) {
+    return "off" as const;
+  }
+  return m.emailVerified ? ("none" as const) : ("warning" as const);
+};
+
+/** What is off about a person, in words; nothing when nothing is. */
+const memberNote = (
+  m: { disabledAt: Date | null; emailVerified: boolean },
+  t: Awaited<ReturnType<typeof getTranslations<"users">>>
+) => {
+  if (m.disabledAt) {
+    return t("states.disabled");
+  }
+  return m.emailVerified ? null : t("states.unverified");
+};
+
 /** The people of the install by name, each with their role and address; «+» invites someone. */
 const usersList = async (): Promise<SettingsList> => {
   const [rows, t] = await Promise.all([
@@ -189,8 +211,10 @@ const usersList = async (): Promise<SettingsList> => {
       href: `/settings/users/${m.id}`,
       id: m.id,
       logo: undefined,
-      state: "none",
-      sub: `${t(`roles.${m.role}`)} · ${m.email}`,
+      state: memberState(m),
+      sub: [memberNote(m, t), t(`roles.${m.role}`), m.email]
+        .filter(Boolean)
+        .join(" · "),
       title: m.name,
     })),
     meta: t("meta"),
