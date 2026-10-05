@@ -113,7 +113,6 @@ export const StorageSettings = ({
   usage: Usage;
 }) => {
   const t = useTranslations("storage");
-  const f = useFormatter();
   const size = useSize();
   const [found, setFound] = useState<Found>(null);
   const [pending, start] = useTransition();
@@ -156,7 +155,7 @@ export const StorageSettings = ({
         title={t("where.title")}
       >
         <Rows>
-          <Row hint={t("where.hint")} label={t("where.label")}>
+          <Row label={t("where.label")}>
             <span className="font-mono text-sm">
               {info.bundled ? t("where.bundled") : info.host}
             </span>
@@ -184,7 +183,7 @@ export const StorageSettings = ({
             {usage.kinds.map((k) => (
               <Row key={k.kind} label={t(`kinds.${k.kind as FileKind}`)}>
                 <span className="text-muted-foreground tabular-nums">
-                  {f.number(k.count)} · {size(k.bytes)}
+                  {t("usage.files", { count: k.count })} · {size(k.bytes)}
                 </span>
               </Row>
             ))}

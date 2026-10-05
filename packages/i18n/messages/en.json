@@ -371,11 +371,11 @@
     "resendIn": "Send again in {seconds}s",
     "name": {
       "title": "What should we call you?",
-      "description": "Your account is ready. Tell us your name, so we can greet you by it.",
+      "description": "This is how your colleagues will see you in Metobe.",
       "label": "Your name",
       "continue": "Continue"
     },
-    "tooMany": "Too many code requests. Wait a few minutes and try again."
+    "tooMany": "Too many codes in a row. Try again in 10 minutes."
   },
   "claim": {
     "title": "Administrator account",
@@ -442,36 +442,36 @@
     "signIn": {
       "subject": "{code} — your Metobe sign-in code",
       "heading": "Your sign-in code",
-      "use": "Type it on the sign-in page. It works for 10 minutes and only once.",
-      "link": "Or sign in with a link on this device",
-      "ignore": "If you did not ask for a code, ignore this letter: no one gets in without it."
+      "use": "It works once, for 10 minutes.",
+      "link": "Or sign in with a link",
+      "ignore": "Didn't ask for a code? Do nothing: no one gets in without it."
     },
     "changeCurrent": {
       "subject": "{code} — code to change your Metobe email",
       "heading": "Changing your email",
-      "intro": "Someone in your Metobe account is changing the email. The code to confirm from the old address."
+      "intro": "Someone is changing the email of your Metobe account. Enter the code if it's you."
     },
     "changeNew": {
       "subject": "{code} — code for your new Metobe address",
-      "heading": "A new sign-in address",
-      "intro": "This address will become your sign-in email for Metobe. The code to confirm."
+      "heading": "Your new sign-in email",
+      "intro": "Enter the code, and you'll sign in to Metobe with this address."
     },
     "changeTtl": "The code is valid for 10 minutes.",
     "changeIgnore": "If it was not you, just ignore this email.",
     "test": {
-      "subject": "Metobe mail check",
-      "body": "This is a test letter. It arrived, so the service's mail works: sign-in codes and invitations will come from {address}."
+      "subject": "A test email from Metobe",
+      "body": "If you can read this, mail works. Codes and invitations will come from {address}."
     },
     "invite": {
       "subject": "{inviter} invites you to Metobe",
-      "heading": "You are invited to Metobe",
-      "text": "{inviter} invites you to Metobe as {role}. Press the button, name yourself, and you are in.",
+      "heading": "An invitation to Metobe",
+      "text": "{inviter} invites you to Metobe as {role}.",
       "button": "Accept the invitation",
-      "ttl": "The link works for {days, plural, one {# day} other {# days}}, once.",
-      "ignore": "If you did not expect an invitation, ignore this letter.",
+      "ttl": "The link works once, for {days, plural, one {# day} other {# days}}.",
+      "ignore": "Didn't expect this? Delete the email.",
       "roles": {
-        "admin": "an administrator",
-        "user": "a user"
+        "admin": "an admin",
+        "user": "a member"
       }
     }
   },
@@ -535,7 +535,7 @@
       },
       "access": {
         "label": "Sign-in",
-        "hint": "Who can sign in by themselves"
+        "hint": "Domains whose people sign in without an invitation"
       },
       "proxies": {
         "label": "Proxies",
@@ -1196,38 +1196,38 @@
         "section": "Access",
         "off": {
           "label": "Turn the account off",
-          "hint": "They are signed out at once and cannot sign in until you turn it on again. Chats and connections stay",
+          "hint": "Signs out everywhere and can't sign in. Chats and files stay",
           "action": "Turn off",
           "title": "Turn {name} off?",
-          "text": "Every session of theirs ends at once. No sign-in code goes to them, even if their domain is allowed. Chats, files and connections stay, and all comes back when you turn them on.",
+          "text": "Every session ends at once, and signing in won't work, even from an allowed domain. Chats, files and connections are kept and come back when you turn the account on.",
           "cancel": "Cancel"
         },
         "on": {
           "label": "The account is off",
-          "hint": "Cannot sign in since {date}",
+          "hint": "Since {date}",
           "action": "Turn on"
         },
         "link": {
           "label": "Sign-in link",
-          "hint": "For when the letter does not arrive or the service has no mail. Works for 10 minutes, once: send it to them yourself",
+          "hint": "When the email with the code doesn't arrive. Works once, for 10 minutes",
           "action": "Make a link",
           "title": "Sign-in link",
-          "ready": "Open it on the device they will sign in on. Shown only now",
+          "ready": "Send it to the person. It won't be shown again",
           "copy": "Copy",
           "copied": "Copied",
           "close": "Close",
           "failed": "Could not make the link",
           "disabled": "Turn the account on first"
         },
-        "unverified": "This account's mailbox is not checked: they need the code from a letter to this address"
+        "unverified": "Email not confirmed: signing in takes a code sent to it"
       }
     },
     "invite": {
       "title": "Invitation",
-      "description": "The link makes an account and signs in to it. For one person, give their address: the link goes to them by mail and takes only their mailbox.",
+      "description": "The link creates an account and signs the person in. Add an email, and the link is mailed to it and works only for it.",
       "role": "Role",
       "email": "Address",
-      "emailHint": "If given, the link takes only this address and goes to it by mail. Without one, the person checks their mailbox with a code",
+      "emailHint": "Optional. Without it, anyone with the link can join after confirming their email with a code",
       "emailPlaceholder": "name@company.com",
       "create": "Create a link",
       "ready": "The link is ready",
@@ -1244,16 +1244,16 @@
         "by": "made by {name}",
         "revoke": "Revoke"
       },
-      "emailHintNoMail": "Without the service's mail a link needs an address: there is nothing to check whose mailbox it is by",
-      "needMail": "Give an address or set up the service's mail",
+      "emailHintNoMail": "Required until mail is set up: there's no other way to confirm the address",
+      "needMail": "Add an email",
       "toMail": "Set up the mail",
-      "mailed": "The letter with the link went to {email}. You can copy it too",
-      "notMailed": "The letter to {email} did not go: send the link yourself. Check the service's mail",
-      "failedMail": "An invitation without an address cannot be made until the service's mail is set up"
+      "mailed": "Sent to {email}. You can copy the link too",
+      "notMailed": "The email to {email} didn't go out. Send the link yourself and check the mail settings",
+      "failedMail": "An email is required until mail is set up"
     },
     "states": {
-      "disabled": "Turned off",
-      "unverified": "Mailbox not checked"
+      "disabled": "Off",
+      "unverified": "Email not confirmed"
     }
   },
   "invite": {
@@ -1266,7 +1266,7 @@
     "wrongEmail": "This link was made for another address.",
     "emailTaken": "This email is already registered. Sign in on the sign-in page.",
     "toLogin": "Go to sign-in",
-    "needsMail": "An invitation without an address needs the service's mail to check your mailbox by a code. Ask the administrator to put your address in the invitation."
+    "needsMail": "This link won't work: Metobe has no mail set up, so your address can't be confirmed. Ask an admin to send the invitation to your email."
   },
   "mcpOAuth": {
     "title": "Sign in to {server}",
@@ -1511,122 +1511,121 @@
   },
   "serviceMail": {
     "title": "Mail",
-    "description": "Sign-in codes and invitations come from this mailbox. Better give the service one of its own, like noreply@your-company: then signing in does not hang on anyone's personal password.",
-    "setUp": "The service's mailbox",
-    "none": "Until there is mail, people sign in only with a link from an administrator.",
+    "description": "Sign-in codes and invitations come from this mailbox. Better use a separate one, like noreply@company, so signing in doesn't depend on anyone's password.",
+    "setUp": "Connect a mailbox",
+    "none": "Without mail, people sign in only with a link from an admin.",
     "form": {
-      "address": "Sender address",
+      "address": "Address",
       "name": "Sender name",
-      "noPassword": "Leave empty if the server lets the service in without signing in, as a mail relay inside the network does.",
+      "noPassword": "Leave empty if the server needs no password, like a relay on the internal network.",
       "submit": "Check and save",
-      "invalid": "Check the sender address."
+      "invalid": "That doesn't look like an email address"
     },
     "sender": "Sender",
     "recheck": "Check",
     "address": "Address",
     "name": {
       "label": "Sender name",
-      "hint": "How the letters are signed in the inbox"
+      "hint": "How emails are signed in the inbox"
     },
     "server": "Server",
-    "loginAs": "Signs in as {login}",
-    "noLogin": "No sign-in",
+    "loginAs": "Login {login}",
+    "noLogin": "No password",
     "change": "Change",
     "check": {
       "label": "Check",
       "running": "Checking…",
-      "never": "Not checked yet",
+      "never": "Not checked",
       "ok": "Works"
     },
     "test": {
       "title": "Test letter",
       "label": "Send to yourself",
-      "hint": "It goes to {email}",
-      "sent": "Sent to {email} — look in the inbox and in spam",
+      "hint": "Goes to {email}",
+      "sent": "Sent to {email}. Not in the inbox? Check spam",
       "send": "Send",
       "sending": "Sending…"
     },
     "off": {
-      "title": "Turning off",
-      "button": "Turn the mail off",
-      "hint": "Sign-in codes will stop coming: people will sign in only with a link from an administrator. Whoever is signed in stays in.",
-      "confirmTitle": "Turn the service's mail off?",
+      "title": "Turn off",
+      "button": "Turn mail off",
+      "hint": "Codes stop coming; people sign in only with a link from an admin. Whoever is signed in stays.",
+      "confirmTitle": "Turn mail off?",
       "confirm": "Turn off",
       "cancel": "Cancel"
     }
   },
   "access": {
     "title": "Sign-in",
-    "description": "Who can sign in by themselves: people with an address on these domains get a code and enter the service without an invitation.",
+    "description": "People with an email on these domains sign in by themselves with a code, no invitation needed.",
     "domains": {
-      "title": "Allowed domains",
-      "hint": "Sign in by themselves · role «User»",
-      "paused": "Off until the service has mail",
-      "empty": "No one yet: only the invited, and those already in, can sign in."
+      "title": "Domains",
+      "hint": "New people join as members",
+      "paused": "Paused: no mail set up",
+      "empty": "No domains: only invited people can sign in."
     },
-    "noMail": "The code comes by email, so the service needs its mail.",
+    "noMail": "The code comes by email, so mail must be set up first.",
     "toMail": "Set up the mail",
     "add": {
       "label": "Domain",
       "button": "Add",
-      "sender": "Letters are sent from {domain}.",
+      "sender": "The service's mail is on {domain}.",
       "use": "Allow {domain}"
     },
     "remove": "Remove @{domain}",
     "problems": {
-      "invalid": "A domain like example.com",
-      "public": "This is a public mail service: anyone can make an address on it, and anyone would get in.",
-      "listed": "This domain is already listed."
+      "invalid": "Enter a domain like example.com",
+      "public": "That's public mail: anyone can make an address there and get in.",
+      "listed": "Already listed"
     },
-    "note": "Remove a domain and new people from it can no longer sign in; those already in stay. If you delete someone in «Users», they can sign in again as long as their domain is listed."
+    "note": "Remove a domain, and new people from it can't sign in; those already in stay. Someone deleted in «Users» can sign in again while the domain is listed; to keep a person out, turn their account off."
   },
   "storage": {
     "title": "Storage",
-    "description": "Where the files people attach to chats live: whether the storage answers, takes a file, and how much is used.",
+    "description": "Where files attached to chats are kept.",
     "off": {
       "title": "Storage is not connected",
-      "text": "Without it files in chat are off; everything else works. To connect: run the installer again and pick the bundled storage or your own S3, or set S3_* in .env."
+      "text": "Files can't be attached to chats; everything else works. To connect it, run the installer again or set S3_* in .env."
     },
     "where": {
-      "title": "Storage",
-      "label": "Where",
-      "hint": "The keys are set in .env and never shown here",
-      "bundled": "Bundled (SeaweedFS)"
+      "title": "Connection",
+      "label": "Server",
+      "bundled": "Bundled · SeaweedFS"
     },
     "bucket": "Bucket",
-    "keys": "The storage is changed in .env or by running the installer again.",
+    "keys": "The address and keys are set in .env or by the installer. Keys are never shown here.",
     "check": {
       "label": "Check",
-      "hint": "Writes a small file, reads it back and deletes it",
+      "hint": "Writes, reads and deletes a test file",
       "button": "Check",
       "running": "Checking…",
       "answers": "Answers",
       "down": "Does not answer",
-      "ok": "Takes and gives files · {ms} ms",
+      "ok": "Works · {ms} ms",
       "steps": {
-        "bucket": "the bucket",
-        "write": "writing",
-        "read": "reading",
-        "delete": "deleting"
+        "bucket": "open the bucket",
+        "write": "write a file",
+        "read": "read a file",
+        "delete": "delete a file"
       },
       "problems": {
-        "auth": "The key is wrong or has no right for {step}",
-        "missing": "No such bucket: check the name",
-        "unreachable": "No answer: check the address and the network",
-        "other": "The storage refused {step}"
+        "auth": "The key is wrong or can't {step}",
+        "missing": "No bucket with this name",
+        "unreachable": "No answer. Check the address and the network",
+        "other": "Couldn't {step}"
       }
     },
     "usage": {
-      "title": "What is used",
+      "title": "Files",
       "empty": "No files yet",
-      "all": "In all",
+      "all": "Total",
       "files": "{count, plural, one {# file} other {# files}}"
     },
     "kinds": {
       "image": "Images",
       "pdf": "PDF",
       "text": "Text",
-      "doc": "Word documents",
+      "doc": "Word",
       "sheet": "Spreadsheets"
     },
     "units": {
