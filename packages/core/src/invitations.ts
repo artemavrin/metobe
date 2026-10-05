@@ -12,6 +12,7 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEnv } from "./env";
 import { isMailConfigured, sendMail } from "./mail";
+import { staleUnverified } from "./users";
 
 // Invitations (D17): a link an admin copies and hands over. Whoever opens it names themselves and is signed in at once, so
 // the install needs no mail to take people in. Only the hash of a token is kept; the link is shown once, when it is made.
@@ -165,11 +166,15 @@ export const redeemInvitation = (input: {
     if (!invitation.email && !(await isMailConfigured())) {
       return { ok: false, reason: "needs-mail" };
     }
+    await tx.delete(user).where(staleUnverified());
     const [taken] = await tx
-      .select({ id: user.id })
+      .select({ id: user.id, verified: user.emailVerified })
       .from(user)
       .where(eq(user.email, email));
-    if (taken) {
+    // An invitation to this very address outranks an account someone made with it and never confirmed.
+    if (taken && !taken.verified && invitation.email) {
+      await tx.delete(user).where(eq(user.id, taken.id));
+    } else if (taken) {
       return { ok: false, reason: "email-taken" };
     }
     const id = randomUUID();

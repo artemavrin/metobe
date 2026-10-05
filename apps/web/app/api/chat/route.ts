@@ -19,6 +19,7 @@ import {
   listMessages,
   saveMessages,
 } from "@metobe/core/chat";
+import { checkChatLimit } from "@metobe/core/chat-limits";
 import { recordRun, sumUsage, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
 import { attachFiles, pruneChatFiles } from "@metobe/core/files";
@@ -239,6 +240,18 @@ const settleFiles = async (
 const readMessage = (userId: string, message: ChatRequest["message"]) =>
   message ? ownFiles(userId, message as ChatMessage) : undefined;
 
+/** Why this person may not post to this chat now — not theirs, or over their role's limit; null — go on. */
+const refuse = async (
+  chat: { userId: string } | null | undefined,
+  user: Parameters<typeof checkChatLimit>[0]
+) => {
+  if (chat && chat.userId !== user.id) {
+    return fail("forbidden", 403);
+  }
+  const limited = await checkChatLimit(user);
+  return limited ? fail(limited, 429) : null;
+};
+
 export const POST = async (request: Request) => {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) {
@@ -257,8 +270,9 @@ export const POST = async (request: Request) => {
   }
 
   const chat = await getChat(id);
-  if (chat && chat.userId !== session.user.id) {
-    return fail("forbidden", 403);
+  const refused = await refuse(chat, session.user);
+  if (refused) {
+    return refused;
   }
   // The user's own zone (their choice, else the browser's): the clock the model asks tells the time in it.
   const { timeZone } = await getPrefs();

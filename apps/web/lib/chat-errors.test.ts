@@ -8,6 +8,9 @@ describe("what went wrong with a chat request", () => {
       "model-unavailable"
     );
     expect(chatProblem(new Error('{"error":"forbidden"}'))).toBe("forbidden");
+    expect(chatProblem(new Error('{"error":"daily-limit"}'))).toBe(
+      "daily-limit"
+    );
   });
 
   it("reads a failed generation's code from the stream", () => {
