@@ -50,6 +50,55 @@ describe("storage config", () => {
     expect(await config?.client.config.region()).toBe("us-east-1");
   });
 
+  it("says where it is without the keys, and whether it is the bundled one", async () => {
+    const storage = await load({
+      S3_ACCESS_KEY: "a",
+      S3_BUCKET: "metobe",
+      S3_ENDPOINT: "http://s3:8333",
+      S3_SECRET_KEY: "secret-value",
+    });
+    const info = storage.describeStorage();
+    expect(info).toEqual({
+      bucket: "metobe",
+      bundled: true,
+      host: "s3:8333",
+      pathStyle: true,
+      region: "us-east-1",
+    });
+    expect(JSON.stringify(info)).not.toContain("secret-value");
+    const own = await load({
+      S3_ACCESS_KEY: "a",
+      S3_BUCKET: "docs",
+      S3_REGION: "ru-central1",
+      S3_SECRET_KEY: "s",
+    });
+    expect(own.describeStorage()).toMatchObject({
+      bundled: false,
+      host: "aws",
+      region: "ru-central1",
+    });
+  });
+
+  it("says nothing of a storage that is off", async () => {
+    const storage = await load({});
+    expect(storage.describeStorage()).toBeNull();
+    expect(await storage.probeStorage()).toBeNull();
+  });
+
+  it("says a probe found no server when none answers", async () => {
+    const storage = await load({
+      S3_ACCESS_KEY: "a",
+      S3_BUCKET: "metobe",
+      S3_ENDPOINT: "http://127.0.0.1:1",
+      S3_SECRET_KEY: "s",
+    });
+    expect(await storage.probeStorage()).toMatchObject({
+      ok: false,
+      problem: "unreachable",
+      step: "bucket",
+    });
+  });
+
   it("is down when the S3 does not answer", async () => {
     const storage = await load({
       S3_ACCESS_KEY: "a",
@@ -93,5 +142,28 @@ describe.runIf(live)("storage against a real S3", () => {
   it("refuses a wrong secret", async () => {
     const storage = await load({ ...env, S3_SECRET_KEY: "wrong" });
     expect(await storage.checkStorage()).toBe("down");
+  });
+
+  it("probes a round trip and leaves nothing behind", async () => {
+    const storage = await load(env);
+    const probe = await storage.probeStorage();
+    expect(probe).toMatchObject({ ok: true });
+    expect(await storage.deletePrefix("probe/")).toBe(0);
+  });
+
+  it("probes a wrong secret as an access problem, and a missing bucket as one", async () => {
+    const wrong = await load({ ...env, S3_SECRET_KEY: "wrong" });
+    expect(await wrong.probeStorage()).toMatchObject({
+      ok: false,
+      problem: "auth",
+    });
+    const missing = await load({
+      ...env,
+      S3_BUCKET: `no-${crypto.randomUUID()}`,
+    });
+    expect(await missing.probeStorage()).toMatchObject({
+      ok: false,
+      problem: "missing",
+    });
   });
 });

@@ -174,3 +174,106 @@ export const checkStorage = async (): Promise<"ok" | "down" | "off"> => {
     return "down";
   }
 };
+
+/**
+ * Where the storage is, for the admin's screen: never a key. «Bundled» — the S3 compose runs (`http://s3:8333`, which
+ * install.sh writes), not one of the admin's own.
+ */
+export const describeStorage = () => {
+  const storage = getStorage();
+  if (!storage) {
+    return null;
+  }
+  const env = envSchema.parse(process.env);
+  return {
+    bucket: env.S3_BUCKET,
+    bundled: env.S3_ENDPOINT === "http://s3:8333",
+    host: env.S3_ENDPOINT ? new URL(env.S3_ENDPOINT).host : "aws",
+    pathStyle: env.S3_FORCE_PATH_STYLE,
+    region: env.S3_REGION,
+  };
+};
+
+/** What a probe found wrong, as the screen words it. */
+export type StorageProblem = "auth" | "missing" | "unreachable" | "other";
+
+export type StorageProbe =
+  | { ok: true; ms: number }
+  | {
+      ok: false;
+      step: "bucket" | "write" | "read" | "delete";
+      problem: StorageProblem;
+      detail: string;
+    };
+
+const problemOf = (error: unknown): StorageProblem => {
+  const e = error as {
+    $metadata?: { httpStatusCode?: number };
+    code?: string;
+    name?: string;
+  };
+  const status = e.$metadata?.httpStatusCode;
+  if (
+    status === 403 ||
+    /AccessDenied|SignatureDoesNotMatch|InvalidAccessKeyId/u.test(e.name ?? "")
+  ) {
+    return "auth";
+  }
+  if (status === 404 || /NoSuchBucket|NotFound/u.test(e.name ?? "")) {
+    return "missing";
+  }
+  if (!status) {
+    return "unreachable";
+  }
+  return "other";
+};
+
+const signal = () => ({ abortSignal: AbortSignal.timeout(5000) });
+
+/**
+ * A real round trip, not just «the bucket answers»: the bucket, then a small object written, read back and deleted —
+ * so a key that may read but not write is found now, not at the first upload. Null — the storage is off.
+ */
+export const probeStorage = async (): Promise<StorageProbe | null> => {
+  const storage = getStorage();
+  if (!storage) {
+    return null;
+  }
+  const { bucket, client } = storage;
+  const key = `probe/${crypto.randomUUID()}`;
+  const body = new TextEncoder().encode("metobe");
+  const started = Date.now();
+  let step: "bucket" | "write" | "read" | "delete" = "bucket";
+  try {
+    await client.send(new HeadBucketCommand({ Bucket: bucket }), signal());
+    step = "write";
+    await client.send(
+      new PutObjectCommand({
+        Body: body,
+        Bucket: bucket,
+        ContentLength: body.byteLength,
+        Key: key,
+      }),
+      signal()
+    );
+    step = "read";
+    const read = await client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+      signal()
+    );
+    await read.Body?.transformToByteArray();
+    step = "delete";
+    await client.send(
+      new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+      signal()
+    );
+    return { ms: Date.now() - started, ok: true };
+  } catch (error) {
+    return {
+      detail: (error as Error).message ?? String(error),
+      ok: false,
+      problem: problemOf(error),
+      step,
+    };
+  }
+};

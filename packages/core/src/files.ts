@@ -2,7 +2,7 @@ import "server-only";
 import { FILE_MAX_BYTES, acceptedFile } from "@metobe/contracts/files";
 import type { UploadError, UploadedFile } from "@metobe/contracts/files";
 import { files } from "@metobe/db/schema/files";
-import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, notInArray, sum } from "drizzle-orm";
 
 import { getDb } from "./db";
 import { deleteObject, getObject, getStorage, putObject } from "./storage";
@@ -190,6 +190,28 @@ export const deleteUserObjects = async (userId: string) => {
       )
     )
   );
+};
+
+/** What the files take, in all: how many and how many bytes, by kind — for the admin's storage screen. */
+export const storageUsage = async () => {
+  const rows = await getDb()
+    .db.select({
+      bytes: sum(files.size),
+      count: count(),
+      kind: files.kind,
+    })
+    .from(files)
+    .groupBy(files.kind);
+  const kinds = rows.map((r) => ({
+    bytes: Number(r.bytes ?? 0),
+    count: r.count,
+    kind: r.kind,
+  }));
+  return {
+    bytes: kinds.reduce((total, k) => total + k.bytes, 0),
+    count: kinds.reduce((total, k) => total + k.count, 0),
+    kinds,
+  };
 };
 
 export type { FileRow } from "@metobe/db/schema/files";

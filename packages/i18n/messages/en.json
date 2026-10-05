@@ -1580,6 +1580,62 @@
     },
     "note": "Remove a domain and new people from it can no longer sign in; those already in stay. If you delete someone in «Users», they can sign in again as long as their domain is listed."
   },
+  "storage": {
+    "title": "Storage",
+    "description": "Where the files people attach to chats live: whether the storage answers, takes a file, and how much is used.",
+    "off": {
+      "title": "Storage is not connected",
+      "text": "Without it files in chat are off; everything else works. To connect: run the installer again and pick the bundled storage or your own S3, or set S3_* in .env."
+    },
+    "where": {
+      "title": "Storage",
+      "label": "Where",
+      "hint": "The keys are set in .env and never shown here",
+      "bundled": "Bundled (SeaweedFS)"
+    },
+    "bucket": "Bucket",
+    "keys": "The storage is changed in .env or by running the installer again.",
+    "check": {
+      "label": "Check",
+      "hint": "Writes a small file, reads it back and deletes it",
+      "button": "Check",
+      "running": "Checking…",
+      "answers": "Answers",
+      "down": "Does not answer",
+      "ok": "Takes and gives files · {ms} ms",
+      "steps": {
+        "bucket": "the bucket",
+        "write": "writing",
+        "read": "reading",
+        "delete": "deleting"
+      },
+      "problems": {
+        "auth": "The key is wrong or has no right for {step}",
+        "missing": "No such bucket: check the name",
+        "unreachable": "No answer: check the address and the network",
+        "other": "The storage refused {step}"
+      }
+    },
+    "usage": {
+      "title": "What is used",
+      "empty": "No files yet",
+      "all": "In all",
+      "files": "{count, plural, one {# file} other {# files}}"
+    },
+    "kinds": {
+      "image": "Images",
+      "pdf": "PDF",
+      "text": "Text",
+      "doc": "Word documents",
+      "sheet": "Spreadsheets"
+    },
+    "units": {
+      "b": "B",
+      "kb": "KB",
+      "mb": "MB",
+      "gb": "GB"
+    }
+  },
   "profile": {
     "title": "Profile",
     "description": "How you appear in Metobe: your name, picture and the email you sign in with.",
