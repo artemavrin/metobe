@@ -59,7 +59,9 @@
       "forbidden": "This chat isn’t yours.",
       "unauthorized": "Your session has ended — sign in again.",
       "bad-request": "The message wasn’t sent.",
-      "unknown": "Something went wrong."
+      "unknown": "Something went wrong.",
+      "too-fast": "Too many messages in a row. Wait a minute.",
+      "daily-limit": "You've reached the daily message limit. You can write again {day, select, today {today} other {tomorrow}} at {time}. Ask an admin if you need more."
     },
     "newChat": "New chat",
     "openSidebar": "Open menu",
@@ -560,6 +562,10 @@
       "usage": {
         "label": "Usage",
         "hint": "Your requests and cost by month"
+      },
+      "limits": {
+        "label": "Limits",
+        "hint": "How many messages people can send to the chat"
       }
     },
     "appearance": {
@@ -1756,5 +1762,20 @@
     "cost": "Cost",
     "removed": "Removed model",
     "cached": "From cache: {count}"
+  },
+  "limits": {
+    "title": "Limits",
+    "description": "How many messages a person can send to the chat. The owner has no limits.",
+    "section": "Chat messages",
+    "perMinute": "Per minute",
+    "perDay": "Per day",
+    "value": {
+      "perMinute": "{count} a minute",
+      "perDay": "{count} a day",
+      "none": "No limit"
+    },
+    "empty": "no limit",
+    "invalid": "Enter a whole number above zero, or leave it empty",
+    "note": "Empty means no limit. A day counts from the first message."
   }
 }

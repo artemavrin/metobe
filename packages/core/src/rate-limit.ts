@@ -9,7 +9,11 @@ import { z } from "zod";
 // process's memory when it is not (one app process, D2).
 
 interface Counter {
-  hit: (key: string, windowSeconds: number) => Promise<number>;
+  /** One more under `key`: how many came in this window, and in how many seconds the window ends. */
+  hit: (
+    key: string,
+    windowSeconds: number
+  ) => Promise<{ count: number; ttl: number }>;
 }
 
 const memory = new Map<string, { count: number; until: number }>();
@@ -20,10 +24,13 @@ const inMemory: Counter = {
     const found = memory.get(key);
     if (!found || found.until <= now) {
       memory.set(key, { count: 1, until: now + windowSeconds * 1000 });
-      return Promise.resolve(1);
+      return Promise.resolve({ count: 1, ttl: windowSeconds });
     }
     found.count += 1;
-    return Promise.resolve(found.count);
+    return Promise.resolve({
+      count: found.count,
+      ttl: Math.ceil((found.until - now) / 1000),
+    });
   },
 };
 
@@ -52,8 +59,10 @@ const connect = (): Promise<Counter> => {
           const count = await client.incr(key);
           if (count === 1) {
             await client.expire(key, windowSeconds);
+            return { count, ttl: windowSeconds };
           }
-          return count;
+          const ttl = await client.ttl(key);
+          return { count, ttl: ttl > 0 ? ttl : windowSeconds };
         },
       };
     } catch (error) {
@@ -65,15 +74,26 @@ const connect = (): Promise<Counter> => {
   return counter;
 };
 
-/** Counts one more ask under `key`; false once more than `limit` came in `windowSeconds` (a fixed window). */
-export const allow = async (
+/**
+ * Counts one more ask under `key`; once more than `limit` came in `windowSeconds` (a fixed window, started by the
+ * first ask), the seconds until it ends — null while the ask may go.
+ */
+export const retryIn = async (
   key: string,
   limit: number,
   windowSeconds: number
 ) => {
   const { hit } = await connect();
-  return (await hit(`rate:${key}`, windowSeconds)) <= limit;
+  const { count, ttl } = await hit(`rate:${key}`, windowSeconds);
+  return count <= limit ? null : ttl;
 };
+
+/** Counts one more ask under `key`; false once more than `limit` came in `windowSeconds`. */
+export const allow = async (
+  key: string,
+  limit: number,
+  windowSeconds: number
+) => (await retryIn(key, limit, windowSeconds)) === null;
 
 const CODE_WINDOW_SECONDS = 10 * 60;
 const CODES_PER_ADDRESS = 5;

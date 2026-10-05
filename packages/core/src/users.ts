@@ -6,7 +6,7 @@ import {
 } from "@metobe/contracts/members";
 import type { InvitableRole, Role } from "@metobe/contracts/members";
 import { session, user } from "@metobe/db/schema/auth";
-import { asc, eq, max } from "drizzle-orm";
+import { and, asc, eq, lt, max, ne } from "drizzle-orm";
 
 import { getDb } from "./db";
 
@@ -45,9 +45,23 @@ export const listUsers = () => {
     .orderBy(asc(user.name));
 };
 
+const UNVERIFIED_DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Accounts whose mailbox was never checked, a day after they were made: someone took an unaddressed invitation with
+ * an address that is not theirs and never got the code. Such an account never had a session, so nothing is lost.
+ */
+export const staleUnverified = () =>
+  and(
+    eq(user.emailVerified, false),
+    lt(user.createdAt, new Date(Date.now() - UNVERIFIED_DAY_MS)),
+    ne(user.role, "superuser")
+  );
+
 /** Everyone in the install for the users screen: role, when they joined and when a session of theirs last moved. */
 export const listMembers = async () => {
   const { db } = getDb();
+  await db.delete(user).where(staleUnverified());
   const rows = await db
     .select({
       createdAt: user.createdAt,

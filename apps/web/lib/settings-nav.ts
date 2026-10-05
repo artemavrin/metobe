@@ -3,6 +3,7 @@ import {
   ChartColumn,
   Cog,
   Factory,
+  Gauge,
   HardDrive,
   Info,
   Mail,
@@ -65,6 +66,7 @@ export const SETTINGS_NAV = [
     items: [
       { icon: Users, id: "users", kind: "list" },
       { icon: Shield, id: "access", kind: "screen" },
+      { icon: Gauge, id: "limits", kind: "screen" },
     ],
     key: "team",
     scope: "admin",

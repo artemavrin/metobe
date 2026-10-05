@@ -96,6 +96,8 @@ export const chatErrorCodes = [
   "model-unavailable",
   "generation-failed",
   "context-full",
+  "too-fast",
+  "daily-limit",
 ] as const;
 export type ChatErrorCode = (typeof chatErrorCodes)[number];
 
