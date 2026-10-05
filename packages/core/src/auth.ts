@@ -63,14 +63,28 @@ export const sendAccountCode = async (
   request?: Headers | null
 ) => {
   const recipient = await findUserByEmail(email);
-  const t = await getTranslator(
-    isLocale(recipient?.locale) ? recipient.locale : localeOf(request)
-  );
+  const locale = isLocale(recipient?.locale)
+    ? recipient.locale
+    : localeOf(request);
+  const [t, { codeLetter }] = await Promise.all([
+    getTranslator(locale),
+    import("@metobe/emails/code-letter"),
+  ]);
   const key = step === "current" ? "email.changeCurrent" : "email.changeNew";
+  const use = `${t(`${key}.intro`)} ${t("email.changeTtl")}`;
+  const { html, text } = await codeLetter({
+    code,
+    heading: t(`${key}.heading`),
+    ignore: t("email.changeIgnore"),
+    link: null,
+    locale,
+    preview: use,
+    use,
+  });
   await sendMail({
-    html: `<p>${t(`${key}.intro`)}</p><p style="font-size:24px;letter-spacing:4px"><b>${code}</b></p><p>${t("email.changeTtl")}</p><p>${t("email.changeIgnore")}</p>`,
+    html,
     subject: t(`${key}.subject`, { code }),
-    text: `${t(`${key}.intro`)}\n\n${code}\n\n${t("email.changeTtl")}\n${t("email.changeIgnore")}`,
+    text,
     to: email,
   });
 };
