@@ -5,10 +5,13 @@ import { INVITATION_TTL_DAYS, canInvite } from "@metobe/contracts/members";
 import type { InvitableRole, Role } from "@metobe/contracts/members";
 import { user } from "@metobe/db/schema/auth";
 import { invitations } from "@metobe/db/schema/invitations";
+import type { Locale } from "@metobe/i18n/config";
+import { getTranslator } from "@metobe/i18n/translator";
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
 import { getEnv } from "./env";
+import { isMailConfigured, sendMail } from "./mail";
 
 // Invitations (D17): a link an admin copies and hands over. Whoever opens it names themselves and is signed in at once, so
 // the install needs no mail to take people in. Only the hash of a token is kept; the link is shown once, when it is made.
@@ -26,7 +29,10 @@ export class NotAllowedError extends Error {
   }
 }
 
-/** A new invitation: its link (shown once) and its id. Refused when the actor may not invite to that role. */
+/**
+ * A new invitation: its link (shown once) and its id. Refused when the actor may not invite to that role, and — as
+ * `reason: "mail"` — when the link is for no address while the service has no mail to check the one its holder types.
+ */
 export const issueInvitation = async (input: {
   actor: { id: string; role: Role };
   role: InvitableRole;
@@ -34,6 +40,9 @@ export const issueInvitation = async (input: {
 }) => {
   if (!canInvite(input.actor.role, input.role)) {
     throw new NotAllowedError();
+  }
+  if (!input.email?.trim() && !(await isMailConfigured())) {
+    return { ok: false as const, reason: "mail" as const };
   }
   const token = randomBytes(32).toString("base64url");
   const [row] = await getDb()
@@ -53,6 +62,7 @@ export const issueInvitation = async (input: {
   return {
     expiresAt: row?.expiresAt ?? new Date(),
     id: row?.id ?? "",
+    ok: true as const,
     url: url.toString(),
   };
 };
@@ -113,10 +123,21 @@ export const previewInvitation = async (token: string) => {
 };
 
 export type RedeemResult =
-  | { ok: true }
-  | { ok: false; reason: "invalid-token" | "wrong-email" | "email-taken" };
+  | {
+      ok: true;
+      /** The link was for this address, so holding it proves the mailbox; otherwise the caller checks it by a code. */
+      verified: boolean;
+    }
+  | {
+      ok: false;
+      reason: "invalid-token" | "wrong-email" | "email-taken" | "needs-mail";
+    };
 
-/** Makes the person the link is for. The caller signs them in afterwards (see the invite action in apps/web). */
+/**
+ * Makes the person the link is for. A link for an address signs them in at once (the link is the proof); one for no
+ * address makes an account whose mailbox is not checked yet, and the caller sends the code that checks it (see the
+ * invite action in apps/web) — without the mail that cannot be done, so nothing is made.
+ */
 export const redeemInvitation = (input: {
   email: string;
   name: string;
@@ -141,6 +162,9 @@ export const redeemInvitation = (input: {
     if (invitation.email && invitation.email !== email) {
       return { ok: false, reason: "wrong-email" };
     }
+    if (!invitation.email && !(await isMailConfigured())) {
+      return { ok: false, reason: "needs-mail" };
+    }
     const [taken] = await tx
       .select({ id: user.id })
       .from(user)
@@ -151,7 +175,7 @@ export const redeemInvitation = (input: {
     const id = randomUUID();
     await tx.insert(user).values({
       email,
-      emailVerified: true,
+      emailVerified: Boolean(invitation.email),
       id,
       name: input.name,
       role: invitation.role,
@@ -160,5 +184,45 @@ export const redeemInvitation = (input: {
       .update(invitations)
       .set({ acceptedAt: new Date(), acceptedBy: id })
       .where(eq(invitations.id, invitation.id));
-    return { ok: true };
+    return { ok: true, verified: Boolean(invitation.email) };
   });
+
+/** The letter that carries an invitation's link to its address; false when it did not go (the link still works). */
+export const sendInvitationLetter = async (input: {
+  to: string;
+  url: string;
+  inviter: string;
+  role: InvitableRole;
+  locale: Locale;
+}) => {
+  const [t, { inviteLetter }] = await Promise.all([
+    getTranslator(input.locale),
+    import("@metobe/emails/invite-letter"),
+  ]);
+  const text = t("email.invite.text", {
+    inviter: input.inviter,
+    role: t(`email.invite.roles.${input.role}`),
+  });
+  const ttl = t("email.invite.ttl", { days: INVITATION_TTL_DAYS });
+  try {
+    const { html, text: plain } = await inviteLetter({
+      button: { href: input.url, label: t("email.invite.button") },
+      heading: t("email.invite.heading"),
+      ignore: t("email.invite.ignore"),
+      locale: input.locale,
+      preview: text,
+      text,
+      ttl,
+    });
+    await sendMail({
+      html,
+      subject: t("email.invite.subject", { inviter: input.inviter }),
+      text: plain,
+      to: input.to,
+    });
+    return true;
+  } catch (error) {
+    console.error("invitation letter was not sent", error);
+    return false;
+  }
+};

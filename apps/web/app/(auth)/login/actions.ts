@@ -3,12 +3,14 @@
 import { emailSchema, verifyFormSchema } from "@metobe/contracts/auth";
 import { mayReceiveSignInCode } from "@metobe/core/access";
 import { sendSignInCode } from "@metobe/core/auth";
+import { mayAskForCode } from "@metobe/core/rate-limit";
 import { findUserByEmail } from "@metobe/core/users";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { getAuth } from "@/lib/auth";
+import { clientIp } from "@/lib/client-ip";
 import { getPrefs, writePrefsCookies } from "@/lib/prefs";
 import { translateIssue } from "@/lib/validation";
 
@@ -35,6 +37,11 @@ export const sendCode = async (
     };
   }
   const email = parsed.data;
+  // Counted for every address, known or not: a «too many» that depended on it would give the address away.
+  if (!(await mayAskForCode(email, await clientIp()))) {
+    const t = await getTranslations("login");
+    return { email, error: t("tooMany"), sent: false };
+  }
   // Same answer whether the code went or not, so the form cannot be used to probe emails: it goes to someone in the
   // install and to someone whose domain the admin listed (their account is made when they enter it).
   // The code is issued here and mailed by us, so the email can follow the language of this page.
