@@ -106,9 +106,9 @@ MinIO не используем: репозиторий архивирован, 
 | `DATABASE_URL`, `REDIS_URL`, `S3_*`, `APP_URL` | источники, ключи, модели, цены |
 | `SECRETS_KEY`, `BETTER_AUTH_SECRET` | MCP-серверы, скиллы |
 | `HTTPS_PROXY` / `ALL_PROXY` — стартовый прокси: при первом запуске превращается в запись в админке | прокси и что через каждый ходит (§18) |
-|  | пользователи, роли, лимиты, SMTP |
+| `SMTP_URL` / `SMTP_FROM` — стартовая почта: при первом запуске превращается в настройки «Почта» | пользователи, роли, лимиты, почта сервиса |
 
-SMTP живёт в UI (D15): для старта он не нужен, приглашения работают и без него, а в UI его удобно проверить кнопкой «отправить тестовое письмо».
+Почта сервиса живёт в UI (D15, `/settings/mail`): для старта она не нужна, приглашения работают и без неё, а в UI её удобно проверить кнопкой «Отправить себе».
 
 ## 3. Стек
 
@@ -179,11 +179,13 @@ spikes/                 одноразовые S1–S12, вне workspace
 ### 5.1 Система и пользователи
 
 ```ts
-system_settings; // синглтон: secrets_canary; пароль SMTP — secrets (owner_type = 'system', purpose = 'smtp_password')
+system_settings; // синглтон: secrets_canary; пароль почты сервиса — secrets (owner_type = 'system', owner_id = 'mail', purpose = 'password')
 // policies jsonb: { personalConnections: 'off'|'public_only'|'on',
 //   agentMinIntervalMin, agentsPaused, agentMaxSteps, agentMaxCost, agentMaxTimeoutS,
 //   rateLimits: { [role]: … },
 //   builtinTools: { web_search, web_fetch, … : bool },
+//   mail: { preset, smtp, address, name, username, check } | null — почта сервиса (D15); null — админ её отключил,
+//     и SMTP_URL установки её больше не возвращает,
 //   personalApprovalDefaults: { [connectorTool]: 'auto'|'ask' } — для своих подключений (§8) }
 users; // Better Auth + role: 'superuser' | 'admin' | 'user', timezone (из браузера)
 (sessions, accounts, verifications); // Better Auth

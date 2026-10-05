@@ -20,6 +20,7 @@ import {
   UserRound,
   LayoutDashboard,
   LogIn,
+  Mail,
   Unplug,
   Paperclip,
   Pencil,
@@ -57,6 +58,7 @@ const AREAS: Record<Area, string> = {
 
 const ENTRIES: Entry[] = [
   { about: "Вход по коду и ссылке из письма", area: "start", chosen: "«· срез»", href: "/dev/prototypes/login", icon: LogIn, status: "chosen", title: "Страница входа" },
+  { about: "Письмо с кодом и ссылкой (React Email): код крупно, кнопка, записка или запрос в контексте; клиент светлый и тёмный, ru и en, текстовая часть", area: "start", chosen: "«Код»", href: "/dev/prototypes/sign-in-letter", icon: Mail, status: "chosen", title: "Письмо со входом" },
   { about: "Первый вход: подключение источника и модели", area: "start", chosen: "«Шаги», финал «Залп»", href: "/dev/prototypes/onboarding", icon: Rocket, status: "chosen", title: "Онбординг" },
   { about: "Источники, провайдеры и модели: список и деталь", area: "settings", chosen: "«Погружение»", href: "/dev/prototypes/providers", icon: Server, status: "chosen", title: "Источники, провайдеры и модели" },
   { about: "Возможности, цены и сведения о модели", area: "settings", chosen: "Плавающая панель с вкладками", href: "/dev/prototypes/model-editor", icon: SlidersHorizontal, status: "chosen", title: "Редактор модели" },

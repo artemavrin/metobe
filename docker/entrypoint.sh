@@ -9,6 +9,8 @@ case "$1" in
     metobe secrets:check
     # An install-time proxy becomes a record in the admin, used by nothing until the admin says so.
     metobe proxies:import-env
+    # So does the install-time mail: the sign-in letters go from it, the admin checks it in the settings.
+    metobe mail:import-env
     # Prints a one-time claim link until the first superuser exists.
     metobe claim-link
     exec node apps/web/server.js

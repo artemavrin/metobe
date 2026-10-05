@@ -12,21 +12,32 @@ import { buildLoginLink } from "./login-link";
 import { sendMail } from "./mail";
 import { findUserByEmail } from "./users";
 
-/** The sign-in email in the recipient's language: their profile's choice, else the language they asked in. */
+/** The sign-in letter in the recipient's language: their profile's choice, else the language they asked in. */
 export const sendSignInCode = async (
   email: string,
   code: string,
   fallback: Locale = defaultLocale
 ) => {
   const recipient = await findUserByEmail(email);
-  const t = await getTranslator(
-    isLocale(recipient?.locale) ? recipient.locale : fallback
-  );
-  const link = buildLoginLink(email, code);
+  const locale = isLocale(recipient?.locale) ? recipient.locale : fallback;
+  // Loaded when a letter goes: the CLI imports this module too, and never sends one.
+  const [t, { codeLetter }] = await Promise.all([
+    getTranslator(locale),
+    import("@metobe/emails/code-letter"),
+  ]);
+  const { html, text } = await codeLetter({
+    code,
+    heading: t("email.signIn.heading"),
+    ignore: t("email.signIn.ignore"),
+    link: { href: buildLoginLink(email, code), label: t("email.signIn.link") },
+    locale,
+    preview: t("email.signIn.use"),
+    use: t("email.signIn.use"),
+  });
   await sendMail({
-    html: `<p>${t("email.signIn.intro")}</p><p><a href="${link}">${t("email.signIn.button")}</a></p><p>${t("email.signIn.code", { code: `<b>${code}</b>` })}</p><p>${t("email.signIn.ttl")}</p>`,
+    html,
     subject: t("email.signIn.subject", { code }),
-    text: `${t("email.signIn.intro")} ${link}\n\n${t("email.signIn.code", { code })}\n\n${t("email.signIn.ttl")}`,
+    text,
     to: email,
   });
 };

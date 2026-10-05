@@ -134,23 +134,29 @@ export const fetchFor = async (
   );
 };
 
-/**
- * Where to connect for a user's own mail server (SMTP, IMAP): the address resolved and checked public — a private
- * one is refused, as for every user's own connection (ARCH §17.1) — the name for TLS, and the proxy's URL when the
- * routes send that host through one. The proxy gets the checked IP, never the name.
- */
-export const mailEndpoint = async (host: string) => {
+/** The proxy's URL for a mail server, when the routes send that host through one; null — it goes directly. */
+export const mailProxyFor = async (host: string) => {
   const route = await routeFor(null, `https://${host}`);
-  const address = await resolvePublic(host);
   if (route.kind === "direct") {
-    return { host: address, servername: host };
+    return null;
   }
   const { configs } = await getSnapshot();
   const config = configs.get(route.proxyId);
   if (!config) {
     throw new Error(`proxy ${route.proxyId} is not configured`);
   }
-  return { host: address, proxy: proxyUrlOf(config), servername: host };
+  return proxyUrlOf(config);
+};
+
+/**
+ * Where to connect for a user's own mail server (SMTP, IMAP): the address resolved and checked public — a private
+ * one is refused, as for every user's own connection (ARCH §17.1) — the name for TLS, and the proxy's URL when the
+ * routes send that host through one. The proxy gets the checked IP, never the name.
+ */
+export const mailEndpoint = async (host: string) => {
+  const proxy = await mailProxyFor(host);
+  const address = await resolvePublic(host);
+  return { host: address, ...(proxy ? { proxy } : {}), servername: host };
 };
 
 /**

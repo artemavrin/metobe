@@ -61,6 +61,23 @@ export const mailboxInputSchema = z.object({
 });
 export type MailboxInput = z.infer<typeof mailboxInputSchema>;
 
+/**
+ * The service's own mail as the admin's form sends it (D15): SMTP only — it sends, never reads — and who the letters
+ * are from. With no password the server lets the service in by its address, as a relay inside the network — only
+ * «Другая»: a known service always asks for one.
+ */
+export const serviceMailInputSchema = z
+  .object({
+    address: z.email().max(254),
+    name: z.string().trim().max(100),
+    password: z.string().max(1000),
+    preset: z.enum(mailPresetIds),
+    smtp: mailServerSchema,
+    username: z.string().trim().max(254),
+  })
+  .refine((mail) => mail.preset === "custom" || mail.password.length > 0);
+export type ServiceMailInput = z.infer<typeof serviceMailInputSchema>;
+
 /** Which box a tool works with: its address; omitted — the user's only box. */
 const mailboxField = z
   .email()

@@ -1,0 +1,22 @@
+{
+  "name": "@metobe/emails",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.tsx"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-email": "^6.11.0"
+  },
+  "devDependencies": {
+    "@metobe/tsconfig": "workspace:*",
+    "@types/react": "^19",
+    "typescript": "^5"
+  }
+}

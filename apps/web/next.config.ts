@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     "@metobe/core",
     "@metobe/contracts",
     "@metobe/db",
+    "@metobe/emails",
     "@metobe/i18n",
   ],
 };
