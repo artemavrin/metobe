@@ -63,7 +63,7 @@ export const startEmailChange = async (
   if (parsed.data.toLowerCase() === s.user.email.toLowerCase()) {
     return { ok: false, problem: "same" };
   }
-  if (!isMailConfigured()) {
+  if (!(await isMailConfigured())) {
     return { ok: false, problem: "mail" };
   }
   await getAuth().api.sendVerificationOTP({

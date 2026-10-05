@@ -18,12 +18,12 @@ import { ImapFlow } from "imapflow";
 import { parseHTML } from "linkedom";
 import { simpleParser } from "mailparser";
 import { Marked } from "marked";
-import { createTransport } from "nodemailer";
-import { SocksClient } from "socks";
 
 import { getDb } from "./db";
 import { mailEndpoint } from "./net";
 import { removeSecrets, setSecret, withSecret } from "./secrets";
+import { TIMEOUT_MS, problemOf, smtpTransport } from "./smtp";
+import type { Credentials, MailProblem } from "./smtp";
 
 // A user's own mailboxes (ARCH §17.7): SMTP to send, IMAP to read. Each is checked before it is saved — the
 // password is only kept once both servers took it. Every connection goes to the address we resolved and checked
@@ -31,14 +31,10 @@ import { removeSecrets, setSecret, withSecret } from "./secrets";
 
 export type { Mailbox } from "@metobe/db/schema/mail";
 
-const TIMEOUT_MS = 15_000;
 /** A letter read into a small model's context: about 2.5k tokens of text, as a web page. */
 const MAX_CHARS = 8000;
 
 const ownerOf = (id: string) => ({ id, type: "mailbox" as const });
-
-/** Why a server turned us away, as the form and the model say it. */
-export type MailProblem = "auth" | "unreachable" | "tls" | "private";
 
 export class MailError extends Error {
   readonly server: "smtp" | "imap";
@@ -52,31 +48,6 @@ export class MailError extends Error {
   }
 }
 
-const problemOf = (error: unknown): MailProblem => {
-  const e = error as {
-    authenticationFailed?: boolean;
-    code?: string;
-    responseCode?: number;
-    message?: string;
-  };
-  const text = e.message ?? "";
-  if (/blocked address/u.test(text)) {
-    return "private";
-  }
-  if (
-    e.authenticationFailed ||
-    e.code === "EAUTH" ||
-    e.responseCode === 535 ||
-    /auth|login|credentials|password/iu.test(text)
-  ) {
-    return "auth";
-  }
-  if (/certificate|tls|ssl|self.signed/iu.test(text)) {
-    return "tls";
-  }
-  return "unreachable";
-};
-
 const fail = (server: "smtp" | "imap", error: unknown): never => {
   throw new MailError(
     server,
@@ -85,33 +56,8 @@ const fail = (server: "smtp" | "imap", error: unknown): never => {
   );
 };
 
-export interface Credentials {
-  username: string;
-  password: string;
-}
-
-const smtpOf = async (server: MailServer, auth: Credentials) => {
-  const at = await mailEndpoint(server.host);
-  const transport = createTransport({
-    auth: { pass: auth.password, user: auth.username },
-    connectionTimeout: TIMEOUT_MS,
-    greetingTimeout: TIMEOUT_MS,
-    host: at.host,
-    ignoreTLS: server.security === "none",
-    port: server.port,
-    ...(at.proxy ? { proxy: at.proxy } : {}),
-    requireTLS: server.security === "starttls",
-    secure: server.security === "ssl",
-    // Connected by IP: the certificate is checked by the server's name.
-    servername: at.servername,
-    socketTimeout: TIMEOUT_MS,
-    tls: { servername: at.servername },
-  });
-  if (at.proxy?.startsWith("socks")) {
-    transport.set("proxy_socks_module", { SocksClient });
-  }
-  return transport;
-};
+const smtpOf = async (server: MailServer, auth: Credentials) =>
+  smtpTransport(server, auth, await mailEndpoint(server.host));
 
 const imapOf = async (server: MailServer, auth: Credentials) => {
   const at = await mailEndpoint(server.host);

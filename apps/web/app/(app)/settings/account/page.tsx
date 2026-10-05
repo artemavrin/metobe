@@ -23,7 +23,7 @@ import { ThemePicker } from "./theme-picker";
 const AccountPage = async () => {
   const { user, role } = await getSettingsViewer();
   const requestHeaders = await headers();
-  const [t, tAppearance, tModel, current, all, account, prefs] =
+  const [t, tAppearance, tModel, current, all, account, prefs, mailOn] =
     await Promise.all([
       getTranslations("data"),
       getTranslations("settings.appearance"),
@@ -32,6 +32,7 @@ const AccountPage = async () => {
       getAuth().api.listSessions({ headers: requestHeaders }),
       user ? getAccount(user.id) : null,
       getPrefs(),
+      isMailConfigured(),
     ]);
   if (!user) {
     return null;
@@ -39,7 +40,7 @@ const AccountPage = async () => {
   return (
     <SettingsPageFrame>
       <AccountHeader
-        canChangeEmail={isMailConfigured()}
+        canChangeEmail={mailOn}
         email={user.email}
         image={user.image ?? null}
         name={user.name}

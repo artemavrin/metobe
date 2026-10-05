@@ -433,11 +433,11 @@
   },
   "email": {
     "signIn": {
-      "subject": "Your Metobe sign-in code: {code}",
-      "intro": "To sign in to Metobe, open the link:",
-      "button": "Sign in",
-      "code": "Or enter the code: {code}",
-      "ttl": "The link and the code are valid for 10 minutes."
+      "subject": "{code} — your Metobe sign-in code",
+      "heading": "Your sign-in code",
+      "use": "Type it on the sign-in page. It works for 10 minutes and only once.",
+      "link": "Or sign in with a link on this device",
+      "ignore": "If you did not ask for a code, ignore this letter: no one gets in without it."
     },
     "changeCurrent": {
       "subject": "Code to change your Metobe email: {code}",
@@ -448,7 +448,11 @@
       "intro": "This address will become your sign-in email for Metobe. The code to confirm:"
     },
     "changeTtl": "The code is valid for 10 minutes.",
-    "changeIgnore": "If it was not you, just ignore this email."
+    "changeIgnore": "If it was not you, just ignore this email.",
+    "test": {
+      "subject": "Metobe mail check",
+      "body": "This is a test letter. It arrived, so the service's mail works: sign-in codes and invitations will come from {address}."
+    }
   },
   "cli": {
     "claimLink": "Create the administrator account: {link}\n  The link is single-use and valid for 24 hours.",
@@ -1442,6 +1446,52 @@
           "hint": "The text and the attachments' names"
         }
       }
+    }
+  },
+  "serviceMail": {
+    "title": "Mail",
+    "description": "Sign-in codes and invitations come from this mailbox. Better give the service one of its own, like noreply@your-company: then signing in does not hang on anyone's personal password.",
+    "setUp": "The service's mailbox",
+    "none": "Until there is mail, people sign in only with a link from an administrator.",
+    "form": {
+      "address": "Sender address",
+      "name": "Sender name",
+      "noPassword": "Leave empty if the server lets the service in without signing in, as a mail relay inside the network does.",
+      "submit": "Check and save",
+      "invalid": "Check the sender address."
+    },
+    "sender": "Sender",
+    "recheck": "Check",
+    "address": "Address",
+    "name": {
+      "label": "Sender name",
+      "hint": "How the letters are signed in the inbox"
+    },
+    "server": "Server",
+    "loginAs": "Signs in as {login}",
+    "noLogin": "No sign-in",
+    "change": "Change",
+    "check": {
+      "label": "Check",
+      "running": "Checking…",
+      "never": "Not checked yet",
+      "ok": "Works"
+    },
+    "test": {
+      "title": "Test letter",
+      "label": "Send to yourself",
+      "hint": "It goes to {email}",
+      "sent": "Sent to {email} — look in the inbox and in spam",
+      "send": "Send",
+      "sending": "Sending…"
+    },
+    "off": {
+      "title": "Turning off",
+      "button": "Turn the mail off",
+      "hint": "Sign-in codes will stop coming: people will sign in only with a link from an administrator. Whoever is signed in stays in.",
+      "confirmTitle": "Turn the service's mail off?",
+      "confirm": "Turn off",
+      "cancel": "Cancel"
     }
   },
   "profile": {

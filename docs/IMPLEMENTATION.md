@@ -93,7 +93,7 @@ packages/
   contracts/      chat.ts, message.ts, widgets.ts, connectors.ts, api/*
   db/             schema/*, migrations/, client.ts
   core/           secrets/ net/ ai/ chat/ mcp/ connectors/ search/ agents/ queries/ env.ts
-  emails/         templates/*
+  emails/         src/kit.tsx (цвета, знак, тёмная схема, render), src/<письмо>.tsx
   tsconfig/
 docker/           Dockerfile · compose.yml · entrypoint.sh · searxng/settings.yml
 scripts/          install.sh

@@ -2,6 +2,7 @@ import { createAuth } from "@metobe/core/auth";
 import { issueClaimLink } from "@metobe/core/claim";
 import { getEnv } from "@metobe/core/env";
 import { buildLoginLink } from "@metobe/core/login-link";
+import { importEnvMail } from "@metobe/core/mail";
 import { importEnvProxy } from "@metobe/core/net";
 import { ensureSecretsCanary, rotateSecrets } from "@metobe/core/secrets";
 import { findUserByEmail } from "@metobe/core/users";
@@ -31,6 +32,15 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
     console.log(
       `\n  ${t("cli.loginLink", { email, link: buildLoginLink(email, code) })}\n`
     );
+  },
+  // First start: SMTP_URL / SMTP_FROM from install.sh become the service's mail in /settings/mail (D15).
+  "mail:import-env": async () => {
+    const imported = await importEnvMail();
+    if (imported) {
+      console.log(
+        `mail: ${imported.address} via ${imported.host} imported from the environment`
+      );
+    }
   },
   migrate: async () => {
     await runMigrations(getEnv().DATABASE_URL, process.env.MIGRATIONS_DIR);

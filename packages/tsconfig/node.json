@@ -3,6 +3,8 @@
   "display": "Node (server packages)",
   "extends": "./base.json",
   "compilerOptions": {
+    // Server code renders letters, which are React Email components (@metobe/emails).
+    "jsx": "react-jsx",
     "noUncheckedIndexedAccess": true,
     "lib": ["es2023"],
     "types": ["node"],

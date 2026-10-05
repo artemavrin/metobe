@@ -18,6 +18,7 @@
     "@aws-sdk/client-s3": "3.1145.0",
     "@metobe/contracts": "workspace:*",
     "@metobe/db": "workspace:*",
+    "@metobe/emails": "workspace:*",
     "@metobe/i18n": "workspace:*",
     "ai": "7.0.113",
     "better-auth": "^1.7.5",
