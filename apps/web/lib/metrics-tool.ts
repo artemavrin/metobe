@@ -69,7 +69,7 @@ export const metricsTool = (
 ): Tool<MetricsInput, MetricsOutput> =>
   tool({
     description:
-      "Show key figures to the user as a strip in the chat: a total, a trend with its change against the period before, progress to a goal the user named, a share of a whole, a spread, a ranking, a summary. Use it when the user asks for indicators, statistics, a report, \"how are we doing\" over a tool's data. Every figure is computed by the server from the tool result you name (`ref`; the latest table by default) — you give the column (`field`), how to read it (`aggregate`), and for a trend the date column (`x`) and step (`bucket`); you never write the numbers. The first item is shown big, so put the main figure first. A goal needs the `target` the user stated: never invent one. The result must be a table of rows (a query's rows, a register); for one figure you already have, just say it. After it, say in a sentence or two what matters; do not repeat the figures.",
+      'Show key figures as a strip: a total, a trend with its change, progress to a goal the user named, a share, a spread, a ranking, a summary, who grew and fell, ABC, outliers, a composition. Every figure is computed by the server from a table-like tool result (`ref`; the latest by default): you give columns (`field`, `by`, `x`) and how to read them, never the numbers. The first item is shown big. For indicators, statistics, "how are we doing". After it, say in a sentence or two what matters; do not repeat the figures.',
     execute: (input) => metricsFrom(input, sources.resolve(input.ref).table),
     inputSchema: metricsInputSchema,
     outputSchema: metricsOutputSchema,

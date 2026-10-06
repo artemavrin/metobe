@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { chartTool } from "./chart-tool";
 import { mcpResult, salesQuery } from "./fixtures/query-result";
+import { copyError } from "./source-widgets";
 import { tableTool } from "./table-tool";
 import { createSources, shareResults } from "./tool-sources";
 
@@ -222,5 +223,102 @@ describe("the results the history keeps", () => {
     expect(() => createSources([]).resolve()).toThrow(
       /no table-like tool result/u
     );
+  });
+});
+
+const retyped = () => {
+  const sources = createSources([]);
+  // Ten clients and their revenue, as a small result the model sees whole.
+  const rows = Array.from({ length: 10 }, (_, i) => [
+    `К${i}`,
+    604_458_988.6 - i * 1_234_567.89,
+  ]);
+  sources.note("q1", mcpResult({ columns: ["Клиент", "Выручка"], rows }));
+  return { rows, sources };
+};
+
+const run = (
+  widget: { execute?: (i: never, o: never) => unknown },
+  input: unknown
+) =>
+  Promise.resolve().then(() =>
+    widget.execute?.(input as never, { messages: [], toolCallId: "t" } as never)
+  );
+
+describe("figures a model retypes from a tool result", () => {
+  it("finds the result whose numbers they are", () => {
+    const { rows, sources } = retyped();
+    expect(sources.copied(rows.map((r) => r[1] as number))).toBe("q1");
+  });
+
+  it("does not take the model's own sums, a rank, or too few figures for a copy", () => {
+    const { sources } = retyped();
+    expect(sources.copied([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])).toBeUndefined();
+    expect(
+      sources.copied([123_456_789, 987_654_321, 555_555_555])
+    ).toBeUndefined();
+    expect(sources.copied([604_458_988.6, 603_224_420.71])).toBeUndefined();
+  });
+
+  it("sends a chart or a table written by hand back to `from`, and lets one that is not a copy through", async () => {
+    const { rows, sources } = retyped();
+    const base = {
+      kind: "bar",
+      series: [{ label: "Выручка" }],
+      title: "t",
+      x: { label: "Клиент", type: "category" },
+    };
+    await expect(
+      run(chartTool(sources), { ...base, points: rows })
+    ).rejects.toThrow(copyError("q1").message);
+    await expect(
+      run(tableTool(sources), {
+        columns: [
+          { label: "К", type: "text" },
+          { label: "В", type: "number" },
+        ],
+        rows,
+        title: "t",
+      })
+    ).rejects.toThrow(/from: \{ ref: "q1" \}/u);
+    // The user's own figures are not in the result: the model writes them.
+    await expect(
+      run(chartTool(sources), {
+        ...base,
+        points: [
+          ["а", 1500.5],
+          ["б", 2500.25],
+          ["в", 3500.75],
+        ],
+      })
+    ).resolves.toMatchObject({ points: 3 });
+  });
+
+  it("tells the model a cut result's totals are not real, also when it is small", async () => {
+    const sources = createSources([]);
+    const tools = shareResults(
+      {
+        one_run_query: queryTool(
+          mcpResult({
+            columns: ["К", "В"],
+            hasMore: true,
+            rows: [
+              ["а", 1],
+              ["б", 2],
+            ],
+          })
+        ),
+      },
+      sources
+    );
+    const steps = [call("one_run_query", {}, "q1"), say("ok")];
+    const model = scripted(steps);
+    await generateText({
+      messages: [{ content: "?", role: "user" }],
+      model,
+      stopWhen: isStepCount(3),
+      tools,
+    });
+    expect(String(toldOf(model, "q1")?.value)).toContain("NOT the real totals");
   });
 });

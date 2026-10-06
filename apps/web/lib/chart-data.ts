@@ -41,6 +41,8 @@ export interface ChartView {
   streaming: boolean;
   /** Why the server could not build it (the model is told, and may try again); none — it did not fail. */
   error?: string;
+  /** The tool's result was cut: the points are not the whole. */
+  partial?: boolean;
 }
 
 // The input while it streams is a partial parse: any field may be missing or cut off.
@@ -156,6 +158,9 @@ export const chartView = (part: ChartPart): ChartView => {
   return {
     ...looksOf(input),
     ...(part.state === "output-error" ? { error: part.errorText } : {}),
+    ...(part.state === "output-available" && part.output?.partial
+      ? { partial: true }
+      : {}),
     points,
     series,
     streaming,

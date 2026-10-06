@@ -39,7 +39,11 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { WidgetFailure, WidgetFrame } from "@/components/chat/widget-frame";
+import {
+  PartialNote,
+  WidgetFailure,
+  WidgetFrame,
+} from "@/components/chat/widget-frame";
 import type { TablePart } from "@/lib/answer-work";
 import {
   categoryValues,
@@ -592,6 +596,7 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
           </div>
         )
       )}
+      {view.partial && <PartialNote className="border-t py-2" />}
     </WidgetFrame>
   );
 };

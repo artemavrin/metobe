@@ -25,7 +25,11 @@ import {
   at,
   useMetricFormat,
 } from "@/components/chat/metric-parts";
-import { WidgetFailure, WidgetFrame } from "@/components/chat/widget-frame";
+import {
+  PartialNote,
+  WidgetFailure,
+  WidgetFrame,
+} from "@/components/chat/widget-frame";
 import type { MetricsPart } from "@/lib/answer-work";
 import { metricsView } from "@/lib/metrics-data";
 
@@ -206,7 +210,15 @@ const Bones = ({ n }: { n: number }) => (
 );
 
 /** The figures of a built widget: the first big, the rest as a grid, the lists below, and where they come from. */
-const Figures = ({ items, rows }: { items: MetricResult[]; rows: number }) => {
+const Figures = ({
+  items,
+  rows,
+  partial,
+}: {
+  items: MetricResult[];
+  rows: number;
+  partial?: boolean;
+}) => {
   const t = useTranslations("chat.metrics");
   const f = useMetricFormat();
   const [first] = items;
@@ -243,6 +255,7 @@ const Figures = ({ items, rows }: { items: MetricResult[]; rows: number }) => {
           ))}
         </div>
       )}
+      {partial && <PartialNote />}
       <p className="text-muted-foreground text-xs">
         {[
           items.some((m) => m.delta) ? t("changeNote") : null,
@@ -281,7 +294,11 @@ export const AnswerMetrics = ({ part }: { part: MetricsPart }) => {
             <Bones n={view.coming} />
           )}
           {view.error === undefined && !view.streaming && ready && (
-            <Figures items={view.items} rows={view.rows} />
+            <Figures
+              items={view.items}
+              partial={view.partial}
+              rows={view.rows}
+            />
           )}
         </div>
       </WidgetFrame>
