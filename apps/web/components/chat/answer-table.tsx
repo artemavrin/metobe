@@ -39,7 +39,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { WidgetFrame } from "@/components/chat/widget-frame";
+import { WidgetFailure, WidgetFrame } from "@/components/chat/widget-frame";
 import type { TablePart } from "@/lib/answer-work";
 import {
   categoryValues,
@@ -512,6 +512,13 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
   );
 
   const ready = view.columns.length > 0;
+  // What the table holds: how many are shown of those a filter keeps, or of those the source had.
+  let count = t("rows", { count: view.rows.length });
+  if (filtered) {
+    count = t("shown", { shown: rows.length, total: view.rows.length });
+  } else if (view.total !== undefined) {
+    count = t("shown", { shown: view.rows.length, total: view.total });
+  }
   return (
     <WidgetFrame
       actions={
@@ -529,17 +536,15 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
         )
       }
       building={t("building")}
-      meta={
-        ready &&
-        (filtered
-          ? t("shown", { shown: rows.length, total: view.rows.length })
-          : t("rows", { count: view.rows.length }))
-      }
+      meta={ready && count}
       streaming={view.streaming}
       title={view.title}
     >
       <style>{TABLE_CSS}</style>
-      {ready ? (
+      {view.error !== undefined && (
+        <WidgetFailure reason={view.error} title={t("failed")} />
+      )}
+      {view.error === undefined && ready ? (
         <div ref={box}>
           <DataGrid
             appendRow={
@@ -570,12 +575,16 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
             {/* The height caps the viewport, not the root: the viewport is `size-full`, and a percentage of a
                 max-height is no height at all — the rows were cut off and nothing scrolled. */}
             <DataGridScrollArea className="[&_[data-slot=scroll-area-viewport]]:max-h-[26rem]">
-              <DataGridTable footerContent={footer} />
+              {/* A total of the rows shown is not the total of a source that had more. */}
+              <DataGridTable
+                footerContent={view.total === undefined ? footer : undefined}
+              />
             </DataGridScrollArea>
           </DataGrid>
         </div>
       ) : (
-        view.streaming && (
+        view.streaming &&
+        view.error === undefined && (
           <div aria-hidden="true" className="flex flex-col gap-2.5 p-3">
             <Skeleton className="h-3.5 w-full rounded-sm" />
             <Skeleton className="h-3.5 w-4/5 rounded-sm" />

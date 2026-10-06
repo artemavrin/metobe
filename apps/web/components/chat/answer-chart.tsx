@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 
 import { useChartFormat } from "@/components/chat/chart-format";
 import type { Format } from "@/components/chat/chart-format";
-import { WidgetFrame } from "@/components/chat/widget-frame";
+import { WidgetFailure, WidgetFrame } from "@/components/chat/widget-frame";
 import type { ChartPart } from "@/lib/answer-work";
 import { chartView, pieSlices } from "@/lib/chart-data";
 import type { ChartView } from "@/lib/chart-data";
@@ -117,7 +117,9 @@ export const AnswerChart = ({ part }: { part: ChartPart }) => {
         : t("points", { count: view.points.length });
   }
   let body: ReactNode = null;
-  if (ready && table && !shares) {
+  if (view.error !== undefined) {
+    body = <WidgetFailure reason={view.error} title={t("failed")} />;
+  } else if (ready && table && !shares) {
     body = <ChartData fmt={fmt} view={view} />;
   } else if (ready) {
     body = <ChartBody animate={animate} fmt={fmt} view={view} />;

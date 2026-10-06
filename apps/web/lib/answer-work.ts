@@ -4,6 +4,7 @@ type Part = ChatMessage["parts"][number];
 export type ToolPart = Extract<Part, { type: "dynamic-tool" }>;
 export type TablePart = Extract<Part, { type: "tool-show_table" }>;
 export type ChartPart = Extract<Part, { type: "tool-show_chart" }>;
+export type MetricsPart = Extract<Part, { type: "tool-show_metrics" }>;
 export type ConnectPart = Extract<Part, { type: "tool-request_connection" }>;
 export type SearchPart = Extract<Part, { type: "tool-find_tools" }>;
 export type ReadPart = Extract<Part, { type: "tool-read_attachment" }>;
@@ -24,11 +25,12 @@ export type WorkStep =
   /** The model reading a file the user attached. */
   | { kind: "read"; key: string; part: ReadPart };
 
-/** What the answer shows, in order: its words, the tables and charts the model built, and its asks to connect. */
+/** What the answer shows, in order: its words, the tables, charts and figures the model built, and its asks to connect. */
 export type AnswerBlock =
   | { kind: "text"; key: string; text: string }
   | { kind: "table"; key: string; part: TablePart }
   | { kind: "chart"; key: string; part: ChartPart }
+  | { kind: "metrics"; key: string; part: MetricsPart }
   /** «Connect X to go on»: the answer waits on the user there. */
   | { kind: "connect"; key: string; part: ConnectPart };
 
@@ -91,6 +93,9 @@ const blockOf = (part: Part): AnswerBlock | null => {
     }
     case "tool-show_chart": {
       return { key: part.toolCallId, kind: "chart", part };
+    }
+    case "tool-show_metrics": {
+      return { key: part.toolCallId, kind: "metrics", part };
     }
     case "tool-request_connection": {
       return { key: part.toolCallId, kind: "connect", part };

@@ -6,6 +6,7 @@ import { Input } from "@metobe/ui/components/input";
 import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
 import {
   Check,
+  Gauge,
   CircleUserRound,
   ChevronRight,
   Columns3,
@@ -74,6 +75,8 @@ const ENTRIES: Entry[] = [
   { about: "Поле ввода и выбор модели", area: "chat", chosen: "«Избранное + палитра»", href: "/dev/prototypes/composer", icon: MessageSquare, status: "chosen", title: "Поле ввода и выбор модели" },
   { about: "Просьба подключить сервис прямо в ответе", area: "chat", chosen: "«Плашка»", href: "/dev/prototypes/request-connection", icon: Unplug, status: "chosen", title: "Запрос подключения из чата" },
   { about: "По ReUI ai-chat-3: приветствие, «Начать с», «Продолжить»; иллюстрация сверху, сбоку, слева от приветствия, без неё или только в первом чате. Первый раунд — /new-chat/round-1", area: "chat", href: "/dev/prototypes/new-chat", icon: Sparkles, chosen: "«Без картинки»; картинка — в первом чате", status: "chosen", title: "Экран нового чата" },
+  { about: "Статистика в ответе: числа, динамика, прогресс к цели, доли, разброс, рейтинг; плитки, лента или полоса", area: "chat", chosen: "«Полоса»", href: "/dev/prototypes/metrics", icon: Gauge, status: "chosen", title: "Показатели в ответе" },
+  { about: "Ещё формы показателей: кто вырос и упал, Парето / ABC, выбросы, воронка, состав (кольцо или полоса) — по два вида каждой", area: "chat", href: "/dev/prototypes/metrics-forms", icon: Gauge, status: "open", title: "Показатели: ещё формы" },
   { about: "Графики evilcharts (ECharts) на наших данных и цветах темы: площадь, линия, столбцы, радар, круговая", area: "reference", href: "/dev/prototypes/evilcharts", icon: LayoutDashboard, status: "reference", title: "Графики evilcharts" },
   { about: "Компоненты ReUI и shadcn в теме Metobe", area: "reference", href: "/dev/showcase", icon: LayoutDashboard, status: "reference", title: "Дизайн-система" },
 ];

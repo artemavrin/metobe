@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { sourceRefSchema } from "./source";
+
 // A table the model builds in its answer (the `show_table` tool): columns, then rows, streamed into a grid the user
 // sorts and filters. Rows are arrays in column order, not objects: keys repeated on every row would cost the model
 // tokens and the user seconds.
@@ -22,6 +24,32 @@ export const TABLE_MAX_ROWS = 500;
 
 const cellSchema = z.union([z.string(), z.number(), z.null()]);
 
+/** Where a table takes its rows from: the full result of an earlier tool call, sorted and cut. */
+export const tableSourceSchema = z.object({
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(TABLE_MAX_ROWS)
+    .optional()
+    .describe(
+      "Keep this many rows after sorting — the top twenty, say; use it with sort. A result longer than the table allows is cut, and the table says how many there were."
+    ),
+  ref: sourceRefSchema,
+  sort: z
+    .object({
+      desc: z.boolean().optional(),
+      field: z
+        .string()
+        .describe("The result's column, named exactly as in the result."),
+    })
+    .optional()
+    .describe(
+      "Order the rows by a column of the result; the user can re-sort."
+    ),
+});
+export type TableSource = z.infer<typeof tableSourceSchema>;
+
 // The keys in the order the model writes them — a title first, the columns before the rows — so the table streams
 // top down; they are not sorted.
 // oxlint-disable-next-line sort-keys -- the order is the stream's
@@ -33,6 +61,12 @@ export const tableInputSchema = z.object({
     .array(
       // oxlint-disable-next-line sort-keys -- the order is the stream's
       z.object({
+        field: z
+          .string()
+          .optional()
+          .describe(
+            "With `from`: the result's column this one shows, named exactly as in the result; the header's label when omitted."
+          ),
         label: z
           .string()
           .describe("The column header, in the user's language."),
@@ -58,6 +92,11 @@ export const tableInputSchema = z.object({
     .min(1)
     .max(TABLE_MAX_COLUMNS)
     .describe("Written before the rows."),
+  from: tableSourceSchema
+    .optional()
+    .describe(
+      "Take the rows from an earlier tool result instead of writing `rows`: the server reads each column's field from it. Use it for any data a tool returned — you never retype those values, so they cannot drift. Written before the rows."
+    ),
   groupBy: z
     .array(z.string())
     .max(TABLE_MAX_GROUP_BY)
@@ -68,15 +107,22 @@ export const tableInputSchema = z.object({
   rows: z
     .array(z.array(cellSchema))
     .max(TABLE_MAX_ROWS)
+    .optional()
     .describe(
-      "One array per row, its values in the columns' order; null for an empty cell."
+      "One array per row, its values in the columns' order; null for an empty cell. Leave it out when `from` is set; use it for data that is not in a tool result (from the user, a web page)."
     ),
 });
 export type TableInput = z.infer<typeof tableInputSchema>;
 export type TableCell = z.infer<typeof cellSchema>;
 
-/** What the model is told back: the table is on screen, so it only sums it up and does not write it out again. */
+/**
+ * What the table is given back: how many rows; and, when they came from a tool result (`from`), the rows the server
+ * took, in the same shape as `rows`, and how many the result had (more than `rows` when it was cut). What the model
+ * is told is shorter (the table is on screen, so it only sums it up and does not write it out again).
+ */
 export const tableOutputSchema = z.object({
+  data: z.array(z.array(cellSchema)).optional(),
   rows: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative().optional(),
 });
 export type TableOutput = z.infer<typeof tableOutputSchema>;

@@ -214,6 +214,7 @@
       "total": "Total",
       "expandGroup": "Expand group “{label}”",
       "collapseGroup": "Collapse group “{label}”",
+      "failed": "Could not build the table",
       "noRows": "No rows",
       "empty": "—",
       "filters": {
@@ -280,6 +281,7 @@
       "points": "{count, plural, one {# point} other {# points}}",
       "total": "{value} in total",
       "other": "Other",
+      "failed": "Could not build the chart",
       "noData": "No data",
       "showData": "Data",
       "showChart": "Chart"
@@ -355,6 +357,61 @@
         "too-many": "No more than 10 files per message"
       },
       "unnamed": "File"
+    },
+    "metrics": {
+      "building": "Calculating the figures…",
+      "failed": "Could not calculate the figures",
+      "count": "{count, plural, one {# figure} other {# figures}}",
+      "source": "From the tool result, {rows} rows",
+      "changeNote": "Change — the last period against the one before",
+      "goalOf": "of {target} · the goal from your question",
+      "changeTip": "{to} against {from}: was {previous}, now {current}",
+      "by": "by “{by}”",
+      "aggregate": {
+        "sum": "Sum of",
+        "avg": "Average",
+        "median": "Median",
+        "min": "Minimum",
+        "max": "Maximum",
+        "count": "Number of rows",
+        "distinct": "Number of different"
+      },
+      "facts": {
+        "rows": "Rows",
+        "sum": "Sum",
+        "avg": "Average",
+        "median": "Median",
+        "min": "Smallest",
+        "max": "Greatest"
+      },
+      "movers": {
+        "note": "{to} against {from}, by “{by}”",
+        "small": "{up} grew, {down} fell"
+      },
+      "pareto": {
+        "big": "{n} of {all}",
+        "small": "values make 80% of the total",
+        "note": "“{by}” sorted by “{field}”, cumulative",
+        "axis": "values: {count}",
+        "class": "Class {cls}",
+        "count": "{count, plural, one {# value} other {# values}}",
+        "share": "{share} of the total",
+        "legend": "On the right — the cumulative share. Classes: A — up to 80%, B — up to 95%, C — the rest."
+      },
+      "outliers": {
+        "big": "{n} of {all}",
+        "none": "No outliers",
+        "noneSmall": "every value is within the usual",
+        "small": "values clearly above the usual",
+        "note": "The threshold is {fence}: the third quartile plus one and a half spreads of the middle half",
+        "median": "median",
+        "fence": "threshold"
+      },
+      "composition": {
+        "small": "is “{name}”",
+        "note": "Total {total}, by “{by}”",
+        "rest": "The rest ({count})"
+      }
     }
   },
   "login": {
