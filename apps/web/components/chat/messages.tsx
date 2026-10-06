@@ -52,6 +52,7 @@ import { Streamdown } from "streamdown";
 
 import { ActivityBlock } from "@/components/chat/activity";
 import { AnswerChart } from "@/components/chat/answer-chart";
+import { AnswerMetrics } from "@/components/chat/answer-metrics";
 import { AnswerTable } from "@/components/chat/answer-table";
 import { ApprovalCard } from "@/components/chat/approval-card";
 import {
@@ -736,6 +737,9 @@ export const AssistantMessage = ({
           }
           if (block.kind === "chart") {
             return <AnswerChart key={block.key} part={block.part} />;
+          }
+          if (block.kind === "metrics") {
+            return <AnswerMetrics key={block.key} part={block.part} />;
           }
           if (block.kind === "connect") {
             return (

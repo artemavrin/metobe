@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { sourceAggregates, sourceBuckets, sourceRefSchema } from "./source";
+
 // A chart the model builds in its answer (the `show_chart` tool): what it shows and its axes first, then the points,
 // streamed into the chart as the model writes them. A point is an array — the x value, then a number per series —
 // like a table's row: keys repeated on every point would cost the model tokens and the user seconds.
@@ -21,6 +23,44 @@ export type ChartAxisType = (typeof chartAxisTypes)[number];
 /** The theme has eight chart colors, in a fixed order; more series or slices would repeat one. */
 export const CHART_MAX_SERIES = 8;
 export const CHART_MAX_POINTS = 200;
+
+/** Where a chart takes its points from: the full result of an earlier tool call, grouped by one column. */
+export const chartSourceSchema = z.object({
+  aggregate: z
+    .enum(sourceAggregates)
+    .optional()
+    .describe(
+      "How the rows of one point combine in every series: sum (default), avg, min, max, or count (rows per point — the series need no field then)."
+    ),
+  bucket: z
+    .enum(sourceBuckets)
+    .optional()
+    .describe(
+      "Only when x is a date column: cut it into days, weeks, months or years, so a long history becomes a few points."
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(CHART_MAX_POINTS)
+    .optional()
+    .describe(
+      "Keep this many points after sorting — the top ten, say; use it with sort."
+    ),
+  ref: sourceRefSchema,
+  sort: z
+    .enum(["x", "-x", "value", "-value"])
+    .optional()
+    .describe(
+      "Order of the points: by x, or by the first series' value; a leading - is descending. Dates go in time order by default, others in the order of the result."
+    ),
+  x: z
+    .string()
+    .describe(
+      "The result's column that gives the points (the x axis), named exactly as in the result's list of columns."
+    ),
+});
+export type ChartSource = z.infer<typeof chartSourceSchema>;
 
 const valueSchema = z.union([z.string(), z.number(), z.null()]);
 
@@ -60,6 +100,12 @@ export const chartInputSchema = z.object({
           .describe(
             "Composed only: draw this series as bars or as a line; the first as bars, the rest as lines when omitted. All share one axis, so one unit — numbers of different scales (money and percent) go in separate charts."
           ),
+        field: z
+          .string()
+          .optional()
+          .describe(
+            "With `from`: the result's numeric column this series sums up, named exactly as in the result."
+          ),
         label: z
           .string()
           .describe("What is measured, in the user's language: «Выручка»."),
@@ -76,6 +122,11 @@ export const chartInputSchema = z.object({
     .max(CHART_MAX_SERIES)
     .describe(
       "One number per point for each series; a pie and a radial have one. Written before the points."
+    ),
+  from: chartSourceSchema
+    .optional()
+    .describe(
+      "Take the points from an earlier tool result instead of writing `points`: the server groups its rows by the x column and reads each series' field. Use it for any data a tool returned — you never retype those numbers, so they cannot drift. Written before the flags below."
     ),
   stacked: z
     .boolean()
@@ -108,15 +159,21 @@ export const chartInputSchema = z.object({
   points: z
     .array(z.array(valueSchema))
     .max(CHART_MAX_POINTS)
+    .optional()
     .describe(
-      "One array per point: the x value first, then one number per series in their order; null when a value is missing."
+      "One array per point: the x value first, then one number per series in their order; null when a value is missing. Leave it out when `from` is set; use it for numbers that are not in a tool result (from the user, a web page)."
     ),
 });
 export type ChartInput = z.infer<typeof chartInputSchema>;
 export type ChartValue = z.infer<typeof valueSchema>;
 
-/** What the model is told back: the chart is on screen, so it sums it up and does not list the numbers again. */
+/**
+ * What the chart is given back: how many points; and, when they came from a tool result (`from`), the points the
+ * server took — in the same shape as `points`, for the page to draw. What the model is told is shorter (the chart is
+ * on screen, so it sums it up and does not list the numbers again).
+ */
 export const chartOutputSchema = z.object({
+  data: z.array(z.array(valueSchema)).optional(),
   points: z.number().int().nonnegative(),
 });
 export type ChartOutput = z.infer<typeof chartOutputSchema>;

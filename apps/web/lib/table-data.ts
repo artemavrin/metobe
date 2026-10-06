@@ -36,8 +36,12 @@ export interface TableView {
   rows: TableRow[];
   /** The ids of the columns the rows are grouped by, outer first; none — a flat table. */
   groups: string[];
-  /** The model is still writing it. */
+  /** The model is still writing it, or the server is still taking its rows from a tool result. */
   streaming: boolean;
+  /** Rows the source had when it had more than the table holds; none — all are shown. */
+  total?: number;
+  /** Why the server could not build it (the model is told, and may try again); none — it did not fail. */
+  error?: string;
 }
 
 // The input while it streams is a partial parse: any field may be missing or cut off.
@@ -48,6 +52,8 @@ interface PartialInput {
     | undefined
   )[];
   groupBy?: (string | undefined)[];
+  /** Set when the rows come from a tool result: the server takes them, none are written. */
+  from?: unknown;
   rows?: (TableCell[] | undefined)[];
 }
 
@@ -55,39 +61,47 @@ const TYPES = new Set<string>(["text", "number", "date", "category"]);
 const SUMMARIES = new Set<string>(["sum", "avg", "min", "max"]);
 const HEATS = new Set<string>(["scale", "good", "bad"]);
 
+/** The columns the model has written so far: a label is enough to draw one. */
+const columnsOf = (input: PartialInput): TableColumn[] =>
+  (input.columns ?? []).flatMap((c, i) =>
+    c?.label === undefined
+      ? []
+      : [
+          {
+            id: `c${i}`,
+            label: c.label,
+            type: (TYPES.has(c.type ?? "")
+              ? c.type
+              : "text") as TableColumnType,
+            // A total means something for numbers only.
+            ...(c.type === "number" && SUMMARIES.has(c.summary ?? "")
+              ? { summary: c.summary as TableSummary }
+              : {}),
+            ...(c.type === "number" && HEATS.has(c.heat ?? "")
+              ? { heat: c.heat as TableHeat }
+              : {}),
+          },
+        ]
+  );
+
 /**
  * What of a table the grid can show now. While the model writes, only whole things: the columns once it has moved
  * on to the rows, and every row but the last — the last may be cut mid-value. When it is done, all of it.
  */
 export const tableView = (part: TablePart): TableView => {
-  const streaming = part.state === "input-streaming";
   const input = (part.input ?? {}) as PartialInput | TableInput;
   const partial = input as PartialInput;
+  const sourced = partial.from !== undefined;
+  // A table from a tool result is still being built after the model has written it, until the server's rows arrive.
+  const streaming =
+    part.state === "input-streaming" ||
+    (sourced && part.state === "input-available");
   const columnsDone = !streaming || partial.rows !== undefined;
-  const columns: TableColumn[] = columnsDone
-    ? (partial.columns ?? []).flatMap((c, i) =>
-        c?.label === undefined
-          ? []
-          : [
-              {
-                id: `c${i}`,
-                label: c.label,
-                type: (TYPES.has(c.type ?? "")
-                  ? c.type
-                  : "text") as TableColumnType,
-                // A total means something for numbers only.
-                ...(c.type === "number" && SUMMARIES.has(c.summary ?? "")
-                  ? { summary: c.summary as TableSummary }
-                  : {}),
-                ...(c.type === "number" && HEATS.has(c.heat ?? "")
-                  ? { heat: c.heat as TableHeat }
-                  : {}),
-              },
-            ]
-      )
-    : [];
-  const written = partial.rows ?? [];
-  const whole = streaming ? written.slice(0, -1) : written;
+  const columns = columnsDone ? columnsOf(partial) : [];
+  const output = part.state === "output-available" ? part.output : undefined;
+  const written = output?.data ?? partial.rows ?? [];
+  const whole =
+    part.state === "input-streaming" ? written.slice(0, -1) : written;
   const rows = columns.length
     ? whole.map((cells, i) => ({
         cells: columns.map((_, c) => cells?.[c] ?? null),
@@ -101,7 +115,17 @@ export const tableView = (part: TablePart): TableView => {
         return found ? [found.id] : [];
       })
     : [];
-  return { columns, groups, rows, streaming, title: partial.title ?? "" };
+  return {
+    columns,
+    ...(part.state === "output-error" ? { error: part.errorText } : {}),
+    groups,
+    rows,
+    streaming,
+    title: partial.title ?? "",
+    ...(output?.total !== undefined && output.total > rows.length
+      ? { total: output.total }
+      : {}),
+  };
 };
 
 /** The values a category column holds, most frequent first — the filter's options. */

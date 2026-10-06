@@ -37,8 +37,10 @@ export interface ChartView {
   smooth: boolean;
   /** A pie with a hole. */
   donut: boolean;
-  /** The model is still writing it. */
+  /** The model is still writing it, or the server is still taking its numbers from a tool result. */
   streaming: boolean;
+  /** Why the server could not build it (the model is told, and may try again); none — it did not fail. */
+  error?: string;
 }
 
 // The input while it streams is a partial parse: any field may be missing or cut off.
@@ -52,6 +54,8 @@ interface PartialInput {
   horizontal?: boolean;
   smooth?: boolean;
   donut?: boolean;
+  /** Set when the numbers come from a tool result: the server takes them, none are written. */
+  from?: unknown;
   points?: (ChartValue[] | undefined)[];
 }
 
@@ -78,32 +82,29 @@ const composedAs = (said: string | undefined, index: number) => {
   return index === 0 ? "bar" : "line";
 };
 
-/**
- * What of a chart can be drawn now. While the model writes, only whole things: the series once it has moved on to
- * the points, and every point but the last — the last may be cut mid-number. When it is done, all of it.
- */
-export const chartView = (part: ChartPart): ChartView => {
-  const streaming = part.state === "input-streaming";
-  const input = (part.input ?? {}) as PartialInput;
-  const ready = !streaming || input.points !== undefined;
-  const series: ChartSeries[] = ready
-    ? (input.series ?? []).flatMap((s, i) =>
-        s?.label === undefined
-          ? []
-          : [
-              {
-                as: composedAs(s.as, i),
-                key: `s${i}`,
-                label: s.label,
-                unit: s.unit || undefined,
-              },
-            ]
-      )
-    : [];
-  const written = input.points ?? [];
-  const whole = streaming ? written.slice(0, -1) : written;
-  const points = series.length
-    ? whole.flatMap((p) => {
+/** The series the model has written so far: a label is enough to draw one. */
+const seriesOf = (input: PartialInput): ChartSeries[] =>
+  (input.series ?? []).flatMap((s, i) =>
+    s?.label === undefined
+      ? []
+      : [
+          {
+            as: composedAs(s.as, i),
+            key: `s${i}`,
+            label: s.label,
+            unit: s.unit || undefined,
+          },
+        ]
+  );
+
+/** The points the chart can draw: those with an x, each series' number read out of them. */
+const pointsOf = (
+  written: (ChartValue[] | undefined)[],
+  series: ChartSeries[]
+): ChartPoint[] =>
+  series.length === 0
+    ? []
+    : written.flatMap((p) => {
         const x = p?.[0];
         if (x === undefined || x === null || x === "") {
           return [];
@@ -113,25 +114,51 @@ export const chartView = (part: ChartPart): ChartView => {
           point[s.key] = toNumber(p?.[i + 1]);
         }
         return [point];
-      })
-    : [];
+      });
+
+/** What the model said the chart looks like: its kind, axis and flags; the defaults for what it left out. */
+const looksOf = (input: PartialInput) => ({
+  donut: input.donut !== false,
+  horizontal: input.horizontal === true,
+  kind: KINDS.has(input.kind ?? "") ? (input.kind as ChartKind) : "bar",
+  percent: input.percent === true,
+  smooth: input.smooth !== false,
+  stacked: input.stacked === true || input.percent === true,
+  title: input.title ?? "",
+  x: {
+    label: input.x?.label ?? "",
+    type: AXES.has(input.x?.type ?? "")
+      ? (input.x?.type as ChartAxisType)
+      : "category",
+  },
+});
+
+/**
+ * What of a chart can be drawn now. While the model writes, only whole things: the series once it has moved on to
+ * the points, and every point but the last — the last may be cut mid-number. When it is done, all of it.
+ */
+export const chartView = (part: ChartPart): ChartView => {
+  const input = (part.input ?? {}) as PartialInput;
+  const sourced = input.from !== undefined;
+  // A chart from a tool result is still being built after the model has written it, until the server's points arrive.
+  const streaming =
+    part.state === "input-streaming" ||
+    (sourced && part.state === "input-available");
+  const ready = !streaming || input.points !== undefined || sourced;
+  const series = ready ? seriesOf(input) : [];
+  const written =
+    (part.state === "output-available" ? part.output?.data : undefined) ??
+    input.points ??
+    [];
+  const whole =
+    part.state === "input-streaming" ? written.slice(0, -1) : written;
+  const points = pointsOf(whole, series);
   return {
-    donut: input.donut !== false,
-    horizontal: input.horizontal === true,
-    kind: KINDS.has(input.kind ?? "") ? (input.kind as ChartKind) : "bar",
-    percent: input.percent === true,
+    ...looksOf(input),
+    ...(part.state === "output-error" ? { error: part.errorText } : {}),
     points,
     series,
-    smooth: input.smooth !== false,
-    stacked: input.stacked === true || input.percent === true,
     streaming,
-    title: input.title ?? "",
-    x: {
-      label: input.x?.label ?? "",
-      type: AXES.has(input.x?.type ?? "")
-        ? (input.x?.type as ChartAxisType)
-        : "category",
-    },
   };
 };
 

@@ -74,3 +74,17 @@ export const WidgetFrame = ({
     {children}
   </section>
 );
+
+/** Why a widget could not be built — the server said what was wrong with its source; the model is told and may try again. */
+export const WidgetFailure = ({
+  title,
+  reason,
+}: {
+  title: string;
+  reason: string;
+}) => (
+  <div className="flex flex-col gap-1 p-4 text-sm" role="alert">
+    <p>{title}</p>
+    <p className="text-muted-foreground text-xs break-words">{reason}</p>
+  </div>
+);

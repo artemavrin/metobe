@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { ChartInput, ChartOutput } from "./chart";
 import { FILES_PER_MESSAGE } from "./files";
+import type { MetricsInput, MetricsOutput } from "./metrics";
 import type { TableInput, TableOutput } from "./table";
 import type {
   WebFetchInput,
@@ -77,6 +78,7 @@ export type ChatTools = {
       | { error: string };
   };
   show_chart: { input: ChartInput; output: ChartOutput };
+  show_metrics: { input: MetricsInput; output: MetricsOutput };
   show_table: { input: TableInput; output: TableOutput };
   web_fetch: { input: WebFetchInput; output: WebFetchOutput };
   web_search: { input: WebSearchInput; output: WebSearchOutput };

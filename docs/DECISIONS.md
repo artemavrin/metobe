@@ -158,6 +158,8 @@ MinIO отпадает: `minio/minio` архивирован, в README напи
 
 **Spike S5** проверяет, работает ли `toModelOutput` между шагами одного `streamText` и можно ли обернуть им MCP-тулы.
 
+**Итоги S5 (2026-10-06, тест `apps/web/lib/tool-sources.test.ts` с `MockLanguageModelV4`, отдельной папки в `spikes/` нет):** да и да. `toModelOutput` применяется между шагами одного `streamText` и в `convertToModelMessages` (оба вызывают `createToolModelOutput` по `tools[name]`, в том числе для `dynamic-tool`), но только если те же `tools` переданы в `convertToModelMessages` — у нас они не передавались. MCP-тулы из `client.tools()` оборачиваются обычным spread с подменой `execute` и `toModelOutput`. Фактическая форма — ARCHITECTURE §9.2: `ref` — это `toolCallId`, виджеты берут данные по `from`, а не по отдельному рендер-тулу.
+
 ### D12. Гранты доступа — ПО УМОЛЧАНИЮ (v2)
 
 В v1 только роли `superuser`/`admin`/`user`. Точечные гранты (`default_access` + `*_access`) на модели и пункты каталога появятся в v2, когда будет кому их выдавать. Схема закладывает поле `default_access` в `models` и `catalog_items`, чтобы потом не мигрировать данные.

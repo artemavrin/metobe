@@ -58,12 +58,14 @@ import { budgetMessages, isContextOverflow } from "@/lib/context-budget";
 import { emailTools } from "@/lib/email-tools";
 import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
+import { METRICS_TOOL, metricsTool } from "@/lib/metrics-tool";
 import { getPrefs } from "@/lib/prefs";
 import { recordStream } from "@/lib/resume-stream";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 import { TIME_NOTE, TIME_TOOL, timeTool } from "@/lib/time-tool";
 import { lendTools, servicesNote } from "@/lib/tool-search";
+import { createSources, shareResults } from "@/lib/tool-sources";
 import { withNotes } from "@/lib/user-notes";
 import {
   WEB_FETCH,
@@ -379,19 +381,6 @@ export const POST = async (request: Request) => {
       // What the model is sent of the history (lib/context-budget): tool results cut at a cap, the oldest ones cleared
       // once the chat is long. The stored history stays whole — only this copy is trimmed.
       const budget = { window: model.contextWindow };
-      const prompt = withPromptCache(
-        model.kind,
-        budgetMessages(
-          await convertToModelMessages(
-            await forModel(session.user.id, uiMessages, {
-              pdf: readsPdf(model.kind, model.modelId),
-              tools: model.capabilities.tools !== false,
-              vision: model.capabilities.vision,
-            })
-          ),
-          budget
-        )
-      );
       const started = Date.now();
       let firstChunk: number | null = null;
       // How long the model reasoned: from its first reasoning to its first word (the folded reasoning says it).
@@ -461,13 +450,23 @@ export const POST = async (request: Request) => {
       const web = await webToolsOn();
       const waiting = chatServers.filter((s) => s.signIn === "self");
       const hasFiles = uiMessages.some((m) => fileIdsOf(m).length > 0);
+      // What the servers' tools return, kept whole for the widgets (ARCH §9.2): a chart or a table `from` a result
+      // takes its numbers from here, and the model is told a table's summary instead of all its rows.
+      const sources = createSources(uiMessages);
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
           : {
-              ...lendTools(servers, calledIn(uiMessages)),
-              [CHART_TOOL]: chartTool,
-              [TABLE_TOOL]: tableTool,
+              ...lendTools(
+                servers.map((server) => ({
+                  ...server,
+                  tools: shareResults(server.tools, sources),
+                })),
+                calledIn(uiMessages)
+              ),
+              [CHART_TOOL]: chartTool(sources),
+              [METRICS_TOOL]: metricsTool(sources),
+              [TABLE_TOOL]: tableTool(sources),
               [TIME_TOOL]: timeTool(timeZone),
               // The files of the thread, for a model that cannot see them itself.
               ...(hasFiles
@@ -486,6 +485,21 @@ export const POST = async (request: Request) => {
                   }
                 : {}),
             };
+      const prompt = withPromptCache(
+        model.kind,
+        budgetMessages(
+          await convertToModelMessages(
+            await forModel(session.user.id, uiMessages, {
+              pdf: readsPdf(model.kind, model.modelId),
+              tools: model.capabilities.tools !== false,
+              vision: model.capabilities.vision,
+            }),
+            // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources).
+            { tools }
+          ),
+          budget
+        )
+      );
       const result = streamText({
         abortSignal: generation.signal,
         instructions: [
@@ -520,6 +534,7 @@ export const POST = async (request: Request) => {
           if (
             (chunk.type === "tool-result" || chunk.type === "tool-error") &&
             chunk.toolName !== TABLE_TOOL &&
+            chunk.toolName !== METRICS_TOOL &&
             chunk.toolName !== CHART_TOOL &&
             chunk.toolName !== TIME_TOOL
           ) {
