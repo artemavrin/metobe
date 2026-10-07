@@ -65,7 +65,7 @@ import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 import { TIME_NOTE, TIME_TOOL, timeTool } from "@/lib/time-tool";
 import { lendTools, servicesNote } from "@/lib/tool-search";
-import { createSources, shareResults } from "@/lib/tool-sources";
+import { SourceError, createSources, shareResults } from "@/lib/tool-sources";
 import { withNotes } from "@/lib/user-notes";
 import {
   WEB_FETCH,
@@ -81,6 +81,9 @@ import {
 // Tools (M4), stop, resume and statuses (M3.2) come on their steps.
 
 export const maxDuration = 300;
+
+/** A model whose window is smaller than this is not offered the widget tools: their schemas would take its room. */
+const WIDGETS_MIN_WINDOW = 16_000;
 
 const fail = (code: ChatErrorCode, status: number) =>
   Response.json({ error: code }, { status });
@@ -453,6 +456,11 @@ export const POST = async (request: Request) => {
       // What the servers' tools return, kept whole for the widgets (ARCH §9.2): a chart or a table `from` a result
       // takes its numbers from here, and the model is told a table's summary instead of all its rows.
       const sources = createSources(uiMessages);
+      // The three widget tools take about 3,000 tokens of their schemas: a model with a small window has no room for
+      // them next to a server's tools and the history, so it answers in words (markdown) instead.
+      const room =
+        model.contextWindow === null ||
+        model.contextWindow >= WIDGETS_MIN_WINDOW;
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -464,9 +472,13 @@ export const POST = async (request: Request) => {
                 })),
                 calledIn(uiMessages)
               ),
-              [CHART_TOOL]: chartTool(sources),
-              [METRICS_TOOL]: metricsTool(sources),
-              [TABLE_TOOL]: tableTool(sources),
+              ...(room
+                ? {
+                    [CHART_TOOL]: chartTool(sources),
+                    [METRICS_TOOL]: metricsTool(sources),
+                    [TABLE_TOOL]: tableTool(sources),
+                  }
+                : {}),
               [TIME_TOOL]: timeTool(timeZone),
               // The files of the thread, for a model that cannot see them itself.
               ...(hasFiles
@@ -618,9 +630,16 @@ export const POST = async (request: Request) => {
             };
           },
           // The model's own error reaches the page here, not through the wrapper's: a history too long for its window
-          // is said as that; any other keeps what the SDK says by itself.
-          onError: (error) =>
-            isContextOverflow(error) ? "context-full" : "An error occurred.",
+          // is said as that; a widget the source could not give is said by what it lacks (the user sees it in the
+          // widget, the model read it already); any other keeps what the SDK says by itself.
+          onError: (error) => {
+            if (isContextOverflow(error)) {
+              return "context-full";
+            }
+            return error instanceof SourceError
+              ? error.message
+              : "An error occurred.";
+          },
           originalMessages,
           sendReasoning: true,
           stream: result.stream,

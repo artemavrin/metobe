@@ -223,7 +223,11 @@ export const chartOutput = (
     return { points: input.points?.length ?? 0 };
   }
   const data = pointsFrom(input, table);
-  return { data, points: data.length };
+  return {
+    data,
+    points: data.length,
+    ...(table.partial ? { partial: true } : {}),
+  };
 };
 
 /** What the table tool answers: the rows taken, or just their count for rows the model wrote. */
@@ -235,5 +239,28 @@ export const tableOutput = (
     return { rows: input.rows?.length ?? 0 };
   }
   const { rows, total } = rowsFrom(input, table);
-  return { data: rows, rows: rows.length, total };
+  return {
+    data: rows,
+    rows: rows.length,
+    total,
+    ...(table.partial ? { partial: true } : {}),
+  };
 };
+
+/** The figures a model wrote into a chart by hand: every point's numbers, the x value left out. */
+export const writtenPoints = (input: ChartInput) =>
+  (input.points ?? []).flatMap((p) =>
+    p.slice(1).filter((v): v is number => typeof v === "number")
+  );
+
+/** The figures a model wrote into a table by hand. */
+export const writtenRows = (input: TableInput) =>
+  (input.rows ?? []).flatMap((r) =>
+    r.filter((v): v is number => typeof v === "number")
+  );
+
+/** The model retyped a tool's numbers: it is told which result they are and to ask for them by `from`. */
+export const copyError = (ref: string) =>
+  new SourceError(
+    `These numbers are the ones of the tool result "${ref}". Do not retype them: call again with \`from: { ref: "${ref}" }\` and \`field\` for each series or column — the server reads them from the result, so they stay exact.`
+  );

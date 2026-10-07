@@ -15,6 +15,8 @@ export interface SourceColumn {
 export interface SourceTable {
   columns: SourceColumn[];
   rows: Cell[][];
+  /** The tool says there is more data than it returned (`hasMore`, `truncated`, a next page): sums over it are not totals. */
+  partial?: boolean;
 }
 
 type Json = unknown;
@@ -145,9 +147,20 @@ const MAX_COLUMNS = 60;
 /** How many records tell the names of the columns when the source did not list them. */
 const NAMING_ROWS = 50;
 
+/** Whether a result says it is cut: `hasMore`, `truncated`, or a cursor to the next page (1C's `run_query` says `hasMore`). */
+const isPartial = (json: Json) =>
+  isObject(json) &&
+  (json.hasMore === true ||
+    json.has_more === true ||
+    json.truncated === true ||
+    (json.nextCursor !== undefined && json.nextCursor !== null) ||
+    (json.next_cursor !== undefined && json.next_cursor !== null) ||
+    (json.nextPageToken !== undefined && json.nextPageToken !== null));
+
 /** A tool's output as a table; null when it is not one (an error, a single object, text). */
 export const tableOf = (output: Json): SourceTable | null => {
-  const found = recordsIn(jsonOf(output));
+  const json = jsonOf(output);
+  const found = recordsIn(json);
   if (!found || found.rows.length === 0) {
     return null;
   }
@@ -179,8 +192,13 @@ export const tableOf = (output: Json): SourceTable | null => {
       name,
     })),
     rows,
+    ...(isPartial(json) ? { partial: true } : {}),
   };
 };
+
+/** What the model is told of a cut result: its figures are not the real totals. */
+export const PARTIAL_WARNING =
+  "WARNING: this result is cut — the tool says there is more data than it returned (hasMore), so sums, counts and rankings over it are NOT the real totals. Aggregate in the query itself (SUM … GROUP BY) or say that the figures are partial.";
 
 /** The column a name points at: exactly, else without case and edge spaces; undefined when there is none. */
 export const columnOf = (table: SourceTable, name: string | undefined) => {
@@ -250,7 +268,7 @@ export const summaryOf = (table: SourceTable, ref: string): string | null => {
     .slice(0, PREVIEW_ROWS)
     .map((row) => row.map(short).join(" | "));
   return [
-    `A table of ${table.rows.length} rows, ref ${ref}. It is too long to list: the full data is kept, you see its columns and the first ${PREVIEW_ROWS} rows.`,
+    `A table of ${table.rows.length} rows, ref ${ref}. ${table.partial ? `${PARTIAL_WARNING} ` : ""}It is too long to list: the full data is kept, you see its columns and the first ${PREVIEW_ROWS} rows.`,
     `Columns: ${table.columns.map((_, i) => columnLine(table, i)).join("; ")}.`,
     `First ${PREVIEW_ROWS} rows:`,
     head,

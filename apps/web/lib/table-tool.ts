@@ -3,7 +3,7 @@ import type { TableInput, TableOutput } from "@metobe/contracts/table";
 import { tool } from "ai";
 import type { Tool } from "ai";
 
-import { tableOutput } from "./source-widgets";
+import { copyError, tableOutput, writtenRows } from "./source-widgets";
 import type { Sources } from "./tool-sources";
 
 /** The tool's name — the answer draws its part (`tool-show_table`) as a grid. */
@@ -20,12 +20,20 @@ const TOLD_UP_TO = 12;
 export const tableTool = (sources: Sources): Tool<TableInput, TableOutput> =>
   tool({
     description:
-      "Show data to the user as an interactive table in the chat (they can sort and filter it, and it can be grouped). Use it for lists of five or more records with shared fields — results of a query, a comparison, a register. When the rows fall into natural groups (by city, status, month) set groupBy, and summary on the number columns worth totalling. For data a tool returned, ALWAYS use `from` (and `field` in each column): the server reads the rows from the result itself, sorted by `from.sort` and cut to `from.limit` — a top twenty is `from: { sort: { field: <column>, desc: true }, limit: 20 }` — never retype a result's rows into `rows`. Write `rows` only for data that is not in a tool result. Do not write the same data as a markdown table. After it, sum up in a sentence or two what matters; do not repeat the rows.",
-    execute: (input) =>
-      tableOutput(
+      "Show data as an interactive table (sort, filter, group). For five or more records with shared fields. Set groupBy for natural groups and summary on number columns worth totalling. Data a tool returned: ALWAYS `from` plus `field` per column — the server reads the rows, sorted by `from.sort`, cut to `from.limit` (top twenty: `from: { sort: { field: <column>, desc: true }, limit: 20 }`); never retype a result into `rows`, those are for data from elsewhere. Do not repeat the rows as text. After it, say in a sentence or two what matters.",
+    execute: (input) => {
+      if (!input.from) {
+        // Figures that are a tool result's are not typed by hand: the model is sent back to `from`.
+        const copied = sources.copied(writtenRows(input));
+        if (copied) {
+          throw copyError(copied);
+        }
+      }
+      return tableOutput(
         input,
         input.from ? sources.resolve(input.from.ref).table : null
-      ),
+      );
+    },
     inputSchema: tableInputSchema,
     outputSchema: tableOutputSchema,
     toModelOutput: ({ output }) => {

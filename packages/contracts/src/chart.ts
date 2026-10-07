@@ -174,6 +174,8 @@ export type ChartValue = z.infer<typeof valueSchema>;
  */
 export const chartOutputSchema = z.object({
   data: z.array(z.array(valueSchema)).optional(),
+  /** The tool's result was cut (it says there is more): the points are not the whole. */
+  partial: z.boolean().optional(),
   points: z.number().int().nonnegative(),
 });
 export type ChartOutput = z.infer<typeof chartOutputSchema>;

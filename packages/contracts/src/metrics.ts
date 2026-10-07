@@ -44,47 +44,41 @@ export const OUTLIERS_MAX_VALUES = 500;
 /** A history longer than this is not a sparkline: cut the dates into larger buckets. */
 export const METRIC_MAX_SERIES = 120;
 
-const FIELD = "named exactly as in the result's list of columns";
+const FIELD = "named exactly as in the result";
 
 const itemSchema = z.object({
   aggregate: z
     .enum(metricAggregates)
     .optional()
     .describe(
-      "value, trend and goal: how the rows combine into the figure — sum (default), avg, median, min, max, count (rows), distinct (different values)."
+      "value, trend, goal, movers: sum (default), avg, median, min, max, count (rows), distinct (different values)."
     ),
   bucket: z
     .enum(sourceBuckets)
     .optional()
-    .describe(
-      "trend and movers: the size of the periods — day, week, month (default) or year."
-    ),
+    .describe("trend, movers: period size — day, week, month (default), year."),
   by: z
     .string()
     .optional()
     .describe(
-      `share, ranking, movers, pareto, composition: the result's column the rows are grouped by (clients, products); outliers: the column that names each value (a client, a document number); ${FIELD}.`
+      `The grouping column (clients, products) for share, ranking, movers, pareto, composition; for outliers, the column naming each value; ${FIELD}.`
     ),
   field: z
     .string()
     .optional()
-    .describe(
-      `The result's column the figure is read from, ${FIELD}. Not needed for count of rows.`
-    ),
+    .describe(`The result's column to read, ${FIELD}. Not for a plain count.`),
   form: z
     .enum(metricForms)
     .describe(
-      "value — one figure; trend — a figure with its history by date and its change against the period before (needs `x`); goal — progress to a `target` the user named; share — the share of the biggest `top` groups of `by` in the whole (the top three clients' share of revenue); range — the smallest, the median, the average and the greatest of the field; ranking — the biggest groups of `by` with their totals; summary — count, sum, average, median, smallest and greatest of the field; movers — which groups of `by` grew most and fell most in the last period against the one before (needs `x`, `by`, `field`); pareto — how few groups of `by` make 80% of the field's total, with A/B/C classes (ABC analysis); outliers — the values of the field that stand far above the usual, by Tukey's fence (`by` names them, `x` dates them, both optional); composition — the biggest `top` groups of `by` and the rest, as parts of the whole."
+      "value: one figure; trend: with history by date (`x`) and its change; goal: progress to `target`; share: the biggest `top` groups of `by` as a share of the whole; range: min, median, average, max; ranking: the biggest groups of `by`; summary: count, sum, average, median, min, max; movers: which groups of `by` grew and fell most, last period against the one before (`x`, `by`, `field`); pareto: how few groups of `by` make 80% (ABC); outliers: values far above the usual (`by` names, `x` dates them); composition: the biggest `top` groups of `by` and the rest."
     ),
   good: z
     .enum(["up", "down"])
     .optional()
     .describe(
-      "trend and movers: which way is good — up (default: revenue, orders) or down (returns, debt, delays), so a change is colored by whether it is good."
+      "trend, movers: which way is good — up (default) or down (returns, debt)."
     ),
-  label: z
-    .string()
-    .describe("What the figure is, in the user's language: «Выручка»."),
+  label: z.string().describe("The figure's name, in the user's language."),
   limit: z
     .number()
     .int()
@@ -92,15 +86,13 @@ const itemSchema = z.object({
     .max(METRIC_MAX_RANKING)
     .optional()
     .describe(
-      "ranking: how many groups to show (5); movers: how many growers and how many fallers (4); outliers: how many to list (5)."
+      "ranking: groups (5); movers: growers and fallers each (4); outliers: listed (5)."
     ),
   target: z
     .number()
     .positive()
     .optional()
-    .describe(
-      "goal: the goal in the same unit as the figure, as the user stated it — never invent one."
-    ),
+    .describe("goal: the user's own goal, same unit; never invent one."),
   top: z
     .number()
     .int()
@@ -108,18 +100,18 @@ const itemSchema = z.object({
     .max(METRIC_MAX_RANKING)
     .optional()
     .describe(
-      "share: how many of the biggest groups count as the part (3); composition: how many groups are shown by name before «the rest» (4)."
+      "share: groups counted as the part (3); composition: groups shown by name (4)."
     ),
   unit: z
     .string()
     .max(12)
     .optional()
-    .describe("A unit shown with the figure — ₽, %, шт.; omit when none."),
+    .describe("Unit shown with the figure: ₽, %, шт."),
   x: z
     .string()
     .optional()
     .describe(
-      `trend and movers: the result's date column the periods are cut by; outliers: a date shown beside each one; ${FIELD}.`
+      `The date column: trend and movers cut periods by it, outliers show it; ${FIELD}.`
     ),
 });
 
@@ -135,7 +127,7 @@ export const metricsInputSchema = z.object({
     .min(1)
     .max(METRICS_MAX_ITEMS)
     .describe(
-      "The figures, the first one the main one: it is shown big. Mix the forms — a value or a trend first, goals and shares after, rankings and summaries last."
+      "The first one is the main figure, shown big; lists and rankings go last."
     ),
 });
 export type MetricsInput = z.infer<typeof metricsInputSchema>;
@@ -278,6 +270,8 @@ export type MetricResult = z.infer<typeof metricResultSchema>;
 /** What the page is given back: every figure, and how many rows of the result they were read from. */
 export const metricsOutputSchema = z.object({
   items: z.array(metricResultSchema),
+  /** The tool's result was cut (it says there is more): the figures are not the real totals. */
+  partial: z.boolean().optional(),
   rows: z.number().int().nonnegative(),
 });
 export type MetricsOutput = z.infer<typeof metricsOutputSchema>;

@@ -42,6 +42,8 @@ export interface TableView {
   total?: number;
   /** Why the server could not build it (the model is told, and may try again); none — it did not fail. */
   error?: string;
+  /** The tool's result was cut: the rows are not the whole. */
+  partial?: boolean;
 }
 
 // The input while it streams is a partial parse: any field may be missing or cut off.
@@ -84,6 +86,20 @@ const columnsOf = (input: PartialInput): TableColumn[] =>
         ]
   );
 
+/** What the server's answer adds to a table: why it failed, that its source was cut, how many rows the source had. */
+const outcomeOf = (part: TablePart, shown: number) => {
+  if (part.state === "output-error") {
+    return { error: part.errorText };
+  }
+  const output = part.state === "output-available" ? part.output : undefined;
+  return {
+    ...(output?.partial ? { partial: true } : {}),
+    ...(output?.total !== undefined && output.total > shown
+      ? { total: output.total }
+      : {}),
+  };
+};
+
 /**
  * What of a table the grid can show now. While the model writes, only whole things: the columns once it has moved
  * on to the rows, and every row but the last — the last may be cut mid-value. When it is done, all of it.
@@ -117,14 +133,11 @@ export const tableView = (part: TablePart): TableView => {
     : [];
   return {
     columns,
-    ...(part.state === "output-error" ? { error: part.errorText } : {}),
+    ...outcomeOf(part, rows.length),
     groups,
     rows,
     streaming,
     title: partial.title ?? "",
-    ...(output?.total !== undefined && output.total > rows.length
-      ? { total: output.total }
-      : {}),
   };
 };
 

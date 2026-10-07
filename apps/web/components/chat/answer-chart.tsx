@@ -10,7 +10,11 @@ import type { ReactNode } from "react";
 
 import { useChartFormat } from "@/components/chat/chart-format";
 import type { Format } from "@/components/chat/chart-format";
-import { WidgetFailure, WidgetFrame } from "@/components/chat/widget-frame";
+import {
+  PartialNote,
+  WidgetFailure,
+  WidgetFrame,
+} from "@/components/chat/widget-frame";
 import type { ChartPart } from "@/lib/answer-work";
 import { chartView, pieSlices } from "@/lib/chart-data";
 import type { ChartView } from "@/lib/chart-data";
@@ -153,6 +157,7 @@ export const AnswerChart = ({ part }: { part: ChartPart }) => {
       title={view.title}
     >
       <div className="pt-1">{body}</div>
+      {view.partial && <PartialNote className="pt-2" />}
     </WidgetFrame>
   );
 };

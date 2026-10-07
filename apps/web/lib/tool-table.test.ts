@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { mcpResult, salesQuery } from "./fixtures/query-result";
-import { columnOf, isSmall, summaryOf, tableOf } from "./tool-table";
+import {
+  columnOf,
+  isSmall,
+  PARTIAL_WARNING,
+  summaryOf,
+  tableOf,
+} from "./tool-table";
 
 describe("a tool result read as a table", () => {
   it("reads the 1C query: names without types, references by their presentation, kinds by values", () => {
@@ -88,5 +94,37 @@ describe("what the model is told of a table", () => {
     const a = tableOf(salesQuery(300));
     const b = tableOf(salesQuery(300));
     expect(a && summaryOf(a, "x")).toBe(b && summaryOf(b, "x"));
+  });
+});
+
+const cut = (flag: object) =>
+  mcpResult({
+    columns: ["Клиент", "Выручка"],
+    rows: [
+      ["а", 1],
+      ["б", 2],
+    ],
+    ...flag,
+  });
+
+describe("a result that is cut", () => {
+  it("is partial when the tool says there is more: hasMore, truncated or a cursor to the next page", () => {
+    expect(tableOf(cut({ hasMore: true }))?.partial).toBe(true);
+    expect(tableOf(cut({ truncated: true }))?.partial).toBe(true);
+    expect(tableOf(cut({ nextCursor: "abc" }))?.partial).toBe(true);
+    expect(tableOf(cut({ hasMore: false }))?.partial).toBeUndefined();
+    expect(tableOf(cut({}))?.partial).toBeUndefined();
+  });
+
+  it("tells the model its totals are not real, in the summary of a long one", () => {
+    const rows = Array.from({ length: 900 }, (_, i) => [
+      `клиент ${i}`,
+      100 + i,
+    ]);
+    const table = tableOf(
+      mcpResult({ columns: ["Клиент", "Выручка"], hasMore: true, rows })
+    );
+    expect(table?.partial).toBe(true);
+    expect(table && summaryOf(table, "r1")).toContain(PARTIAL_WARNING);
   });
 });

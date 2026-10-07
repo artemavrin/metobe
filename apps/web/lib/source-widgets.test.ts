@@ -137,4 +137,13 @@ describe("the rows of a table from a tool result", () => {
       rows: 1,
     });
   });
+
+  it("says when the result it was built from was cut", () => {
+    const cut = { ...table(), partial: true };
+    expect(
+      chartOutput(chart({ bucket: "month", x: "Дата" }), cut).partial
+    ).toBe(true);
+    expect(tableOutput(input({}), cut).partial).toBe(true);
+    expect(tableOutput(input({}), table()).partial).toBeUndefined();
+  });
 });

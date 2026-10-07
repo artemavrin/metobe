@@ -651,5 +651,6 @@ export const metricsFrom = (
   table: SourceTable
 ): MetricsOutput => ({
   items: input.items.map((item, i) => resolveItem(item, i, table)),
+  ...(table.partial ? { partial: true } : {}),
   rows: table.rows.length,
 });

@@ -3,6 +3,7 @@
 import { Skeleton } from "@metobe/ui/components/skeleton";
 import { cn } from "@metobe/ui/lib/utils";
 import { GridLoader } from "gridora";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 /**
@@ -88,3 +89,19 @@ export const WidgetFailure = ({
     <p className="text-muted-foreground text-xs break-words">{reason}</p>
   </div>
 );
+
+/** The tool's result was cut — it said there is more — so a widget built from it is not the whole picture. */
+export const PartialNote = ({ className }: { className?: string }) => {
+  const t = useTranslations("chat");
+  return (
+    <p
+      className={cn(
+        "text-warning-foreground dark:text-warning px-1 text-xs",
+        className
+      )}
+      role="note"
+    >
+      {t("partial")}
+    </p>
+  );
+};

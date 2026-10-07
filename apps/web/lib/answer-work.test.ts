@@ -40,6 +40,15 @@ const chart = (id: string): Part =>
     type: "tool-show_chart",
   }) as Part;
 
+const failed = (id: string, type: "chart" | "table"): Part =>
+  ({
+    errorText: "from.x: there is no column",
+    input: {},
+    state: "output-error",
+    toolCallId: id,
+    type: `tool-show_${type}`,
+  }) as Part;
+
 const read = (id: string): Part =>
   ({
     input: { id: "9f1c2b7e-0000-4000-8000-000000000000" },
@@ -197,5 +206,32 @@ describe("an answer's work and its answer", () => {
       blocks: ["text"],
       steps: ["search:s"],
     });
+  });
+
+  it("drops a widget the server could not build when the model built the same kind again", () => {
+    const { blocks } = shape([
+      call("q", "m_run_query"),
+      failed("c1", "chart"),
+      text("Позвольте исправить"),
+      chart("c2"),
+    ]);
+    expect(blocks).toEqual(["text", "chart:c2"]);
+  });
+
+  it("keeps a failed widget that was not built again, and one of another kind", () => {
+    expect(
+      shape([call("q", "m_run_query"), failed("c1", "chart")]).blocks
+    ).toEqual(["chart:c1"]);
+    expect(
+      shape([call("q", "m_run_query"), failed("c1", "chart"), table("t1")])
+        .blocks
+    ).toEqual(["chart:c1", "table:t1"]);
+    expect(
+      shape([
+        call("q", "m_run_query"),
+        failed("c1", "chart"),
+        failed("c2", "chart"),
+      ]).blocks
+    ).toEqual(["chart:c1", "chart:c2"]);
   });
 });

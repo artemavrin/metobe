@@ -106,6 +106,27 @@ const blockOf = (part: Part): AnswerBlock | null => {
   }
 };
 
+/** Whether a block is a widget the model built (a table, a chart, figures) that the server could not. */
+const failedWidget = (b: AnswerBlock) =>
+  (b.kind === "table" || b.kind === "chart" || b.kind === "metrics") &&
+  b.part.state === "output-error";
+
+/**
+ * A widget the server could not build is dropped when the model built the same kind again after it and that one
+ * stands: the user sees the chart, not the failed attempt before it (the model has read why it failed). A widget that
+ * failed and was not built again stays, with its reason.
+ */
+const withoutRetried = (blocks: AnswerBlock[]) =>
+  blocks.filter(
+    (b, i) =>
+      !(
+        failedWidget(b) &&
+        blocks
+          .slice(i + 1)
+          .some((later) => later.kind === b.kind && !failedWidget(later))
+      )
+  );
+
 /**
  * An answer split in two: its work — reasoning, tool calls and what the model said between them, everything up to
  * its last tool call — and the answer itself: the words after it and the tables and charts, wherever they come. Without tools
@@ -165,13 +186,15 @@ export const answerWork = (parts: Part[]) => {
     .trim();
   return {
     answer,
-    blocks: blocks.flatMap<AnswerBlock>((b) => {
-      if (b.kind !== "text") {
-        return [b];
-      }
-      const text = b.text.trim();
-      return text ? [{ ...b, text }] : [];
-    }),
+    blocks: withoutRetried(
+      blocks.flatMap<AnswerBlock>((b) => {
+        if (b.kind !== "text") {
+          return [b];
+        }
+        const text = b.text.trim();
+        return text ? [{ ...b, text }] : [];
+      })
+    ),
     steps: steps.map((s) =>
       s.kind === "thought" || s.kind === "note"
         ? { ...s, text: s.text.trim() }

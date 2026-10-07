@@ -3,7 +3,7 @@ import type { ChartInput, ChartOutput } from "@metobe/contracts/chart";
 import { tool } from "ai";
 import type { Tool } from "ai";
 
-import { chartOutput } from "./source-widgets";
+import { chartOutput, copyError, writtenPoints } from "./source-widgets";
 import type { Sources } from "./tool-sources";
 
 /** The tool's name — the answer draws its part (`tool-show_chart`) as a chart. */
@@ -20,12 +20,20 @@ const TOLD_UP_TO = 24;
 export const chartTool = (sources: Sources): Tool<ChartInput, ChartOutput> =>
   tool({
     description:
-      'Show numbers to the user as a chart in the chat. Use it when the shape of the numbers matters, and pick the kind that fits: bar to compare categories (`horizontal` for long names or a ranking); area for a trend or amounts over time — the default for one to three series, `stacked` when they add up, `percent` for their shares; line only for many series that cross and must be read exactly; pie for shares of one whole; radar for one entity across several measures on one scale, or two or three entities compared; radial for progress toward a goal per item; composed for bars and a line on the same unit, e.g. actual and plan. All series share one axis: numbers of different scales or units (money and percent) go in separate charts, never squeezed into one. Up to 8 series and 200 points. For numbers a tool returned, ALWAYS use `from` (and `field` in each series): the server reads the result itself, groups by the x column and sums each field, and a month-by-month chart of a year of sales is `from: { x: <date column>, bucket: "month" }` — never retype a result\'s numbers into `points`. Write `points` only for numbers that are not in a tool result. For exact values of many records, use show_table instead. Do not also write the numbers as text or a markdown table. After it, say in a sentence or two what the chart shows.',
-    execute: (input) =>
-      chartOutput(
+      'Show numbers as a chart. Kinds: bar to compare or rank (`horizontal` for long names); area for a trend or amounts over time (default for 1-3 series; `stacked`, `percent`); line for many crossing series; pie for shares of one whole; radar for one entity across measures; radial for progress per item; composed for bars plus a line on one unit. One axis: different units go in separate charts. Up to 8 series, 200 points. Numbers a tool returned: ALWAYS `from` plus `field` per series — the server reads and groups them (monthly sales: `from: { x: <date column>, bucket: "month" }`); never retype a result into `points`, those are for numbers from elsewhere. Do not repeat the numbers as text. After it, say in a sentence or two what it shows.',
+    execute: (input) => {
+      if (!input.from) {
+        // Figures that are a tool result's are not typed by hand: the model is sent back to `from`.
+        const copied = sources.copied(writtenPoints(input));
+        if (copied) {
+          throw copyError(copied);
+        }
+      }
+      return chartOutput(
         input,
         input.from ? sources.resolve(input.from.ref).table : null
-      ),
+      );
+    },
     inputSchema: chartInputSchema,
     outputSchema: chartOutputSchema,
     toModelOutput: ({ input, output }) => {

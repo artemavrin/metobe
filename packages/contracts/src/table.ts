@@ -122,6 +122,8 @@ export type TableCell = z.infer<typeof cellSchema>;
  */
 export const tableOutputSchema = z.object({
   data: z.array(z.array(cellSchema)).optional(),
+  /** The tool's result was cut (it says there is more): the rows are not the whole. */
+  partial: z.boolean().optional(),
   rows: z.number().int().nonnegative(),
   total: z.number().int().nonnegative().optional(),
 });

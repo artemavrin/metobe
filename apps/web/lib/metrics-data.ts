@@ -16,6 +16,8 @@ export interface MetricsView {
   rows: number;
   /** Why the server could not compute them (the model is told, and may try again); none — it did not fail. */
   error?: string;
+  /** The tool's result was cut: the figures are not the real totals. */
+  partial?: boolean;
 }
 
 // The input while it streams is a partial parse: any field may be missing or cut off.
@@ -33,6 +35,7 @@ export const metricsView = (part: MetricsPart): MetricsView => {
     coming: Math.max(input.items?.length ?? 0, DEFAULT_COMING),
     ...(part.state === "output-error" ? { error: part.errorText } : {}),
     items: done?.items ?? [],
+    ...(done?.partial ? { partial: true } : {}),
     rows: done?.rows ?? 0,
     streaming:
       part.state === "input-streaming" || part.state === "input-available",
