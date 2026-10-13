@@ -254,6 +254,9 @@ export const parseProxyAddress = (
 export const resolvePublic = (hostname: string) =>
   pin(hostname, isPublicAddress);
 
+/** The name resolved here, any address taken — for a user's own mail when the admin allows internal servers. */
+export const resolveAny = (hostname: string) => pin(hostname, () => true);
+
 /**
  * A proxy as a URL for libraries that take one (nodemailer, imapflow). The destination given to it is an IP we
  * checked, so a `socks5h` proxy has no name to resolve and is used as SOCKS5.

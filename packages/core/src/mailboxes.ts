@@ -21,6 +21,7 @@ import { Marked } from "marked";
 
 import { getDb } from "./db";
 import { mailEndpoint } from "./net";
+import { getPersonalPolicy } from "./personal";
 import { removeSecrets, setSecret, withSecret } from "./secrets";
 import { TIMEOUT_MS, problemOf, smtpTransport } from "./smtp";
 import type { Credentials, MailProblem } from "./smtp";
@@ -56,11 +57,23 @@ const fail = (server: "smtp" | "imap", error: unknown): never => {
   );
 };
 
+/** Where a server of a box is, as the admin's «Доступ» allows; none at all while own connections are off. */
+const endpointOf = async (host: string) => {
+  const { mode } = await getPersonalPolicy();
+  // Turned off: the boxes stay, and nothing goes to their servers.
+  if (mode === "off") {
+    throw new Error(
+      "the administrator turned people's own connections off — tell the user, do not try another way"
+    );
+  }
+  return mailEndpoint(host, mode === "on");
+};
+
 const smtpOf = async (server: MailServer, auth: Credentials) =>
-  smtpTransport(server, auth, await mailEndpoint(server.host));
+  smtpTransport(server, auth, await endpointOf(server.host));
 
 const imapOf = async (server: MailServer, auth: Credentials) => {
-  const at = await mailEndpoint(server.host);
+  const at = await endpointOf(server.host);
   return new ImapFlow({
     auth: { pass: auth.password, user: auth.username },
     connectionTimeout: TIMEOUT_MS,
@@ -119,7 +132,11 @@ const mayCheck = (userId: string) => {
 
 export type SaveResult =
   | { ok: true; id: string }
-  | { ok: false; server?: "smtp" | "imap"; problem: MailProblem | "busy" };
+  | {
+      ok: false;
+      server?: "smtp" | "imap";
+      problem: MailProblem | "busy" | "off";
+    };
 
 /**
  * Adds a box, or replaces one with the same address: checked first, then saved — the password in `secrets`, the
@@ -129,6 +146,10 @@ export const saveMailbox = async (
   userId: string,
   input: MailboxInput
 ): Promise<SaveResult> => {
+  const { mode } = await getPersonalPolicy();
+  if (mode === "off") {
+    return { ok: false, problem: "off" };
+  }
   if (!mayCheck(userId)) {
     return { ok: false, problem: "busy" };
   }

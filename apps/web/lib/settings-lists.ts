@@ -3,6 +3,7 @@ import { listCatalog } from "@metobe/core/catalog";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listMyConnections } from "@metobe/core/mcp";
 import type { MyServer } from "@metobe/core/mcp";
+import { getPersonalPolicy } from "@metobe/core/personal";
 import { listProviders } from "@metobe/core/providers";
 import { listProxies } from "@metobe/core/proxies";
 import { listSources } from "@metobe/core/sources-read";
@@ -264,9 +265,10 @@ const mcpList = async (): Promise<SettingsList> => {
  * with where it stands: when it was last used, or what it needs.
  */
 const connectionsList = async (userId: string): Promise<SettingsList> => {
-  const [rows, boxes, t, tm, format] = await Promise.all([
+  const [rows, boxes, personal, t, tm, format] = await Promise.all([
     listMyConnections(userId),
     listMailboxes(userId),
+    getPersonalPolicy(),
     getTranslations("myConnections"),
     getTranslations("mail"),
     getFormatter(),
@@ -293,7 +295,11 @@ const connectionsList = async (userId: string): Promise<SettingsList> => {
     };
   };
   // The user's own mailboxes, after the servers: each with when it was used, or what it needs.
+  const off = personal.mode === "off";
   const mailSub = (b: (typeof boxes)[number]) => {
+    if (off) {
+      return tm("list.off");
+    }
     if (b.status !== "active") {
       return tm(`status.${b.status}`);
     }
@@ -306,23 +312,31 @@ const connectionsList = async (userId: string): Promise<SettingsList> => {
     icon: "mail",
     id: b.id,
     logo: undefined,
-    state: standingDot(b.status),
+    state: off ? "off" : standingDot(b.status),
     sub: mailSub(b),
     title: b.address,
   }));
-  const working = connected + boxes.filter((b) => b.status === "active").length;
+  const working =
+    connected + (off ? 0 : boxes.filter((b) => b.status === "active").length);
   const total = own.length + boxes.length;
   return {
     entries: [...own, ...rows.filter((r) => r.mode === "shared")].map(entry),
     meta: total ? t("meta", { connected: working, total }) : t("metaEmpty"),
-    sections: [
-      {
-        add: { href: "/settings/connections/mail/new", label: tm("list.add") },
-        empty: tm("list.empty"),
-        entries: mail,
-        title: tm("list.group"),
-      },
-    ],
+    // Own connections turned off: no empty mail group to add to; boxes already there stay visible.
+    sections:
+      off && boxes.length === 0
+        ? []
+        : [
+            {
+              add: {
+                href: "/settings/connections/mail/new",
+                label: tm("list.add"),
+              },
+              empty: tm("list.empty"),
+              entries: mail,
+              title: tm("list.group"),
+            },
+          ],
     title: t("title"),
   };
 };

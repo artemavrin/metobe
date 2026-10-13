@@ -188,12 +188,12 @@ export const PasswordField = ({
 
 /** What went wrong, in the form's words. */
 export const problemText = (
-  result: { problem: MailProblem | "busy"; server?: "smtp" | "imap" },
+  result: { problem: MailProblem | "busy" | "off"; server?: "smtp" | "imap" },
   known: boolean,
   t: ReturnType<typeof useTranslations<"mail.form">>
 ) => {
-  if (result.problem === "busy") {
-    return t("problems.busy");
+  if (result.problem === "busy" || result.problem === "off") {
+    return t(`problems.${result.problem}`);
   }
   if (result.problem === "auth") {
     return known ? t("problems.authPreset") : t("problems.auth");

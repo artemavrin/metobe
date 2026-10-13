@@ -116,6 +116,9 @@ export const AccessSettings = ({
   const [removing, start] = useTransition();
   return (
     <Section title={t("domains.title")}>
+      <p className="text-muted-foreground -mt-1 text-sm">
+        {t("domains.description")}
+      </p>
       {!mailOn && (
         <p className="text-muted-foreground -mt-1 text-sm">
           {t("noMail")}{" "}

@@ -12,6 +12,10 @@ vi.mock("./net", () => ({
   mailEndpoint: () =>
     Promise.resolve({ host: "127.0.0.1", servername: "localhost" }),
 }));
+vi.mock("./personal", () => ({
+  getPersonalPolicy: () =>
+    Promise.resolve({ approvals: {}, mode: "public_only" }),
+}));
 
 const {
   MailError,
