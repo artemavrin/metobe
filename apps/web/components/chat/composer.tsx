@@ -203,6 +203,7 @@ export const Composer = ({
   onStop,
   servers,
   onServerReady,
+  onEditLast,
   attachments,
   ref,
 }: {
@@ -221,6 +222,8 @@ export const Composer = ({
     files: ReturnType<typeof useAttachments>["parts"]
   ) => void;
   onStop: () => void;
+  /** ↑ in an empty composer: opens the last question for editing; false when there is none to open. */
+  onEditLast?: () => boolean;
   /** The MCP servers the user may mention here. */
   servers: ChatServer[];
   /** A server the user just connected from the chat. */
@@ -515,6 +518,16 @@ export const Composer = ({
                 onChange={onDraft}
                 onEmptyChange={onEmptyChange}
                 onKeyDown={(e) => {
+                  if (
+                    e.key === "ArrowUp" &&
+                    !trigger &&
+                    !ready &&
+                    !hasFiles &&
+                    onEditLast?.()
+                  ) {
+                    e.preventDefault();
+                    return true;
+                  }
                   if (trigger) {
                     if (
                       items.length > 0 &&

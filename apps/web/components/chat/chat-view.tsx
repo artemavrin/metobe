@@ -36,6 +36,7 @@ import {
   useState,
 } from "react";
 
+import { voteAnswer } from "@/app/(app)/(chat)/actions";
 import { FileSinkContext, useAttachments } from "@/components/chat/attachments";
 import { useTouchChat } from "@/components/chat/chat-shell";
 import { Composer } from "@/components/chat/composer";
@@ -56,6 +57,8 @@ import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
 import { threadRows } from "@/lib/thread-rows";
 import type { ThreadRow } from "@/lib/thread-rows";
 import { uuid } from "@/lib/uuid";
+
+const NO_VOTES: Record<string, boolean> = {};
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
@@ -116,8 +119,9 @@ const SeatQuestion = ({ rowKey }: { rowKey?: string }) => {
 /**
  * A row of the thread. While an answer is written only its own row changes; the others (their markdown, their ribbon
  * of steps) are not drawn again on every word — in a long chat that is what made the page heavy. A row is drawn again
- * when its message, its being live or the thread's state (`sig`: busy or not, how many messages, the models' names)
- * changes; the closures it draws with are the latest ones at that moment.
+ * when its message, its being live, its own mark (`mark`: the vote on an answer, a question open for editing) or the
+ * thread's state (`sig`: busy or not, how many messages, the models' names) changes; the closures it draws with are
+ * the latest ones at that moment.
  */
 const same = (a: ThreadRow, b: ThreadRow) =>
   a.key === b.key &&
@@ -133,20 +137,25 @@ const RowView = ({
   row: ThreadRow;
   render: (row: ThreadRow) => ReactNode;
   sig: string;
+  mark?: boolean | null;
 }) => render(row);
 const ThreadRowView = memo(
   RowView,
-  (a, b) => same(a.row, b.row) && a.sig === b.sig
+  (a, b) => same(a.row, b.row) && a.sig === b.sig && a.mark === b.mark
 );
 
-/** The key of the thread's last question. */
-const lastQuestionKey = (rows: { key: string; role: string }[]) => {
+/** The thread's last question. */
+const lastQuestion = <T extends { role: string }>(rows: T[]) => {
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     if (rows[i]?.role === "user") {
-      return rows[i]?.key;
+      return rows[i];
     }
   }
 };
+
+/** The key of the thread's last question. */
+const lastQuestionKey = (rows: { key: string; role: string }[]) =>
+  lastQuestion(rows)?.key;
 
 /**
  * Files dragged over the window: the whole chat lights up as the place to drop them; dropped, they join the composer.
@@ -293,6 +302,7 @@ export const ChatView = ({
   labels,
   welcome,
   servers: initialServers,
+  votes: initialVotes = NO_VOTES,
 }: {
   /** An existing chat's id; a new chat makes its own, once, in the browser. */
   id?: string;
@@ -309,6 +319,8 @@ export const ChatView = ({
   labels: ModelLabel[];
   /** A new chat greets the user; an existing one opens on its history. */
   welcome?: WelcomeData;
+  /** The user's votes on the answers: id → helpful or not. */
+  votes?: Record<string, boolean>;
 }) => {
   const t = useTranslations("chat");
   // oxlint-disable-next-line react/hook-use-state -- made once and never changed: no setter to name
@@ -328,6 +340,20 @@ export const ChatView = ({
       )
     );
   const favorites = useFavorites(initialFavorites);
+  // At once on screen; taken back if the server did not keep it.
+  const [votes, setVotes] =
+    useState<Record<string, boolean | null>>(initialVotes);
+  const vote = async (messageId: string, up: boolean | null) => {
+    const before = votes[messageId];
+    const put = (value: boolean | null | undefined) =>
+      setVotes((all) => ({ ...all, [messageId]: value ?? null }));
+    put(up);
+    if (!(await voteAnswer(id, messageId, up))) {
+      put(before);
+    }
+  };
+  // The question open for editing: its pencil, or ↑ in an empty composer for the last one.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const titled = useRef<string | null>(null);
   // The titles model is naming this chat: from the server's «naming» to its title or the end of the answer.
   const naming = useRef(false);
@@ -510,8 +536,10 @@ export const ChatView = ({
     if (row.role === "user") {
       return (
         <UserMessage
+          editing={!busy && editingId === row.message.id}
           mentions={servers}
           message={row.message}
+          onEditing={(open) => setEditingId(open ? row.message.id : null)}
           onEdit={
             busy
               ? undefined
@@ -537,12 +565,25 @@ export const ChatView = ({
         }
         onRegenerate={busy ? undefined : regenerateFrom}
         onServerReady={serverReady}
+        onVote={(messageId, up) => {
+          void vote(messageId, up);
+        }}
+        vote={(row.message && votes[row.message.id]) ?? undefined}
         servers={servers}
       />
     );
   };
 
   const sig = `${busy}:${messages.length}:${servers.length}:${models.length}`;
+  // What a row shows of the screen's own state: an answer's vote, a question open for editing.
+  const markOf = (row: ThreadRow) => {
+    if (row.role === "user") {
+      return editingId === row.message.id;
+    }
+    return row.role === "assistant" && row.message
+      ? (votes[row.message.id] ?? null)
+      : null;
+  };
   const rows = threadRows(messages, status, asked).filter(
     (row) => row.role !== "switch" || labelOf(row.modelId)
   );
@@ -579,7 +620,12 @@ export const ChatView = ({
                           messageId={row.key}
                           scrollAnchor={row.role === "user"}
                         >
-                          <ThreadRowView render={rowOf} row={row} sig={sig} />
+                          <ThreadRowView
+                            mark={markOf(row)}
+                            render={rowOf}
+                            row={row}
+                            sig={sig}
+                          />
                         </MessageScrollerItem>
                       ))}
                       {error && !busy && (
@@ -627,6 +673,14 @@ export const ChatView = ({
                 favorites={favorites}
                 model={model}
                 onModel={setModel}
+                onEditLast={() => {
+                  const last = lastQuestion(rows);
+                  if (busy || last?.role !== "user") {
+                    return false;
+                  }
+                  setEditingId(last.message.id);
+                  return true;
+                }}
                 onSend={send}
                 onStop={halt}
                 attachments={attachments}

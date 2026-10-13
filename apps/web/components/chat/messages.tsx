@@ -43,6 +43,8 @@ import {
   ChevronRight,
   Copy,
   Pencil,
+  ThumbsDown,
+  ThumbsUp,
   Plus,
   RefreshCw,
 } from "lucide-react";
@@ -104,10 +106,13 @@ const Tip = ({ children }: { children: React.ReactNode }) => (
 const Action = ({
   label,
   onClick,
+  pressed,
   children,
 }: {
   label: string;
   onClick: () => void;
+  /** A toggle (a vote): on stays drawn in the text's colour. */
+  pressed?: boolean;
   children: React.ReactNode;
 }) => (
   <Tooltip>
@@ -116,7 +121,11 @@ const Action = ({
       render={
         <Button
           aria-label={label}
-          className="text-muted-foreground hover:text-foreground [&_svg]:size-3.5"
+          aria-pressed={pressed}
+          className={cn(
+            "text-muted-foreground hover:text-foreground [&_svg]:size-3.5",
+            pressed && "text-foreground"
+          )}
           onClick={onClick}
           size="icon-xs"
           variant="ghost"
@@ -400,16 +409,20 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
 export const UserMessage = ({
   message,
   onEdit,
+  editing = false,
+  onEditing,
   mentions = NO_MENTIONS,
 }: {
   message: ChatMessage;
+  /** Open in place as a field (the chat screen holds it: ↑ in an empty composer opens the last question). */
+  editing?: boolean;
+  onEditing?: (open: boolean) => void;
   /** Absent while an answer is on its way: a message is edited between answers. */
   onEdit?: (text: string, files: FileUIPart[]) => void;
   /** Servers whose `@Name` in the text is drawn as a badge. */
   mentions?: { title: string; logo: string | null }[];
 }) => {
   const t = useTranslations("chat");
-  const [editing, setEditing] = useState(false);
   const text = textOf(message);
   return (
     <Message
@@ -423,9 +436,9 @@ export const UserMessage = ({
               (p): p is FileUIPart => p.type === "file"
             )}
             initial={text}
-            onCancel={() => setEditing(false)}
+            onCancel={() => onEditing?.(false)}
             onSend={(next, kept) => {
-              setEditing(false);
+              onEditing?.(false);
               onEdit(next, kept);
             }}
           />
@@ -444,8 +457,8 @@ export const UserMessage = ({
                 <When at={message.metadata?.createdAt} />
               </span>
               <CopyAction text={text} />
-              {onEdit && (
-                <Action label={t("edit")} onClick={() => setEditing(true)}>
+              {onEdit && onEditing && (
+                <Action label={t("edit")} onClick={() => onEditing(true)}>
                   <Pencil />
                 </Action>
               )}
@@ -586,16 +599,20 @@ export const ModelSwitch = ({ label }: { label?: ModelLabel }) => {
   );
 };
 
-/** Under a finished answer: the model that wrote it, when, copy (the answer's words) and regenerate. */
+/** Under a finished answer: the model that wrote it, when, copy (the answer's words), helpful or not, regenerate. */
 const AnswerFooter = ({
   message,
   label,
   copy,
+  vote,
+  onVote,
   onRegenerate,
 }: {
   message: ChatMessage;
   label?: ModelLabel;
   copy?: string;
+  vote?: boolean;
+  onVote?: (messageId: string, up: boolean | null) => void;
   onRegenerate?: (messageId: string) => void;
 }) => {
   const t = useTranslations("chat");
@@ -609,6 +626,24 @@ const AnswerFooter = ({
         <When at={message.metadata?.createdAt} />
       </span>
       {copy && <CopyAction text={copy} />}
+      {onVote && (
+        <>
+          <Action
+            label={t("voteUp")}
+            onClick={() => onVote(message.id, vote === true ? null : true)}
+            pressed={vote === true}
+          >
+            <ThumbsUp className={cn(vote === true && "fill-current")} />
+          </Action>
+          <Action
+            label={t("voteDown")}
+            onClick={() => onVote(message.id, vote === false ? null : false)}
+            pressed={vote === false}
+          >
+            <ThumbsDown className={cn(vote === false && "fill-current")} />
+          </Action>
+        </>
+      )}
       {onRegenerate && (
         <Action
           label={t("regenerate")}
@@ -673,11 +708,16 @@ export const AssistantMessage = ({
   label,
   live,
   onRegenerate,
+  vote,
+  onVote,
   onApprove,
   onAsk,
   onServerReady,
   servers = NO_SERVERS,
 }: {
+  /** The user's vote on it: helpful, not, or none. */
+  vote?: boolean;
+  onVote?: (messageId: string, up: boolean | null) => void;
   /** Absent while the question waits for the stream to start. */
   message?: ChatMessage;
   label?: ModelLabel;
@@ -777,6 +817,8 @@ export const AssistantMessage = ({
             label={label}
             message={message}
             onRegenerate={onRegenerate}
+            onVote={onVote}
+            vote={vote}
           />
         )}
       </MessageContent>

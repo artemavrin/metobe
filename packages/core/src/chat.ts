@@ -1,6 +1,6 @@
 import "server-only";
 import type { ChatMessage } from "@metobe/contracts/chat";
-import { chats, messages } from "@metobe/db/schema/chat";
+import { chats, messages, votes } from "@metobe/db/schema/chat";
 import {
   modelRuns,
   models,
@@ -81,6 +81,56 @@ export const deleteChat = async (userId: string, id: string) => {
   // The files' objects first: their rows go with the chat, and after that nothing would name the objects.
   await deleteChatObjects(id);
   await db.delete(chats).where(own(userId, id));
+};
+
+/** The user's votes in a chat: answer id → helpful (true) or not (false). */
+export const listVotes = async (chatId: string) => {
+  const rows = await getDb()
+    .db.select({ isUpvoted: votes.isUpvoted, messageId: votes.messageId })
+    .from(votes)
+    .where(eq(votes.chatId, chatId));
+  return Object.fromEntries(rows.map((r) => [r.messageId, r.isUpvoted]));
+};
+
+/**
+ * Marks an answer of the user's chat helpful or not; `null` takes the vote back. False when the chat is not theirs
+ * or the message is not an answer in it.
+ */
+export const setVote = async (
+  userId: string,
+  chatId: string,
+  messageId: string,
+  up: boolean | null
+) => {
+  const { db } = getDb();
+  const [answer] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .innerJoin(chats, eq(chats.id, messages.chatId))
+    .where(
+      and(
+        eq(messages.id, messageId),
+        eq(messages.role, "assistant"),
+        own(userId, chatId)
+      )
+    );
+  if (!answer) {
+    return false;
+  }
+  if (up === null) {
+    await db
+      .delete(votes)
+      .where(and(eq(votes.chatId, chatId), eq(votes.messageId, messageId)));
+    return true;
+  }
+  await db
+    .insert(votes)
+    .values({ chatId, isUpvoted: up, messageId })
+    .onConflictDoUpdate({
+      set: { isUpvoted: up },
+      target: [votes.chatId, votes.messageId],
+    });
+  return true;
 };
 
 /** A chat's messages in order, ready for `useChat` and `convertToModelMessages`. */
