@@ -26,6 +26,7 @@ import { attachFiles, pruneChatFiles } from "@metobe/core/files";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
+import { getPersonalPolicy } from "@metobe/core/personal";
 import { webToolsOn } from "@metobe/core/web-settings";
 import {
   consumeStream,
@@ -286,12 +287,16 @@ export const POST = async (request: Request) => {
   }
   // The user's own zone (their choice, else the browser's): the clock the model asks tells the time in it.
   const { timeZone } = await getPrefs();
-  const [stored, chatServers, boxes, notes] = await Promise.all([
+  const [stored, chatServers, ownBoxes, notes, personal] = await Promise.all([
     chat ? listMessages(id) : [],
     listChatServers(session.user.id),
     listMailboxes(session.user.id),
     getInstructions(session.user.id),
+    getPersonalPolicy(),
   ]);
+  // Own connections turned off in «Доступ»: the boxes stay, the chat neither uses nor asks for them.
+  const mailOn = personal.mode !== "off";
+  const boxes = mailOn ? ownBoxes : [];
   const ready = (key: string) =>
     key === MAIL_KEY
       ? boxes.length > 0
@@ -487,12 +492,14 @@ export const POST = async (request: Request) => {
               ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
               ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
               // The user's own mail, when they have a box (ARCH §17.7).
-              ...(boxes.length > 0 ? emailTools(session.user.id, boxes) : {}),
+              ...(boxes.length > 0
+                ? emailTools(session.user.id, boxes, personal.approvals)
+                : {}),
               // «Connect X to go on», while there is a per-user service or mail the user has not connected.
-              ...(waiting.length > 0 || boxes.length === 0
+              ...(waiting.length > 0 || (mailOn && boxes.length === 0)
                 ? {
                     [REQUEST_CONNECTION]: requestConnectionTool(waiting, {
-                      mail: boxes.length === 0,
+                      mail: mailOn && boxes.length === 0,
                     }),
                   }
                 : {}),

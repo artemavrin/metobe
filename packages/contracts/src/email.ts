@@ -179,5 +179,13 @@ export const MAIL_DEFAULT_POLICY: Record<MailTool, ApprovalPolicy> = {
   email_send: "ask",
 };
 
-export const policyOf = (policy: MailToolPolicy, tool: MailTool) =>
-  policy[tool] ?? MAIL_DEFAULT_POLICY[tool];
+/** The admin's defaults for people's own mail, by tool («Доступ»); a tool not there takes MAIL_DEFAULT_POLICY. */
+export type MailDefaults = Partial<Record<MailTool, "ask" | "auto">>;
+
+/** What a tool of a box does: as the user set it, else the admin's default, else ours. */
+export const policyOf = (
+  policy: MailToolPolicy,
+  tool: MailTool,
+  defaults: MailDefaults = {}
+): ApprovalPolicy =>
+  policy[tool] ?? defaults[tool] ?? MAIL_DEFAULT_POLICY[tool];

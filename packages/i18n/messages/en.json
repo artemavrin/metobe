@@ -594,8 +594,8 @@
         "hint": "Invitations, roles, who can do what"
       },
       "access": {
-        "label": "Sign-in",
-        "hint": "Domains whose people sign in without an invitation"
+        "label": "Access",
+        "hint": "Who signs in without an invitation and what people connect by themselves"
       },
       "proxies": {
         "label": "Proxies",
@@ -1512,14 +1512,16 @@
         "unreachable": "The {server} server does not answer — check the address and port.",
         "tls": "The {server} server answered with an encryption error — check the port and the encryption.",
         "private": "That is an address on the internal network — not for personal mail. Ask the admin to add the server to the catalog.",
-        "busy": "Too many checks in a row — wait a few minutes."
+        "busy": "Too many checks in a row — wait a few minutes.",
+        "off": "The administrator turned own connections off."
       }
     },
     "list": {
       "group": "Mail",
       "add": "Add mail",
       "sendsReads": "Sending and inbox",
-      "empty": "Connect mail"
+      "empty": "Connect mail",
+      "off": "turned off by the administrator"
     },
     "page": {
       "title": "New mail",
@@ -1538,7 +1540,8 @@
       "leaveButton": "Disconnect {address}",
       "leaveTitle": "Disconnect {address}?",
       "leaveConfirm": "Disconnect",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "off": "Own connections are turned off by the administrator: the model does not use this box."
     },
     "status": {
       "active": "Works",
@@ -1620,13 +1623,14 @@
     }
   },
   "access": {
-    "title": "Sign-in",
-    "description": "People with an email on these domains sign in by themselves with a code, no invitation needed.",
+    "title": "Access",
+    "description": "Who signs in by themselves with a code from the mail, and what people connect on their own, outside the catalog.",
     "domains": {
-      "title": "Domains",
+      "title": "Sign-in by domain",
       "hint": "New people join as members",
       "paused": "Paused: no mail set up",
-      "empty": "No domains: only invited people can sign in."
+      "empty": "No domains: only invited people can sign in.",
+      "description": "People with an email on these domains sign in by themselves with a code, no invitation needed."
     },
     "noMail": "The code comes by email, so mail must be set up first.",
     "toMail": "Set up the mail",
@@ -1642,7 +1646,29 @@
       "public": "That's public mail: anyone can make an address there and get in.",
       "listed": "Already listed"
     },
-    "note": "Remove a domain, and new people from it can't sign in; those already in stay. Someone deleted in «Users» can sign in again while the domain is listed; to keep a person out, turn their account off."
+    "note": "Remove a domain, and new people from it can't sign in; those already in stay. Someone deleted in «Users» can sign in again while the domain is listed; to keep a person out, turn their account off.",
+    "personal": {
+      "title": "Own connections",
+      "mode": "What may be connected",
+      "modes": {
+        "off": {
+          "label": "Nothing",
+          "hint": "No own mail can be connected, connected boxes stop working"
+        },
+        "public_only": {
+          "label": "Internet addresses",
+          "hint": "Servers in the internal network — only through the catalog"
+        },
+        "on": {
+          "label": "Any address",
+          "hint": "Internal servers too: anyone could reach them through Metobe"
+        }
+      },
+      "approvals": {
+        "title": "Confirmations in own mail",
+        "description": "The default; everyone can change it in their own box."
+      }
+    }
   },
   "storage": {
     "title": "Storage",

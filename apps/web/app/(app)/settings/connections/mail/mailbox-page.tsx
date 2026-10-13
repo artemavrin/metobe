@@ -3,6 +3,7 @@
 import type { ToolApproval } from "@metobe/contracts/catalog";
 import { mailTools, policyOf } from "@metobe/contracts/email";
 import type {
+  MailDefaults,
   MailPresetId,
   MailServer,
   MailTool,
@@ -19,6 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@metobe/ui/components/dialog";
+import { Alert, AlertDescription } from "@metobe/ui/components/reui/alert";
 import { IconTile } from "@metobe/ui/components/reui/icon-tile";
 import {
   Select,
@@ -28,7 +30,7 @@ import {
   SelectValue,
 } from "@metobe/ui/components/select";
 import { cn } from "@metobe/ui/lib/utils";
-import { Mail } from "lucide-react";
+import { CircleAlert, Mail } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
@@ -62,7 +64,13 @@ const DOT = {
 const APPROVALS: ToolApproval[] = ["ask", "auto", "deny"];
 
 /** What the model may do with the box: each tool asks first, goes without asking, or is off. Saved at once. */
-const ToolPolicies = ({ box }: { box: Box }) => {
+const ToolPolicies = ({
+  box,
+  defaults,
+}: {
+  box: Box;
+  defaults: MailDefaults;
+}) => {
   const t = useTranslations("mail.policy");
   const [, start] = useTransition();
   const [policy, setPolicy] = useOptimistic(
@@ -76,7 +84,7 @@ const ToolPolicies = ({ box }: { box: Box }) => {
     <Section title={t("title")}>
       <Rows>
         {mailTools.map((tool) => {
-          const value = policyOf(policy, tool);
+          const value = policyOf(policy, tool, defaults);
           return (
             <Row
               hint={t(`tools.${tool}.hint`)}
@@ -114,7 +122,16 @@ const ToolPolicies = ({ box }: { box: Box }) => {
   );
 };
 
-export const MailboxPage = ({ box }: { box: Box }) => {
+/** `off` — the admin turned own connections off; `defaults` — their «ask first?» under what the box sets. */
+export const MailboxPage = ({
+  box,
+  defaults,
+  off,
+}: {
+  box: Box;
+  defaults: MailDefaults;
+  off: boolean;
+}) => {
   const t = useTranslations("mail.page");
   const ts = useTranslations("mail.status");
   const tf = useTranslations("mail.form");
@@ -138,13 +155,25 @@ export const MailboxPage = ({ box }: { box: Box }) => {
             {box.address}
           </h1>
           <p className="text-muted-foreground flex items-center gap-2 text-sm">
-            <span className={cn("size-2 rounded-full", DOT[box.status])} />
+            <span
+              className={cn(
+                "size-2 rounded-full",
+                off ? "bg-muted-foreground/40" : DOT[box.status]
+              )}
+            />
             {ts(box.status)} · {used}
           </p>
         </div>
       </header>
 
-      <ToolPolicies box={box} />
+      {off && (
+        <Alert>
+          <CircleAlert />
+          <AlertDescription>{t("off")}</AlertDescription>
+        </Alert>
+      )}
+
+      <ToolPolicies box={box} defaults={defaults} />
 
       <Section title={t("servers")}>
         <Rows>

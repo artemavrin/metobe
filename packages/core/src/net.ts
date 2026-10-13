@@ -16,6 +16,7 @@ import {
   pinnedDirectAgent,
   proxyDispatcher,
   proxyUrlOf,
+  resolveAny,
   resolvePublic,
 } from "./net-transport";
 import type { ProxyConfig } from "./net-transport";
@@ -150,12 +151,13 @@ export const mailProxyFor = async (host: string) => {
 
 /**
  * Where to connect for a user's own mail server (SMTP, IMAP): the address resolved and checked public — a private
- * one is refused, as for every user's own connection (ARCH §17.1) — the name for TLS, and the proxy's URL when the
- * routes send that host through one. The proxy gets the checked IP, never the name.
+ * one is refused, as for every user's own connection (ARCH §17.1), unless the admin allowed internal ones
+ * (`anyAddress`) — the name for TLS, and the proxy's URL when the routes send that host through one. The proxy gets
+ * the resolved IP, never the name.
  */
-export const mailEndpoint = async (host: string) => {
+export const mailEndpoint = async (host: string, anyAddress = false) => {
   const proxy = await mailProxyFor(host);
-  const address = await resolvePublic(host);
+  const address = await (anyAddress ? resolveAny : resolvePublic)(host);
   return { host: address, ...(proxy ? { proxy } : {}), servername: host };
 };
 

@@ -1,4 +1,5 @@
 import { listMailboxes } from "@metobe/core/mailboxes";
+import { getPersonalPolicy } from "@metobe/core/personal";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -13,7 +14,10 @@ const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
   if (!(user && z.uuid().safeParse(id).success)) {
     notFound();
   }
-  const boxes = await listMailboxes(user.id);
+  const [boxes, personal] = await Promise.all([
+    listMailboxes(user.id),
+    getPersonalPolicy(),
+  ]);
   const box = boxes.find((b) => b.id === id);
   if (!box) {
     notFound();
@@ -33,7 +37,9 @@ const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
           toolPolicy: box.toolPolicy,
           username: box.username,
         }}
+        defaults={personal.approvals}
         key={box.id}
+        off={personal.mode === "off"}
       />
     </SettingsPageFrame>
   );

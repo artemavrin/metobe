@@ -1,5 +1,6 @@
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listMyConnections } from "@metobe/core/mcp";
+import { getPersonalPolicy } from "@metobe/core/personal";
 import { Button } from "@metobe/ui/components/button";
 import {
   Empty,
@@ -24,9 +25,10 @@ const ConnectionsPage = async () => {
   if (!user) {
     notFound();
   }
-  const [servers, boxes] = await Promise.all([
+  const [servers, boxes, personal] = await Promise.all([
     listMyConnections(user.id),
     listMailboxes(user.id),
+    getPersonalPolicy(),
   ]);
   const first = servers.find((s) => s.mode === "per_user") ?? servers[0];
   if (first) {
@@ -54,12 +56,14 @@ const ConnectionsPage = async () => {
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="flex-row justify-center">
-          <Button
-            nativeButton={false}
-            render={<Link href="/settings/connections/mail/new" />}
-          >
-            {tm("add")}
-          </Button>
+          {personal.mode !== "off" && (
+            <Button
+              nativeButton={false}
+              render={<Link href="/settings/connections/mail/new" />}
+            >
+              {tm("add")}
+            </Button>
+          )}
           {admin && (
             <Button
               nativeButton={false}

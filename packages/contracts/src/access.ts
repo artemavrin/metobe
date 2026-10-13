@@ -47,3 +47,15 @@ export const domainOf = (email: string) => {
     .toLowerCase();
   return at > 0 && domain ? domain : null;
 };
+
+// What people may connect by themselves (ARCH §17.1, D-catalog): their own connections outside the admin's catalog —
+// today their own mailboxes. `public_only` — only addresses on the internet, so nobody reaches the inner network
+// through the server; `on` — internal addresses too; `off` — none.
+
+export const personalModes = ["off", "public_only", "on"] as const;
+export type PersonalMode = (typeof personalModes)[number];
+export const DEFAULT_PERSONAL_MODE: PersonalMode = "public_only";
+
+/** «Ask first?» an admin sets as the default for a tool of people's own connections; each person may change it. */
+export const personalApprovals = ["ask", "auto"] as const;
+export type PersonalApproval = (typeof personalApprovals)[number];
