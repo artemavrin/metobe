@@ -621,6 +621,10 @@
         "label": "Usage",
         "hint": "Your requests and cost by month"
       },
+      "files": {
+        "label": "My files",
+        "hint": "What you attached in chats"
+      },
       "limits": {
         "label": "Limits",
         "hint": "How many messages people can send to the chat"
@@ -1861,5 +1865,14 @@
     "empty": "no limit",
     "invalid": "Enter a whole number above zero, or leave it empty",
     "note": "Empty means no limit. A day counts from the first message."
+  },
+  "myFiles": {
+    "title": "My files",
+    "description": "Files you attached in chats, newest first.",
+    "empty": "You have not attached anything yet.",
+    "summary": "{count, plural, one {# file} other {# files}} · {size}",
+    "toChat": "Go to the chat «{chat}»",
+    "open": "Open {name}",
+    "note": "A file is deleted with its chat. Uploaded but never sent files are deleted after a day."
   }
 }

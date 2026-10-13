@@ -1,8 +1,19 @@
 import "server-only";
 import { FILE_MAX_BYTES, acceptedFile } from "@metobe/contracts/files";
 import type { UploadError, UploadedFile } from "@metobe/contracts/files";
+import { chats } from "@metobe/db/schema/chat";
 import { files } from "@metobe/db/schema/files";
-import { and, count, eq, inArray, isNull, notInArray, sum } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  notInArray,
+  sum,
+} from "drizzle-orm";
 
 import { getDb } from "./db";
 import { deleteObject, getObject, getStorage, putObject } from "./storage";
@@ -11,6 +22,45 @@ import { deleteObject, getObject, getStorage, putObject } from "./storage";
 // message is saved. The browser never talks to S3 — it reads a file back through GET /api/files/[id].
 
 const keyOf = (id: string) => `files/${id}`;
+
+/** How long a picked file may wait in the composer: a question is typed in minutes, a day is plenty. */
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The user's files picked and never sent — no chat after a day: the objects, then the rows. Best effort, like the
+ * other deletes: a row whose object could not go stays for the next time.
+ */
+export const pruneDrafts = async (userId: string, now = new Date()) => {
+  if (!getStorage()) {
+    return 0;
+  }
+  const { db } = getDb();
+  const rows = await db
+    .select({ id: files.id, key: files.storageKey })
+    .from(files)
+    .where(
+      and(
+        eq(files.userId, userId),
+        isNull(files.chatId),
+        lt(files.createdAt, new Date(now.getTime() - DRAFT_TTL_MS))
+      )
+    );
+  const gone: string[] = [];
+  await Promise.all(
+    rows.map(async (r) => {
+      try {
+        await deleteObject(r.key);
+        gone.push(r.id);
+      } catch (error) {
+        console.error("files: could not delete the object", r.key, error);
+      }
+    })
+  );
+  if (gone.length > 0) {
+    await db.delete(files).where(inArray(files.id, gone));
+  }
+  return gone.length;
+};
 
 /** Stores one picked file for its user; refuses what is too big, of a type we do not read, or with storage off. */
 export const createFile = async (
@@ -39,6 +89,12 @@ export const createFile = async (
     return { error: "failed" };
   }
   const { db } = getDb();
+  // The user's drafts nobody sent go while they upload the next one: no timer, nothing to forget.
+  try {
+    await pruneDrafts(userId);
+  } catch (error) {
+    console.error("files: could not prune drafts", error);
+  }
   const name = file.name.slice(0, 255);
   await db.insert(files).values({
     id,
@@ -106,6 +162,23 @@ export const attachFiles = async (
       )
     );
 };
+
+/** The user's sent files, newest first, with the chat each is in — for «Мои файлы». */
+export const listUserFiles = (userId: string) =>
+  getDb()
+    .db.select({
+      chatId: files.chatId,
+      chatTitle: chats.title,
+      createdAt: files.createdAt,
+      id: files.id,
+      kind: files.kind,
+      name: files.name,
+      size: files.size,
+    })
+    .from(files)
+    .innerJoin(chats, eq(chats.id, files.chatId))
+    .where(eq(files.userId, userId))
+    .orderBy(desc(files.createdAt));
 
 /** Takes back a file still in the composer (no chat yet): the object, then the row. */
 export const deleteDraftFile = async (userId: string, id: string) => {
