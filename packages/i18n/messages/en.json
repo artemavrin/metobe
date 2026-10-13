@@ -413,7 +413,9 @@
         "rest": "The rest ({count})"
       }
     },
-    "partial": "The tool returned only part of the data, so the totals here are not final"
+    "partial": "The tool returned only part of the data, so the totals here are not final",
+    "voteUp": "Helpful",
+    "voteDown": "Not helpful"
   },
   "login": {
     "title": "Sign in to Metobe",

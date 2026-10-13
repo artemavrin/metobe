@@ -5,7 +5,12 @@ import {
   getCatalogItem,
   setCatalogToken,
 } from "@metobe/core/catalog";
-import { deleteChat, renameChat, setChatPinned } from "@metobe/core/chat";
+import {
+  deleteChat,
+  renameChat,
+  setChatPinned,
+  setVote,
+} from "@metobe/core/chat";
 import { listChatServers } from "@metobe/core/mcp";
 import { setFavoriteModels } from "@metobe/core/model-choices";
 import { revalidatePath } from "next/cache";
@@ -128,4 +133,25 @@ export const deleteChatAction = async (id: string) => {
   await deleteChat(user, parsed.data);
   revalidatePath("/", "layout");
   return { ok: true as const };
+};
+
+/** «Helpful» (true), «not helpful» (false) or taken back (null) for an answer of the user's chat. */
+export const voteAnswer = async (
+  chat: string,
+  answer: string,
+  up: boolean | null
+) => {
+  const session = await getAuth().api.getSession({ headers: await headers() });
+  const parsed = z
+    .object({ answer: z.uuid(), chat: z.uuid(), up: z.boolean().nullable() })
+    .safeParse({ answer, chat, up });
+  if (!session || !parsed.success) {
+    return false;
+  }
+  return await setVote(
+    session.user.id,
+    parsed.data.chat,
+    parsed.data.answer,
+    parsed.data.up
+  );
 };
