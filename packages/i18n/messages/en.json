@@ -432,7 +432,15 @@
         "system": "Theme as the system"
       }
     },
-    "placeholderShort": "Ask…"
+    "placeholderShort": "Ask…",
+    "skills": {
+      "loading": "Loading a skill",
+      "done": "Skill",
+      "file": "Skill file",
+      "failed": "Skill not found",
+      "menu": "Skills",
+      "shared": "organization's"
+    }
   },
   "login": {
     "title": "Sign in to Metobe",
@@ -1912,6 +1920,41 @@
       "textWithCode": "Something broke on our side. Try again; if it happens again, tell your administrator the code {code}.",
       "retry": "Try again",
       "home": "To the chats"
+    }
+  },
+  "skills": {
+    "title": "Skills",
+    "description": "Instructions for particular tasks, in the Agent Skills format: a folder with SKILL.md. The chat knows each enabled skill by its name and description and loads it when a question needs it; anyone can pick one with /name.",
+    "dropHint": "Drop a skill .zip here, or pick a .zip or a folder.",
+    "pickZip": "Upload .zip",
+    "pickFolder": "Pick a folder",
+    "importing": "Reading the skill…",
+    "imported": "Skill added.",
+    "replaced": "Skill replaced.",
+    "failed": "Could not upload the skill. Try again.",
+    "replace": "Replace it",
+    "empty": "No skills yet.",
+    "note": "Text files of a skill (references, templates) are kept and read by the model on demand; other files are listed only. Up to 10 MB and 200 files.",
+    "meta": "{files, plural, =0 {only SKILL.md} one {# file} other {# files}} · updated {when}",
+    "turnOn": "Turn on /{name}",
+    "turnOff": "Turn off /{name}",
+    "deleteAsk": "Delete /{name}",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "problem": {
+      "no-skill-md": "There is no SKILL.md in it.",
+      "several-skill-md": "There are several SKILL.md in it: one skill at a time.",
+      "no-frontmatter": "SKILL.md has no frontmatter (--- name, description ---).",
+      "bad-frontmatter": "SKILL.md's frontmatter does not read as YAML.",
+      "no-name": "SKILL.md has no name.",
+      "bad-name": "The name must be lowercase letters, digits and hyphens, up to 64, without anthropic or claude.",
+      "no-description": "SKILL.md has no description.",
+      "long-description": "The description is longer than 1024 characters.",
+      "empty-instructions": "SKILL.md has no instructions after the frontmatter.",
+      "too-big": "The folder is over 10 MB.",
+      "too-many-files": "The folder has over 200 files.",
+      "not-zip": "This is not a zip archive.",
+      "taken": "A skill with this name is already here."
     }
   }
 }

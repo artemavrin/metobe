@@ -1,6 +1,7 @@
 import { getLastModelIds, listChats } from "@metobe/core/chat";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers } from "@metobe/core/mcp";
+import { skillsForChat } from "@metobe/core/skills";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { ChatView } from "@/components/chat/chat-view";
@@ -26,12 +27,13 @@ const NewChatPage = async () => {
   if (!user) {
     return null;
   }
-  const [picker, last, servers, chats, boxes] = await Promise.all([
+  const [picker, last, servers, chats, boxes, skills] = await Promise.all([
     getPickerData(user.id),
     getLastModelIds(user.id),
     listChatServers(user.id),
     listChats(user.id),
     listMailboxes(user.id),
+    skillsForChat(user.id),
   ]);
   const model = pickModel(picker.models, [...last, picker.favorites[0]]);
   // The layout shows «not ready» when chat has no model; a page without one never renders.
@@ -59,6 +61,12 @@ const NewChatPage = async () => {
       models={picker.models}
       recent={picker.recent}
       servers={servers}
+      skills={skills.map((s) => ({
+        description: s.description,
+        id: s.id,
+        name: s.name,
+        shared: s.ownerId === null,
+      }))}
       welcome={{
         greeting: t(dayPart(hourIn(now, prefs.timeZone)), {
           hasName: name ? "yes" : "no",

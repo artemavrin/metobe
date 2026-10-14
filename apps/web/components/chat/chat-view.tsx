@@ -50,6 +50,7 @@ import { PickerDataProvider } from "@/components/chat/picker/data";
 import type { PickerModel } from "@/components/chat/picker/data";
 import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { ServerClockProvider } from "@/components/chat/server-clock";
+import type { ChatSkill } from "@/components/chat/skill-menu";
 import { Welcome } from "@/components/chat/welcome";
 import type { WelcomeData } from "@/components/chat/welcome";
 import { chatProblem, retryAtOf } from "@/lib/chat-errors";
@@ -292,6 +293,8 @@ const ChatError = ({
  * composer already at the bottom, where the thread keeps it: the first message fades the welcome out, the question
  * rises in, and the composer keeps its place and its focus.
  */
+const NO_SKILLS: ChatSkill[] = [];
+
 export const ChatView = ({
   id: givenId,
   initialMessages,
@@ -302,6 +305,7 @@ export const ChatView = ({
   labels,
   welcome,
   servers: initialServers,
+  skills = NO_SKILLS,
   votes: initialVotes = NO_VOTES,
 }: {
   /** An existing chat's id; a new chat makes its own, once, in the browser. */
@@ -315,6 +319,8 @@ export const ChatView = ({
   recent: string[];
   /** The MCP servers the user may mention here. */
   servers: ChatServer[];
+  /** The skills the user may pick with `/`. */
+  skills?: ChatSkill[];
   /** Names of models that wrote answers here but have left the chat since. */
   labels: ModelLabel[];
   /** A new chat greets the user; an existing one opens on its history. */
@@ -333,6 +339,7 @@ export const ChatView = ({
   const [model, setModel] = useState(initialModel);
   // A server connected from the chat is ready at once, without a reload (a new chat would lose its draft).
   const [servers, setServers] = useState(initialServers);
+  const skillNames = skills.map((s) => s.name);
   const serverReady = (serverId: string) =>
     setServers((list) =>
       list.map((s) =>
@@ -539,6 +546,7 @@ export const ChatView = ({
           editing={!busy && editingId === row.message.id}
           mentions={servers}
           message={row.message}
+          skills={skillNames}
           onEditing={(open) => setEditingId(open ? row.message.id : null)}
           onEdit={
             busy
@@ -687,6 +695,7 @@ export const ChatView = ({
                 onServerReady={serverReady}
                 ref={composer}
                 servers={servers}
+                skills={skills}
               />
             </div>
           </div>

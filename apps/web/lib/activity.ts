@@ -3,6 +3,7 @@ import type { ChatServer } from "@metobe/core/mcp";
 import type {
   ReadPart,
   SearchPart,
+  SkillPart,
   ToolPart,
   WebPart,
   WorkStep,
@@ -77,12 +78,24 @@ export const stateOf = (calls: ToolPart[]): CallState => {
 export const readFailed = (part: ReadPart) =>
   part.state === "output-available" && "error" in part.output;
 
-/** Where a search for tools, or of the web, or a page read, or a file read stands. */
-const partState = (part: SearchPart | WebPart | ReadPart): CallState => {
+/** A skill or a file of one that the tool could not find (it says so in `error`, it does not throw). */
+export const skillFailed = (part: SkillPart) =>
+  part.state === "output-available" && "error" in part.output;
+
+/** Where a search for tools, or of the web, or a page read, or a file read, or a skill load stands. */
+const partState = (
+  part: SearchPart | WebPart | ReadPart | SkillPart
+): CallState => {
   if (part.state === "input-streaming" || part.state === "input-available") {
     return "running";
   }
   if (part.type === "tool-read_attachment" && readFailed(part)) {
+    return "failed";
+  }
+  if (
+    (part.type === "tool-load_skill" || part.type === "tool-read_skill_file") &&
+    skillFailed(part)
+  ) {
     return "failed";
   }
   return part.state === "output-error" ? "failed" : "done";
