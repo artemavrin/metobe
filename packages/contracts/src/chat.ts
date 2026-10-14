@@ -77,6 +77,30 @@ export type ChatTools = {
         }
       | { error: string };
   };
+  /** Loads a skill's instructions by its name; a skill not there comes back as `{ error }`. */
+  load_skill: {
+    input: { name: string };
+    output:
+      | {
+          name: string;
+          instructions: string;
+          files: { path: string; text: boolean }[];
+        }
+      | { error: string };
+  };
+  /** Reads a text file of a skill's folder. */
+  read_skill_file: {
+    input: { name: string; path: string };
+    output:
+      | {
+          name: string;
+          path: string;
+          content?: string;
+          image?: { mediaType: string };
+          note?: string;
+        }
+      | { error: string };
+  };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_metrics: { input: MetricsInput; output: MetricsOutput };
   show_table: { input: TableInput; output: TableOutput };

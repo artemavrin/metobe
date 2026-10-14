@@ -29,6 +29,8 @@ import { ModelChooser } from "@/components/chat/picker/chooser";
 import type { Favorites, PickerModel } from "@/components/chat/picker/data";
 import type { NavSource } from "@/components/chat/picker/motion";
 import { SecretNote } from "@/components/chat/secret-note";
+import { SkillMenu } from "@/components/chat/skill-menu";
+import type { ChatSkill } from "@/components/chat/skill-menu";
 import { TokenEditor } from "@/components/chat/token-editor";
 import type { EditorHandle, Trigger } from "@/components/chat/token-editor";
 import {
@@ -189,10 +191,50 @@ export interface ComposerHandle {
   pickFiles: () => void;
 }
 
-/** The editor's draft as the message text: tokens as `@label`. */
+const NO_SKILLS: ChatSkill[] = [];
+
+/**
+ * What the menu at the caret offers: `@` — the servers not mentioned yet whose title holds the query; `/` — the
+ * skills whose name or description holds it (none matching — no menu, the `/` stays text).
+ */
+const menuOf = (
+  trigger: { at: Trigger; taken: Set<string> } | null,
+  servers: ChatServer[],
+  skills: ChatSkill[]
+) => {
+  const items =
+    trigger?.at.char === "@"
+      ? servers.filter(
+          (s) =>
+            !trigger.taken.has(s.id) &&
+            s.title.toLowerCase().includes(trigger.at.query)
+        )
+      : [];
+  const skillItems =
+    trigger?.at.char === "/"
+      ? skills.filter(
+          (s) =>
+            !trigger.taken.has(s.id) &&
+            (s.name.includes(trigger.at.query) ||
+              s.description.toLowerCase().includes(trigger.at.query))
+        )
+      : [];
+  return {
+    items,
+    menuSize: trigger?.at.char === "/" ? skillItems.length : items.length,
+    skillItems,
+  };
+};
+
+/** The editor's draft as the message text: a server as `@label`, a skill as `/name`. */
 const textOf = (handle: EditorHandle | null) =>
   (handle?.value() ?? [])
-    .map((x) => (typeof x === "string" ? x : `@${x.label}`))
+    .map((x) => {
+      if (typeof x === "string") {
+        return x;
+      }
+      return x.kind === "skill" ? `/${x.label}` : `@${x.label}`;
+    })
     .join("")
     .trim();
 
@@ -204,6 +246,7 @@ export const Composer = ({
   onSend,
   onStop,
   servers,
+  skills = NO_SKILLS,
   onServerReady,
   onEditLast,
   attachments,
@@ -228,6 +271,8 @@ export const Composer = ({
   onEditLast?: () => boolean;
   /** The MCP servers the user may mention here. */
   servers: ChatServer[];
+  /** The skills the user may pick with `/`. */
+  skills?: ChatSkill[];
   /** A server the user just connected from the chat. */
   onServerReady: (id: string) => void;
 }) => {
@@ -246,13 +291,37 @@ export const Composer = ({
   } | null>(null);
   const [active, setActive] = useState(0);
   const [connecting, setConnecting] = useState<ChatServer | null>(null);
-  const items = trigger
-    ? servers.filter(
-        (s) =>
-          !trigger.taken.has(s.id) &&
-          s.title.toLowerCase().includes(trigger.at.query)
-      )
-    : [];
+  const { items, skillItems, menuSize } = menuOf(trigger, servers, skills);
+  const pickSkill = (skill: ChatSkill) => {
+    editor.current?.insertToken({
+      id: skill.id,
+      kind: "skill",
+      label: skill.name,
+    });
+    setTrigger(null);
+  };
+  /** Enter or Tab in the `/` menu picks the highlighted skill. */
+  const pickSkillKey = (e: KeyboardEvent | React.KeyboardEvent) => {
+    const skill = skillItems[active];
+    if (!skill || (e.key !== "Enter" && e.key !== "Tab")) {
+      return false;
+    }
+    e.preventDefault();
+    pickSkill(skill);
+    return true;
+  };
+  /** Up and down walk the menu at the caret, round its ends. */
+  const stepKey = (e: KeyboardEvent | React.KeyboardEvent) => {
+    if (menuSize === 0 || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) {
+      return false;
+    }
+    e.preventDefault();
+    nav.current = e.repeat ? "snap" : "step";
+    setActive(
+      (a) => (a + (e.key === "ArrowDown" ? 1 : menuSize - 1)) % menuSize
+    );
+    return true;
+  };
 
   const onTrigger = useCallback((at: Trigger | null) => {
     nav.current = "snap";
@@ -470,7 +539,18 @@ export const Composer = ({
           )}
           ref={box}
         >
-          {trigger && (
+          {trigger?.at.char === "/" && skillItems.length > 0 && (
+            <SkillMenu
+              active={active}
+              box={trigger.box}
+              items={skillItems}
+              nav={nav}
+              onHover={setActive}
+              onPick={pickSkill}
+              trigger={trigger.at}
+            />
+          )}
+          {trigger?.at.char === "@" && (
             <MentionMenu
               active={active}
               box={trigger.box}
@@ -536,18 +616,9 @@ export const Composer = ({
                     e.preventDefault();
                     return true;
                   }
-                  if (trigger) {
-                    if (
-                      items.length > 0 &&
-                      (e.key === "ArrowDown" || e.key === "ArrowUp")
-                    ) {
-                      e.preventDefault();
-                      nav.current = e.repeat ? "snap" : "step";
-                      setActive(
-                        (a) =>
-                          (a + (e.key === "ArrowDown" ? 1 : items.length - 1)) %
-                          items.length
-                      );
+                  // A `/` with no skill matching is plain text: the keys are the field's.
+                  if (trigger && (trigger.at.char === "@" || menuSize > 0)) {
+                    if (stepKey(e) || pickSkillKey(e)) {
                       return true;
                     }
                     const current = items[active];

@@ -263,7 +263,8 @@ proxies; // name, type: 'http' | 'https' | 'socks5' | 'socks5h', host, port, use
 // пароль — secrets (owner_type = 'proxy'), enabled
 // last_check_at, last_check_ok, exit_ip, exit_country, latency_ms (§18)
 proxy_domains; // proxy_id, domain ('openai.com' покрывает поддомены) — «эти адреса через этот прокси»
-skills; // v2: owner_id? (null = общий), slug, name, description, storage_key (S3), enabled
+skills; // owner_id? (null = общий), name, description, instructions (SKILL.md без frontmatter), frontmatter, files, enabled
+skill_files; // skill_id, path, content — текстовые файлы папки скилла; в базе, не в S3: скиллы работают без хранилища
 secrets; // единое хранилище секретов — §17.2
 audit_log * // actor_id, action, target_type, target_id, at — изменения подключений и секретов (v2)
   _access; // точечные гранты на models и catalog_items — v2 (D12)

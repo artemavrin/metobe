@@ -27,6 +27,7 @@ import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
 import { getPersonalPolicy } from "@metobe/core/personal";
+import { skillsForChat } from "@metobe/core/skills";
 import { webToolsOn } from "@metobe/core/web-settings";
 import {
   consumeStream,
@@ -62,6 +63,7 @@ import { mentionedIn } from "@/lib/mentions";
 import { METRICS_TOOL, metricsTool } from "@/lib/metrics-tool";
 import { getPrefs } from "@/lib/prefs";
 import { recordStream } from "@/lib/resume-stream";
+import { skillsOfChat } from "@/lib/skill-tools";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 import { TIME_NOTE, TIME_TOOL, timeTool } from "@/lib/time-tool";
@@ -287,13 +289,15 @@ export const POST = async (request: Request) => {
   }
   // The user's own zone (their choice, else the browser's): the clock the model asks tells the time in it.
   const { timeZone } = await getPrefs();
-  const [stored, chatServers, ownBoxes, notes, personal] = await Promise.all([
-    chat ? listMessages(id) : [],
-    listChatServers(session.user.id),
-    listMailboxes(session.user.id),
-    getInstructions(session.user.id),
-    getPersonalPolicy(),
-  ]);
+  const [stored, chatServers, ownBoxes, notes, personal, skills] =
+    await Promise.all([
+      chat ? listMessages(id) : [],
+      listChatServers(session.user.id),
+      listMailboxes(session.user.id),
+      getInstructions(session.user.id),
+      getPersonalPolicy(),
+      skillsForChat(session.user.id),
+    ]);
   // Own connections turned off in «Доступ»: the boxes stay, the chat neither uses nor asks for them.
   const mailOn = personal.mode !== "off";
   const boxes = mailOn ? ownBoxes : [];
@@ -461,6 +465,16 @@ export const POST = async (request: Request) => {
       // What the servers' tools return, kept whole for the widgets (ARCH §9.2): a chart or a table `from` a result
       // takes its numbers from here, and the model is told a table's summary instead of all its rows.
       const sources = createSources(uiMessages);
+      // The skills the user may use (ARCH §8.3): their names and descriptions for the model, the bodies on demand;
+      // the ones this question picks with `/name` are loaded first.
+      const skilled = skillsOfChat({
+        chatId: id,
+        question: message ? textOf(message) : "",
+        skills,
+        tools: model.capabilities.tools !== false,
+        userId: session.user.id,
+        vision: model.capabilities.vision === true,
+      });
       // The three widget tools take about 3,000 tokens of their schemas: a model with a small window has no room for
       // them next to a server's tools and the history, so it answers in words (markdown) instead.
       const room =
@@ -485,6 +499,7 @@ export const POST = async (request: Request) => {
                   }
                 : {}),
               [TIME_TOOL]: timeTool(timeZone),
+              ...skilled.tools,
               // The files of the thread, for a model that cannot see them itself.
               ...(hasFiles
                 ? { [READ_ATTACHMENT]: readAttachmentTool(session.user.id, id) }
@@ -524,6 +539,7 @@ export const POST = async (request: Request) => {
         instructions: [
           TIME_NOTE,
           hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
+          skilled.note,
           withNotes(notes, servicesNote(servers)),
         ]
           .filter(Boolean)

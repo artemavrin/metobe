@@ -8,6 +8,10 @@ export type MetricsPart = Extract<Part, { type: "tool-show_metrics" }>;
 export type ConnectPart = Extract<Part, { type: "tool-request_connection" }>;
 export type SearchPart = Extract<Part, { type: "tool-find_tools" }>;
 export type ReadPart = Extract<Part, { type: "tool-read_attachment" }>;
+export type SkillPart = Extract<
+  Part,
+  { type: "tool-load_skill" } | { type: "tool-read_skill_file" }
+>;
 export type WebPart = Extract<
   Part,
   { type: "tool-web_search" } | { type: "tool-web_fetch" }
@@ -23,7 +27,9 @@ export type WorkStep =
   /** A web search or a page read. */
   | { kind: "web"; key: string; part: WebPart }
   /** The model reading a file the user attached. */
-  | { kind: "read"; key: string; part: ReadPart };
+  | { kind: "read"; key: string; part: ReadPart }
+  /** The model loading a skill, or reading a file of one. */
+  | { kind: "skill"; key: string; part: SkillPart };
 
 /** What the answer shows, in order: its words, the tables, charts and figures the model built, and its asks to connect. */
 export type AnswerBlock =
@@ -77,12 +83,37 @@ const lastToolAt = (parts: Part[]) => {
       p.type === "tool-find_tools" ||
       p.type === "tool-web_search" ||
       p.type === "tool-web_fetch" ||
-      p.type === "tool-read_attachment"
+      p.type === "tool-read_attachment" ||
+      p.type === "tool-load_skill" ||
+      p.type === "tool-read_skill_file"
     ) {
       at = i;
     }
   }
   return at;
+};
+
+/** A part that is a step of the work by itself: a search for tools, of the web, a page read, a file read, a skill. */
+const singleStep = (part: Part): WorkStep | null => {
+  switch (part.type) {
+    case "tool-find_tools": {
+      return { key: part.toolCallId, kind: "search", part };
+    }
+    case "tool-web_search":
+    case "tool-web_fetch": {
+      return { key: part.toolCallId, kind: "web", part };
+    }
+    case "tool-read_attachment": {
+      return { key: part.toolCallId, kind: "read", part };
+    }
+    case "tool-load_skill":
+    case "tool-read_skill_file": {
+      return { key: part.toolCallId, kind: "skill", part };
+    }
+    default: {
+      return null;
+    }
+  }
 };
 
 /** A part that is a block of the answer of its own: a table, a chart, an ask to connect; null for anything else. */
@@ -151,15 +182,8 @@ export const answerWork = (parts: Part[]) => {
       } else {
         blocks.push({ key: `text:${i}`, kind: "text", text: part.text });
       }
-    } else if (part.type === "tool-find_tools") {
-      steps.push({ key: part.toolCallId, kind: "search", part });
-    } else if (
-      part.type === "tool-web_search" ||
-      part.type === "tool-web_fetch"
-    ) {
-      steps.push({ key: part.toolCallId, kind: "web", part });
-    } else if (part.type === "tool-read_attachment") {
-      steps.push({ key: part.toolCallId, kind: "read", part });
+    } else if (singleStep(part)) {
+      steps.push(singleStep(part) as WorkStep);
     } else if (part.type === "dynamic-tool") {
       if (last?.kind === "tool" && last.calls[0]?.toolName === part.toolName) {
         last.calls.push(part);

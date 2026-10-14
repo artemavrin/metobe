@@ -16,6 +16,7 @@ import {
   Mail,
   MessageSquareText,
   Search,
+  Sparkles,
   Wrench,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -157,6 +158,8 @@ const RowIcon = ({
     inner = <Search className="size-3.5" />;
   } else if (step.kind === "read") {
     inner = <Paperclip className="size-3.5" />;
+  } else if (step.kind === "skill") {
+    inner = <Sparkles className="size-3.5" />;
   } else if (step.kind === "web") {
     inner =
       step.part.type === "tool-web_fetch" ? (
@@ -212,6 +215,7 @@ const useSay = () => ({
   chat: useTranslations("chat"),
   mail: useTranslations("mail.tools"),
   read: useTranslations("chat.read"),
+  skill: useTranslations("chat.skills"),
   tools: useTranslations("chat.tools"),
   web: useTranslations("chat.web"),
 });
@@ -297,6 +301,23 @@ const readTitle = (
   return `${say.read("done")} · ${name}${where}`;
 };
 
+const skillTitle = (
+  row: ActivityRow & { step: Extract<ActivityRow["step"], { kind: "skill" }> },
+  say: Say
+) => {
+  const { part } = row.step;
+  if (row.state === "failed") {
+    return say.skill("failed");
+  }
+  const file = part.type === "tool-read_skill_file";
+  if (part.state !== "output-available" || "error" in part.output) {
+    return file ? say.skill("file") : say.skill("loading");
+  }
+  return file && "path" in part.output
+    ? `${say.skill("file")} · ${part.output.path}`
+    : `${say.skill("done")} · /${part.output.name}`;
+};
+
 /** The step's line: what it is and where it stands, as the chat already says it. */
 const useTitle = (row: ActivityRow, servers: ChatServer[]) => {
   const say = useSay();
@@ -318,6 +339,9 @@ const useTitle = (row: ActivityRow, servers: ChatServer[]) => {
     }
     case "read": {
       return readTitle({ ...row, step }, say);
+    }
+    case "skill": {
+      return skillTitle({ ...row, step }, say);
     }
     default: {
       return webTitle({ ...row, step }, say);

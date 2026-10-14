@@ -190,6 +190,20 @@
       "when": 1791233330904,
       "tag": "0026_user_disabled",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792007677271,
+      "tag": "0027_skills",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792010037276,
+      "tag": "0028_skill_files_whole",
+      "breakpoints": true
     }
   ]
 }

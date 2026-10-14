@@ -78,9 +78,9 @@ const shape = (parts: Part[]) => {
       if (s.kind === "tool") {
         return `tool:${s.calls.map((c) => c.toolCallId).join("+")}`;
       }
-      return s.kind === "search" || s.kind === "web" || s.kind === "read"
-        ? `${s.kind}:${s.key}`
-        : `${s.kind}:${s.text}`;
+      return s.kind === "thought" || s.kind === "note"
+        ? `${s.kind}:${s.text}`
+        : `${s.kind}:${s.key}`;
     }),
   };
 };
@@ -233,5 +233,26 @@ describe("an answer's work and its answer", () => {
         failed("c2", "chart"),
       ]).blocks
     ).toEqual(["chart:c1", "chart:c2"]);
+  });
+
+  it("makes loading a skill and reading its file steps of the work", () => {
+    const load = {
+      input: { name: "report" },
+      output: { files: [], instructions: "…", name: "report" },
+      state: "output-available",
+      toolCallId: "s1",
+      type: "tool-load_skill",
+    } as Part;
+    const file = {
+      input: { name: "report", path: "a.md" },
+      output: { content: "…", name: "report", path: "a.md" },
+      state: "output-available",
+      toolCallId: "s2",
+      type: "tool-read_skill_file",
+    } as Part;
+    expect(shape([load, file, text("Готово")])).toMatchObject({
+      blocks: ["text"],
+      steps: ["skill:s1", "skill:s2"],
+    });
   });
 });

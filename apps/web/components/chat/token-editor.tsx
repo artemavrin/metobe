@@ -1,23 +1,26 @@
 "use client";
 
 import { cn } from "@metobe/ui/lib/utils";
-import { Plug, X } from "lucide-react";
+import { Plug, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useRef } from "react";
 
-// The composer's text field (P2 «Щелчок»): type `@`, pick a server, and its badge sits exactly where you typed. A
+// The composer's text field (P2 «Щелчок»): type `@`, pick a server — or `/`, a skill — and its badge sits exactly where
+// you typed. A
 // contenteditable with atomic badges (contenteditable=false): Backspace or the badge's × takes one out; the value
 // is read back as text and tokens. Plain text only — pastes are stripped.
 
-/** An MCP server mentioned in the text. */
+/** An MCP server mentioned in the text (`@Title`), or a skill picked (`/name`). */
 export interface Token {
   id: string;
   label: string;
   logo?: string;
+  kind?: "skill";
 }
 export type Segment = string | Token;
 
-/** `@` and what follows it right before the caret, and where it sits (the menu opens there). */
+/** `@` or `/` and what follows it right before the caret, and where it sits (the menu opens there). */
 export interface Trigger {
+  char: "@" | "/";
   query: string;
   rect: DOMRect;
 }
@@ -43,17 +46,19 @@ export const TOKEN_CLASS =
 export const TokenBadge = ({
   label,
   logo,
+  kind,
 }: {
   label: string;
   logo?: string;
+  kind?: "skill";
 }) => (
   <span className={TOKEN_CLASS}>
-    {logo ? (
+    {kind === "skill" && <Sparkles />}
+    {kind !== "skill" && logo && (
       // oxlint-disable-next-line nextjs/no-img-element -- a tiny data URL picture; next/image adds nothing here
       <img alt="" className="size-3.5 rounded-[3px]" src={logo} />
-    ) : (
-      <Plug />
     )}
+    {kind !== "skill" && !logo && <Plug />}
     {label}
   </span>
 );
@@ -74,6 +79,9 @@ const IconTemplates = ({
     <span data-icon="plug">
       <Plug />
     </span>
+    <span data-icon="skill">
+      <Sparkles />
+    </span>
     <span data-icon="remove">
       <X />
     </span>
@@ -85,17 +93,24 @@ const makeBadge = (
   templates: HTMLElement | null,
   removeLabel: string
 ) => {
-  const plug = templates?.querySelector('[data-icon="plug"]')?.innerHTML ?? "";
+  const plug =
+    templates?.querySelector(
+      t.kind === "skill" ? '[data-icon="skill"]' : '[data-icon="plug"]'
+    )?.innerHTML ?? "";
   const remove =
     templates?.querySelector('[data-icon="remove"]')?.innerHTML ?? "×";
-  const icon = t.logo
-    ? `<img alt="" class="size-3.5 rounded-[3px]" src="${esc(t.logo)}">`
-    : plug;
+  const icon =
+    t.logo && t.kind !== "skill"
+      ? `<img alt="" class="size-3.5 rounded-[3px]" src="${esc(t.logo)}">`
+      : plug;
   const el = document.createElement("span");
   el.contentEditable = "false";
   el.dataset.token = "";
   el.dataset.id = t.id;
   el.dataset.label = t.label;
+  if (t.kind) {
+    el.dataset.kind = t.kind;
+  }
   if (t.logo) {
     el.dataset.logo = t.logo;
   }
@@ -113,7 +128,7 @@ const EDITOR_CSS = `
 
 type Found = Trigger & { node: Text; start: number; end: number };
 
-/** `@` right before the caret — at the start or after a space — then letters. */
+/** `@` or `/` right before the caret — at the start or after a space — then letters. */
 const readTrigger = (root: HTMLElement): Found | null => {
   const sel = window.getSelection();
   if (!sel?.rangeCount || !sel.isCollapsed) {
@@ -124,7 +139,7 @@ const readTrigger = (root: HTMLElement): Found | null => {
     return null;
   }
   const before = (node.textContent ?? "").slice(0, sel.anchorOffset);
-  const match = /(?:^|\s)@(?<query>[\p{L}\p{N}_-]*)$/u.exec(before);
+  const match = /(?:^|\s)(?<char>[@/])(?<query>[\p{L}\p{N}_-]*)$/u.exec(before);
   if (!match) {
     return null;
   }
@@ -134,6 +149,7 @@ const readTrigger = (root: HTMLElement): Found | null => {
   range.setStart(node, start);
   range.setEnd(node, sel.anchorOffset);
   return {
+    char: match.groups?.char === "/" ? "/" : "@",
     end: sel.anchorOffset,
     node: node as Text,
     query: query.toLowerCase(),
@@ -151,6 +167,7 @@ const read = (root: HTMLElement): Segment[] => {
       } else if (child instanceof HTMLElement && "token" in child.dataset) {
         out.push({
           id: child.dataset.id ?? "",
+          kind: child.dataset.kind === "skill" ? "skill" : undefined,
           label: child.dataset.label ?? "",
           logo: child.dataset.logo,
         });

@@ -74,7 +74,7 @@ import { WebSources } from "@/components/chat/web-step";
 import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
 import type { ToolPart, WorkStep } from "@/lib/answer-work";
-import { splitMentions } from "@/lib/mentions";
+import { splitMentions, splitSkills } from "@/lib/mentions";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 import "gridora/styles.css";
@@ -327,25 +327,42 @@ const EditMessage = ({
 
 const NO_MENTIONS: { title: string; logo: string | null }[] = [];
 
-/** A question's text with `@Name` of a known server drawn as its badge, the rest as it was typed. */
+const NO_SKILL_NAMES: string[] = [];
+
+/**
+ * A question's text with `@Name` of a known server and `/name` of a known skill drawn as their badges, the rest as
+ * it was typed.
+ */
 const Mentioned = ({
   text,
   mentions,
+  skills,
 }: {
   text: string;
   mentions: { title: string; logo: string | null }[];
-}) => {
-  // Read the way the chat reads them: what shows as a badge is what gives the model its tools.
-  const pieces = splitMentions(text, mentions);
-  return pieces.map((piece, i) =>
-    typeof piece === "string" ? (
-      piece
-    ) : (
-      // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
-      <TokenBadge key={i} label={piece.title} logo={piece.logo ?? undefined} />
-    )
-  );
-};
+  skills: string[];
+}) =>
+  // Read the way the chat reads them: what shows as a badge is what gives the model its tools and skills.
+  splitSkills(text, skills).flatMap((part, i) => {
+    if (typeof part !== "string") {
+      return [
+        // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
+        <TokenBadge key={`s${i}`} kind="skill" label={part.skill} />,
+      ];
+    }
+    return splitMentions(part, mentions).map((piece, j) =>
+      typeof piece === "string" ? (
+        piece
+      ) : (
+        <TokenBadge
+          // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
+          key={`m${i}:${j}`}
+          label={piece.title}
+          logo={piece.logo ?? undefined}
+        />
+      )
+    );
+  });
 
 /** The user's message: a bubble on the right that rises in when it goes; its time, copy and edit under it. */
 /**
@@ -413,8 +430,11 @@ export const UserMessage = ({
   editing = false,
   onEditing,
   mentions = NO_MENTIONS,
+  skills = NO_SKILL_NAMES,
 }: {
   message: ChatMessage;
+  /** Skills whose `/name` in the text is drawn as a badge. */
+  skills?: string[];
   /** Open in place as a field (the chat screen holds it: ↑ in an empty composer opens the last question). */
   editing?: boolean;
   onEditing?: (open: boolean) => void;
@@ -449,7 +469,7 @@ export const UserMessage = ({
             {text && (
               <Bubble align="end" variant="muted">
                 <BubbleContent className="rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap">
-                  <Mentioned mentions={mentions} text={text} />
+                  <Mentioned mentions={mentions} skills={skills} text={text} />
                 </BubbleContent>
               </Bubble>
             )}
