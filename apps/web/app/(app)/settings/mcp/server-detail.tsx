@@ -11,6 +11,16 @@ import type { ToolApproval } from "@metobe/contracts/catalog";
 import type { CatalogCredentials, CatalogItem } from "@metobe/core/catalog";
 import { Button } from "@metobe/ui/components/button";
 import { Checkbox } from "@metobe/ui/components/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@metobe/ui/components/dialog";
 import { Input } from "@metobe/ui/components/input";
 import { InputGroup } from "@metobe/ui/components/input-group";
 import { SecretInput } from "@metobe/ui/components/secret-input";
@@ -21,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@metobe/ui/components/select";
+import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
 import { Textarea } from "@metobe/ui/components/textarea";
 import { cn } from "@metobe/ui/lib/utils";
@@ -757,14 +768,22 @@ export const ServerDetail = ({
               value={name}
             />
             <div className="text-muted-foreground flex flex-wrap items-center gap-2 px-1.5 text-sm">
-              <span className={cn("size-2 rounded-full", DOT[state])} />
-              {state === "auth" && item.config.auth !== "oauth"
-                ? t("pill.refused")
-                : t(`pill.${state}`)}
-              {state === "ok" && (
+              {/* Turned off says so, whatever the last check found: it gives the chat nothing. */}
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  enabled ? DOT[state] : DOT.unchecked
+                )}
+              />
+              {!enabled && tt("off")}
+              {enabled &&
+                (state === "auth" && item.config.auth !== "oauth"
+                  ? t("pill.refused")
+                  : t(`pill.${state}`))}
+              {enabled && state === "ok" && (
                 <span>· {tt("ok", { count: item.tools.length })}</span>
               )}
-              {state === "error" && item.health?.error && (
+              {enabled && state === "error" && item.health?.error && (
                 <span className="max-w-md truncate" title={item.health.error}>
                   · {item.health.error}
                 </span>
@@ -882,21 +901,45 @@ export const ServerDetail = ({
 
       <Section title={t("remove.section")}>
         <Rows>
-          <Row hint={t("remove.hint")} label={t("remove.label")}>
-            <Button
-              disabled={removing}
-              onClick={() =>
-                startRemove(async () => {
-                  await remove(item.id);
-                  router.push("/settings/mcp");
-                })
-              }
-              size="sm"
-              variant="destructive"
-            >
-              {t("remove.confirm")}
-            </Button>
-          </Row>
+          <Row
+            action={
+              <Dialog>
+                <DialogTrigger
+                  render={<Button size="sm" variant="destructive" />}
+                >
+                  {t("remove.confirm")}
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {t("remove.title", { title: item.title })}
+                    </DialogTitle>
+                    <DialogDescription>{t("remove.text")}</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <DialogClose render={<Button variant="outline" />}>
+                      {t("remove.cancel")}
+                    </DialogClose>
+                    <Button
+                      disabled={removing}
+                      onClick={() =>
+                        startRemove(async () => {
+                          await remove(item.id);
+                          router.push("/settings/mcp");
+                        })
+                      }
+                      variant="destructive"
+                    >
+                      {removing && <Spinner />}
+                      {t("remove.confirm")}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            }
+            hint={t("remove.hint")}
+            label={t("remove.label")}
+          />
         </Rows>
       </Section>
       <OAuthWindowDialog flow={oauth} />

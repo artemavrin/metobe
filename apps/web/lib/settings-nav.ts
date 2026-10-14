@@ -58,7 +58,7 @@ export const SETTINGS_NAV = [
   {
     items: [
       { icon: Blocks, id: "mcp", kind: "list" },
-      { icon: Sparkles, id: "skills", kind: "list" },
+      { icon: Sparkles, id: "skills", kind: "screen" },
       { icon: Search, id: "search", kind: "screen" },
     ],
     key: "tools",
