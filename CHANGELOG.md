@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.0](https://github.com/artemavrin/metobe/compare/v0.3.0...v0.4.0) (2026-10-14)
+
+
+### Features
+
+* «Доступ» — what people may connect by themselves, and their mail's default confirmations ([543be71](https://github.com/artemavrin/metobe/commit/543be71bd6c5bea228a78743a2941119d1423db9))
+* «Мои файлы», and drafts nobody sent go after a day ([6d9eeeb](https://github.com/artemavrin/metobe/commit/6d9eeeb82c83ed381d75e6d4253e445d5fa9e5cf))
+* ↑ edits the last question, and answers take a vote ([5283e5f](https://github.com/artemavrin/metobe/commit/5283e5fe849702a7f9b97d88d7a897c5d045bffd))
+* ⌘K searches chats and settings in the chat's sidebar ([1043d0c](https://github.com/artemavrin/metobe/commit/1043d0c1a3b0089229640b0dbbf0eb18ebeeb7f5))
+* a skill is kept whole — pictures the model sees or gets described, scripts it reads but does not run ([7d3d783](https://github.com/artemavrin/metobe/commit/7d3d7831630a87c759f454bdaadb32fe00b45d8f))
+* skills core — import an Agent Skills folder, the organization's and each user's own ([89a2283](https://github.com/artemavrin/metobe/commit/89a22832910a1a44accf26bdaed0c28da19aeb86))
+* skills in the chat — pick one with /, the model loads it when a question needs it ([d03c057](https://github.com/artemavrin/metobe/commit/d03c057ba1b8d8fe10e40cdc9f53632d451f7c1f))
+
+
+### Bug Fixes
+
+* a skill marked disable-model-invocation is only the user's to call with / ([ae44c34](https://github.com/artemavrin/metobe/commit/ae44c349370de8710977f0782ceb7093048eec3b))
+* shortcut hints in this computer's keys, and none on a touch screen ([969f0ec](https://github.com/artemavrin/metobe/commit/969f0ecf20fb408816ddeb28e9c1492785bb6b37))
+* the model palette closes on a phone — a cross where the esc hint was ([4879597](https://github.com/artemavrin/metobe/commit/48795972740d51ea04dd82e3efcd7d19d3a0a6cb))
+* the small things from the M7 audit — phone prompt, figures in tables, «инструмент» ([fb4dd42](https://github.com/artemavrin/metobe/commit/fb4dd423e23fa2186992fe01c2bc3604fc13c632))
+* what the screen audit found — a server deleted in one click, bare 404s, a cut-off menu ([9004566](https://github.com/artemavrin/metobe/commit/900456620e5fbc23baca4241a8c12a344519e78d))
+
 ## [0.3.0](https://github.com/artemavrin/metobe/compare/v0.2.0...v0.3.0) (2026-10-07)
 
 
