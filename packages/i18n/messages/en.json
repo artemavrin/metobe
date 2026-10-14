@@ -1031,7 +1031,10 @@
         "section": "Removal",
         "label": "Remove the server",
         "hint": "Its tools leave everyone's chat; personal connections go too",
-        "confirm": "Remove"
+        "confirm": "Remove",
+        "title": "Delete {title}?",
+        "text": "The server's tools leave everyone's chat and personal connections to it are deleted. Chat history stays. This cannot be undone: the server would have to be added again.",
+        "cancel": "Cancel"
       },
       "authSection": "Authentication",
       "accessMode": "Available to",
@@ -1335,7 +1338,8 @@
       "toMail": "Set up the mail",
       "mailed": "Sent to {email}. You can copy the link too",
       "notMailed": "The email to {email} didn't go out. Send the link yourself and check the mail settings",
-      "failedMail": "An email is required until mail is set up"
+      "failedMail": "An email is required until mail is set up",
+      "who": "Who you invite"
     },
     "states": {
       "disabled": "Off",
@@ -1867,7 +1871,8 @@
     "output": "Out",
     "cost": "Cost",
     "removed": "Removed model",
-    "cached": "From cache: {count}"
+    "cached": "From cache: {count}",
+    "toChat": "Open a chat"
   },
   "limits": {
     "title": "Limits",
@@ -1891,6 +1896,21 @@
     "summary": "{count, plural, one {# file} other {# files}} · {size}",
     "toChat": "Go to the chat «{chat}»",
     "open": "Open {name}",
-    "note": "A file is deleted with its chat. Uploaded but never sent files are deleted after a day."
+    "note": "A file is deleted with its chat. Uploaded but never sent files are deleted after a day.",
+    "toNewChat": "Attach a file in a new chat"
+  },
+  "status": {
+    "notFound": {
+      "title": "This page is not here",
+      "text": "It was deleted, the address has a typo, or it belongs to someone else.",
+      "home": "To the chats"
+    },
+    "error": {
+      "title": "This page could not open",
+      "text": "Something broke on our side. Try again; if it happens again, tell your administrator.",
+      "textWithCode": "Something broke on our side. Try again; if it happens again, tell your administrator the code {code}.",
+      "retry": "Try again",
+      "home": "To the chats"
+    }
   }
 }

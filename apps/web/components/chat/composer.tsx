@@ -415,10 +415,14 @@ export const Composer = ({
   }, [pending, attachments, onSend]);
 
   // The line under the field: a draft that looks like a secret comes first, then the wait for files, else the usual.
+  // The ⌘/ hint is for a keyboard: a touch screen or a narrow window gets the disclaimer alone, on one line.
   let hint: React.ReactNode = (
     <>
-      {t("disclaimer")} <span className="opacity-50">·</span>{" "}
-      <Kbd>{hk("Mod+/")}</Kbd> {t("allModels")}
+      <span>{t("disclaimer")}</span>
+      <span className="inline-flex items-center gap-1.5 max-sm:hidden pointer-coarse:hidden">
+        <span className="opacity-50">·</span> <Kbd>{hk("Mod+/")}</Kbd>{" "}
+        {t("allModels")}
+      </span>
     </>
   );
   if (pending) {

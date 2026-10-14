@@ -120,7 +120,7 @@ export const InviteForm = ({
           </div>
         </Section>
       ) : (
-        <Section title={t("invite.role")}>
+        <Section title={t("invite.who")}>
           <Rows>
             <Row hint={t(`roleHints.${role}`)} label={t("invite.role")}>
               <Select

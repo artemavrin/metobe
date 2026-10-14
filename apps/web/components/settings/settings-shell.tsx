@@ -23,7 +23,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 
 import { SettingsListLevel } from "@/components/settings/settings-list";
@@ -221,6 +221,33 @@ export const SettingsShell = ({
     setDir(next ? 1 : -1);
     setDrilled(next);
   };
+  // The menu is taller than a short window: its active item is scrolled into view, and an edge with more beyond it
+  // fades, so a cut-off list reads as one that goes on.
+  // A callback ref: it runs each time the menu level is drawn (opening settings, coming back from a list).
+  const menu = useCallback((el: HTMLDivElement | null) => {
+    if (!el) {
+      return;
+    }
+    const update = () => {
+      el.dataset.top = String(el.scrollTop > 2);
+      el.dataset.bottom = String(
+        el.scrollTop + el.clientHeight < el.scrollHeight - 2
+      );
+    };
+    el.querySelector(
+      '[data-sidebar="menu-button"][data-active]:not([data-active="false"])'
+    )?.scrollIntoView({
+      block: "nearest",
+    });
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const resize = new ResizeObserver(update);
+    resize.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      resize.disconnect();
+    };
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -291,7 +318,10 @@ export const SettingsShell = ({
                       />
                     </div>
                   </SidebarHeader>
-                  <SidebarContent>
+                  <SidebarContent
+                    className="[mask-image:linear-gradient(to_bottom,transparent,black_var(--fade-top),black_calc(100%-var(--fade-bottom)),transparent)] [--fade-bottom:0px] [--fade-top:0px] data-[bottom=true]:[--fade-bottom:2rem] data-[top=true]:[--fade-top:1.5rem] [&_[data-sidebar=menu-button]]:scroll-my-8"
+                    ref={menu}
+                  >
                     <Menu
                       admin={admin}
                       onDrill={(id) => {

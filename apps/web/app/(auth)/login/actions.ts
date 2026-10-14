@@ -31,7 +31,10 @@ export const sendCode = async (
 ): Promise<SendCodeState> => {
   const parsed = emailSchema.safeParse(form.get("email"));
   if (!parsed.success) {
+    // What was typed stays in the field: the error says what to fix in it.
+    const typed = form.get("email");
     return {
+      email: typeof typed === "string" ? typed : undefined,
       error: await translateIssue(parsed.error.issues[0]?.message),
       sent: false,
     };

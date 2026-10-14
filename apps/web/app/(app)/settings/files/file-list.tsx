@@ -39,7 +39,17 @@ export const FileList = ({ files }: { files: UserFile[] }) => {
   const now = useNow({ updateInterval: 60_000 });
   const size = useSize();
   if (files.length === 0) {
-    return <p className="text-muted-foreground text-sm">{t("empty")}</p>;
+    return (
+      <p className="text-muted-foreground text-sm">
+        {t("empty")}{" "}
+        <Link
+          className="text-foreground underline-offset-2 hover:underline"
+          href="/"
+        >
+          {t("toNewChat")}
+        </Link>
+      </p>
+    );
   }
   const total = files.reduce((sum, f) => sum + f.size, 0);
   return (
