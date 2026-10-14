@@ -593,7 +593,15 @@ export const Composer = ({
                     place.current = "add";
                     pick(server);
                   }}
+                  onPickSkill={(skill) =>
+                    editor.current?.addToken({
+                      id: skill.id,
+                      kind: "skill",
+                      label: skill.name,
+                    })
+                  }
                   servers={servers}
+                  skills={skills}
                 />
               </div>
               <TokenEditor

@@ -42,6 +42,7 @@ export const SETTINGS_NAV = [
       { icon: Plug, id: "connections", kind: "list" },
       { icon: ChartColumn, id: "usage", kind: "screen" },
       { icon: Paperclip, id: "files", kind: "screen" },
+      { icon: Sparkles, id: "my-skills", kind: "screen" },
     ],
     key: "account",
     scope: "user",

@@ -16,29 +16,25 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
-
-/** «Soon» beside a thing the composer will add later. */
-const Soon = () => {
-  const t = useTranslations("chat.add");
-  return (
-    <span className="text-muted-foreground ml-auto pl-3 text-xs">
-      {t("soon")}
-    </span>
-  );
-};
+import type { ChatSkill } from "@/components/chat/skill-menu";
 
 /**
- * The composer's «+»: what a question can bring along. Files open the system picker; skills come later (shown, not yet
- * usable); an MCP server is mentioned from here as from `@` — its badge where the caret was, a sign-in first when it
- * needs one.
+ * The composer's «+»: what a question can bring along. Files open the system picker; a skill and an MCP server are
+ * picked from here as from `/` and `@` — the badge where the caret was (a server asks for a sign-in first when it
+ * needs one). On a phone this is the way in: `/` and `@` are awkward on a touch keyboard.
  */
 export const AddMenu = ({
   servers,
+  skills,
   mentioned,
   onPick,
+  onPickSkill,
   onFiles,
   field,
 }: {
+  /** The skills the user may pick. */
+  skills: ChatSkill[];
+  onPickSkill: (skill: ChatSkill) => void;
   /** Opens the file picker. */
   onFiles: () => void;
   servers: ChatServer[];
@@ -86,11 +82,44 @@ export const AddMenu = ({
           <Paperclip />
           {t("files")}
         </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          <Sparkles />
-          {t("skills")}
-          <Soon />
-        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Sparkles />
+            {t("skills")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            className="w-72"
+            finalFocus={() => field() ?? true}
+          >
+            {skills.length === 0 && (
+              <p className="text-muted-foreground px-2 py-2 text-sm">
+                {t("noSkills")}
+              </p>
+            )}
+            {skills.map((skill) => {
+              const added = taken.has(skill.id);
+              return (
+                <DropdownMenuItem
+                  className="items-start gap-2.5 py-1.5"
+                  disabled={added}
+                  key={skill.id}
+                  onClick={() => onPickSkill(skill)}
+                >
+                  <span className="bg-muted text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5">
+                    <Sparkles />
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate">/{skill.name}</span>
+                    <span className="text-muted-foreground line-clamp-2 text-xs">
+                      {skill.description}
+                    </span>
+                  </span>
+                  {added && <Check className="text-muted-foreground" />}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <Plug />

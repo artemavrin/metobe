@@ -180,8 +180,8 @@
       "files": "Files",
       "skills": "Skills",
       "mcp": "MCP servers",
-      "soon": "Soon",
-      "noServers": "No servers available"
+      "noServers": "No servers available",
+      "noSkills": "No skills yet"
     },
     "web": {
       "searching": "Searching the web",
@@ -655,6 +655,10 @@
       "limits": {
         "label": "Limits",
         "hint": "How many messages people can send to the chat"
+      },
+      "my-skills": {
+        "label": "My skills",
+        "hint": "Your own instructions for the model, seen by you alone"
       }
     },
     "appearance": {
@@ -1957,6 +1961,9 @@
       "taken": "A skill with this name is already here."
     },
     "scripts": "{count, plural, one {# script} other {# scripts}}: the model reads them, Metobe does not run them yet",
-    "manual": "Only when someone picks it with /: the model does not take it by itself"
+    "manual": "Only when someone picks it with /: the model does not take it by itself",
+    "personalTitle": "My skills",
+    "personalDescription": "Your own skills in the Agent Skills format, seen by you alone. A skill with the name of an organization's one replaces it in your chats.",
+    "emptyPersonal": "You have no skills of your own yet."
   }
 }

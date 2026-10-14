@@ -13,6 +13,9 @@ import { refreshSkills, removeSkill, toggleSkill } from "./actions";
 // The organization's skills: bring one in as a zip (picked or dropped) or a picked folder, see what each is for, turn it on
 // or off, delete it. A name already taken asks before it replaces the skill there.
 
+/** Whose skills the list is: the organization's (admin settings) or the user's own. */
+export type Scope = "shared" | "personal";
+
 type Upload = { zip: File } | { files: File[] };
 
 type Outcome =
@@ -20,8 +23,13 @@ type Outcome =
   | { kind: "problem"; problem: SkillProblem; retry?: Upload }
   | { kind: "failed" };
 
-const send = async (upload: Upload, replace: boolean): Promise<Outcome> => {
+const send = async (
+  upload: Upload,
+  replace: boolean,
+  scope: Scope
+): Promise<Outcome> => {
   const form = new FormData();
+  form.append("scope", scope);
   if ("zip" in upload) {
     form.append("zip", upload.zip);
   } else {
@@ -136,7 +144,13 @@ const SkillRow = ({ skill }: { skill: SkillSummary }) => {
   );
 };
 
-export const SkillList = ({ skills }: { skills: SkillSummary[] }) => {
+export const SkillList = ({
+  skills,
+  scope = "shared",
+}: {
+  skills: SkillSummary[];
+  scope?: Scope;
+}) => {
   const t = useTranslations("skills");
   const zipInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
@@ -146,7 +160,7 @@ export const SkillList = ({ skills }: { skills: SkillSummary[] }) => {
 
   const upload = (what: Upload, replace = false) =>
     start(async () => {
-      const result = await send(what, replace);
+      const result = await send(what, replace, scope);
       setOutcome(result);
       if (result.kind === "ok") {
         await refreshSkills();
@@ -254,7 +268,9 @@ export const SkillList = ({ skills }: { skills: SkillSummary[] }) => {
         )}
       </div>
       {skills.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("empty")}</p>
+        <p className="text-muted-foreground text-sm">
+          {scope === "personal" ? t("emptyPersonal") : t("empty")}
+        </p>
       ) : (
         <ul className="divide-y rounded-lg border">
           {skills.map((s) => (
