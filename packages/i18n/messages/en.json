@@ -1956,6 +1956,7 @@
       "not-zip": "This is not a zip archive.",
       "taken": "A skill with this name is already here."
     },
-    "scripts": "{count, plural, one {# script} other {# scripts}}: the model reads them, Metobe does not run them yet"
+    "scripts": "{count, plural, one {# script} other {# scripts}}: the model reads them, Metobe does not run them yet",
+    "manual": "Only when someone picks it with /: the model does not take it by itself"
   }
 }
