@@ -309,3 +309,12 @@
     opacity: 1;
   }
 }
+/* A touch screen has no keyboard: shortcut hints (⌘/, ⌘K, Esc, the favorites' digits) are not drawn there. One rule
+   for every hint, over whatever display the hint asks for. */
+@media (hover: none) and (pointer: coarse) {
+  [data-slot="kbd"],
+  [data-slot="kbd-group"],
+  [data-slot="command-shortcut"] {
+    display: none !important;
+  }
+}

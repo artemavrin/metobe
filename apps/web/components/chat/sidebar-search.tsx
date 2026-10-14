@@ -30,6 +30,7 @@ import type { ReactNode } from "react";
 
 import { searchChatsAction } from "@/app/(app)/(chat)/actions";
 import type { ChatItem } from "@/components/chat/chat-item";
+import { useHotkeyLabel } from "@/lib/hotkey-label";
 import { SETTINGS_NAV } from "@/lib/settings-nav";
 
 // P11 «Палитра ⌘K», variant «В сайдбаре»: ⌘K goes into the sidebar's search, and while there is a query its results
@@ -83,6 +84,7 @@ const Results = ({
 }) => {
   const t = useTranslations("chat.search");
   const ts = useTranslations("settings");
+  const hk = useHotkeyLabel();
   const router = useRouter();
   const { setTheme } = useTheme();
   const q = query.trim();
@@ -127,7 +129,7 @@ const Results = ({
     {
       icon: Settings,
       id: "settings",
-      keys: "⌘,",
+      keys: hk("Mod+,"),
       label: t("settings"),
       to: "/settings",
     },
@@ -243,6 +245,7 @@ export const SidebarSearch = ({
   admin: boolean;
   children: ReactNode;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("chat.search");
   const { isMobile, setOpenMobile } = useSidebar();
   const [query, setQuery] = useState("");
@@ -308,7 +311,7 @@ export const SidebarSearch = ({
             />
             {!query && (
               <Kbd className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 md:inline-flex">
-                ⌘K
+                {hk("Mod+K")}
               </Kbd>
             )}
           </div>

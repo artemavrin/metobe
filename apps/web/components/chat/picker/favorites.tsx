@@ -25,6 +25,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { useHotkeyLabel } from "@/lib/hotkey-label";
 
 import { usePickerData } from "./data";
 import type { Favorites, PickerModel } from "./data";
@@ -261,6 +262,7 @@ export const FavoritesPicker = ({
   /** False while the popover plays its exit: the phone's peek sheet leaves with it instead of vanishing. */
   open?: boolean;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("chat.picker");
   const data = usePickerData();
   const { exists } = data;
@@ -929,7 +931,7 @@ export const FavoritesPicker = ({
           <span className="flex-1 truncate">
             {t("allModels", { count: data.models.length })}
           </span>
-          <Kbd>⌘/</Kbd>
+          <Kbd>{hk("Mod+/")}</Kbd>
         </div>
       </div>
       <div aria-live="polite" className="sr-only">
