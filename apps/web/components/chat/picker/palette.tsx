@@ -40,6 +40,7 @@ import {
   Star,
   TriangleAlert,
   Wrench,
+  X,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -818,7 +819,7 @@ const GroupHeader = ({
         </span>
       )}
       {h.kind === "fav" && !folded && (
-        <span className="text-muted-foreground ml-auto text-[11px] tabular-nums">
+        <span className="text-muted-foreground touch:hidden ml-auto text-[11px] tabular-nums">
           {Math.min(h.count, 9) > 1
             ? `${hk("Mod+1")}–${Math.min(h.count, 9)}`
             : hk("Mod+1")}
@@ -1463,11 +1464,13 @@ export const ModelPalette = ({
               <span aria-hidden className="bg-border h-4 w-px shrink-0" />
               <DialogClose
                 aria-label={t("close")}
-                className="shrink-0 rounded-sm outline-none"
+                className="touch:-mr-2 touch:flex touch:size-10 touch:items-center touch:justify-center shrink-0 rounded-sm outline-none"
                 onMouseDown={prevent}
                 tabIndex={-1}
               >
                 <Kbd>esc</Kbd>
+                {/* No Esc key on a phone: a cross the finger finds. */}
+                <X className="touch:block text-muted-foreground hidden size-5" />
               </DialogClose>
             </div>
 
