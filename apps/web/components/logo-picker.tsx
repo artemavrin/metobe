@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrandLogo, LOGOS } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/user-avatar";
 import { cropAvatar } from "@/lib/avatar-crop";
+import { useHotkeyLabel } from "@/lib/hotkey-label";
 
 // Click a logo to change it (prototype P7): the built-in set, an image of your own (upload, drop or paste), or back
 // to the automatic one. Uploaded images are kept as data URLs until there is file storage, hence the size cap.
@@ -45,6 +46,7 @@ export const LogoPicker = ({
   /** A person's picture: a round avatar with their initials, no built-in set, cropped to a square on upload. */
   person?: boolean;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("logoPicker");
   const file = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -223,7 +225,7 @@ export const LogoPicker = ({
               variant="outline"
             >
               <ImageUp /> {person ? t("avatarUpload") : t("upload")}{" "}
-              <Kbd className="ml-1">⌘V</Kbd>
+              <Kbd className="ml-1">{hk("Mod+V")}</Kbd>
             </Button>
             <Tooltip>
               <TooltipTrigger

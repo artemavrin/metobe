@@ -34,6 +34,7 @@ import {
   OAuthWindowDialog,
   useOAuthWindow,
 } from "@/components/mcp/oauth-window";
+import { useHotkeyLabel } from "@/lib/hotkey-label";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
@@ -229,6 +230,7 @@ export const Composer = ({
   /** A server the user just connected from the chat. */
   onServerReady: (id: string) => void;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("chat");
   const { sendKey } = useChatPrefs();
   const editor = useRef<EditorHandle>(null);
@@ -418,7 +420,8 @@ export const Composer = ({
     <>
       <span>{t("disclaimer")}</span>
       <span className="inline-flex items-center gap-1.5 max-sm:hidden pointer-coarse:hidden">
-        <span className="opacity-50">·</span> <Kbd>⌘/</Kbd> {t("allModels")}
+        <span className="opacity-50">·</span> <Kbd>{hk("Mod+/")}</Kbd>{" "}
+        {t("allModels")}
       </span>
     </>
   );

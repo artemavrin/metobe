@@ -40,6 +40,7 @@ import {
   Star,
   TriangleAlert,
   Wrench,
+  X,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -57,6 +58,7 @@ import {
 } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { useHotkeyLabel } from "@/lib/hotkey-label";
 import { isNew as isNewModel } from "@/lib/model-format";
 
 import { fmtContext, usePickerData } from "./data";
@@ -610,6 +612,7 @@ const CapCells = ({ m }: { m: ChatModel }) => {
 
 /** ⌘N for the first nine favorites. Appears after the star's pop when just pinned (№12), fades when unpinned. */
 const FavKey = ({ n, fresh }: { n: number | null; fresh: boolean }) => {
+  const hk = useHotkeyLabel();
   const [last, setLast] = useState(n);
   if (n !== null && n !== last) {
     setLast(n);
@@ -626,7 +629,7 @@ const FavKey = ({ n, fresh }: { n: number | null; fresh: boolean }) => {
           : fresh && "y-appear"
       )}
     >
-      ⌘{n ?? last}
+      {hk(`Mod+${n ?? last}`)}
     </Kbd>
   );
 };
@@ -769,6 +772,7 @@ const GroupHeader = ({
   folded: boolean;
   onToggle: () => void;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("chat.picker");
   let title: string;
   if (h.kind === "fav") {
@@ -815,8 +819,10 @@ const GroupHeader = ({
         </span>
       )}
       {h.kind === "fav" && !folded && (
-        <span className="text-muted-foreground ml-auto text-[11px] tabular-nums">
-          {Math.min(h.count, 9) > 1 ? `⌘1–${Math.min(h.count, 9)}` : "⌘1"}
+        <span className="text-muted-foreground touch:hidden ml-auto text-[11px] tabular-nums">
+          {Math.min(h.count, 9) > 1
+            ? `${hk("Mod+1")}–${Math.min(h.count, 9)}`
+            : hk("Mod+1")}
         </span>
       )}
     </button>
@@ -915,6 +921,7 @@ const PaletteBar = ({
   contextTokens?: number;
   hasImages?: boolean;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("chat.picker");
   const locale = useLocale();
   const warn = warningFor(t, m, contextTokens, hasImages);
@@ -942,7 +949,7 @@ const PaletteBar = ({
           <Kbd>␣</Kbd> {t("keys.star")}
         </span>
         <span className="flex items-center gap-1.5 @max-[700px]:hidden">
-          <Kbd>⌥S</Kbd> {t("keys.sort")}
+          <Kbd>{hk("Alt+S")}</Kbd> {t("keys.sort")}
         </span>
       </span>
     </div>
@@ -984,6 +991,7 @@ export const ModelPalette = ({
   hasImages?: boolean;
   onClosed?: () => void;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("chat.picker");
   const { models, recent, byId, sameTitle } = usePickerData();
   const data = useMemo(
@@ -1446,7 +1454,8 @@ export const ModelPalette = ({
                         <Icon className="size-4" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        {t("only", { cap: label })} <Kbd>⌥{i + 1}</Kbd>
+                        {t("only", { cap: label })}{" "}
+                        <Kbd>{hk(`Alt+${i + 1}`)}</Kbd>
                       </TooltipContent>
                     </Tooltip>
                   );
@@ -1455,11 +1464,13 @@ export const ModelPalette = ({
               <span aria-hidden className="bg-border h-4 w-px shrink-0" />
               <DialogClose
                 aria-label={t("close")}
-                className="shrink-0 rounded-sm outline-none"
+                className="touch:-mr-2 touch:flex touch:size-10 touch:items-center touch:justify-center shrink-0 rounded-sm outline-none"
                 onMouseDown={prevent}
                 tabIndex={-1}
               >
                 <Kbd>esc</Kbd>
+                {/* No Esc key on a phone: a cross the finger finds. */}
+                <X className="touch:block text-muted-foreground hidden size-5" />
               </DialogClose>
             </div>
 
@@ -1649,7 +1660,7 @@ export const ModelPalette = ({
                           size="xs"
                           variant="ghost"
                         >
-                          {t("resetFilters")} <Kbd>⌥0</Kbd>
+                          {t("resetFilters")} <Kbd>{hk("Alt+0")}</Kbd>
                         </Button>
                       </div>
                     )}

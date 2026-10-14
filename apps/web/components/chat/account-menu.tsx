@@ -33,6 +33,7 @@ import type { ComponentType, ReactNode } from "react";
 
 import { signOut } from "@/app/(app)/(chat)/actions";
 import { UserAvatar } from "@/components/user-avatar";
+import { useHotkeyLabel } from "@/lib/hotkey-label";
 import { setLocale } from "@/lib/prefs-actions";
 
 export interface Person {
@@ -152,6 +153,7 @@ const MenuBody = ({
   /** Whether there is a keyboard to show the shortcut for. */
   keyboard: boolean;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("chat");
   const sections = useTranslations("settings.sections");
   return (
@@ -178,7 +180,7 @@ const MenuBody = ({
         href="/settings"
         icon={Settings}
         onNavigate={onNavigate}
-        shortcut={keyboard ? "⌘," : undefined}
+        shortcut={keyboard ? hk("Mod+,") : undefined}
       >
         {t("settings")}
       </LinkRow>

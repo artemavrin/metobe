@@ -56,6 +56,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
   const roleKey = role === "superuser" || role === "admin" ? role : "user";
   return (
     <ChatShell
+      admin={admin}
       chats={chats}
       sendKey={account?.sendKey === "mod-enter" ? "mod-enter" : "enter"}
       user={{

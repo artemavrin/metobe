@@ -33,6 +33,7 @@ import { AccountMenu } from "@/components/chat/account-menu";
 import type { Person } from "@/components/chat/account-menu";
 import { ChatRow } from "@/components/chat/chat-item";
 import type { ChatItem, ChatOps } from "@/components/chat/chat-item";
+import { SidebarSearch } from "@/components/chat/sidebar-search";
 import { groupChats } from "@/lib/chat-history";
 
 /**
@@ -124,12 +125,15 @@ const NewChat = () => {
  */
 export const ChatShell = ({
   chats: initialChats,
+  admin,
   user,
   sendKey,
   children,
 }: {
   /** The user's chats, latest first, each in its day group by the user's calendar. */
   chats: ChatItem[];
+  /** The search offers the service's settings sections to admins. */
+  admin: boolean;
   user: Person;
   /** The key that sends a message, as the user chose it. */
   sendKey: "enter" | "mod-enter";
@@ -211,7 +215,9 @@ export const ChatShell = ({
               <NewChat />
             </SidebarHeader>
             <SidebarContent>
-              <History chats={chats} ops={ops} />
+              <SidebarSearch admin={admin} chats={chats}>
+                <History chats={chats} ops={ops} />
+              </SidebarSearch>
             </SidebarContent>
             <SidebarFooter>
               <AccountMenu user={user} />

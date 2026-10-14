@@ -19,6 +19,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { useHotkeyLabel } from "@/lib/hotkey-label";
 
 import { usePickerData } from "./data";
 import type { Favorites, PickerModel } from "./data";
@@ -157,6 +158,7 @@ export const ModelChooser = ({
   onChange: (m: PickerModel) => void;
   onDone: () => void;
 }) => {
+  const hk = useHotkeyLabel();
   const t = useTranslations("chat.picker");
   const { byId } = usePickerData();
   const [picker, setPicker] = useState(false);
@@ -254,7 +256,7 @@ export const ModelChooser = ({
             <ChevronDown className="size-3.5 opacity-50 transition-[rotate] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] group-data-[popup-open]/chip:rotate-180 motion-reduce:transition-none" />
           </TooltipTrigger>
           <TooltipContent>
-            {t("chipTip")} <Kbd>⌘/</Kbd>
+            {t("chipTip")} <Kbd>{hk("Mod+/")}</Kbd>
           </TooltipContent>
         </Tooltip>
         <PopoverContent
