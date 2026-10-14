@@ -415,7 +415,23 @@
     },
     "partial": "The tool returned only part of the data, so the totals here are not final",
     "voteUp": "Helpful",
-    "voteDown": "Not helpful"
+    "voteDown": "Not helpful",
+    "search": {
+      "label": "Search chats and settings",
+      "placeholder": "Find a chat or a setting",
+      "nothing": "Nothing found in chats or settings",
+      "chats": "Chats",
+      "sections": "Settings",
+      "actions": "Actions",
+      "newChat": "New chat",
+      "settings": "Settings",
+      "theme": "theme",
+      "themes": {
+        "light": "Light theme",
+        "dark": "Dark theme",
+        "system": "Theme as the system"
+      }
+    }
   },
   "login": {
     "title": "Sign in to Metobe",

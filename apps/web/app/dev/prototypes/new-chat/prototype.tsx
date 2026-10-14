@@ -43,7 +43,7 @@ export const Prototype = ({
   ...data
 }: Data & Pick<Shell, "chats" | "user" | "sendKey"> & { round: 1 | 2 }) => (
   <DataProvider value={data}>
-    <ChatShell chats={chats} sendKey={sendKey} user={user}>
+    <ChatShell admin={false} chats={chats} sendKey={sendKey} user={user}>
       <Picker variants={ROUNDS[round]} />
     </ChatShell>
   </DataProvider>

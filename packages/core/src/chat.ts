@@ -7,7 +7,7 @@ import {
   providers,
   sources,
 } from "@metobe/db/schema/models";
-import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, or, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
 import { deleteChatObjects } from "./files";
@@ -81,6 +81,108 @@ export const deleteChat = async (userId: string, id: string) => {
   // The files' objects first: their rows go with the chat, and after that nothing would name the objects.
   await deleteChatObjects(id);
   await db.delete(chats).where(own(userId, id));
+};
+
+/** The words of a query, lower case: «Выручка  2026» → ["выручка", "2026"]. */
+const wordsOf = (query: string) =>
+  query.toLowerCase().split(/\s+/u).filter(Boolean).slice(0, 8);
+
+const likePattern = (word: string) =>
+  `%${word.replaceAll(/[\\%_]/gu, (c) => `\\${c}`)}%`;
+
+/** The text a message says, its parts joined: what a search reads. */
+const spokenText = (parts: unknown) =>
+  (Array.isArray(parts) ? parts : [])
+    .flatMap((p: { type?: string; text?: unknown }) =>
+      p?.type === "text" && typeof p.text === "string" ? [p.text] : []
+    )
+    .join(" ")
+    // Markdown's marks and table bars are not words: a snippet reads as text.
+    .replaceAll(/[*_`#>|~]+/gu, " ")
+    .replaceAll(/\s+/gu, " ")
+    .trim();
+
+/** A few words around the first hit, so the match is in view. */
+const snippetOf = (text: string, word: string) => {
+  const at = text.toLowerCase().indexOf(word);
+  const from = Math.max(0, at - 30);
+  return `${from > 0 ? "…" : ""}${text.slice(from, from + 120)}`;
+};
+
+export interface ChatHit {
+  id: string;
+  title: string;
+  updatedAt: Date;
+  /** Where the words were found when it is not the title: a piece of a message around them. */
+  snippet: string | null;
+}
+
+/**
+ * The user's chats that hold every word of the query — in the title or in what was said — newest first. The
+ * database narrows by the longest word; every word is checked here, on the title and the messages' text only (not
+ * tool results or file names in the stored parts).
+ */
+export const searchChats = async (
+  userId: string,
+  query: string,
+  limit = 8
+): Promise<ChatHit[]> => {
+  const words = wordsOf(query);
+  // The longest word narrows the most.
+  let longest = "";
+  for (const w of words) {
+    if (w.length > longest.length) {
+      longest = w;
+    }
+  }
+  if (!longest) {
+    return [];
+  }
+  const { db } = getDb();
+  const rows = await db
+    .select({
+      id: chats.id,
+      parts: messages.parts,
+      title: chats.title,
+      updatedAt: chats.updatedAt,
+    })
+    .from(chats)
+    .leftJoin(messages, eq(messages.chatId, chats.id))
+    .where(
+      and(
+        eq(chats.userId, userId),
+        eq(chats.kind, "chat"),
+        or(
+          ilike(chats.title, likePattern(longest)),
+          sql`${messages.parts}::text ilike ${likePattern(longest)}`
+        )
+      )
+    )
+    .orderBy(desc(chats.updatedAt), desc(messages.createdAt))
+    .limit(400);
+  const hits = new Map<string, ChatHit>();
+  for (const r of rows) {
+    if (hits.has(r.id)) {
+      continue;
+    }
+    const title = r.title.toLowerCase();
+    if (words.every((w) => title.includes(w))) {
+      hits.set(r.id, { ...r, snippet: null });
+      continue;
+    }
+    const text = spokenText(r.parts);
+    const lower = `${title} ${text.toLowerCase()}`;
+    if (text && words.every((w) => lower.includes(w))) {
+      const word = words.find((w) => text.toLowerCase().includes(w)) ?? longest;
+      hits.set(r.id, {
+        id: r.id,
+        snippet: snippetOf(text, word),
+        title: r.title,
+        updatedAt: r.updatedAt,
+      });
+    }
+  }
+  return [...hits.values()].slice(0, limit);
 };
 
 /** The user's votes in a chat: answer id → helpful (true) or not (false). */

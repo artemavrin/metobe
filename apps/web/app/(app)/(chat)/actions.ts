@@ -8,6 +8,7 @@ import {
 import {
   deleteChat,
   renameChat,
+  searchChats,
   setChatPinned,
   setVote,
 } from "@metobe/core/chat";
@@ -154,4 +155,20 @@ export const voteAnswer = async (
     parsed.data.answer,
     parsed.data.up
   );
+};
+
+/** The user's chats holding every word of the query, in the title or in what was said; a piece of text for the latter. */
+export const searchChatsAction = async (query: string) => {
+  const session = await getAuth().api.getSession({ headers: await headers() });
+  const parsed = z.string().trim().min(1).max(200).safeParse(query);
+  if (!session || !parsed.success) {
+    return [];
+  }
+  const hits = await searchChats(session.user.id, parsed.data);
+  return hits.map((h) => ({
+    id: h.id,
+    snippet: h.snippet,
+    title: h.title,
+    updatedAt: h.updatedAt.toISOString(),
+  }));
 };
