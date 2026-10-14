@@ -4,6 +4,7 @@ import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
 import type { ChatServer } from "@metobe/core/mcp";
 import { Button } from "@metobe/ui/components/button";
 import { Kbd } from "@metobe/ui/components/kbd";
+import { useIsMobile } from "@metobe/ui/hooks/use-mobile";
 import { cn } from "@metobe/ui/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
@@ -230,6 +231,7 @@ export const Composer = ({
   /** A server the user just connected from the chat. */
   onServerReady: (id: string) => void;
 }) => {
+  const isPhone = useIsMobile();
   const hk = useHotkeyLabel();
   const t = useTranslations("chat");
   const { sendKey } = useChatPrefs();
@@ -572,7 +574,8 @@ export const Composer = ({
                 }}
                 onSubmit={submit}
                 onTrigger={onTrigger}
-                placeholder={t("placeholder")}
+                // The phone's line is short: a shorter prompt fits beside the model.
+                placeholder={isPhone ? t("placeholderShort") : t("placeholder")}
                 ref={editor}
                 removeLabel={t("mcp.remove")}
               />

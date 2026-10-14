@@ -51,6 +51,7 @@ import {
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useContext, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
+import type { Components } from "streamdown";
 
 import { ActivityBlock } from "@/components/chat/activity";
 import { AnswerChart } from "@/components/chat/answer-chart";
@@ -599,6 +600,38 @@ export const ModelSwitch = ({ label }: { label?: ModelLabel }) => {
   );
 };
 
+/** A cell that is a figure: «604 458 988,60 ₽», «270,6 млн ₽», «12,5 %», «−3», with at most two short units after it. */
+const NUMERIC_CELL =
+  /^[+\-−–(]?\p{Sc}?\d[\d\s.,\u00A0\u202F]*(?:\s?(?:%|[\p{L}.]{1,6}|\p{Sc})){0,2}\)?$/u;
+
+/**
+ * A markdown table's cells: a figure is kept on one line with digits of one width, so a sum does not break in the
+ * middle of its figures; words wrap as before. Alignment stays the table's own: the header and the cells agree.
+ */
+const MARKDOWN_PARTS: Components = {
+  td: ({ children, className, ...props }) => {
+    // `node` (the parser's tree) is not an attribute of the cell.
+    const { node: _node, ...attributes } = props as typeof props & {
+      node?: unknown;
+    };
+    const numeric =
+      typeof children === "string" && NUMERIC_CELL.test(children.trim());
+    return (
+      <td
+        className={cn(
+          "px-4 py-2 text-sm",
+          numeric && "whitespace-nowrap tabular-nums",
+          className
+        )}
+        data-streamdown="table-cell"
+        {...attributes}
+      >
+        {children}
+      </td>
+    );
+  },
+};
+
 /** Under a finished answer: the model that wrote it, when, copy (the answer's words), helpful or not, regenerate. */
 const AnswerFooter = ({
   message,
@@ -797,6 +830,7 @@ export const AssistantMessage = ({
               <BubbleContent className="w-full overflow-visible">
                 <Streamdown
                   animated
+                  components={MARKDOWN_PARTS}
                   isAnimating={live && i === blocks.length - 1}
                   plugins={{ code }}
                 >
