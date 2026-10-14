@@ -1934,7 +1934,7 @@
     "failed": "Could not upload the skill. Try again.",
     "replace": "Replace it",
     "empty": "No skills yet.",
-    "note": "Text files of a skill (references, templates) are kept and read by the model on demand; other files are listed only. Up to 10 MB and 200 files.",
+    "note": "Every file of a skill is kept: text files (references, templates, scripts) are read by the model on demand, pictures it sees itself or gets described. Scripts are not run — there is no sandbox yet. Up to 10 MB and 200 files.",
     "meta": "{files, plural, =0 {only SKILL.md} one {# file} other {# files}} · updated {when}",
     "turnOn": "Turn on /{name}",
     "turnOff": "Turn off /{name}",
@@ -1955,6 +1955,7 @@
       "too-many-files": "The folder has over 200 files.",
       "not-zip": "This is not a zip archive.",
       "taken": "A skill with this name is already here."
-    }
+    },
+    "scripts": "{count, plural, one {# script} other {# scripts}}: the model reads them, Metobe does not run them yet"
   }
 }

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -64,16 +65,30 @@ export const skills = pgTable(
   ]
 );
 
-/** A text file of a skill's folder (references, templates, scripts as text): what `read_skill_file` gives. */
+/** Raw bytes, for a skill's file kept in the database when there is no S3. */
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => "bytea",
+});
+
+/**
+ * A file of a skill's folder, kept whole. A text one (a reference, a template, a script) — its `content`, what
+ * `read_skill_file` gives; any other (a picture, an archive) — its bytes, in S3 under `storage_key` when the
+ * installation has one, else here in `data`. A picture's description, made once by the «vision» model, is kept too.
+ */
 export const skillFiles = pgTable(
   "skill_files",
   {
-    content: text("content").notNull(),
+    content: text("content"),
+    data: bytea("data"),
+    /** What a picture shows, from the «vision» model, for a chat model that cannot see. */
+    description: text("description"),
+    mediaType: text("media_type"),
     path: text("path").notNull(),
     size: integer("size").notNull(),
     skillId: uuid("skill_id")
       .notNull()
       .references(() => skills.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key"),
   },
   (table) => [primaryKey({ columns: [table.skillId, table.path] })]
 );

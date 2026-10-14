@@ -468,10 +468,12 @@ export const POST = async (request: Request) => {
       // The skills the user may use (ARCH §8.3): their names and descriptions for the model, the bodies on demand;
       // the ones this question picks with `/name` are loaded first.
       const skilled = skillsOfChat({
+        chatId: id,
         question: message ? textOf(message) : "",
         skills,
         tools: model.capabilities.tools !== false,
         userId: session.user.id,
+        vision: model.capabilities.vision === true,
       });
       // The three widget tools take about 3,000 tokens of their schemas: a model with a small window has no room for
       // them next to a server's tools and the history, so it answers in words (markdown) instead.

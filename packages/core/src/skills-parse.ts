@@ -22,7 +22,30 @@ export interface ParsedSkillFile {
   /** Readable by the model: UTF-8 without NUL bytes and not over the text limit. */
   text: boolean;
   content?: string;
+  /** Any other file (a picture, an archive) kept whole, with its type by its extension. */
+  bytes?: Uint8Array;
+  mediaType?: string;
 }
+
+const MEDIA: Record<string, string> = {
+  gif: "image/gif",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  pdf: "application/pdf",
+  png: "image/png",
+  webp: "image/webp",
+  zip: "application/zip",
+};
+
+/** A file's type by its extension; a generic binary for one we do not know. */
+export const mediaTypeOf = (path: string) =>
+  MEDIA[
+    /\.(?<ext>[a-z0-9]+)$/iu.exec(path)?.groups?.ext?.toLowerCase() ?? ""
+  ] ?? "application/octet-stream";
+
+/** Files a skill runs rather than reads — Metobe has no sandbox to run them in yet (v3). */
+export const isScript = (path: string) =>
+  /\.(?:py|sh|bash|js|mjs|cjs|ts|rb|pl|ps1)$/iu.test(path);
 
 export interface ParsedSkill {
   name: string;
@@ -149,7 +172,13 @@ export const parseSkillFolder = (input: FolderFile[]): ParseResult => {
           const content =
             f.bytes.length <= SKILL_LIMITS.textFile ? asText(f.bytes) : null;
           return content === null
-            ? { path, size: f.bytes.length, text: false }
+            ? {
+                bytes: f.bytes,
+                mediaType: mediaTypeOf(path),
+                path,
+                size: f.bytes.length,
+                text: false,
+              }
             : { content, path, size: f.bytes.length, text: true };
         })
         // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array it has just made

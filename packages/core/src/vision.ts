@@ -55,7 +55,8 @@ export type Description = { text: string } | { error: "off" | "failed" };
 export const describeImage = async (run: {
   chatId: string;
   userId: string;
-  fileId: string;
+  /** The attachment the words are kept on; none — the caller keeps them (a skill's picture). */
+  fileId?: string;
   mediaType: string;
   bytes: Uint8Array;
 }): Promise<Description> => {
@@ -84,11 +85,13 @@ export const describeImage = async (run: {
     if (!text) {
       return { error: "failed" };
     }
-    const { db } = getDb();
-    await db
-      .update(files)
-      .set({ description: text })
-      .where(eq(files.id, run.fileId));
+    if (run.fileId) {
+      const { db } = getDb();
+      await db
+        .update(files)
+        .set({ description: text })
+        .where(eq(files.id, run.fileId));
+    }
     return { text };
   } catch (error) {
     console.error("vision: could not describe", run.fileId, model.id, error);

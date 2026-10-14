@@ -5,8 +5,9 @@ import type { Skill } from "@metobe/db/schema/skills";
 import { and, asc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb } from "./db";
-import { parseSkillFolder, unzipSkill } from "./skills-parse";
+import { isScript, parseSkillFolder, unzipSkill } from "./skills-parse";
 import type { FolderFile } from "./skills-parse";
+import { deletePrefix, getObject, getStorage, putObject } from "./storage";
 
 // Skills (ARCH §8.3): the organization's (no owner, an admin's to change) and each user's own. A chat gets every
 // enabled skill the user may use — their own first: a personal skill with a shared one's name stands in for it.
@@ -19,6 +20,9 @@ export interface SkillActor {
   admin: boolean;
 }
 
+/** Where a skill's files other than text lie in S3. */
+const prefixOf = (id: string) => `skills/${id}/`;
+
 const summaryOf = (s: Skill): SkillSummary => ({
   description: s.description,
   enabled: s.enabled,
@@ -26,6 +30,7 @@ const summaryOf = (s: Skill): SkillSummary => ({
   id: s.id,
   name: s.name,
   ownerId: s.ownerId,
+  scripts: s.files.filter((f) => isScript(f.path)).length,
   updatedAt: s.updatedAt.toISOString(),
 });
 
@@ -107,13 +112,43 @@ export const importSkill = async (
       }
       ({ id } = row);
     }
-    const texts = skill.files.flatMap((f) =>
-      f.text && f.content !== undefined
-        ? [{ content: f.content, path: f.path, size: f.size, skillId: id }]
-        : []
+    // Every file is kept: a text one as text; any other in S3 when there is one, else in the database.
+    const store = getStorage() !== null;
+    if (existing && store) {
+      await deletePrefix(prefixOf(id));
+    }
+    const rows = await Promise.all(
+      skill.files.map(async (f) => {
+        if (f.text && f.content !== undefined) {
+          return {
+            content: f.content,
+            path: f.path,
+            size: f.size,
+            skillId: id,
+          };
+        }
+        const base = {
+          mediaType: f.mediaType,
+          path: f.path,
+          size: f.size,
+          skillId: id,
+        };
+        if (!f.bytes) {
+          return base;
+        }
+        if (!store) {
+          return { ...base, data: f.bytes };
+        }
+        const storageKey = `${prefixOf(id)}${f.path}`;
+        await putObject(storageKey, f.bytes, {
+          contentLength: f.bytes.length,
+          contentType: f.mediaType,
+        });
+        return { ...base, storageKey };
+      })
     );
-    if (texts.length > 0) {
-      await tx.insert(skillFiles).values(texts);
+    if (rows.length > 0) {
+      await tx.insert(skillFiles).values(rows);
     }
     return { id, ok: true, replaced: Boolean(existing) } as const;
   });
@@ -160,6 +195,11 @@ export const deleteSkill = async (actor: SkillActor, id: string) => {
     return false;
   }
   await getDb().db.delete(skills).where(eq(skills.id, id));
+  if (getStorage()) {
+    await deletePrefix(prefixOf(id)).catch((error: unknown) =>
+      console.error("skills: could not delete the files", id, error)
+    );
+  }
   return true;
 };
 
@@ -206,19 +246,64 @@ export const loadSkill = async (userId: string, name: string) => {
   return skill ?? null;
 };
 
-/** One text file of a skill the user's chat may use; null when there is no such skill or text file. */
+/** A file of a skill as the chat reads it: text, or bytes with their type (and a picture's kept description). */
+export type SkillFile =
+  | { kind: "text"; content: string }
+  | {
+      kind: "binary";
+      skillId: string;
+      mediaType: string;
+      bytes: Uint8Array;
+      description: string | null;
+    };
+
+const bytesOf = async (stream: ReadableStream<Uint8Array>) =>
+  new Uint8Array(await new Response(stream).arrayBuffer());
+
+/** One file of a skill the user's chat may use; null when there is no such skill or file, or its bytes are gone. */
 export const readSkillFile = async (
   userId: string,
   name: string,
   path: string
-) => {
+): Promise<SkillFile | null> => {
   const skill = await loadSkill(userId, name);
   if (!skill) {
     return null;
   }
   const [row] = await getDb()
-    .db.select({ content: skillFiles.content })
+    .db.select()
     .from(skillFiles)
     .where(and(eq(skillFiles.skillId, skill.id), eq(skillFiles.path, path)));
-  return row?.content ?? null;
+  if (!row) {
+    return null;
+  }
+  if (row.content !== null) {
+    return { content: row.content, kind: "text" };
+  }
+  let bytes = row.data;
+  if (!bytes && row.storageKey) {
+    const object = await getObject(row.storageKey);
+    bytes = object ? await bytesOf(object.body) : null;
+  }
+  return bytes
+    ? {
+        bytes,
+        description: row.description,
+        kind: "binary",
+        mediaType: row.mediaType ?? "application/octet-stream",
+        skillId: skill.id,
+      }
+    : null;
+};
+
+/** Keeps what a skill's picture shows, so it is described once. */
+export const keepSkillFileDescription = async (
+  skillId: string,
+  path: string,
+  description: string
+) => {
+  await getDb()
+    .db.update(skillFiles)
+    .set({ description })
+    .where(and(eq(skillFiles.skillId, skillId), eq(skillFiles.path, path)));
 };

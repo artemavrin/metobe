@@ -1,7 +1,12 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 
-import { parseSkillFolder, unzipSkill } from "./skills-parse";
+import {
+  isScript,
+  mediaTypeOf,
+  parseSkillFolder,
+  unzipSkill,
+} from "./skills-parse";
 
 const md = (front: string, body = "Do the thing step by step.") =>
   strToU8(`---\n${front}\n---\n\n${body}\n`);
@@ -59,14 +64,44 @@ describe("parseSkillFolder", () => {
     ]);
   });
 
-  it("lists a binary file without its content", () => {
+  it("keeps a binary file whole, with its type by its extension", () => {
+    const png = new Uint8Array([137, 80, 78, 71, 0, 1, 2]);
     const result = parseSkillFolder([
       { bytes: good, path: "SKILL.md" },
-      file("logo.png", new Uint8Array([137, 80, 78, 71, 0, 1, 2])),
+      file("logo.png", png),
+      file("tool.bin", new Uint8Array([0, 0, 1])),
     ]);
     expect(result.ok && result.skill.files).toEqual([
-      { path: "logo.png", size: 7, text: false },
+      {
+        bytes: png,
+        mediaType: "image/png",
+        path: "logo.png",
+        size: 7,
+        text: false,
+      },
+      {
+        bytes: new Uint8Array([0, 0, 1]),
+        mediaType: "application/octet-stream",
+        path: "tool.bin",
+        size: 3,
+        text: false,
+      },
     ]);
+  });
+
+  it("keeps a script as text and knows it for a script", () => {
+    const result = parseSkillFolder([
+      { bytes: good, path: "SKILL.md" },
+      file("scripts/fill.py", "print('hi')\n"),
+    ]);
+    expect(result.ok && result.skill.files[0]).toMatchObject({
+      content: "print('hi')\n",
+      text: true,
+    });
+    expect(isScript("scripts/fill.py")).toBe(true);
+    expect(isScript("run.SH")).toBe(true);
+    expect(isScript("reference.md")).toBe(false);
+    expect(mediaTypeOf("a/B.JPG")).toBe("image/jpeg");
   });
 
   it.each([

@@ -91,7 +91,15 @@ export type ChatTools = {
   /** Reads a text file of a skill's folder. */
   read_skill_file: {
     input: { name: string; path: string };
-    output: { name: string; path: string; content: string } | { error: string };
+    output:
+      | {
+          name: string;
+          path: string;
+          content?: string;
+          image?: { mediaType: string };
+          note?: string;
+        }
+      | { error: string };
   };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_metrics: { input: MetricsInput; output: MetricsOutput };
