@@ -431,7 +431,8 @@
         "dark": "Dark theme",
         "system": "Theme as the system"
       }
-    }
+    },
+    "placeholderShort": "Ask…"
   },
   "login": {
     "title": "Sign in to Metobe",
