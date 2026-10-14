@@ -1,13 +1,20 @@
-import { networkInterfaces } from "node:os";
+import { hostname, networkInterfaces } from "node:os";
 import path from "node:path";
 
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
-// This machine's own LAN addresses, so a phone on the same network can open the dev server by IP.
-const lanAddresses = Object.values(networkInterfaces())
-  .flat()
-  .flatMap((a) => (a && a.family === "IPv4" && !a.internal ? [a.address] : []));
+// This machine's own LAN addresses and its Bonjour name, so a phone on the same network can open the dev server by IP
+// or as `<name>.local` (an IP changes with DHCP; the name does not).
+const host = hostname().replace(/\.local$/u, "");
+const lanAddresses = [
+  ...Object.values(networkInterfaces())
+    .flat()
+    .flatMap((a) =>
+      a && a.family === "IPv4" && !a.internal ? [a.address] : []
+    ),
+  `${host}.local`,
+];
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: lanAddresses,

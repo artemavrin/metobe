@@ -104,20 +104,29 @@ const UsagePage = async ({
         )}
       </div>
       {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("empty")}</p>
+        <p className="text-muted-foreground text-sm">
+          {t("empty")}{" "}
+          <Link
+            className="text-foreground underline-offset-2 hover:underline"
+            href="/"
+          >
+            {t("toChat")}
+          </Link>
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[32rem] border-collapse text-sm">
+          <table className="w-full border-collapse text-sm sm:min-w-[32rem]">
             <thead>
               <tr className="text-muted-foreground text-left text-xs">
                 <th className="px-3 py-2 font-medium">{t("model")}</th>
                 <th className="px-3 py-2 text-right font-medium">
                   {t("requests")}
                 </th>
-                <th className="px-3 py-2 text-right font-medium">
+                {/* A phone keeps the model, the requests and the cost: tokens are the detail. */}
+                <th className="px-3 py-2 text-right font-medium max-sm:hidden">
                   {t("input")}
                 </th>
-                <th className="px-3 py-2 text-right font-medium">
+                <th className="px-3 py-2 text-right font-medium max-sm:hidden">
                   {t("output")}
                 </th>
                 <th className="px-3 py-2 text-right font-medium">
@@ -142,14 +151,14 @@ const UsagePage = async ({
                     {format.number(r.requests)}
                   </td>
                   <td
-                    className="px-3 py-2 text-right tabular-nums"
+                    className="px-3 py-2 text-right tabular-nums max-sm:hidden"
                     title={t("cached", {
                       count: format.number(r.cacheReadTokens),
                     })}
                   >
                     {tokens(r.inputTokens)}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-right tabular-nums max-sm:hidden">
                     {tokens(r.outputTokens)}
                   </td>
                   <td className="px-3 py-2 text-right font-medium tabular-nums">
