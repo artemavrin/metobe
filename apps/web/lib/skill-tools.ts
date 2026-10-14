@@ -23,6 +23,8 @@ export const READ_SKILL_FILE = "read_skill_file";
 export interface OfferedSkill {
   name: string;
   description: string;
+  /** Only the user calls it, with `/name` (`disable-model-invocation`): the model is not offered it by itself. */
+  manual?: boolean;
 }
 
 /**
@@ -30,10 +32,12 @@ export interface OfferedSkill {
  * has none.
  */
 export const skillsNote = (skills: OfferedSkill[], picked: string[]) => {
-  if (skills.length === 0) {
+  // A skill only the user calls is listed when the question picked it.
+  const offered = skills.filter((s) => !s.manual || picked.includes(s.name));
+  if (offered.length === 0) {
     return null;
   }
-  const list = skills.map((s) => `- ${s.name}: ${s.description}`).join("\n");
+  const list = offered.map((s) => `- ${s.name}: ${s.description}`).join("\n");
   const asked =
     picked.length > 0
       ? `\n\nThe user picked ${picked.map((p) => `/${p}`).join(", ")} for this question: call ${LOAD_SKILL} for ${picked.length > 1 ? "each of them" : "it"} first and follow its instructions.`
@@ -125,7 +129,12 @@ const read = async (
 /** The two skill tools of a user's chat; a model that sees gets a skill's pictures as pictures. */
 export const skillTools = (
   userId: string,
-  how: { chatId: string; vision: boolean }
+  how: {
+    chatId: string;
+    vision: boolean;
+    /** Skills only the user calls that this question did not pick: the model may not load them. */
+    closed?: Set<string>;
+  }
 ): {
   [LOAD_SKILL]: Tool<{ name: string }, LoadSkillOutput>;
   [READ_SKILL_FILE]: Tool<{ name: string; path: string }, ReadSkillFileOutput>;
@@ -134,7 +143,9 @@ export const skillTools = (
     description:
       "Load a skill's instructions by its name, before doing the task it is for. Follow them in the answer.",
     execute: async ({ name }) => {
-      const skill = await loadSkill(userId, name);
+      const skill = how.closed?.has(name)
+        ? null
+        : await loadSkill(userId, name);
       if (!skill) {
         return { error: `There is no skill "${name}" here.` };
       }
@@ -151,7 +162,10 @@ export const skillTools = (
   [READ_SKILL_FILE]: tool({
     description:
       "Read a file of a loaded skill's folder by its path, as the skill's file list gives it: a text file (a reference, a template, a script — read, never run) or a picture.",
-    execute: (input) => read(userId, input, how),
+    execute: (input) =>
+      how.closed?.has(input.name)
+        ? Promise.resolve({ error: `There is no skill "${input.name}" here.` })
+        : read(userId, input, how),
     inputSchema: z.object({
       name: z.string().describe("The skill's name."),
       path: z.string().describe("The file's path in the skill's folder."),
@@ -216,8 +230,13 @@ export const skillsOfChat = ({
     [question],
     skills.map((s) => s.name)
   );
+  const closed = new Set(
+    skills
+      .filter((s) => s.manual && !picked.includes(s.name))
+      .map((s) => s.name)
+  );
   return {
     note: skillsNote(skills, picked) ?? "",
-    tools: skillTools(userId, { chatId, vision }),
+    tools: skillTools(userId, { chatId, closed, vision }),
   };
 };

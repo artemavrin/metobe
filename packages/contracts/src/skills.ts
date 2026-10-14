@@ -46,6 +46,8 @@ export interface SkillSummary {
   /** Null — the organization's. */
   ownerId: string | null;
   files: number;
+  /** Only the user calls it, with `/name` (`disable-model-invocation`). */
+  manual: boolean;
   /** Scripts in the folder: read by the model, never run (Metobe has no sandbox yet). */
   scripts: number;
   updatedAt: string;

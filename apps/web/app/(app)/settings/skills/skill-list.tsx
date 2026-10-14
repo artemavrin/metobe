@@ -77,6 +77,9 @@ const SkillRow = ({ skill }: { skill: SkillSummary }) => {
             when: format.relativeTime(new Date(skill.updatedAt), now),
           })}
         </span>
+        {skill.manual && (
+          <span className="text-muted-foreground text-xs">{t("manual")}</span>
+        )}
         {skill.scripts > 0 && (
           <span className="text-warning-foreground dark:text-warning text-xs">
             {t("scripts", { count: skill.scripts })}

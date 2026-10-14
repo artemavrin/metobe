@@ -28,6 +28,7 @@ const summaryOf = (s: Skill): SkillSummary => ({
   enabled: s.enabled,
   files: s.files.length,
   id: s.id,
+  manual: s.frontmatter["disable-model-invocation"] === true,
   name: s.name,
   ownerId: s.ownerId,
   scripts: s.files.filter((f) => isScript(f.path)).length,
@@ -211,6 +212,7 @@ export const skillsForChat = async (userId: string) => {
   const rows = await getDb()
     .db.select({
       description: skills.description,
+      frontmatter: skills.frontmatter,
       id: skills.id,
       name: skills.name,
       ownerId: skills.ownerId,
@@ -229,7 +231,11 @@ export const skillsForChat = async (userId: string) => {
       byName.set(r.name, r);
     }
   }
-  return [...byName.values()];
+  // `disable-model-invocation: true` (Agent Skills): only the user calls it, with `/name`; the model is not offered it.
+  return [...byName.values()].map(({ frontmatter, ...skill }) => ({
+    ...skill,
+    manual: frontmatter["disable-model-invocation"] === true,
+  }));
 };
 
 /** A skill's instructions and the list of its files, by name, for the chat of this user; null if there is none. */

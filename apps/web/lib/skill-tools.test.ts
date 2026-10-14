@@ -36,7 +36,8 @@ vi.mock("@metobe/core/vision", () => ({
   describeImage: () => Promise.resolve({ text: "Код склада: K-4217" }),
 }));
 
-const { READ_SKILL_FILE, skillTools } = await import("./skill-tools");
+const { READ_SKILL_FILE, skillTools, skillsNote, skillsOfChat } =
+  await import("./skill-tools");
 
 const usage = {
   inputTokens: {
@@ -117,6 +118,36 @@ describe("a skill's files in the chat", () => {
     const { output } = await told("notes.zip", true);
     expect(output).toMatchObject({
       error: expect.stringContaining("application/zip"),
+    });
+  });
+});
+
+describe("a skill only the user calls (disable-model-invocation)", () => {
+  const skills = [
+    { description: "Writes updates.", name: "internal-comms" },
+    { description: "Grills a plan.", manual: true, name: "grill-me" },
+  ];
+
+  it("is not offered to the model unless the question picked it", () => {
+    expect(skillsNote(skills, [])).not.toContain("grill-me");
+    expect(skillsNote(skills, [])).toContain("internal-comms");
+    expect(skillsNote(skills, ["grill-me"])).toContain("grill-me");
+  });
+
+  it("cannot be loaded by the model on its own", async () => {
+    const { tools } = skillsOfChat({
+      chatId: "c",
+      question: "план",
+      skills,
+      tools: true,
+      userId: "u",
+      vision: false,
+    });
+    const load = (tools as Record<string, unknown>).load_skill as {
+      execute: (i: unknown, o: unknown) => Promise<unknown>;
+    };
+    await expect(load.execute({ name: "grill-me" }, {})).resolves.toEqual({
+      error: 'There is no skill "grill-me" here.',
     });
   });
 });
