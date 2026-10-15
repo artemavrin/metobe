@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/artemavrin/metobe/compare/v0.4.0...v0.5.0) (2026-10-15)
+
+
+### Features
+
+* personal skills screen and Skills submenu in the + menu ([#81](https://github.com/artemavrin/metobe/issues/81)) ([af38650](https://github.com/artemavrin/metobe/commit/af38650f897f6f5fd8afde789c40f6e6ab4f4b07))
+
 ## [0.4.0](https://github.com/artemavrin/metobe/compare/v0.3.0...v0.4.0) (2026-10-14)
 
 
