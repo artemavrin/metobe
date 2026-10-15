@@ -5,7 +5,12 @@ import type { Skill } from "@metobe/db/schema/skills";
 import { and, asc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb } from "./db";
-import { isScript, parseSkillFolder, unzipSkill } from "./skills-parse";
+import {
+  isScript,
+  parseSkillFolder,
+  skillMarkdown,
+  unzipSkill,
+} from "./skills-parse";
 import type { FolderFile } from "./skills-parse";
 import { deletePrefix, getObject, getStorage, putObject } from "./storage";
 
@@ -154,6 +159,28 @@ export const importSkill = async (
     return { id, ok: true, replaced: Boolean(existing) } as const;
   });
 };
+
+/**
+ * Keeps a skill written in the chat — its name, description and instructions, no other files — as the actor's own.
+ * A skill of theirs with that name is refused unless `replace`.
+ */
+export const createSkill = (
+  actor: SkillActor,
+  skill: { name: string; description: string; instructions: string },
+  { replace = false }: { replace?: boolean } = {}
+) =>
+  importSkill(
+    actor,
+    {
+      files: [
+        {
+          bytes: new TextEncoder().encode(skillMarkdown(skill)),
+          path: "SKILL.md",
+        },
+      ],
+    },
+    { replace, shared: false }
+  );
 
 /** The skills the settings show this actor: the organization's and their own, by name. */
 export const listSkills = async (actor: SkillActor) => {

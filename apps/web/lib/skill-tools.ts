@@ -1,13 +1,18 @@
 import "server-only";
 import {
+  SKILL_DESCRIPTION_MAX,
+  skillNameSchema,
+} from "@metobe/contracts/skills";
+import {
+  createSkill,
   keepSkillFileDescription,
   loadSkill,
   readSkillFile,
 } from "@metobe/core/skills";
 import { isScript } from "@metobe/core/skills-parse";
 import { describeImage } from "@metobe/core/vision";
-import { tool } from "ai";
-import type { Tool } from "ai";
+import { dynamicTool, tool } from "ai";
+import type { Tool, ToolSet } from "ai";
 import { z } from "zod";
 
 import { skillsIn } from "./mentions";
@@ -18,6 +23,7 @@ import { skillsIn } from "./mentions";
 
 export const LOAD_SKILL = "load_skill";
 export const READ_SKILL_FILE = "read_skill_file";
+export const SAVE_SKILL = "save_skill";
 
 /** A skill as the model is told of it before loading. */
 export interface OfferedSkill {
@@ -203,6 +209,68 @@ export const skillTools = (
   }),
 });
 
+const saveSkillInput = z.object({
+  description: z
+    .string()
+    .min(1)
+    .max(SKILL_DESCRIPTION_MAX)
+    .describe(
+      "What the skill does and when to use it, in a sentence or two: the model reads it to decide whether the skill fits a question."
+    ),
+  instructions: z
+    .string()
+    .min(1)
+    .describe(
+      "The instructions, in Markdown, as a person would write them for someone doing the task: the steps, the rules, the shape of the answer. Written for any later use, not for this chat's details."
+    ),
+  name: skillNameSchema.describe(
+    "The skill's name: lowercase letters, digits and hyphens (for example weekly-sales-report)."
+  ),
+  replace: z
+    .boolean()
+    .optional()
+    .describe(
+      "Overwrite the user's skill of this name. Only after the tool said the name is taken and the user wants it replaced."
+    ),
+});
+
+/** Why a skill written in the chat was not kept, for the model to tell the user. */
+const SAVE_PROBLEM: Partial<Record<string, string>> = {
+  "bad-name": "The name must be lowercase letters, digits and hyphens.",
+  "empty-instructions": "The instructions are empty.",
+  "long-description": `The description is over ${SKILL_DESCRIPTION_MAX} characters.`,
+  taken:
+    "The user already has a skill with this name. Ask whether to replace it (then call again with replace: true) or choose another name.",
+  "too-big": "The skill is too big.",
+};
+
+/**
+ * The user's own «save this as a skill»: the model writes the skill from the conversation — a task the user did well
+ * and wants again — and the user is asked first, with the skill in front of them. It is kept as theirs alone.
+ * A dynamic tool, so its «ask first» is the answer's approval card, as a letter's is.
+ */
+export const saveSkillTool = (userId: string): Tool =>
+  dynamicTool({
+    description:
+      "Save a skill for the user — a task they have just done with you, written as instructions they can call again with /name. Use it only when the user asks to save the work, the way of doing it or the answer's shape as a skill. Write the instructions from what worked in this conversation, general enough to use again. The user sees the skill and says yes or no before it is kept.",
+    execute: async (input) => {
+      const { replace, ...skill } = saveSkillInput.parse(input);
+      const result = await createSkill({ admin: false, userId }, skill, {
+        replace,
+      });
+      if (!result.ok) {
+        return {
+          error:
+            SAVE_PROBLEM[result.problem] ??
+            `The skill could not be saved (${result.problem}).`,
+        };
+      }
+      return { name: skill.name, replaced: result.replaced, saved: true };
+    },
+    inputSchema: saveSkillInput,
+    needsApproval: true,
+  });
+
 /**
  * What the skills give a chat request: the two tools and the note for the model, when the user has skills and the
  * model can call tools; nothing otherwise. The question's `/name`s are the skills it picked.
@@ -222,9 +290,13 @@ export const skillsOfChat = ({
   chatId: string;
   /** The chat model sees pictures: a skill's pictures go to it as they are. */
   vision: boolean;
-}) => {
-  if (skills.length === 0 || !tools) {
+}): { note: string; tools: ToolSet } => {
+  if (!tools) {
     return { note: "", tools: {} };
+  }
+  // A user with no skills can still write their first one from a chat.
+  if (skills.length === 0) {
+    return { note: "", tools: { [SAVE_SKILL]: saveSkillTool(userId) } };
   }
   const picked = skillsIn(
     [question],
@@ -237,6 +309,9 @@ export const skillsOfChat = ({
   );
   return {
     note: skillsNote(skills, picked) ?? "",
-    tools: skillTools(userId, { chatId, closed, vision }),
+    tools: {
+      ...skillTools(userId, { chatId, closed, vision }),
+      [SAVE_SKILL]: saveSkillTool(userId),
+    },
   };
 };
