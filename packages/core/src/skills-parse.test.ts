@@ -5,6 +5,7 @@ import {
   isScript,
   mediaTypeOf,
   parseSkillFolder,
+  skillMarkdown,
   unzipSkill,
 } from "./skills-parse";
 
@@ -159,6 +160,23 @@ describe("unzipSkill", () => {
     expect(unzipSkill(strToU8("plain text"))).toEqual({
       ok: false,
       problem: "not-zip",
+    });
+  });
+});
+
+describe("skillMarkdown", () => {
+  it("writes a SKILL.md that reads back as the skill, whatever the description holds", () => {
+    const skill = {
+      description: 'Weekly report: pull sales, add "notes" — and #tags.',
+      instructions: "1. Ask for the week.\n2. Build the table.",
+      name: "weekly-report",
+    };
+    const result = parseSkillFolder([
+      { bytes: strToU8(skillMarkdown(skill)), path: "SKILL.md" },
+    ]);
+    expect(result).toMatchObject({
+      ok: true,
+      skill: { ...skill, files: [] },
     });
   });
 });

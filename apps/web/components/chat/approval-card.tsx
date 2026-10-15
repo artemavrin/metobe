@@ -2,7 +2,7 @@
 
 import type { ChatServer } from "@metobe/core/mcp";
 import { Button } from "@metobe/ui/components/button";
-import { Mail, Wrench } from "lucide-react";
+import { Mail, Sparkles, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Streamdown } from "streamdown";
@@ -55,6 +55,36 @@ const LetterPreview = ({ letter }: { letter: Letter }) => {
   );
 };
 
+interface SkillDraft {
+  name?: string;
+  description?: string;
+  instructions?: string;
+  replace?: boolean;
+}
+
+/** The skill as it would be kept: its name, what it is for, its instructions. */
+const SkillPreview = ({ skill }: { skill: SkillDraft }) => {
+  const t = useTranslations("chat.approval");
+  return (
+    <div className="bg-background flex flex-col gap-2 rounded-lg border p-3 text-sm">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="font-medium break-words">/{skill.name}</span>
+        <span className="text-muted-foreground break-words">
+          {skill.description}
+        </span>
+        {skill.replace && (
+          <span className="text-destructive">{t("skillReplaces")}</span>
+        )}
+      </div>
+      {skill.instructions && (
+        <div className="max-h-64 overflow-auto border-t pt-2">
+          <Streamdown>{skill.instructions}</Streamdown>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const ApprovalCard = ({
   call,
   label,
@@ -69,6 +99,32 @@ export const ApprovalCard = ({
 }) => {
   const t = useTranslations("chat.approval");
   const letter = call.toolName === "email_send";
+  const skill = call.toolName === "save_skill";
+  // A letter and a skill are shown as what they would be; their buttons say what happens.
+  const words = (() => {
+    if (letter) {
+      return {
+        deny: t("dontSend"),
+        hint: t("letterHint"),
+        ok: t("send"),
+        title: t("letterTitle"),
+      };
+    }
+    if (skill) {
+      return {
+        deny: t("skillDont"),
+        hint: t("skillHint"),
+        ok: t("skillSave"),
+        title: t("skillTitle"),
+      };
+    }
+    return {
+      deny: t("deny"),
+      hint: t("hint", { server: server?.title ?? label }),
+      ok: t("approve"),
+      title: t("title", { tool: label }),
+    };
+  })();
   let icon: ReactNode = <Wrench className="size-4" />;
   if (server) {
     icon = (
@@ -80,6 +136,8 @@ export const ApprovalCard = ({
     );
   } else if (letter) {
     icon = <Mail className="size-4" />;
+  } else if (skill) {
+    icon = <Sparkles className="size-4" />;
   }
   return (
     <div
@@ -94,24 +152,16 @@ export const ApprovalCard = ({
           </span>
         )}
         <div className="flex min-w-0 flex-1 flex-col text-sm">
-          <span className="font-medium">
-            {letter ? t("letterTitle") : t("title", { tool: label })}
-          </span>
-          <span className="text-muted-foreground">
-            {letter
-              ? t("letterHint")
-              : t("hint", { server: server?.title ?? label })}
-          </span>
+          <span className="font-medium">{words.title}</span>
+          <span className="text-muted-foreground">{words.hint}</span>
         </div>
       </div>
-      {letter ? (
-        <LetterPreview letter={(call.input ?? {}) as Letter} />
-      ) : (
-        call.input !== undefined && (
-          <pre className="bg-background text-muted-foreground max-h-48 overflow-auto rounded-lg border p-2 text-xs whitespace-pre-wrap">
-            {JSON.stringify(call.input, null, 2)}
-          </pre>
-        )
+      {letter && <LetterPreview letter={(call.input ?? {}) as Letter} />}
+      {skill && <SkillPreview skill={(call.input ?? {}) as SkillDraft} />}
+      {!letter && !skill && call.input !== undefined && (
+        <pre className="bg-background text-muted-foreground max-h-48 overflow-auto rounded-lg border p-2 text-xs whitespace-pre-wrap">
+          {JSON.stringify(call.input, null, 2)}
+        </pre>
       )}
       <div className="flex items-center justify-end gap-1">
         <Button
@@ -119,10 +169,10 @@ export const ApprovalCard = ({
           size="sm"
           variant="ghost"
         >
-          {letter ? t("dontSend") : t("deny")}
+          {words.deny}
         </Button>
         <Button onClick={() => onApprove(call.approval.id, true)} size="sm">
-          {letter ? t("send") : t("approve")}
+          {words.ok}
         </Button>
       </div>
     </div>
