@@ -1,6 +1,7 @@
 import {
   Blocks,
   ChartColumn,
+  ChartColumnStacked,
   Cog,
   Factory,
   Gauge,
@@ -70,6 +71,7 @@ export const SETTINGS_NAV = [
       { icon: Users, id: "users", kind: "list" },
       { icon: Shield, id: "access", kind: "screen" },
       { icon: Gauge, id: "limits", kind: "screen" },
+      { icon: ChartColumnStacked, id: "team-usage", kind: "screen" },
     ],
     key: "team",
     scope: "admin",

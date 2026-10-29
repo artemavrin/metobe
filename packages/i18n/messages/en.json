@@ -653,7 +653,7 @@
       },
       "usage": {
         "label": "Usage",
-        "hint": "Your requests and cost by month"
+        "hint": "Models and days: how much and on what"
       },
       "files": {
         "label": "My files",
@@ -662,6 +662,10 @@
       "limits": {
         "label": "Limits",
         "hint": "How many messages people can send to the chat"
+      },
+      "team-usage": {
+        "label": "Team usage",
+        "hint": "Models, people and days: how much and on what"
       },
       "my-skills": {
         "label": "My skills",
@@ -1880,19 +1884,80 @@
   },
   "usage": {
     "title": "Usage",
-    "description": "Model usage over a month. Cost is given in each model's own currency: rubles and dollars are not added.",
-    "previous": "Previous month",
-    "next": "Next month",
-    "summary": "{requests} requests · {cost}",
-    "empty": "No requests this month",
-    "model": "Model",
+    "description": "What you spent: models, days, what it went on. Rubles and dollars are never added.",
+    "teamTitle": "Team usage",
+    "teamDescription": "How much the team spends and on what: models, people, days. Rubles and dollars are never added.",
+    "span": {
+      "day": "Day",
+      "week": "Week",
+      "month": "Month"
+    },
+    "range": "Range",
+    "pickRange": "Pick a range",
+    "previous": "Back",
+    "next": "Forward",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "through": "through {date}",
+    "presets": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "lastWeek": "Last week",
+      "last7": "Last 7 days",
+      "last30": "Last 30 days",
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "last90": "Last 90 days"
+    },
+    "pickFirst": "First day, then the last",
+    "pickLast": "Now the last day",
+    "changes": "Changes — {against}",
+    "against": {
+      "yesterdayUntil": "vs yesterday up to {time}",
+      "yesterday": "vs yesterday",
+      "lastWeek": "vs last week",
+      "other": "vs {period}"
+    },
+    "money": "Money",
+    "andMoney": "and {amount}",
     "requests": "Requests",
-    "input": "In",
-    "output": "Out",
-    "cost": "Cost",
-    "removed": "Removed model",
-    "cached": "From cache: {count}",
-    "toChat": "Open a chat"
+    "errors": "{share} errors",
+    "tokens": "Tokens",
+    "cached": "{share} of input from cache",
+    "people": "People",
+    "peopleOf": "{count} of {total}",
+    "perPerson": "≈ {count} req. per person",
+    "average": "Average request",
+    "priced": "priced models only",
+    "byDay": "By day",
+    "byHour": "By hour",
+    "groups": {
+      "model": "Models",
+      "person": "People",
+      "purpose": "Purpose"
+    },
+    "group": {
+      "model": "Model",
+      "person": "Person",
+      "purpose": "Purpose"
+    },
+    "purposes": {
+      "chat": "Chat answers",
+      "title": "Chat titles",
+      "describe": "Vision"
+    },
+    "other": "Other",
+    "removedModel": "Deleted model",
+    "removedPerson": "Deleted user",
+    "removedNote": "account deleted, history kept",
+    "reset": "Reset",
+    "less": "Show less",
+    "more": "{count} more",
+    "empty": "Nothing spent in this period",
+    "emptyHint": "Every model answer is recorded here: requests, tokens and price.",
+    "toChat": "Open chat",
+    "unpriced": "{count, plural, one {# request} other {# requests}} ({share}) — models without a price, not in the money."
   },
   "limits": {
     "title": "Limits",

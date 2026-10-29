@@ -3,8 +3,7 @@ import { user } from "@metobe/db/schema/auth";
 import { connections } from "@metobe/db/schema/catalog";
 import { chats, messages } from "@metobe/db/schema/chat";
 import { mailboxes } from "@metobe/db/schema/mail";
-import { modelRuns, models, sources } from "@metobe/db/schema/models";
-import { and, asc, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { asc, count, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "./db";
 import { deleteUserObjects } from "./files";
@@ -178,70 +177,4 @@ export const exportAccount = async (userId: string) => {
     exportedAt: new Date().toISOString(),
     mailboxes: boxes,
   };
-};
-
-/** One model's use in a month: requests, tokens, and what they cost in the model's own currency. */
-export interface UsageRow {
-  model: string;
-  source: string;
-  requests: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cost: { currency: string; amount: number }[];
-}
-
-/** What the user used in a month (from the 1st, to the 1st of the next), by model — chat answers and service jobs. */
-export const usageOfMonth = async (
-  userId: string,
-  month: { from: Date; to: Date }
-): Promise<UsageRow[]> => {
-  const { db } = getDb();
-  const rows = await db
-    .select({
-      cacheRead: sql<number>`coalesce(sum(${modelRuns.cacheReadTokens}), 0)::int`,
-      cost: sql<string | null>`sum(${modelRuns.cost})`,
-      currency: modelRuns.currency,
-      inputTokens: sql<number>`coalesce(sum(${modelRuns.inputTokens}), 0)::int`,
-      model: models.title,
-      outputTokens: sql<number>`coalesce(sum(${modelRuns.outputTokens}), 0)::int`,
-      requests: sql<number>`count(*)::int`,
-      source: sources.title,
-    })
-    .from(modelRuns)
-    .leftJoin(models, eq(models.id, modelRuns.modelId))
-    .leftJoin(sources, eq(sources.id, models.sourceId))
-    .where(
-      and(
-        eq(modelRuns.userId, userId),
-        gte(modelRuns.createdAt, month.from),
-        lt(modelRuns.createdAt, month.to)
-      )
-    )
-    .groupBy(models.title, sources.title, modelRuns.currency);
-  // One row per model; its cost per currency (a model has one, but a price may have changed its unit).
-  const byModel = new Map<string, UsageRow>();
-  for (const r of rows) {
-    const key = `${r.source ?? ""}|${r.model ?? ""}`;
-    const row = byModel.get(key) ?? {
-      cacheReadTokens: 0,
-      cost: [],
-      inputTokens: 0,
-      model: r.model ?? "",
-      outputTokens: 0,
-      requests: 0,
-      source: r.source ?? "",
-    };
-    row.requests += r.requests;
-    row.inputTokens += r.inputTokens;
-    row.outputTokens += r.outputTokens;
-    row.cacheReadTokens += r.cacheRead;
-    if (r.cost !== null && r.currency) {
-      row.cost.push({ amount: Number(r.cost), currency: r.currency });
-    }
-    byModel.set(key, row);
-  }
-  // toSorted is past the ES2022 target; the spread is a fresh array.
-  // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own copy
-  return [...byModel.values()].sort((a, b) => b.requests - a.requests);
 };
