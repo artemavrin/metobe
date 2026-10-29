@@ -9,6 +9,8 @@ export const healthResponseSchema = z.object({
     s3: z.enum(["ok", "down", "off"]),
   }),
   status: serviceStatusSchema,
+  /** The running build: the updater (D35) checks the new version came up. */
+  version: z.string(),
 });
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;

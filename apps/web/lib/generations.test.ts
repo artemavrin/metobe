@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// The count goes to the updater through Redis (D35); not here.
+vi.mock("@metobe/core/updater-bus", () => ({ reportAnswers: async () => {} }));
 
 const { endGeneration, startGeneration, stopGeneration } =
   await import("./generations");

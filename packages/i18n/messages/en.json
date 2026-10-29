@@ -61,7 +61,14 @@
       "bad-request": "The message wasn’t sent.",
       "unknown": "Something went wrong.",
       "too-fast": "Too many messages in a row. Wait a minute.",
-      "daily-limit": "You've reached the daily message limit. You can write again {day, select, today {today} other {tomorrow}} at {time}. Ask an admin if you need more."
+      "daily-limit": "You've reached the daily message limit. You can write again {day, select, today {today} other {tomorrow}} at {time}. Ask an admin if you need more.",
+      "updating": "Metobe is updating — send the message again in a minute."
+    },
+    "update": {
+      "title": "Metobe is updating",
+      "paused": "New messages wait briefly and will send when the update finishes.",
+      "resuming": "Your messages will send automatically. Keep this chat open.",
+      "queued": "{count, plural, one {# message waiting} other {# messages waiting}}"
     },
     "newChat": "New chat",
     "openSidebar": "Open menu",
@@ -1992,6 +1999,101 @@
     "manual": "To update, run the installer where you first ran it — next to the metobe folder. It downloads {version}, keeps your settings and restarts Metobe:",
     "copy": "Copy",
     "copied": "Copied",
-    "menu": "{version} is available"
+    "menu": "{version} is available",
+    "badgeRun": {
+      "updating": "updating",
+      "updated": "updated",
+      "failed": "not updated"
+    },
+    "versionUpdating": "Metobe {from} → {to}",
+    "whatHappens": "First we download {version} and copy the database — Metobe keeps working meanwhile. Then we let the answers finish and restart: Metobe is unavailable for a few seconds. If anything goes wrong, we bring {current} back ourselves.",
+    "update": "Update to {version}",
+    "asking": "Handing the job to the updater…",
+    "refused": "The updater did not take the job: another update is running or it is not up.",
+    "enable": "To update with a button, turn on the update service: the installer asks about it on its next run (or METOBE_UPDATER=1 in .env).",
+    "automation": {
+      "title": "Automatic updates",
+      "meta": "runs on this server",
+      "nightly": "Install updates at night",
+      "nightlyHint": "Install the newest release once a day after this local time.",
+      "time": "Local install time",
+      "patches": "Install patch releases automatically",
+      "patchHint": "Install fixes in the current major and minor version as soon as they are released.",
+      "zone": "Time zone: {zone}",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "failed": "Could not save update settings. Try again."
+    },
+    "steps": {
+      "pull": {
+        "title": "Downloading {version}",
+        "doing": "Metobe keeps working as usual",
+        "done": "{size}",
+        "cached": "The image was already on the server"
+      },
+      "backup": {
+        "title": "Database copy",
+        "doing": "Saving the database before the update",
+        "done": "{file} · {size}"
+      },
+      "drain": {
+        "title": "Waiting for answers",
+        "doing": "{answers, plural, =0 {New messages are paused} one {New messages are paused, # answer is finishing} other {New messages are paused, # answers are finishing}}",
+        "done": "All answers finished"
+      },
+      "restart": {
+        "title": "Restart",
+        "doing": "Metobe is unavailable for a few seconds",
+        "done": "{migrations, plural, =0 {{version} is running} one {{version} is running, # migration applied} other {{version} is running, # migrations applied}}",
+        "rollbackDone": "Restored the database copy and started {version}"
+      },
+      "check": {
+        "title": "Check",
+        "doing": "Health and version",
+        "done": "All good"
+      }
+    },
+    "running": "Running for {took} · the update runs on the server, you can close the page",
+    "restarting": "Metobe is restarting — the page reconnects by itself",
+    "done": {
+      "title": "Updated to {version}",
+      "text": "In {took}. The database copy from before the update is kept on the server, in case something comes up later."
+    },
+    "rolledBack": {
+      "title": "Rolled back to {version}",
+      "text": "In {took}. The database and application version from the previous update were restored."
+    },
+    "failedRun": {
+      "title": "Not updated",
+      "untouched": "Metobe runs {version}, nothing changed.",
+      "image": "{version} is back, the database did not change.",
+      "imageDb": "{version} and the database from the copy are back.",
+      "lost": "Could not bring {version} back. Run the installer in the Metobe folder; the database copy from before the update is in the backups volume.",
+      "retry": "Try again"
+    },
+    "errors": {
+      "not-a-release": "There is no such version among the published releases.",
+      "not-newer": "This version is not newer than the installed one.",
+      "no-updater": "This version cannot be installed from the app — update with the installer.",
+      "interrupted": "The update was cut short: the server or the updater restarted in the middle of it.",
+      "bad-signature": "The image signature does not match an official Metobe release.",
+      "rollback-unavailable": "The previous version or its database copy is no longer available."
+    },
+    "tookSec": "{s} s",
+    "tookMin": "{m} min {s} s",
+    "history": {
+      "title": "History",
+      "meta": "database copies — the last three",
+      "failed": "not updated",
+      "rolledBack": "rollback",
+      "rollbackButton": "Roll back",
+      "rollingBack": "Rolling back…",
+      "rollbackRefused": "Rollback was not accepted. It may already be running or its backup is missing.",
+      "download": "Download the database copy from before {version}",
+      "manual": "manual",
+      "patches": "automatic patch",
+      "nightly": "nightly"
+    }
   }
 }

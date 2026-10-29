@@ -1,4 +1,5 @@
 import "server-only";
+import { reportAnswers } from "@metobe/core/updater-bus";
 
 // Answers being written (D6): a chat's generation by its id, so «stop» reaches the server — the client's own stop
 // only lets go of the stream, and the server writes the answer to its end. In memory: one app process (D2). On
@@ -9,11 +10,21 @@ const global = globalThis as { [KEY]?: Map<string, AbortController> };
 global[KEY] ??= new Map<string, AbortController>();
 const running = global[KEY];
 
+// The updater (D35) waits for these to finish before it restarts the app.
+const report = async () => {
+  try {
+    await reportAnswers(running.size);
+  } catch (error) {
+    console.error("generations: report", error);
+  }
+};
+
 /** A new answer in the chat: one at a time, so a new one stops what was still being written. */
 export const startGeneration = (chatId: string) => {
   running.get(chatId)?.abort();
   const controller = new AbortController();
   running.set(chatId, controller);
+  void report();
   return controller;
 };
 
@@ -21,6 +32,7 @@ export const startGeneration = (chatId: string) => {
 export const endGeneration = (chatId: string, controller: AbortController) => {
   if (running.get(chatId) === controller) {
     running.delete(chatId);
+    void report();
   }
 };
 
@@ -32,5 +44,6 @@ export const stopGeneration = (chatId: string) => {
   }
   controller.abort();
   running.delete(chatId);
+  void report();
   return true;
 };

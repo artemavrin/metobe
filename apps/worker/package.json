@@ -9,6 +9,7 @@
     "start": "node --conditions=react-server dist/index.js"
   },
   "dependencies": {
+    "@metobe/contracts": "workspace:*",
     "@metobe/core": "workspace:*"
   },
   "devDependencies": {

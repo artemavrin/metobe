@@ -28,6 +28,7 @@ import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
+import { isDraining } from "@metobe/core/updater-bus";
 import { webToolsOn } from "@metobe/core/web-settings";
 import {
   consumeStream,
@@ -255,6 +256,10 @@ const refuse = async (
 ) => {
   if (chat && chat.userId !== user.id) {
     return fail("forbidden", 403);
+  }
+  // The updater (D35) lets the answers being written finish and restarts the app: a new one waits for it.
+  if (await isDraining()) {
+    return fail("updating", 503);
   }
   const limited = await checkChatLimit(user);
   return limited

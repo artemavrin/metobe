@@ -7,7 +7,7 @@ const requireShim =
 
 export default defineConfig({
   banner: { js: requireShim },
-  entry: ["src/index.ts"],
+  entry: ["src/index.ts", "src/updater.ts"],
   esbuildOptions: (options) => {
     options.conditions = ["react-server"];
   },

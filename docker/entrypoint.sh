@@ -18,6 +18,10 @@ case "$1" in
   worker)
     exec node --conditions=react-server worker/index.js
     ;;
+  updater)
+    # Absolute: compose starts it in the installation's folder (D35).
+    exec node --conditions=react-server /app/worker/updater.js
+    ;;
   *)
     exec "$@"
     ;;

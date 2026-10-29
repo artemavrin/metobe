@@ -1,7 +1,11 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { chatTitleFrom } from "@metobe/contracts/chat";
+import {
+  chatMessageMetadataSchema,
+  chatTitleFrom,
+  userMessageSchema,
+} from "@metobe/contracts/chat";
 import type { ChatMessage } from "@metobe/contracts/chat";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
@@ -98,6 +102,54 @@ const decisionsOf = (answer: ChatMessage) =>
 
 /** A message's time as the client knows it until the server's copy comes back with its own. */
 const stamp = () => ({ createdAt: new Date().toISOString() });
+
+interface DeferredMessage {
+  message: ChatMessage;
+  modelId: string;
+}
+
+const deferredKey = (chatId: string) => `metobe:update-queue:${chatId}`;
+
+const readDeferred = (chatId: string): DeferredMessage[] => {
+  try {
+    const raw: unknown = JSON.parse(
+      sessionStorage.getItem(deferredKey(chatId)) ?? "null"
+    );
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    return raw.flatMap((item): DeferredMessage[] => {
+      if (!item || typeof item !== "object") {
+        return [];
+      }
+      const entry = item as { message?: unknown; modelId?: unknown };
+      if (
+        typeof entry.modelId !== "string" ||
+        !entry.message ||
+        typeof entry.message !== "object"
+      ) {
+        return [];
+      }
+      const message = entry.message as Record<string, unknown>;
+      const parsed = userMessageSchema.safeParse(message);
+      if (!parsed.success) {
+        return [];
+      }
+      const metadata = chatMessageMetadataSchema.safeParse(message.metadata);
+      return [
+        {
+          message: {
+            ...parsed.data,
+            ...(metadata.success ? { metadata: metadata.data } : {}),
+          } as ChatMessage,
+          modelId: entry.modelId,
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+};
 
 /**
  * A chat opened on a question still being answered (a reload mid-answer): the scroller would put the end of the thread
@@ -329,6 +381,7 @@ export const ChatView = ({
   votes?: Record<string, boolean>;
 }) => {
   const t = useTranslations("chat");
+  const updateT = useTranslations("chat.update");
   // oxlint-disable-next-line react/hook-use-state -- made once and never changed: no setter to name
   const [id] = useState(() => givenId ?? uuid());
   // The welcome's rows put a server, words or files into the draft.
@@ -366,6 +419,75 @@ export const ChatView = ({
   const naming = useRef(false);
   // How far this browser's clock is ahead of the server's: the ribbon counts a running step by the server's clock.
   const [clockOffset, setClockOffset] = useState(0);
+  const [draining, setDraining] = useState(false);
+  const [deferred, setDeferred] = useState<DeferredMessage[]>([]);
+  const deferredRef = useRef<DeferredMessage[]>([]);
+  const pendingMessage = useRef<DeferredMessage | null>(null);
+  const deferredSending = useRef<string | null>(null);
+  const deferredError = useRef<string | null>(null);
+  const setDeferredQueue = useCallback(
+    (next: DeferredMessage[]) => {
+      deferredRef.current = next;
+      setDeferred(next);
+      try {
+        if (next.length === 0) {
+          sessionStorage.removeItem(deferredKey(id));
+        } else {
+          sessionStorage.setItem(deferredKey(id), JSON.stringify(next));
+        }
+      } catch {
+        // Keep the in-memory queue if storage is unavailable in this browser.
+      }
+    },
+    [id]
+  );
+  const enqueueDeferred = useCallback(
+    (entry: DeferredMessage) => {
+      const queue = deferredRef.current.filter(
+        (item) => item.message.id !== entry.message.id
+      );
+      setDeferredQueue([...queue, entry]);
+    },
+    [setDeferredQueue]
+  );
+  const removeDeferred = useCallback(
+    (messageId: string) =>
+      setDeferredQueue(
+        deferredRef.current.filter((item) => item.message.id !== messageId)
+      ),
+    [setDeferredQueue]
+  );
+  useEffect(() => {
+    // Read sessionStorage after hydration; it is browser-owned state unavailable to the server render.
+    // oxlint-disable-next-line react/set-state-in-effect
+    setDeferredQueue(readDeferred(id));
+  }, [id, setDeferredQueue]);
+
+  useEffect(() => {
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const response = await fetch("/api/chat/update-status", {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const result = (await response.json()) as { draining?: unknown };
+        if (!stopped && typeof result.draining === "boolean") {
+          setDraining(result.draining);
+        }
+      } catch {
+        // The app may be restarting; keep the last known state until it answers again.
+      }
+    };
+    void poll();
+    const timer = setInterval(poll, 3000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, []);
   const transport = useMemo(
     () =>
       new DefaultChatTransport<ChatMessage>({
@@ -404,6 +526,7 @@ export const ChatView = ({
     error,
     messages,
     regenerate,
+    setMessages,
     sendMessage,
     status,
     stop,
@@ -424,6 +547,15 @@ export const ChatView = ({
         touch({ id, naming: false, title: part.data });
       }
     },
+    onFinish: () => {
+      const sentId = deferredSending.current;
+      if (sentId) {
+        removeDeferred(sentId);
+        deferredSending.current = null;
+      }
+      pendingMessage.current = null;
+      deferredError.current = null;
+    },
     // The thread ends with the user's own message: its answer may still be being written (the page was reloaded in
     // the middle of it) — join it. Decided once, on opening the chat: a later refresh of the page's data must not
     // start a second reading of an answer this page is already reading.
@@ -435,6 +567,23 @@ export const ChatView = ({
       answeredAsk(options.messages),
     transport,
   });
+  useEffect(() => {
+    if (!error || chatProblem(error) !== "updating") {
+      return;
+    }
+    const pending = pendingMessage.current;
+    if (!pending || deferredError.current === pending.message.id) {
+      return;
+    }
+    deferredError.current = pending.message.id;
+    enqueueDeferred(pending);
+    setMessages((all) =>
+      all.filter((message) => message.id !== pending.message.id)
+    );
+    setDraining(true);
+    pendingMessage.current = null;
+    clearError();
+  }, [clearError, enqueueDeferred, error, setMessages]);
   const busy = status === "submitted" || status === "streaming";
   // Stop lets go of the stream here and stops the model on the server (D6): what it wrote stays as the answer.
   const halt = () => {
@@ -482,6 +631,33 @@ export const ChatView = ({
 
   // The model a question went to: marks a switch for the answer that has not started yet.
   const [asked, setAsked] = useState<string>();
+  useEffect(() => {
+    const [next] = deferred;
+    if (!next || draining || status !== "ready") {
+      return;
+    }
+    if (initialMessages.some((message) => message.id === next.message.id)) {
+      removeDeferred(next.message.id);
+      return;
+    }
+    if (deferredSending.current === next.message.id) {
+      return;
+    }
+    deferredSending.current = next.message.id;
+    pendingMessage.current = next;
+    deferredError.current = null;
+    clearError();
+    setAsked(next.modelId);
+    void sendMessage(next.message, { body: { modelId: next.modelId } });
+  }, [
+    clearError,
+    deferred,
+    draining,
+    initialMessages,
+    removeDeferred,
+    sendMessage,
+    status,
+  ]);
   const attachments = useAttachments();
   // A file dropped on the screen joins the message being edited, when one is open; else the composer.
   const toEdit = useRef<((files: File[]) => void) | null>(null);
@@ -501,16 +677,30 @@ export const ChatView = ({
   const dragging = useFileDrop(dropFiles);
   // A mention is the `@Name` in the text: the server reads the thread's questions for the servers to use.
   const send = (text: string, files: FileUIPart[] = []) => {
+    const message: ChatMessage = {
+      id: uuid(),
+      metadata: { ...stamp(), modelId: model.id },
+      parts: [...(text ? [{ text, type: "text" as const }] : []), ...files],
+      role: "user",
+    };
+    const entry = { message, modelId: model.id };
     clearError();
+    deferredError.current = null;
+    if (draining || deferredRef.current.length > 0) {
+      enqueueDeferred(entry);
+      return;
+    }
+    pendingMessage.current = entry;
+    deferredSending.current = null;
     setAsked(model.id);
-    void sendMessage(
-      text ? { files, metadata: stamp(), text } : { files, metadata: stamp() },
-      { body: { modelId: model.id } }
-    );
+    void sendMessage(message, { body: { modelId: model.id } });
   };
   // An edited message replaces its old self and drops what followed; the server does the same with its copy. Its
   // files are the ones the edit left on it, old and new.
   const edit = (messageId: string, text: string, files: FileUIPart[]) => {
+    if (draining || deferredRef.current.length > 0) {
+      return;
+    }
     clearError();
     setAsked(model.id);
     void sendMessage(
@@ -543,13 +733,13 @@ export const ChatView = ({
     if (row.role === "user") {
       return (
         <UserMessage
-          editing={!busy && editingId === row.message.id}
+          editing={!busy && !draining && editingId === row.message.id}
           mentions={servers}
           message={row.message}
           skills={skillNames}
           onEditing={(open) => setEditingId(open ? row.message.id : null)}
           onEdit={
-            busy
+            busy || draining || deferred.length > 0
               ? undefined
               : (text, files) => edit(row.message.id, text, files)
           }
@@ -636,7 +826,7 @@ export const ChatView = ({
                           />
                         </MessageScrollerItem>
                       ))}
-                      {error && !busy && (
+                      {error && !busy && chatProblem(error) !== "updating" && (
                         <MessageScrollerItem messageId="error">
                           <ChatError error={error} onRetry={retry} />
                         </MessageScrollerItem>
@@ -676,6 +866,21 @@ export const ChatView = ({
           {/* The composer stands where the thread keeps it from the start: the first question moves nothing */}
           <div className="chat-rise chat-rise-next w-full px-4 pb-4 md:px-6">
             <div className="mx-auto max-w-4xl">
+              {(draining || deferred.length > 0) && (
+                <output
+                  aria-live="polite"
+                  className="bg-muted/70 text-muted-foreground mb-2 flex flex-col gap-0.5 rounded-lg border px-3 py-2 text-xs"
+                >
+                  <span className="text-foreground font-medium">
+                    {updateT("title")}
+                  </span>
+                  <span>
+                    {draining ? updateT("paused") : updateT("resuming")}
+                    {deferred.length > 0 &&
+                      ` · ${updateT("queued", { count: deferred.length })}`}
+                  </span>
+                </output>
+              )}
               <Composer
                 busy={busy}
                 favorites={favorites}
@@ -683,7 +888,12 @@ export const ChatView = ({
                 onModel={setModel}
                 onEditLast={() => {
                   const last = lastQuestion(rows);
-                  if (busy || last?.role !== "user") {
+                  if (
+                    busy ||
+                    draining ||
+                    deferred.length > 0 ||
+                    last?.role !== "user"
+                  ) {
                     return false;
                   }
                   setEditingId(last.message.id);

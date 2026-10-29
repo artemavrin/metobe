@@ -7,8 +7,8 @@
 # From a git checkout it installs that checkout instead (METOBE_BUILD=1 builds the image from source).
 #
 # Non-interactive: METOBE_YES=1 plus METOBE_URL, METOBE_PORT, METOBE_DATABASE_URL, METOBE_PROXY, METOBE_SMTP_URL,
-# METOBE_S3_CHOICE (1 bundled, 2 your own S3 via METOBE_S3_ENDPOINT/_BUCKET/_ACCESS_KEY/_SECRET_KEY/_REGION, 3 none)
-# as needed.
+# METOBE_S3_CHOICE (1 bundled, 2 your own S3 via METOBE_S3_ENDPOINT/_BUCKET/_ACCESS_KEY/_SECRET_KEY/_REGION, 3 none),
+# METOBE_UPDATER (y — updates from the app, n — by this script only) as needed.
 # Inputs are METOBE_-prefixed on purpose: a shell-wide HTTPS_PROXY must not leak into the containers.
 set -euo pipefail
 
@@ -101,6 +101,25 @@ storage_env() {
   esac
 }
 
+# --- updates from the app (D35) ---------------------------------------------------------------------
+# Asks once whether the updater runs: a service with docker.sock that updates Metobe on the admin's button.
+updater_env() {
+  ask METOBE_UPDATER "Обновлять Metobe кнопкой в приложении? Сервис обновлений получит доступ к Docker (y/n)" "y" >&2
+  case "$METOBE_UPDATER" in
+    y|Y|yes|д|Д|да|1) echo "METOBE_UPDATER=1" ;;
+    *) echo "METOBE_UPDATER=0" ;;
+  esac
+}
+
+# set_env KEY VALUE — replaces the line in .env, or adds it.
+set_env() {
+  if grep -q "^$1=" .env; then
+    sed -i.bak "s|^$1=.*|$1=$2|" .env && rm -f .env.bak
+  else
+    echo "$1=$2" >> .env
+  fi
+}
+
 # Adds a profile to COMPOSE_PROFILES in .env (bundled services run only when their profile is on).
 add_profile() {
   local profile="$1" current
@@ -127,6 +146,10 @@ if [ -f .env ]; then
     storage_env >> .env
     if grep -q '^S3_ENDPOINT=http://s3:8333$' .env; then add_profile s3; fi
   fi
+  if ! grep -q '^METOBE_UPDATER=' .env; then
+    say "В этой версии Metobe можно обновлять из приложения."
+    updater_env >> .env
+  fi
 else
   ask METOBE_URL "По какому адресу будут открывать Metobe" "http://localhost:3000"
   ask METOBE_PORT "Порт на этой машине" "3000"
@@ -140,6 +163,7 @@ else
   ask METOBE_PROXY "Исходящий прокси, если нужен (http://… или socks5://…)" ""
   ask METOBE_SMTP_URL "Почта для писем со входом (smtp://user:pass@host:587), можно позже в настройках" ""
   storage=$(storage_env)
+  updater=$(updater_env)
 
   umask 077
   {
@@ -163,10 +187,20 @@ else
     [ -z "$profiles" ] || echo "COMPOSE_PROFILES=$profiles"
     [ -z "$METOBE_PROXY" ] || echo "HTTPS_PROXY=$METOBE_PROXY"
     [ -z "$METOBE_SMTP_URL" ] || echo "SMTP_URL=$METOBE_SMTP_URL"
+    echo "$updater"
   } > .env
   say
   say "${yellow}Сохраните SECRETS_KEY из файла .env в надёжном месте.${off}"
   say "${dim}Без него ключи источников и пароли подключений не восстановить даже из бэкапа.${off}"
+fi
+
+services="app worker searxng"
+if grep -q '^METOBE_UPDATER=1$' .env; then
+  # The updater sees this folder at the host's own path: kept current should the folder move.
+  set_env METOBE_DIR "$(pwd)"
+  set_env METOBE_UPDATER_IMAGE "$image"
+  add_profile updater
+  services="$services updater"
 fi
 
 # --- image and start -------------------------------------------------------------------------------
@@ -186,7 +220,8 @@ else
   build
 fi
 say "Запускаю…"
-compose up -d --wait --remove-orphans app worker searxng
+# shellcheck disable=SC2086 # the list splits into services on purpose
+compose up -d --wait --remove-orphans $services
 
 link="$(compose exec -T app metobe claim-link | grep -oE 'https?://[^ ]+' || true)"
 say
@@ -197,4 +232,8 @@ if [ -n "$link" ]; then
 else
   say "Вход: $(grep -E '^BETTER_AUTH_URL=' .env | cut -d= -f2-)/login"
 fi
-say "${dim}Обновление: запустите установщик ещё раз в этой же папке.${off}"
+if grep -q '^METOBE_UPDATER=1$' .env; then
+  say "${dim}Обновления — в приложении: Настройки → О системе.${off}"
+else
+  say "${dim}Обновление: запустите установщик ещё раз в этой же папке.${off}"
+fi

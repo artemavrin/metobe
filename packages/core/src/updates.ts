@@ -1,21 +1,21 @@
 import "server-only";
 import { z } from "zod";
 
-import pkg from "../../../package.json";
 import { fetchFor } from "./net";
 import { mergePolicies, readPolicies } from "./policies";
 import { compareVersions, parseNotes } from "./updates-notes";
 import type { Release } from "./updates-notes";
+import { APP_VERSION } from "./version";
 
 // «О системе» (D35): the version this server runs and the releases newer than it, from GitHub. Checked at most every
 // six hours — the admin's page and the settings menu read the last check, «Проверить сейчас» forces one. The last
-// check lives in system_settings.policies.updates, so the app and the worker see the same.
+// check lives in system_settings.policies.updates, so the app and the worker see the same. METOBE_RELEASES_URL points
+// the list elsewhere (the same JSON as GitHub's API): a test stand's own releases.
 
-const REPO = "artemavrin/metobe";
+const RELEASES =
+  process.env.METOBE_RELEASES_URL ??
+  "https://api.github.com/repos/artemavrin/metobe/releases?per_page=30";
 const EVERY_MS = 6 * 60 * 60 * 1000;
-
-/** The version of this build: the repository's own, bumped by release-please. */
-export const APP_VERSION: string = pkg.version;
 
 export interface UpdateCheck {
   current: string;
@@ -27,6 +27,9 @@ export interface UpdateCheck {
 }
 
 const releaseSchema = z.object({
+  assets: z
+    .array(z.object({ browser_download_url: z.string(), name: z.string() }))
+    .default([]),
   body: z.string().nullish(),
   draft: z.boolean(),
   html_url: z.string(),
@@ -65,11 +68,15 @@ const viewOf = (s: Stored): UpdateCheck => ({
   newer: s.releases.filter((r) => compareVersions(r.version, APP_VERSION) > 0),
 });
 
-/** The published releases on GitHub, through the routes the admin set for the outgoing network. */
-const fetchReleases = async (): Promise<Release[]> => {
-  const url = `https://api.github.com/repos/${REPO}/releases?per_page=30`;
-  const fetchIt = await fetchFor(null, url);
-  const res = await fetchIt(url, {
+/** A release as the updater needs it: its `compose.yml`, when the release has one. */
+export interface PublishedRelease extends Release {
+  compose: string | null;
+}
+
+/** The published releases, newest first, through the routes the admin set for the outgoing network. */
+export const fetchReleases = async (): Promise<PublishedRelease[]> => {
+  const fetchIt = await fetchFor(null, RELEASES);
+  const res = await fetchIt(RELEASES, {
     headers: {
       accept: "application/vnd.github+json",
       "user-agent": `metobe/${APP_VERSION}`,
@@ -85,6 +92,9 @@ const fetchReleases = async (): Promise<Release[]> => {
       .filter((r) => !r.draft && !r.prerelease)
       .map((r) => ({
         ...parseNotes(r.body ?? ""),
+        compose:
+          r.assets.find((a) => a.name === "compose.yml")
+            ?.browser_download_url ?? null,
         date: (r.published_at ?? "").slice(0, 10),
         url: r.html_url,
         version: r.tag_name.replace(/^v/u, ""),
@@ -99,10 +109,11 @@ export const checkForUpdates = async (): Promise<UpdateCheck> => {
   const before = await readStored();
   let stored: Stored;
   try {
+    const releases = await fetchReleases();
     stored = {
       checkedAt: new Date().toISOString(),
       error: null,
-      releases: await fetchReleases(),
+      releases: releases.map(({ compose: _compose, ...r }) => r),
     };
   } catch (error) {
     stored = {
