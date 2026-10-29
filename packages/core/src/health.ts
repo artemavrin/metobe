@@ -3,6 +3,7 @@ import type { HealthResponse } from "@metobe/contracts/health";
 
 import { getDb } from "./db";
 import { checkStorage } from "./storage";
+import { APP_VERSION } from "./version";
 
 // Only what is installed counts: S3 is optional (D34), so «off» is healthy and «down» is not.
 export const checkHealth = async (): Promise<HealthResponse> => {
@@ -15,5 +16,6 @@ export const checkHealth = async (): Promise<HealthResponse> => {
   return {
     services: { db, s3 },
     status: db === "ok" && s3 !== "down" ? "ok" : "down",
+    version: APP_VERSION,
   };
 };

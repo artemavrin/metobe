@@ -1,5 +1,6 @@
 import { checkHealth } from "@metobe/core/health";
 import { ensureSecretsCanary } from "@metobe/core/secrets";
+import { getUpdates } from "@metobe/core/updates";
 
 // Periodic DB check keeps the process alive until BullMQ workers hold the event loop.
 const keepAlive = setInterval(async () => {
@@ -11,8 +12,19 @@ const keepAlive = setInterval(async () => {
   }
 }, 60_000);
 
+// New releases on GitHub (D35): asked at most every six hours, so the admin's dot appears without anyone looking.
+const releases = async () => {
+  try {
+    await getUpdates();
+  } catch (error) {
+    console.error("worker: update check", error);
+  }
+};
+const updates = setInterval(releases, 60 * 60_000);
+
 const shutdown = () => {
   clearInterval(keepAlive);
+  clearInterval(updates);
   console.log("worker stopping");
   process.exit(0);
 };
@@ -27,6 +39,7 @@ try {
   console.log(
     `worker started, db: ${health.services.db}, s3: ${health.services.s3}`
   );
+  void releases();
 } catch (error) {
   console.error(error);
   process.exit(1);

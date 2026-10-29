@@ -27,6 +27,7 @@ import {
   Unplug,
   Paperclip,
   Pencil,
+  RefreshCw,
   Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -81,6 +82,7 @@ const ENTRIES: Entry[] = [
   { about: "Статистика в ответе: числа, динамика, прогресс к цели, доли, разброс, рейтинг; плитки, лента или полоса", area: "chat", chosen: "«Полоса»", href: "/dev/prototypes/metrics", icon: Gauge, status: "chosen", title: "Показатели в ответе" },
   { about: "Ещё формы показателей: кто вырос и упал, Парето / ABC, выбросы, воронка, состав (кольцо или полоса) — по два вида каждой", area: "chat", href: "/dev/prototypes/metrics-forms", icon: Gauge, status: "open", title: "Показатели: ещё формы" },
   { about: "Графики evilcharts (ECharts) на наших данных и цветах темы: площадь, линия, столбцы, радар, круговая", area: "reference", href: "/dev/prototypes/evilcharts", icon: LayoutDashboard, status: "reference", title: "Графики evilcharts" },
+  { about: "Обновление Metobe из приложения: что нового, «сейчас» или «ночью», шаги на сервере, откат, история с копиями базы — и что видит человек в чате", area: "settings", href: "/dev/prototypes/updates", icon: RefreshCw, status: "open", title: "О системе: обновления" },
   { about: "Расходы по моделям, людям и дням с графиками; две валюты рядом, без суммы: как у Vercel, обзор с плитками, сводка «кто на чём» или отчёт одним столбцом", area: "settings", chosen: "«Обзор», на телефоне — без мини-графиков в плитках и рейтинги вкладками", href: "/dev/prototypes/usage", icon: ChartColumn, status: "chosen", title: "Расходы" },
   { about: "Компоненты ReUI и shadcn в теме Metobe", area: "reference", href: "/dev/showcase", icon: LayoutDashboard, status: "reference", title: "Дизайн-система" },
 ];

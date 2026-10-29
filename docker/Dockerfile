@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# One image, three commands: web (default), worker, and the `metobe` CLI.
+# One image, four commands: web (default), worker, updater, and the `metobe` CLI.
+FROM ghcr.io/sigstore/cosign/cosign:v3.1.4 AS cosign-bin
+
 FROM node:24-alpine AS build
 RUN corepack enable
 WORKDIR /repo
@@ -17,6 +19,9 @@ ENV NODE_ENV=production \
     PORT=3000 \
     MIGRATIONS_DIR=/app/migrations
 RUN addgroup -S metobe && adduser -S metobe -G metobe
+# The updater's tools (D35): compose to recreate the stack, pg_dump and pg_restore for the copy of the base.
+RUN apk add --no-cache ca-certificates docker-cli docker-cli-compose postgresql18-client
+COPY --from=cosign-bin /ko-app/cosign /usr/local/bin/cosign
 COPY --from=build --chown=metobe:metobe /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=metobe:metobe /repo/apps/web/.next/static ./apps/web/.next/static
 # Standalone output leaves public/ out; the sign-in clips and posters live there.

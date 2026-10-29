@@ -124,6 +124,7 @@ export const chatErrorCodes = [
   "context-full",
   "too-fast",
   "daily-limit",
+  "updating",
 ] as const;
 export type ChatErrorCode = (typeof chatErrorCodes)[number];
 

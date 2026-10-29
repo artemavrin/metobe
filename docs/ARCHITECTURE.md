@@ -52,6 +52,8 @@ redis      config:changed между процессами, rate limit, очер�
 s3         профиль s3: SeaweedFS в режиме S3 — spike (D4)   (или внешний S3 по S3_*)
 searxng    профиль search: веб-поиск (§8.1)
 mailpit    только в dev-профиле: перехват писем
+updater    профиль updater, тот же образ: обновление из приложения, единственный с docker.sock (D35)
+           app читает том backups только для защищённого скачивания администратором; updater — его writer
 sandbox    профиль compose, выключен по умолчанию — v3 (D3)
 ```
 
@@ -157,7 +159,7 @@ apps/
     modules/            фича-модули: api / model / components
       chat/ widgets/ settings/ agents/ usage/
     artifacts/          v2
-  worker/               BullMQ: диспетчер, запуски агентов, email — v2
+  worker/               BullMQ: диспетчер, запуски агентов, email — v2; второй вход `updater` (D35)
   cli/                  claim-link, login-link, secrets:rotate, seed, migrate
 packages/
   ui/                   дизайн-система: ReUI + shadcn, тема, токены — без домена

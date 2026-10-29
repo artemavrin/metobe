@@ -160,6 +160,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     env:
       IMAGE: ghcr.io/${{ github.repository }}
       TAG: ${{ needs.release.outputs.tag }}
@@ -187,6 +188,14 @@ jobs:
             -t "$IMAGE:$VERSION" -t "$IMAGE:${{ needs.release.outputs.minor }}" -t "$IMAGE:latest" \
             $(printf "$IMAGE@sha256:%s " *)
           docker buildx imagetools inspect "$IMAGE:$VERSION"
+      - uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: v3.1.4
+      - name: Sign the published image index
+        run: |
+          DIGEST="$(docker buildx imagetools inspect "$IMAGE:$VERSION" | awk '$1 == "Digest:" { print $2; exit }')"
+          test -n "$DIGEST"
+          cosign sign --yes "$IMAGE@$DIGEST"
       - name: Attach installer and compose file
         run: |
           mkdir -p /tmp/assets

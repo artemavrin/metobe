@@ -13,6 +13,9 @@ services:
       REDIS_URL: redis://redis:6379
       # The chat's web search (ARCH §8.1); without it the chat simply has no web.
       SEARXNG_URL: http://searxng:8080
+    volumes:
+      # Admin downloads are served by the app; the updater is the only writer to the shared backup volume.
+      - backups:/backups:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,6 +44,30 @@ services:
     environment: *app-env
     depends_on:
       app:
+        condition: service_healthy
+
+  # Updates from the app (D35), when install.sh turned it on: the one service with docker.sock — root on the host, so it
+  # takes no connections; the app asks it through Redis. It sees the installation's folder at the host's own path
+  # (METOBE_DIR), so compose run from inside resolves it the same, and keeps three copies of the base in `backups`.
+  updater:
+    image: ${METOBE_UPDATER_IMAGE:-${METOBE_IMAGE:-ghcr.io/artemavrin/metobe:latest}}
+    command: ["updater"]
+    profiles: ["updater"]
+    user: "0:0"
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *app-env
+      METOBE_DIR: ${METOBE_DIR:-/opt/metobe}
+    working_dir: ${METOBE_DIR:-/opt/metobe}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${METOBE_DIR:-/opt/metobe}:${METOBE_DIR:-/opt/metobe}
+      - backups:/backups
+    depends_on:
+      redis:
         condition: service_healthy
 
   # Bundled database; skipped when install.sh points APP_DATABASE_URL at an external one.
@@ -138,3 +165,4 @@ volumes:
   postgres:
   redis:
   s3:
+  backups:

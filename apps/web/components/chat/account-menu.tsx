@@ -15,6 +15,7 @@ import {
 import { SidebarMenuButton, useSidebar } from "@metobe/ui/components/sidebar";
 import { cn } from "@metobe/ui/lib/utils";
 import {
+  CircleArrowUp,
   ChartColumn,
   Languages,
   LogOut,
@@ -41,6 +42,8 @@ export interface Person {
   email: string;
   image: string | null;
   role: string;
+  /** An admin's news: the newest Metobe version past this one; none — nothing to update. */
+  update?: string | null;
 }
 
 const unsubscribe = (): void => undefined;
@@ -156,6 +159,7 @@ const MenuBody = ({
   const hk = useHotkeyLabel();
   const t = useTranslations("chat");
   const sections = useTranslations("settings.sections");
+  const about = useTranslations("about");
   return (
     <>
       <div className="flex items-center gap-2.5 px-2 py-2">
@@ -194,6 +198,19 @@ const MenuBody = ({
       >
         {sections("usage.label")}
       </LinkRow>
+      {user.update && (
+        <LinkRow
+          href="/settings/about"
+          icon={CircleArrowUp}
+          onNavigate={onNavigate}
+        >
+          {about("menu", { version: user.update })}
+          <span
+            aria-hidden
+            className="bg-primary ml-auto size-1.5 rounded-full"
+          />
+        </LinkRow>
+      )}
       <Separator />
       <button className={rowClass} onClick={() => signOut()} type="button">
         <LogOut />
@@ -205,7 +222,16 @@ const MenuBody = ({
 
 const TriggerFace = ({ user }: { user: Person }) => (
   <>
-    <UserAvatar image={user.image} name={user.name} />
+    <span className="relative shrink-0">
+      <UserAvatar image={user.image} name={user.name} />
+      {/* A new version for the admin: the menu has a row for it. */}
+      {user.update && (
+        <span
+          aria-hidden
+          className="bg-primary ring-sidebar absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2"
+        />
+      )}
+    </span>
     <span className="flex min-w-0 flex-col leading-tight">
       <span className="truncate text-sm font-medium">{user.name}</span>
       <span className="text-muted-foreground truncate text-xs">
