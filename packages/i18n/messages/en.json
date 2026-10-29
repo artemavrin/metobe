@@ -638,7 +638,7 @@
       },
       "about": {
         "label": "About",
-        "hint": "Version, updates, master key"
+        "hint": "Version and updates"
       },
       "service": {
         "label": "Service models",
@@ -1965,5 +1965,33 @@
     "personalTitle": "My skills",
     "personalDescription": "Your own skills in the Agent Skills format, seen by you alone. A skill with the name of an organization's one replaces it in your chats.",
     "emptyPersonal": "You have no skills of your own yet."
+  },
+  "about": {
+    "title": "About",
+    "description": "Metobe's version and updates.",
+    "version": "Metobe {version}",
+    "badge": {
+      "latest": "latest",
+      "available": "update available",
+      "unknown": "not checked"
+    },
+    "checked": "checked {when}",
+    "latest": "This is the latest version. Metobe checks for updates every 6 hours by itself.",
+    "never": "Updates have not been checked yet.",
+    "checkNow": "Check now",
+    "failed": "Could not check for updates: {reason}",
+    "available": "{version} is available",
+    "released": "Released {date}",
+    "andEarlier": "{count, plural, one {and # version before it} other {and # versions before it}}",
+    "features": "New",
+    "fixes": "Fixes",
+    "noNotes": "The release has no list of changes.",
+    "more": "{count} more",
+    "less": "Show less",
+    "github": "On GitHub",
+    "manual": "To update, run the installer where you first ran it — next to the metobe folder. It downloads {version}, keeps your settings and restarts Metobe:",
+    "copy": "Copy",
+    "copied": "Copied",
+    "menu": "{version} is available"
   }
 }

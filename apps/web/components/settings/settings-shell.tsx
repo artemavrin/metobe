@@ -48,10 +48,13 @@ const Menu = ({
   admin,
   query,
   onDrill,
+  marked,
 }: {
   admin: boolean;
   query: string;
   onDrill: (id: SettingsSectionId) => void;
+  /** Sections with news for the viewer: a dot after the name («О системе» — a new version). */
+  marked: readonly SettingsSectionId[];
 }) => {
   const t = useTranslations("settings");
   const pathname = usePathname();
@@ -110,6 +113,12 @@ const Menu = ({
                   >
                     <item.icon />
                     <span>{t(`sections.${id}.label`)}</span>
+                    {marked.includes(id) && (
+                      <span
+                        aria-hidden
+                        className="bg-primary ml-auto size-1.5 shrink-0 rounded-full"
+                      />
+                    )}
                     {item.kind === "list" && (
                       <ChevronRight className="text-muted-foreground ml-auto size-3.5" />
                     )}
@@ -171,16 +180,21 @@ const levelMotion = (reduce: boolean) => ({
  * Settings are a mode of the same shell as the chat: a floating sidebar with the settings menu and the account row.
  * Esc goes back to the chat unless focus is in a field, a dialog or a menu.
  */
+const NONE: readonly SettingsSectionId[] = [];
+
 export const SettingsShell = ({
   admin,
   account,
   lists,
+  marked = NONE,
   children,
 }: {
   admin: boolean;
   account: ReactNode;
   /** Lists of the list sections this viewer may open (lib/settings-lists). */
   lists: SettingsLists;
+  /** Sections with a dot: news for the viewer there. */
+  marked?: readonly SettingsSectionId[];
   children: ReactNode;
 }) => {
   const t = useTranslations("settings");
@@ -324,6 +338,7 @@ export const SettingsShell = ({
                   >
                     <Menu
                       admin={admin}
+                      marked={marked}
                       onDrill={(id) => {
                         setOpening(id);
                         go(true);

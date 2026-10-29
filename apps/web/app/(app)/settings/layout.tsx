@@ -1,3 +1,4 @@
+import { availableUpdate } from "@metobe/core/updates";
 import { getTranslations } from "next-intl/server";
 
 import { SettingsShell } from "@/components/settings/settings-shell";
@@ -10,7 +11,10 @@ const SettingsLayout = async ({ children }: { children: React.ReactNode }) => {
     getSettingsViewer(),
     getTranslations("settings.roles"),
   ]);
-  const lists = await getSettingsLists(admin, user?.id);
+  const [lists, update] = await Promise.all([
+    getSettingsLists(admin, user?.id),
+    admin ? availableUpdate() : null,
+  ]);
   const name = user?.name || user?.email || "";
   const roleKey = role === "superuser" || role === "admin" ? role : "user";
   return (
@@ -28,6 +32,7 @@ const SettingsLayout = async ({ children }: { children: React.ReactNode }) => {
       }
       admin={admin}
       lists={lists}
+      marked={update ? ["about"] : []}
     >
       {children}
     </SettingsShell>
