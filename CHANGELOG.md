@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/artemavrin/metobe/compare/v0.4.0...v0.5.0) (2026-10-29)
+
+
+### Features
+
+* add updater service with rollback ([#85](https://github.com/artemavrin/metobe/issues/85)) ([fd49770](https://github.com/artemavrin/metobe/commit/fd49770ebbccfd9aeb67135b6a23bb2098f69fef))
+* personal skills screen and Skills submenu in the + menu ([#81](https://github.com/artemavrin/metobe/issues/81)) ([af38650](https://github.com/artemavrin/metobe/commit/af38650f897f6f5fd8afde789c40f6e6ab4f4b07))
+* usage overview with periods, and team usage for admins ([#84](https://github.com/artemavrin/metobe/issues/84)) ([6969446](https://github.com/artemavrin/metobe/commit/6969446a3af5a90891362ac6254879b2097b8576))
+
 ## [0.4.0](https://github.com/artemavrin/metobe/compare/v0.3.0...v0.4.0) (2026-10-14)
 
 
