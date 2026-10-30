@@ -195,7 +195,6 @@ export const ConnectRequest = ({
           done();
           return "ok";
         }}
-        reason={part.input.reason}
         server={dialog && !mail ? (server ?? null) : null}
       />
       <Dialog
