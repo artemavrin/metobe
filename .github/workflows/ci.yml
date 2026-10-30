@@ -188,8 +188,7 @@ jobs:
   image:
     needs: [changes, release, base]
     if: >-
-      !cancelled() && github.event_name == 'push' &&
-      (needs.changes.outputs.code == 'true' || (needs.release.outputs.created == 'true' && needs.base.result == 'success' && needs.base.outputs.image == ''))
+      !cancelled() && github.event_name == 'push' && (needs.changes.outputs.code == 'true' || (needs.release.outputs.created == 'true' && needs.base.result == 'success' && needs.base.outputs.image == ''))
     strategy:
       matrix:
         include:
@@ -267,8 +266,7 @@ jobs:
   publish:
     needs: [release, base, image]
     if: >-
-      !cancelled() && needs.release.outputs.created == 'true' && needs.base.result == 'success' &&
-      (needs.image.result == 'success' || needs.image.result == 'skipped')
+      !cancelled() && needs.release.outputs.created == 'true' && needs.base.result == 'success' && (needs.image.result == 'success' || needs.image.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
