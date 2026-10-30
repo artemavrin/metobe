@@ -11,12 +11,21 @@ on:
 permissions:
   contents: read
 
+# A PR's newer push cancels its older run. On main every commit runs on its own: merges never queue behind each other,
+# so the release PR is updated a minute after a merge, and a commit's image is never cancelled by the next push.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# The way to a release, and why each step is where it is:
+#   PR          — checks and e2e side by side (~3 min); the required checks.
+#   push main   — release-please updates the release PR at once (it waits for nothing: the code was checked in the PR);
+#                 checks and e2e run again on the merged commit, and its image is built and pushed as `sha-<commit>`.
+#   release PR  — merged: nothing is rebuilt. The commit it was cut from must be green on main; its image gets the
+#                 version stamped in (one ENV layer) and the version tags; signed, installer attached, published.
 jobs:
-  # Whether the change touches more than docs and Markdown.
+  # Whether the change touches code: not when it is docs and Markdown only, nor when it is release-please's own
+  # commit (changelog, manifest and the version line of package.json) — that one's code was checked as its parent.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -27,13 +36,8 @@ jobs:
           fetch-depth: 0
       - id: diff
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ -z "$BASE" ] || git diff --name-only "$BASE" HEAD | grep -qvE '^docs/|\.md$'; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "code=false" >> "$GITHUB_OUTPUT"
-          fi
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: echo "code=$(.github/scripts/code-changed.sh "$BASE" HEAD)" >> "$GITHUB_OUTPUT"
 
   checks:
     needs: changes
@@ -47,15 +51,22 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      # Turbo's own cache across runs: a package nobody touched replays its types and tests instead of running them.
+      - uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm check-types
       - run: pnpm test
-      - run: pnpm build
+      # No `pnpm build` here: e2e builds the app inside the image, and a build error fails it there.
 
+  # Side by side with checks, not after them: the image build is the long part of the whole pipeline.
   e2e:
     runs-on: ubuntu-latest
-    needs: [changes, checks]
+    needs: changes
     if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -85,12 +96,14 @@ jobs:
           path: apps/web/playwright-report
           if-no-files-found: ignore
 
-  # Keeps a "Release vX.Y.Z" PR up to date from conventional commits. Merging it creates a draft release;
-  # the jobs below attach the image and installer, then publish it. docs/chore commits never release.
+  # Keeps a "Release vX.Y.Z" PR up to date from conventional commits; merging it creates a draft release. Waits for
+  # nothing: what reaches main was checked in its PR. One at a time, so two merges never race on the release PR.
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [checks, e2e]
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-please
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
@@ -104,10 +117,79 @@ jobs:
       - id: rp
         uses: googleapis/release-please-action@v5
 
-  # Each platform builds on its own native runner; images are pushed by digest and merged below.
-  image:
+  # The commit a release is cut from: the release commit's parent — or further back, past docs-only commits and
+  # earlier release commits, which change no code. Waits for that commit's run on main to finish; its checks and e2e
+  # must have passed, and its image (built on that push) is what gets released. No image — its build failed, or the
+  # commit predates this pipeline — and the release is built from source instead.
+  base:
     needs: release
     if: needs.release.outputs.created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.find.outputs.image }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.sha }}
+          fetch-depth: 50
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: find
+        run: |
+          commit=""
+          for c in $(git rev-list --first-parent --max-count=40 HEAD^); do
+            if [ "$(.github/scripts/code-changed.sh "$c^" "$c")" = "true" ]; then
+              commit="$c"
+              break
+            fi
+          done
+          if [ -z "$commit" ]; then
+            echo "::warning::no code commit in the last 40 — building the release from source"
+            exit 0
+          fi
+          # Its push run: it may not have started yet when the release PR is merged right after it.
+          while :; do
+            run="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$commit&event=push" \
+              --jq '.workflow_runs | sort_by(.created_at) | last | if . == null then "" else "\(.id) \(.status)" end')"
+            case "$run" in
+              *" completed") break ;;
+            esac
+            echo "waiting for the run of $commit (${run:-not started})"
+            sleep 20
+          done
+          job() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/${run%% *}/jobs?per_page=100" \
+              --jq "[.jobs[] | select(.name == \"$1\")] | last | if . == null then \"none\" else .conclusion end"
+          }
+          for name in checks e2e; do
+            result="$(job "$name")"
+            [ "$result" = "success" ] || { echo "::error::$name is «$result» on $commit — main is not green, nothing is released"; exit 1; }
+          done
+          if [ "$(job edge)" = "success" ] && docker buildx imagetools inspect "$IMAGE:sha-$commit" >/dev/null; then
+            echo "Releasing the image of $commit"
+            echo "image=$IMAGE:sha-$commit" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::no image of $commit — building the release from source"
+          fi
+
+  # The image, each platform on its own native runner, pushed by digest: for every code push to main (then tagged
+  # `sha-<commit>` below), and for a release only when there was no image to take.
+  image:
+    needs: [changes, release, base]
+    if: >-
+      !cancelled() && github.event_name == 'push' &&
+      (needs.changes.outputs.code == 'true' || (needs.release.outputs.created == 'true' && needs.base.result == 'success' && needs.base.outputs.image == ''))
     strategy:
       matrix:
         include:
@@ -122,7 +204,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release.outputs.sha }}
+          ref: ${{ needs.release.outputs.created == 'true' && needs.release.outputs.sha || github.sha }}
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
@@ -154,22 +236,15 @@ jobs:
           path: /tmp/digests/*
           retention-days: 1
 
-  publish:
-    needs: [release, image]
+  # A main commit's image under `sha-<commit>`: what its release will be, once the version is stamped in.
+  edge:
+    needs: [changes, image]
+    if: github.event_name == 'push' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
-      id-token: write
-    env:
-      IMAGE: ghcr.io/${{ github.repository }}
-      TAG: ${{ needs.release.outputs.tag }}
-      VERSION: ${{ needs.release.outputs.version }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release.outputs.sha }}
       - uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
@@ -181,11 +256,63 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge platforms into the commit's tag
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          docker buildx imagetools create -t "$IMAGE:sha-$GITHUB_SHA" $(printf "$IMAGE@sha256:%s " *)
+          docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA"
+
+  publish:
+    needs: [release, base, image]
+    if: >-
+      !cancelled() && needs.release.outputs.created == 'true' && needs.base.result == 'success' &&
+      (needs.image.result == 'success' || needs.image.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+      BASE_IMAGE: ${{ needs.base.outputs.image }}
+      TAG: ${{ needs.release.outputs.tag }}
+      VERSION: ${{ needs.release.outputs.version }}
+      MINOR: ${{ needs.release.outputs.minor }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.sha }}
+      - if: needs.base.outputs.image == ''
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # The checked commit's image with the version stamped in: one ENV and a label on top, no RUN, so both platforms
+      # take seconds and need no emulation. The app reads its version from METOBE_APP_VERSION (core/version.ts).
+      - name: Stamp the version on the checked image
+        if: needs.base.outputs.image != ''
+        run: |
+          printf 'FROM %s\nENV METOBE_APP_VERSION=%s\nLABEL org.opencontainers.image.version=%s\n' \
+            "$BASE_IMAGE" "$VERSION" "$VERSION" |
+            docker buildx build --platform linux/amd64,linux/arm64 --provenance=false \
+              -t "$IMAGE:$VERSION" -t "$IMAGE:$MINOR" -t "$IMAGE:latest" --push -
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
       - name: Merge platforms into versioned tags
+        if: needs.base.outputs.image == ''
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
-            -t "$IMAGE:$VERSION" -t "$IMAGE:${{ needs.release.outputs.minor }}" -t "$IMAGE:latest" \
+            -t "$IMAGE:$VERSION" -t "$IMAGE:$MINOR" -t "$IMAGE:latest" \
             $(printf "$IMAGE@sha256:%s " *)
           docker buildx imagetools inspect "$IMAGE:$VERSION"
       - uses: sigstore/cosign-installer@v4.1.2
