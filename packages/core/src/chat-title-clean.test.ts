@@ -20,4 +20,20 @@ describe("a model's title made fit for the sidebar", () => {
     expect(cleanTitle("а".repeat(100))).toHaveLength(80);
     expect(cleanTitle("   ")).toBe("");
   });
+
+  it("takes no title that names the message instead of its topic — the model echoing its task", () => {
+    for (const echo of [
+      "User's first message",
+      "The user's message",
+      "First message",
+      "New chat",
+      "Сообщение пользователя",
+      "Первое сообщение",
+      "Новый чат",
+    ]) {
+      expect(cleanTitle(echo)).toBe("");
+    }
+    expect(cleanTitle("Message queue on Redis")).toBe("Message queue on Redis");
+    expect(cleanTitle("Сообщение в Telegram")).toBe("Сообщение в Telegram");
+  });
 });

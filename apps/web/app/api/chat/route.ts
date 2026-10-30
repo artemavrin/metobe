@@ -293,7 +293,7 @@ export const POST = async (request: Request) => {
     return refused;
   }
   // The user's own zone (their choice, else the browser's): the clock the model asks tells the time in it.
-  const { timeZone } = await getPrefs();
+  const { locale, timeZone } = await getPrefs();
   const [stored, chatServers, ownBoxes, notes, personal, skills] =
     await Promise.all([
       chat ? listMessages(id) : [],
@@ -380,6 +380,7 @@ export const POST = async (request: Request) => {
             ? null
             : await generateChatTitle({
                 chatId: id,
+                locale,
                 // The sidebar shows the chat being named from here to its title (or the end of the answer).
                 onStart: () =>
                   writer.write({

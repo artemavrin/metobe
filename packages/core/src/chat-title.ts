@@ -9,9 +9,26 @@ import { cleanTitle } from "./chat-title-clean";
 import { getDb } from "./db";
 import { getSlotModel } from "./model-slots";
 
-const INSTRUCTIONS =
-  "Name the conversation that starts with the user's message: 3–6 words, in the language of the message, " +
-  "no quotes, no final punctuation. Answer with the title only.";
+/** A locale's language in English words, for the model: `ru` → «Russian»; the code itself when it is not known. */
+const languageOf = (locale: string) => {
+  try {
+    return (
+      new Intl.DisplayNames(["en"], { type: "language" }).of(locale) ?? locale
+    );
+  } catch {
+    return locale;
+  }
+};
+
+/**
+ * The title is in the language the user picked for the interface, not the message's: a chat started with an English
+ * error log still reads as the rest of the sidebar. The message comes inside tags, so a short one («привет») is not
+ * taken for part of the task — a small model answered «User's first message» to it.
+ */
+const instructionsFor = (locale: string) =>
+  `You name chats. The user's first message is inside <message> tags. Write a title for the conversation it starts: ` +
+  `2–6 words in ${languageOf(locale)}, about what the user wants, starting with a capital letter, no quotes, no final punctuation. ` +
+  `Answer with the title only — never describe the message itself.`;
 
 /**
  * A title wants no thinking: it is faster and a thinking model would spend the few output tokens on it. A provider
@@ -19,13 +36,14 @@ const INSTRUCTIONS =
  */
 const titleText = async (
   model: Awaited<ReturnType<typeof getLanguageModel>>,
-  text: string
+  text: string,
+  locale: string
 ) => {
   const call = {
-    instructions: INSTRUCTIONS,
+    instructions: instructionsFor(locale),
     maxOutputTokens: 40,
     model,
-    prompt: text.slice(0, 4000),
+    prompt: `<message>\n${text.slice(0, 4000)}\n</message>`,
   };
   try {
     return await generateText({ ...call, reasoning: "none" });
@@ -45,6 +63,8 @@ export const generateChatTitle = async (run: {
   chatId: string;
   userId: string;
   text: string;
+  /** The user's interface language (`ru`, `en`): the title is written in it. */
+  locale: string;
   /** Called once a model has the job, before it is asked: the chat can say it is being named. */
   onStart?: () => void;
 }) => {
@@ -57,7 +77,8 @@ export const generateChatTitle = async (run: {
   try {
     const result = await titleText(
       await getLanguageModel(model.sourceId, model.modelId),
-      run.text
+      run.text,
+      run.locale
     );
     await recordRun({
       chatId: run.chatId,
