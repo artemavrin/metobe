@@ -906,7 +906,13 @@
           "unset": "unsure",
           "hint": "Set by hand and kept when the list is refreshed. «Unsure» — we'll try and turn it off on error."
         },
-        "more": "{count} more"
+        "more": "{count} more",
+        "order": {
+          "label": "Order",
+          "new": "Newest first",
+          "cheap": "Cheapest first",
+          "expensive": "Most expensive first"
+        }
       },
       "pricing": {
         "title": "Price of {model}",
