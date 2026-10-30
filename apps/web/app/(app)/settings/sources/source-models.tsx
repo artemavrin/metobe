@@ -13,6 +13,13 @@ import {
   PopoverTrigger,
 } from "@metobe/ui/components/popover";
 import { Badge } from "@metobe/ui/components/reui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@metobe/ui/components/select";
 import { Switch } from "@metobe/ui/components/switch";
 import {
   Tooltip,
@@ -25,6 +32,7 @@ import {
   Brain,
   ChevronDown,
   ChevronRight,
+  ArrowDownWideNarrow,
   Eye,
   RefreshCw,
   Search,
@@ -35,13 +43,15 @@ import { useMemo, useOptimistic, useState, useTransition } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { Section } from "@/components/settings/rows";
-import { contextLabel, isNew, priceLabel } from "@/lib/model-format";
+import { byPrice, contextLabel, isNew, priceLabel } from "@/lib/model-format";
 
 import { sync, toggleModels } from "./actions";
 import { ModelDrawer } from "./model-drawer";
 
 // A source's models (ARCH §7.1): nothing is on until the admin turns it on; newest first, «новая» for under 90 days;
 // grouped by maker, a group switch for all of them; prices per any number of tokens, shown per 1M to compare.
+// Sorted by price, the list is flat — makers' groups would keep the cheap ones apart — and each row has its maker's
+// logo instead.
 
 type Model = SourceDetail["models"][number];
 
@@ -202,6 +212,109 @@ const ProviderChips = ({
   );
 };
 
+type Order = "new" | "cheap" | "expensive";
+
+/** One model: its name (and maker's logo in a flat list), capabilities, context, price, its switch. */
+const ModelRow = ({
+  model: m,
+  on,
+  flat,
+  onEdit,
+  onToggle,
+}: {
+  model: Model;
+  on: boolean;
+  flat: boolean;
+  onEdit: () => void;
+  onToggle: (next: boolean) => void;
+}) => {
+  const t = useTranslations("sources.detail");
+  const price = priceLabel(m);
+  return (
+    <li>
+      <div
+        className={cn(
+          "flex items-center gap-3 py-2 pr-4 pl-4",
+          !flat && "md:pl-12"
+        )}
+      >
+        <button
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          onClick={onEdit}
+          type="button"
+        >
+          {flat && (
+            <BrandLogo
+              label={m.provider.title}
+              logo={m.provider.logo ?? undefined}
+              size={20}
+            />
+          )}
+          <span
+            className={cn(
+              "hover:text-foreground truncate font-medium transition-colors duration-150",
+              !on && "text-muted-foreground"
+            )}
+            title={m.modelId}
+          >
+            {m.title}
+          </span>
+          {isNew(m.releasedAt) && (
+            <Badge size="sm" variant="info-light">
+              {t("models.new")}
+            </Badge>
+          )}
+        </button>
+        <Caps model={m} onOpen={onEdit} />
+        {/* Always there, empty when unknown: a missing cell would shift the columns */}
+        <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">
+          {contextLabel(m.contextWindow)}
+        </span>
+        <button
+          className="text-muted-foreground hover:text-foreground w-32 truncate text-right text-xs tabular-nums transition-colors duration-150"
+          onClick={onEdit}
+          title={
+            price ? `${price} ${t("models.perMillion")}` : t("models.price")
+          }
+          type="button"
+        >
+          {price ?? t("models.noPrice")}
+        </button>
+        <Switch
+          aria-label={m.title}
+          checked={on}
+          onCheckedChange={onToggle}
+          size="sm"
+        />
+      </div>
+    </li>
+  );
+};
+
+/** How the list goes: newest first by maker, or flat by price. */
+const OrderPick = ({
+  value,
+  onChange,
+}: {
+  value: Order;
+  onChange: (order: Order) => void;
+}) => {
+  const t = useTranslations("sources.detail.models.order");
+  return (
+    <Select onValueChange={(v) => onChange(v as Order)} value={value}>
+      <SelectTrigger aria-label={t("label")} className="w-auto gap-2">
+        <ArrowDownWideNarrow className="text-muted-foreground" />
+        <SelectValue>{t(value)}</SelectValue>
+      </SelectTrigger>
+      <SelectContent align="end">
+        <SelectItem value="new">{t("new")}</SelectItem>
+        <SelectItem value="cheap">{t("cheap")}</SelectItem>
+        <SelectItem value="expensive">{t("expensive")}</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+};
+
 export const SourceModels = ({
   detail,
   dimmed,
@@ -213,6 +326,7 @@ export const SourceModels = ({
   const sourceId = detail.source.id;
   const [query, setQuery] = useState("");
   const [onlyOn, setOnlyOn] = useState(false);
+  const [order, setOrder] = useState<Order>("new");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   // Makers fold for a long list. A new search or maker pick opens every group once, so nothing found hides;
   // after that groups fold as usual, filter or not.
@@ -269,9 +383,9 @@ export const SourceModels = ({
       await toggleModels(sourceId, ids, on);
     });
 
-  const groups = useMemo(() => {
+  const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const shown = detail.models.filter(
+    return detail.models.filter(
       (m) =>
         (!onlyOn || enabled.has(m.id)) &&
         (picked.size === 0 || picked.has(m.provider.id)) &&
@@ -280,6 +394,11 @@ export const SourceModels = ({
             .toLowerCase()
             .includes(q))
     );
+  }, [detail.models, enabled, onlyOn, picked, query]);
+  const flat = order !== "new";
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts a fresh copy; toSorted is past this project's ES target
+  const byPriceList = flat ? [...shown].sort(byPrice(order)) : [];
+  const groups = useMemo(() => {
     const byProvider = new Map<
       string,
       { provider: Model["provider"]; models: Model[] }
@@ -293,7 +412,7 @@ export const SourceModels = ({
       byProvider.set(m.provider.id, group);
     }
     return [...byProvider.values()];
-  }, [detail.models, enabled, onlyOn, picked, query]);
+  }, [shown]);
 
   const runSync = () =>
     startSync(async () => {
@@ -360,6 +479,7 @@ export const SourceModels = ({
           >
             {t("models.inChat")}
           </Button>
+          <OrderPick onChange={setOrder} value={order} />
         </div>
       )}
       <ProviderChips models={detail.models} onPick={pick} picked={picked} />
@@ -369,14 +489,28 @@ export const SourceModels = ({
           dimmed && "opacity-60"
         )}
       >
-        {(detail.models.length === 0 || groups.length === 0) && (
+        {(detail.models.length === 0 || shown.length === 0) && (
           <p className="text-muted-foreground px-4 py-6 text-center">
             {detail.models.length === 0
               ? t("models.empty")
               : t("models.nothing")}
           </p>
         )}
-        {groups.length > 0 &&
+        {flat && byPriceList.length > 0 && (
+          <ul className="divide-y">
+            {byPriceList.map((m) => (
+              <ModelRow
+                flat
+                key={m.id}
+                model={m}
+                on={enabled.has(m.id)}
+                onEdit={() => setEditing(m.id)}
+                onToggle={(next) => toggle([m.id], next)}
+              />
+            ))}
+          </ul>
+        )}
+        {!flat &&
           groups.map(({ provider, models }) => {
             const on = models.filter((m) => enabled.has(m.id)).length;
             return (
@@ -420,59 +554,16 @@ export const SourceModels = ({
                 </div>
                 {!isCollapsed(provider.id) && (
                   <ul className="divide-y">
-                    {models.map((m) => {
-                      const price = priceLabel(m);
-                      const context = contextLabel(m.contextWindow);
-                      return (
-                        <li key={m.id}>
-                          <div className="flex items-center gap-3 py-2 pr-4 pl-4 md:pl-12">
-                            <button
-                              className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                              onClick={() => setEditing(m.id)}
-                              type="button"
-                            >
-                              <span
-                                className={cn(
-                                  "hover:text-foreground truncate font-medium transition-colors duration-150",
-                                  !enabled.has(m.id) && "text-muted-foreground"
-                                )}
-                                title={m.modelId}
-                              >
-                                {m.title}
-                              </span>
-                              {isNew(m.releasedAt) && (
-                                <Badge size="sm" variant="info-light">
-                                  {t("models.new")}
-                                </Badge>
-                              )}
-                            </button>
-                            <Caps model={m} onOpen={() => setEditing(m.id)} />
-                            {/* Always there, empty when unknown: a missing cell would shift the columns */}
-                            <span className="text-muted-foreground hidden w-12 text-right text-xs tabular-nums sm:inline">
-                              {context}
-                            </span>
-                            <button
-                              className="text-muted-foreground hover:text-foreground w-32 truncate text-right text-xs tabular-nums transition-colors duration-150"
-                              onClick={() => setEditing(m.id)}
-                              title={
-                                price
-                                  ? `${price} ${t("models.perMillion")}`
-                                  : t("models.price")
-                              }
-                              type="button"
-                            >
-                              {price ?? t("models.noPrice")}
-                            </button>
-                            <Switch
-                              aria-label={m.title}
-                              checked={enabled.has(m.id)}
-                              onCheckedChange={(next) => toggle([m.id], next)}
-                              size="sm"
-                            />
-                          </div>
-                        </li>
-                      );
-                    })}
+                    {models.map((m) => (
+                      <ModelRow
+                        flat={false}
+                        key={m.id}
+                        model={m}
+                        on={enabled.has(m.id)}
+                        onEdit={() => setEditing(m.id)}
+                        onToggle={(next) => toggle([m.id], next)}
+                      />
+                    ))}
                   </ul>
                 )}
               </div>

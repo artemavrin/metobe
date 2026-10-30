@@ -48,3 +48,31 @@ export const priceLabel = (m: PricedModel) => {
   const s = SYMBOL[(m.priceCurrency ?? "USD") as Currency];
   return `${s}${input ?? "—"} / ${s}${output ?? "—"}`;
 };
+
+export type PriceOrder = "cheap" | "expensive";
+
+/** A model's price per 1M tokens as numbers: input and output, null where it has none. */
+const perMillionOf = (m: PricedModel) => {
+  const unit = m.priceUnitTokens;
+  const at = (value: string | null) =>
+    value === null || !unit ? null : (Number(value) * 1_000_000) / unit;
+  return { input: at(m.priceInput), output: at(m.priceOutput) };
+};
+
+/**
+ * Models by price — the input's per 1M, the output's when inputs tie (the model picker sorts the same way); a model
+ * without a price goes last either way: unknown is not free. Currencies are not converted: a source has one.
+ */
+export const byPrice =
+  (order: PriceOrder) =>
+  (a: PricedModel, b: PricedModel): number => {
+    const x = perMillionOf(a);
+    const y = perMillionOf(b);
+    const ax = x.input ?? x.output;
+    const by = y.input ?? y.output;
+    if (ax === null || by === null) {
+      return (ax === null ? 1 : 0) - (by === null ? 1 : 0);
+    }
+    const sign = order === "cheap" ? 1 : -1;
+    return (ax - by || (x.output ?? 0) - (y.output ?? 0)) * sign;
+  };
