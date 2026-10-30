@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.1](https://github.com/artemavrin/metobe/compare/v0.5.0...v0.5.1) (2026-10-30)
+
+
+### Features
+
+* save a conversation's way of working as a personal skill ([#82](https://github.com/artemavrin/metobe/issues/82)) ([919b83b](https://github.com/artemavrin/metobe/commit/919b83b16e75065920dab0dc58a3b2b0e39b73d7))
+* sort a source's models by price ([#87](https://github.com/artemavrin/metobe/issues/87)) ([a90e7f2](https://github.com/artemavrin/metobe/commit/a90e7f2b87185299d77768262ac3e4838017fd4c))
+
+
+### Bug Fixes
+
+* a clearer sign-in to an MCP server from the chat ([#86](https://github.com/artemavrin/metobe/issues/86)) ([f7b473c](https://github.com/artemavrin/metobe/commit/f7b473c7e2f879b1e7f34817ae9246a1cb4de041))
+* chat titles in the user's language, and no «User's first message» ([#88](https://github.com/artemavrin/metobe/issues/88)) ([409e8b1](https://github.com/artemavrin/metobe/commit/409e8b1c82a2a9852f819bad41d56c7dd2caaad0))
+
 ## [0.5.0](https://github.com/artemavrin/metobe/compare/v0.4.0...v0.5.0) (2026-10-29)
 
 
