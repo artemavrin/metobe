@@ -29,6 +29,7 @@ import { ArrowDown, Paperclip, TriangleAlert } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   memo,
@@ -585,6 +586,26 @@ export const ChatView = ({
     clearError();
   }, [clearError, enqueueDeferred, error, setMessages]);
   const busy = status === "submitted" || status === "streaming";
+  // A skill the model saved at the user's yes is in their `/` list from now on: the page's data is read again.
+  const router = useRouter();
+  const saved = useRef(new Set<string>());
+  useEffect(() => {
+    let fresh = false;
+    for (const part of messages.at(-1)?.parts ?? []) {
+      if (
+        part.type === "dynamic-tool" &&
+        part.toolName === "save_skill" &&
+        part.state === "output-available" &&
+        !saved.current.has(part.toolCallId)
+      ) {
+        saved.current.add(part.toolCallId);
+        fresh = true;
+      }
+    }
+    if (fresh) {
+      router.refresh();
+    }
+  }, [messages, router]);
   // Stop lets go of the stream here and stops the model on the server (D6): what it wrote stays as the answer.
   const halt = () => {
     void stop();

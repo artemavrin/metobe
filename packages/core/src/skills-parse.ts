@@ -5,7 +5,7 @@ import {
 } from "@metobe/contracts/skills";
 import type { SkillProblem } from "@metobe/contracts/skills";
 import { unzipSync } from "fflate";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 // A skill folder read into what we keep (no database here, so it is tested on its own): the folder comes as a zip
 // or as files picked from a folder, each with its path. SKILL.md decides where the skill's root is; files outside
@@ -231,3 +231,11 @@ export const unzipSkill = (
     return { ok: false, problem: "not-zip" };
   }
 };
+
+/** A SKILL.md written from its parts: the frontmatter (`name`, `description`) and the instructions after it. */
+export const skillMarkdown = (skill: {
+  name: string;
+  description: string;
+  instructions: string;
+}) =>
+  `---\n${stringifyYaml({ description: skill.description.trim(), name: skill.name }, { lineWidth: 0 })}---\n\n${skill.instructions.trim()}\n`;

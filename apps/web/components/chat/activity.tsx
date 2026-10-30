@@ -180,6 +180,8 @@ const RowIcon = ({
       );
     } else if (first && isMailTool(first.toolName)) {
       inner = <Mail className="size-3.5" />;
+    } else if (first?.toolName === "save_skill") {
+      inner = <Sparkles className="size-3.5" />;
     } else {
       inner = <Wrench className="size-3.5" />;
     }
@@ -229,9 +231,12 @@ const toolTitle = (
   if (!first) {
     return "";
   }
-  const label = isMailTool(first.toolName)
-    ? say.mail(first.toolName)
-    : toolLook(first, servers).label;
+  let { label } = toolLook(first, servers);
+  if (isMailTool(first.toolName)) {
+    label = say.mail(first.toolName);
+  } else if (first.toolName === "save_skill") {
+    label = say.skill("save");
+  }
   const times = row.step.calls.length > 1 ? ` ×${row.step.calls.length}` : "";
   const { state } = row;
   const status =

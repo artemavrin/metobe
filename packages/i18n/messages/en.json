@@ -320,7 +320,12 @@
       "send": "Send",
       "dontSend": "Don't send",
       "approve": "Allow",
-      "deny": "Deny"
+      "deny": "Deny",
+      "skillTitle": "Save as a skill?",
+      "skillHint": "The model wrote instructions from this conversation. The skill will be yours alone — call it with /.",
+      "skillSave": "Save",
+      "skillDont": "Don't save",
+      "skillReplaces": "Replaces your skill of this name."
     },
     "account": {
       "theme": "Theme",
@@ -452,7 +457,8 @@
       "file": "Skill file",
       "failed": "Skill not found",
       "menu": "Skills",
-      "shared": "organization's"
+      "shared": "organization's",
+      "save": "Saving a skill"
     }
   },
   "login": {

@@ -23,7 +23,13 @@ const files: Record<string, unknown> = {
   "scripts/check.py": { content: "print(1)", kind: "text" },
 };
 const kept: string[] = [];
+const created: unknown[][] = [];
+let createResult: unknown = { id: "n", ok: true, replaced: false };
 vi.mock("@metobe/core/skills", () => ({
+  createSkill: (...args: unknown[]) => {
+    created.push(args);
+    return Promise.resolve(createResult);
+  },
   keepSkillFileDescription: (_id: string, path: string, text: string) => {
     kept.push(`${path}:${text}`);
     return Promise.resolve();
@@ -36,7 +42,7 @@ vi.mock("@metobe/core/vision", () => ({
   describeImage: () => Promise.resolve({ text: "Код склада: K-4217" }),
 }));
 
-const { READ_SKILL_FILE, skillTools, skillsNote, skillsOfChat } =
+const { READ_SKILL_FILE, SAVE_SKILL, skillTools, skillsNote, skillsOfChat } =
   await import("./skill-tools");
 
 const usage = {
@@ -149,5 +155,64 @@ describe("a skill only the user calls (disable-model-invocation)", () => {
     await expect(load.execute({ name: "grill-me" }, {})).resolves.toEqual({
       error: 'There is no skill "grill-me" here.',
     });
+  });
+});
+
+const saver = () => {
+  const { tools } = skillsOfChat({
+    chatId: "c",
+    question: "сохрани как скилл",
+    skills: [],
+    tools: true,
+    userId: "u1",
+    vision: false,
+  });
+  return (tools as Record<string, unknown>)[SAVE_SKILL] as {
+    needsApproval: unknown;
+    execute: (i: unknown, o: unknown) => Promise<unknown>;
+  };
+};
+
+describe("save_skill", () => {
+  const input = {
+    description: "Weekly sales report.",
+    instructions: "1. Ask for the week.",
+    name: "weekly-report",
+  };
+  it("is there for a user with no skills, and asks the user first", () => {
+    expect(saver().needsApproval).toBe(true);
+  });
+
+  it("is not there for a model that cannot call tools", () => {
+    const { tools } = skillsOfChat({
+      chatId: "c",
+      question: "",
+      skills: [],
+      tools: false,
+      userId: "u1",
+      vision: false,
+    });
+    expect(tools).toEqual({});
+  });
+
+  it("keeps the skill as the user's own, never the organization's", async () => {
+    created.length = 0;
+    createResult = { id: "n", ok: true, replaced: false };
+    await expect(saver().execute(input, {})).resolves.toEqual({
+      name: "weekly-report",
+      replaced: false,
+      saved: true,
+    });
+    expect(created[0]).toEqual([
+      { admin: false, userId: "u1" },
+      input,
+      { replace: undefined },
+    ]);
+  });
+
+  it("tells the model a taken name is to be replaced only if the user agrees", async () => {
+    createResult = { id: "x", ok: false, problem: "taken" };
+    const out = (await saver().execute(input, {})) as { error: string };
+    expect(out.error).toContain("replace: true");
   });
 });
