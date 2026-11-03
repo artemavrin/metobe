@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.0](https://github.com/artemavrin/metobe/compare/v0.5.1...v0.6.0) (2026-11-03)
+
+
+### Features
+
+* a map of a long chat at its left edge ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* a new chat greets you by the hour, under a night sky ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* instructions for the model on an MCP server, seen by the model only ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* share a chat with the team by link — read-only, continued in your own copy ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* sources on your own hardware are marked local ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* the chat's header renames the chat in place and shares it ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* the model asks what only you know before it answers ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* the sidebar's new chat is a pencil by the logo, and the logo leads home ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* what's new after an update — a tour of the version with live demos ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+
+
+### Bug Fixes
+
+* a chat's title does not wait on a source that is down ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* a file with NUL characters no longer breaks its message ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* an answer always ends in words, even when the model runs out of steps ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* long chat titles fade at the edge from the first frame ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+
 ## [0.5.1](https://github.com/artemavrin/metobe/compare/v0.5.0...v0.5.1) (2026-10-30)
 
 
