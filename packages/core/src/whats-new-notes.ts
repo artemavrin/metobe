@@ -22,6 +22,13 @@ export const MAX_FEATURED = 6;
 /** Newest first. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    admin: ["summariesSlot"],
+    date: "2026-11-03",
+    featured: ["compactChat"],
+    more: [],
+    version: "0.7.0",
+  },
+  {
     admin: ["serverInstructions", "localSources"],
     date: "2026-11-03",
     featured: ["shareChat", "askUser", "threadMap", "greeting"],
@@ -31,8 +38,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 ];
 
 /**
- * The window to show: the newest version past the one seen and not past the one running. None when the person
- * turned it off, or when nothing was seen yet — a new account starts at the version it came in on.
+ * The window to show: the newest version past the one seen and not past the one running — only that one; versions
+ * missed before it are on the history page, a button away. None when the person turned it off, or when nothing was
+ * seen yet — a new account starts at the version it came in on.
  */
 export const noteToShow = (
   { seen, off }: { seen: string | null; off: boolean },
@@ -50,6 +58,12 @@ export const noteToShow = (
     ) ?? null
   );
 };
+
+/** «История изменений»: every version of this build, newest first — what it brought, as the window said it. */
+export const notesUpTo = (
+  running: string,
+  notes: ReleaseNote[] = RELEASE_NOTES
+) => notes.filter((n) => compareVersions(n.version, running) <= 0);
 
 /** What «Что нового» in the account menu opens: the newest version not past the one running. */
 export const latestNote = (

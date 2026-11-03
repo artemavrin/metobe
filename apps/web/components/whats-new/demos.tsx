@@ -25,6 +25,7 @@ import type { ReactNode } from "react";
 import { AskedAnswer, AskPanel } from "@/components/chat/ask-user";
 import { ChatHeader } from "@/components/chat/chat-header";
 import type { ChatItem, ChatOps } from "@/components/chat/chat-item";
+import { CompactionCard, CompactOffer } from "@/components/chat/compaction";
 import { NightSky } from "@/components/chat/night-sky";
 import { ThreadMap } from "@/components/chat/thread-map";
 import type { AskUserPart, OpenAskPart } from "@/lib/ask-user";
@@ -320,6 +321,64 @@ const MapDemo = () => {
   );
 };
 
+// ——— Compact a long chat ———
+
+/** The end of a long chat, the offer under its last answer, and — a click on «Сжать чат» — the summary in its place. */
+const CompactDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const thread = (t.raw("thread") as [string, string][]).slice(-2);
+  const [stage, setStage] = useState<"offer" | "writing" | "done">("offer");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const compact = () => {
+    setStage("writing");
+    // The service model at work, played: the summary comes after a breath.
+    timer.current = setTimeout(() => setStage("done"), 1400);
+  };
+  return (
+    <Contained className="bg-background">
+      <div className="flex h-full flex-col justify-end gap-4 overflow-hidden px-6 pb-14">
+        <div aria-hidden className="flex flex-col gap-3 opacity-40">
+          {thread.map(([q, a]) => (
+            <div className="flex flex-col gap-3" key={q}>
+              <div className="bg-muted ml-auto w-fit max-w-[85%] rounded-2xl px-4 py-2 text-sm">
+                {q}
+              </div>
+              <p className="text-sm">{a}</p>
+            </div>
+          ))}
+        </div>
+        <div data-demo="compact-offer">
+          {stage === "done" ? (
+            <CompactionCard
+              data={{
+                messages: t.raw("compact.messages") as number,
+                summary: t("compact.summary"),
+              }}
+            />
+          ) : (
+            <CompactOffer
+              onCompact={compact}
+              onLater={() => setStage("done")}
+              stepTokens={180_000}
+              writing={stage === "writing"}
+            />
+          )}
+        </div>
+      </div>
+      {stage !== "offer" && (
+        <Again
+          onClick={() => {
+            if (timer.current) {
+              clearTimeout(timer.current);
+            }
+            setStage("offer");
+          }}
+        />
+      )}
+    </Contained>
+  );
+};
+
 // ——— A new chat ———
 
 const greetingOf = (hour: number) => {
@@ -375,6 +434,7 @@ const GreetingDemo = () => {
 /** A change's demo by its id in the release notes; a change without one has no page of its own. */
 export const DEMOS: Record<string, () => ReactNode> = {
   askUser: AskDemo,
+  compactChat: CompactDemo,
   greeting: GreetingDemo,
   shareChat: ShareDemo,
   threadMap: MapDemo,
