@@ -160,12 +160,41 @@ export const estimateTokens = (messages: ModelMessage[]) => {
   return tokensOf(chars);
 };
 
+const isReasoning = (part: unknown) =>
+  typeof part === "object" &&
+  part !== null &&
+  (part as { type?: string }).type === "reasoning";
+
+/**
+ * The reasoning of answers to earlier questions is not sent again (an OpenAI-compatible provider puts it in every past
+ * message's `reasoning_content`: 60k tokens a step in that chat) — as Anthropic's API drops earlier thinking and AI
+ * SDK's `pruneMessages` does with `reasoning: "before-last-message"`. The question asked now keeps its own: a reasoning
+ * model wants it back between the steps of a tool loop. A past message that was only reasoning goes.
+ */
+const withoutPastReasoning = (messages: ModelMessage[], asked: number) => {
+  let changed = false;
+  const next = messages.flatMap((message, i) => {
+    if (
+      i >= asked ||
+      message.role !== "assistant" ||
+      !Array.isArray(message.content) ||
+      !message.content.some(isReasoning)
+    ) {
+      return [message];
+    }
+    changed = true;
+    const content = message.content.filter((part) => !isReasoning(part));
+    return content.length === 0 ? [] : [{ ...message, content }];
+  });
+  return changed ? next : messages;
+};
+
 /** A past answer's result smaller than this stays: it costs little and may be the very fact asked about. */
 const PAST_MIN_TOKENS = 200;
 
 /**
  * The answers to earlier questions keep their words and calls but not their tool results — the 1С tables, the pages,
- * the mail — after Claude Code's microcompact and the `clear_tool_uses` of Anthropic's API, applied at the edge of a
+ * the mail — nor their reasoning (below); after Claude Code's microcompact and the `clear_tool_uses` of Anthropic's API, applied at the edge of a
  * question rather than of the window: with a model priced per token, every step of every answer would pay again for
  * data of a question long answered (a chat of 0.6.0 sent 170k tokens a step, almost all of it old 1С results). The
  * model is told a result was there and how to get it again. The question asked now keeps its own results whole.
@@ -189,7 +218,7 @@ export const clearPastTurns = (
   if (asked <= 0) {
     return messages;
   }
-  return mapParts(messages, (part, at) => {
+  const cleared = mapParts(messages, (part, at) => {
     if (
       at.message >= asked ||
       !isResult(part) ||
@@ -206,6 +235,7 @@ export const clearPastTurns = (
       ? part
       : withText(part, clearedNote(part.toolName, tokens));
   });
+  return withoutPastReasoning(cleared, asked);
 };
 
 /**

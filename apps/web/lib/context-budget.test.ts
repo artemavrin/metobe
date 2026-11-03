@@ -300,3 +300,35 @@ describe("the answers to earlier questions", () => {
     expect(clearPastTurns(one, { keep: KEEP })).toBe(one);
   });
 });
+
+const thought = (text: string, said?: string): ModelMessage => ({
+  content: [
+    { text, type: "reasoning" },
+    ...(said ? [{ text: said, type: "text" as const }] : []),
+  ],
+  role: "assistant",
+});
+
+describe("the reasoning of earlier answers", () => {
+  it("is not sent again; the question asked now keeps its own", () => {
+    const history = [
+      user("вопрос 0"),
+      thought(big(3000), "ответ 0"),
+      user("вопрос 1"),
+      thought(big(3000)),
+      call("c1"),
+      result("c1", 10),
+    ];
+    const sent = clearPastTurns(history, { keep: [] });
+    expect(sent[1]?.content).toEqual([{ text: "ответ 0", type: "text" }]);
+    expect(sent[3]).toBe(history[3]);
+  });
+
+  it("takes out a past message that was only reasoning", () => {
+    const history = [user("вопрос 0"), thought(big(100)), user("вопрос 1")];
+    expect(clearPastTurns(history, { keep: [] })).toEqual([
+      user("вопрос 0"),
+      user("вопрос 1"),
+    ]);
+  });
+});
