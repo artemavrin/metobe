@@ -401,6 +401,8 @@ export interface ServerTools {
   title: string;
   /** The admin's word on what the service is for; null when none was given. */
   description: string | null;
+  /** The admin's word on how to work with it — for the model only; null when none was given. */
+  instructions: string | null;
   tools: ToolSet;
 }
 
@@ -448,6 +450,7 @@ export const toolsForUser = async (
         );
         return {
           description: item.description,
+          instructions: item.instructions,
           key: item.key,
           title: item.title,
           tools: set,

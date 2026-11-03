@@ -54,6 +54,8 @@ export const catalogItems = pgTable(
     enabled: boolean("enabled").notNull().default(true),
     health: jsonb("health").$type<CatalogHealth>(),
     id: uuid("id").primaryKey().defaultRandom(),
+    /** How to work with the service — for the model only, never shown to users. Optional. */
+    instructions: text("instructions"),
     /** The prefix of its tools in a chat. */
     key: text("key").notNull().unique(),
     /** An optional picture (a small data URL). */

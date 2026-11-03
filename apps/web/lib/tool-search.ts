@@ -134,7 +134,15 @@ export const servicesNote = (servers: ServerTools[]) => {
       Object.keys(server.tools).length > ON_DEMAND_AFTER
         ? `. Its tools are found with ${FIND_TOOLS}.`
         : "";
-    return `- ${server.title} (tools named ${server.key}_…)${about}${found}`;
+    // The admin's instructions on how to work with it, under its line: indented, so they read as this service's.
+    const howTo = server.instructions?.trim()
+      ? `\n  How to work with it:\n${server.instructions
+          .trim()
+          .split("\n")
+          .map((line) => `  ${line}`)
+          .join("\n")}`
+      : "";
+    return `- ${server.title} (tools named ${server.key}_…)${about}${found}${howTo}`;
   });
   return `MCP services connected in this chat:\n${lines.join("\n")}`;
 };

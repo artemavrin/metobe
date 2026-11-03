@@ -20,6 +20,7 @@ const row = {
   providerSlug: "anthropic",
   providerTitle: "Anthropic",
   releasedAt: "2026-08-01",
+  sourceLocal: false,
   sourceTitle: "Vercel AI Gateway",
   title: "Claude Sonnet 4.6",
 };

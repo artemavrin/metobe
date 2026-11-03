@@ -231,6 +231,7 @@ model_runs; // chat_id (SET NULL, ключ появится с таблицей 
 
 ```ts
 chats; // id, user_id, title, visibility, created_at
+// visibility: 'private' | 'team' — чат открыт по ссылке всем вошедшим, только чтение (D36)
 // kind: 'chat' | 'agent_run', agent_id? — запуск агента это обычный чат (§16)
 messages; // id, chat_id, role, parts jsonb, attachments jsonb, created_at
 streams; // id, chat_id, created_at

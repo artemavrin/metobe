@@ -22,7 +22,7 @@ const Note = ({ children }: { children: React.ReactNode }) => (
   <div className="text-muted-foreground flex min-h-dvh items-center justify-center p-6 text-sm">{children}</div>
 );
 
-export const NewChatPrototype = async ({ round }: { round: 1 | 2 }) => {
+export const NewChatPrototype = async ({ round }: { round: 1 | 2 | 3 | 4 }) => {
   const [{ role, user }, prefs, tGreeting, tRoles, format] = await Promise.all([
     getSettingsViewer(),
     getPrefs(),
@@ -75,6 +75,7 @@ export const NewChatPrototype = async ({ round }: { round: 1 | 2 }) => {
       mailboxes={boxes.map((b) => b.address)}
       model={model}
       models={picker.models}
+      name={name}
       recent={picker.recent}
       recentChats={recentChats}
       round={round}

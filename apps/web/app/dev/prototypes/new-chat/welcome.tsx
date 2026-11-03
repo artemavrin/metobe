@@ -205,7 +205,7 @@ export const First = () => {
               >
                 <ProductWelcome
                   composer={composer}
-                  data={{ greeting: data.greeting, mailboxes: data.mailboxes, recent: [], today: data.today }}
+                  data={{ first: true, greeting: data.greeting, mailboxes: data.mailboxes, today: data.today }}
                   servers={chat.servers}
                 />
               </motion.div>

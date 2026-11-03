@@ -56,8 +56,7 @@ const cell = (value: unknown) => {
 const sheetText = (name: string, rows: unknown[][]) =>
   `## ${name}\n${rows.map((r) => r.map(cell).join("\t")).join("\n")}`;
 
-/** The file's text in the parts the model reads; null — the kind has no text to read. */
-export const extractParts = async (
+const rawParts = async (
   kind: FileKind,
   bytes: Uint8Array
 ): Promise<string[] | null> => {
@@ -82,4 +81,18 @@ export const extractParts = async (
     return splitParts(new TextDecoder("utf-8", { fatal: false }).decode(bytes));
   }
   return null;
+};
+
+/** Control characters a file's text may carry (a PDF's NUL among them): no reader needs them, Postgres refuses NUL. */
+// oxlint-disable-next-line no-control-regex -- these are the characters to take out
+const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu;
+export const cleanText = (text: string) => text.replaceAll(CONTROL, "");
+
+/** The file's text in the parts the model reads; null — the kind has no text to read. */
+export const extractParts = async (
+  kind: FileKind,
+  bytes: Uint8Array
+): Promise<string[] | null> => {
+  const parts = await rawParts(kind, bytes);
+  return parts?.map(cleanText) ?? null;
 };

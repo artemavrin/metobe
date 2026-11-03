@@ -7,13 +7,17 @@ import {
 } from "@metobe/core/catalog";
 import {
   deleteChat,
+  forkChat,
   renameChat,
   searchChats,
   setChatPinned,
+  setChatVisibility,
   setVote,
 } from "@metobe/core/chat";
 import { listChatServers } from "@metobe/core/mcp";
 import { setFavoriteModels } from "@metobe/core/model-choices";
+import { closeWhatsNew } from "@metobe/core/whats-new";
+import { RELEASE_NOTES } from "@metobe/core/whats-new-notes";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -99,6 +103,34 @@ const userId = async () => {
   return session?.user.id;
 };
 
+/** Opens the user's chat to everyone signed in, by its link — to read — or takes it back. */
+export const shareChatAction = async (id: string, shared: boolean) => {
+  const user = await userId();
+  const parsed = chatId.safeParse(id);
+  if (!(user && parsed.success)) {
+    return { ok: false as const };
+  }
+  const ok = await setChatVisibility(
+    user,
+    parsed.data,
+    shared ? "team" : "private"
+  );
+  return { ok };
+};
+
+/** A chat shared with the user goes on as their own copy; they land in it. */
+export const forkChatAction = async (id: string) => {
+  const user = await userId();
+  const parsed = chatId.safeParse(id);
+  const copy =
+    user && parsed.success ? await forkChat(user, parsed.data) : null;
+  if (!copy) {
+    return { ok: false as const };
+  }
+  revalidatePath("/", "layout");
+  return { id: copy, ok: true as const };
+};
+
 /** The user's own name for a chat; the sidebar re-reads the list. */
 export const renameChatAction = async (id: string, title: string) => {
   const user = await userId();
@@ -171,4 +203,13 @@ export const searchChatsAction = async (query: string) => {
     title: h.title,
     updatedAt: h.updatedAt.toISOString(),
   }));
+};
+
+/** «Что нового» closed: that version is seen; `off` — «Не показывать после обновлений». Only a version that has notes. */
+export const closeWhatsNewAction = async (version: string, off: boolean) => {
+  const session = await getAuth().api.getSession({ headers: await headers() });
+  if (!session || !RELEASE_NOTES.some((n) => n.version === version)) {
+    return;
+  }
+  await closeWhatsNew(session.user.id, version, off === true);
 };

@@ -23,6 +23,7 @@ export const toPickerModel = (
     context: row.contextWindow,
     firstTokenMs,
     id: row.id,
+    local: row.sourceLocal,
     logo: row.providerLogo ?? undefined,
     maker: row.providerSlug ?? "other",
     makerTitle: row.providerTitle ?? row.sourceTitle,

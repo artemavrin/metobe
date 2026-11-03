@@ -59,6 +59,8 @@ export type ChatTools = {
     input: RequestConnectionInput;
     output: RequestConnectionOutput;
   };
+  /** The model asks the user what only they know; the user's answer comes back as output, drawn as their message. */
+  ask_user: { input: AskUserInput; output: AskUserOutput };
   /** The clock: the model has none of its own. Not drawn in the answer. */
   current_time: {
     input: { timeZone?: string };
@@ -131,7 +133,8 @@ export type ChatErrorCode = (typeof chatErrorCodes)[number];
 export const chatRoles = ["user", "assistant", "system"] as const;
 export type ChatRole = (typeof chatRoles)[number];
 
-export const chatVisibilities = ["private", "public"] as const;
+/** Who may open a chat: its owner only, or anyone signed in to this Metobe by the link — to read, not to write. */
+export const chatVisibilities = ["private", "team"] as const;
 export type ChatVisibility = (typeof chatVisibilities)[number];
 
 export const chatKinds = ["chat", "agent_run"] as const;
@@ -159,6 +162,65 @@ export const requestConnectionOutputSchema = z.object({
 export type RequestConnectionOutput = z.infer<
   typeof requestConnectionOutputSchema
 >;
+
+/**
+ * The model asks the user what only they know (a period, whom to write to): 1–4 questions, each with 2–4 choices.
+ * A written answer is always welcome — the interface adds the field, the model does not list «other».
+ */
+export const askUserInputSchema = z.object({
+  questions: z
+    .array(
+      z.object({
+        header: z
+          .string()
+          .min(1)
+          .max(24)
+          .describe(
+            "The question's short name over the choices, a word or two of at most 12 characters: «Период», «Кому»."
+          ),
+        multiSelect: z
+          .boolean()
+          .optional()
+          .describe("True when several choices may be picked together."),
+        options: z
+          .array(
+            z.object({
+              description: z
+                .string()
+                .max(200)
+                .optional()
+                .describe(
+                  "What this choice means or leads to, in a few words."
+                ),
+              label: z
+                .string()
+                .min(1)
+                .max(80)
+                .describe("The choice itself, one to five words."),
+            })
+          )
+          .min(2)
+          .max(4),
+        question: z
+          .string()
+          .min(1)
+          .max(300)
+          .describe(
+            "The full question in the user's language, ending with a question mark."
+          ),
+      })
+    )
+    .min(1)
+    .max(4),
+});
+export type AskUserInput = z.infer<typeof askUserInputSchema>;
+
+/** What the user said, by the question's text: picked labels and their own words. `skipped` — they let the model decide. */
+export const askUserOutputSchema = z.object({
+  answers: z.record(z.string(), z.array(z.string())),
+  skipped: z.boolean(),
+});
+export type AskUserOutput = z.infer<typeof askUserOutputSchema>;
 
 /** A generous bound for one message: long pastes are normal, a runaway client is not. */
 const MAX_TEXT = 100_000;
@@ -217,10 +279,27 @@ export const approvalsSchema = z
       .max(10)
       .default([]),
     messageId: z.uuid(),
+    /** The user's answers to the model's questions, by tool call; the server keeps only answers to questions it asked. */
+    questions: z
+      .array(
+        z.object({
+          answers: z
+            .record(
+              z.string().max(300),
+              z.array(z.string().trim().min(1).max(500)).max(5)
+            )
+            .default({}),
+          id: z.string().min(1).max(200),
+          skipped: z.boolean().default(false),
+        })
+      )
+      .max(5)
+      .default([]),
   })
-  .refine((a) => a.answers.length + a.connections.length > 0, {
-    message: "an approval or a connection",
-  });
+  .refine(
+    (a) => a.answers.length + a.connections.length + a.questions.length > 0,
+    { message: "an approval, a connection or an answer" }
+  );
 export type Approvals = z.infer<typeof approvalsSchema>;
 
 /**

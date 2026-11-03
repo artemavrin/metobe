@@ -12,7 +12,8 @@ export const connectionsOf = (answer: ChatMessage) =>
   );
 
 /**
- * The last answer ends on an ask the user has just answered: the answer carries on by itself. Only then — an answer
+ * The last answer ends on an ask the user has just answered — to connect a service, or the model's questions: the
+ * answer carries on by itself. Only then — an answer
  * that ends on words or on a table is done, and must not be sent again.
  */
 export const answeredAsk = (messages: ChatMessage[]) => {
@@ -28,6 +29,8 @@ export const answeredAsk = (messages: ChatMessage[]) => {
     }
   }
   return (
-    end?.type === "tool-request_connection" && end.state === "output-available"
+    (end?.type === "tool-request_connection" ||
+      end?.type === "tool-ask_user") &&
+    end.state === "output-available"
   );
 };

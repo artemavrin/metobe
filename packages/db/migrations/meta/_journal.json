@@ -218,6 +218,34 @@
       "when": 1793284333514,
       "tag": "0030_update_automation",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793372273247,
+      "tag": "0031_chat_share",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793609103771,
+      "tag": "0032_source_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793628725642,
+      "tag": "0033_catalog_instructions",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793686122713,
+      "tag": "0034_whats_new",
+      "breakpoints": true
     }
   ]
 }

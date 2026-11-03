@@ -42,7 +42,9 @@ import {
 } from "react";
 
 import { voteAnswer } from "@/app/(app)/(chat)/actions";
+import { AskPanel } from "@/components/chat/ask-user";
 import { FileSinkContext, useAttachments } from "@/components/chat/attachments";
+import { BlackHole } from "@/components/chat/black-hole";
 import { useTouchChat } from "@/components/chat/chat-shell";
 import { Composer } from "@/components/chat/composer";
 import type { ComposerHandle } from "@/components/chat/composer";
@@ -51,15 +53,19 @@ import {
   ModelSwitch,
   UserMessage,
 } from "@/components/chat/messages";
+import { NightSky } from "@/components/chat/night-sky";
 import { PickerDataProvider } from "@/components/chat/picker/data";
 import type { PickerModel } from "@/components/chat/picker/data";
 import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { ServerClockProvider } from "@/components/chat/server-clock";
 import type { ChatSkill } from "@/components/chat/skill-menu";
+import { ThreadMap } from "@/components/chat/thread-map";
 import { Welcome } from "@/components/chat/welcome";
 import type { WelcomeData } from "@/components/chat/welcome";
+import { openQuestion, questionsOf } from "@/lib/ask-user";
 import { chatProblem, retryAtOf } from "@/lib/chat-errors";
 import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
+import { threadMapItems } from "@/lib/thread-map";
 import { threadRows } from "@/lib/thread-rows";
 import type { ThreadRow } from "@/lib/thread-rows";
 import { uuid } from "@/lib/uuid";
@@ -387,6 +393,10 @@ export const ChatView = ({
   const [id] = useState(() => givenId ?? uuid());
   // The welcome's rows put a server, words or files into the draft.
   const composer = useRef<ComposerHandle>(null);
+  // Where the composer stands: the night sky's stars land on its top edge.
+  const composerBox = useRef<HTMLDivElement>(null);
+  // Reduced motion: the sky stays still and there is no egg — it is all motion.
+  const reduce = useReducedMotion();
   const touch = useTouchChat();
   // oxlint-disable-next-line react/hook-use-state -- decided once and never changed: no setter to name
   const [resume] = useState(() => initialMessages.at(-1)?.role === "user");
@@ -506,6 +516,7 @@ export const ChatView = ({
                       answers: decisionsOf(last),
                       connections: connectionsOf(last),
                       messageId: last.id,
+                      questions: questionsOf(last),
                     },
                     id: chatId,
                     modelId,
@@ -562,7 +573,7 @@ export const ChatView = ({
     // start a second reading of an answer this page is already reading.
     resume,
     // Once every asked call of the last answer has the user's yes or no, or the user answered its ask to connect a
-    // service, the answer carries on by itself.
+    // service or its questions, the answer carries on by itself.
     sendAutomaticallyWhen: (options) =>
       lastAssistantMessageIsCompleteWithApprovalResponses(options) ||
       answeredAsk(options.messages),
@@ -586,6 +597,8 @@ export const ChatView = ({
     clearError();
   }, [clearError, enqueueDeferred, error, setMessages]);
   const busy = status === "submitted" || status === "streaming";
+  // The last answer waits on the user's answer to its questions: they stand in the composer's place.
+  const question = busy ? null : openQuestion(messages.at(-1));
   // A skill the model saved at the user's yes is in their `/` list from now on: the page's data is read again.
   const router = useRouter();
   const saved = useRef(new Set<string>());
@@ -812,6 +825,25 @@ export const ChatView = ({
       <FileSinkContext value={sink}>
         <div className="relative flex min-h-0 flex-1 flex-col">
           <style>{SCREEN_CSS}</style>
+          {/* A new chat's night sky behind the welcome and the composer: it leaves with the welcome */}
+          <AnimatePresence>
+            {empty && welcome && (
+              <motion.div
+                animate={{ opacity: 1 }}
+                className="absolute inset-0"
+                exit={{
+                  opacity: 0,
+                  transition: { duration: 0.2, ease: EASE_OUT },
+                }}
+                initial={{ opacity: 0 }}
+                key="sky"
+                transition={{ duration: 0.4, ease: EASE_OUT }}
+              >
+                <NightSky composer={composerBox} />
+                {!reduce && <BlackHole />}
+              </motion.div>
+            )}
+          </AnimatePresence>
           <DropZone shown={dragging} />
           {/*
           The thread (shadcn MessageScroller): a question that goes settles near the top with its answer growing
@@ -859,6 +891,8 @@ export const ChatView = ({
                     <span className="sr-only">{t("toLatest")}</span>
                   </MessageScrollerButton>
                 </MessageScroller>
+                {/* max-w-4xl: the column of the thread below */}
+                <ThreadMap column={896} items={threadMapItems(rows)} />
                 <SeatQuestion
                   rowKey={resume ? lastQuestionKey(rows) : undefined}
                 />
@@ -885,8 +919,8 @@ export const ChatView = ({
             </AnimatePresence>
           </div>
           {/* The composer stands where the thread keeps it from the start: the first question moves nothing */}
-          <div className="chat-rise chat-rise-next w-full px-4 pb-4 md:px-6">
-            <div className="mx-auto max-w-4xl">
+          <div className="chat-rise chat-rise-next relative w-full px-4 pb-4 md:px-6">
+            <div className="mx-auto max-w-4xl" ref={composerBox}>
               {(draining || deferred.length > 0) && (
                 <output
                   aria-live="polite"
@@ -902,32 +936,48 @@ export const ChatView = ({
                   </span>
                 </output>
               )}
-              <Composer
-                busy={busy}
-                favorites={favorites}
-                model={model}
-                onModel={setModel}
-                onEditLast={() => {
-                  const last = lastQuestion(rows);
-                  if (
-                    busy ||
-                    draining ||
-                    deferred.length > 0 ||
-                    last?.role !== "user"
-                  ) {
-                    return false;
+              {question && (
+                <AskPanel
+                  key={question.toolCallId}
+                  onAnswer={(output) =>
+                    addToolOutput({
+                      output,
+                      tool: "ask_user",
+                      toolCallId: question.toolCallId,
+                    })
                   }
-                  setEditingId(last.message.id);
-                  return true;
-                }}
-                onSend={send}
-                onStop={halt}
-                attachments={attachments}
-                onServerReady={serverReady}
-                ref={composer}
-                servers={servers}
-                skills={skills}
-              />
+                  part={question}
+                />
+              )}
+              {/* Hidden, not gone, while the model asks: what the user was typing stays. */}
+              <div hidden={Boolean(question)}>
+                <Composer
+                  busy={busy}
+                  favorites={favorites}
+                  model={model}
+                  onModel={setModel}
+                  onEditLast={() => {
+                    const last = lastQuestion(rows);
+                    if (
+                      busy ||
+                      draining ||
+                      deferred.length > 0 ||
+                      last?.role !== "user"
+                    ) {
+                      return false;
+                    }
+                    setEditingId(last.message.id);
+                    return true;
+                  }}
+                  onSend={send}
+                  onStop={halt}
+                  attachments={attachments}
+                  onServerReady={serverReady}
+                  ref={composer}
+                  servers={servers}
+                  skills={skills}
+                />
+              </div>
             </div>
           </div>
         </div>
