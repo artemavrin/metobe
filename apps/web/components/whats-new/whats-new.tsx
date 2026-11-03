@@ -176,16 +176,17 @@ const RestList = ({ more, admin }: { more: ChangeId[]; admin: ChangeId[] }) => {
 };
 
 /**
- * The line between the words and the footer is the tour's progress over its changes — the cover is not a step, the
- * end has nothing left to track: full width, unbroken, in the brand's color, filled up to the change on screen
- * (scaleX, 300 ms — transform only), as in stories. Over it, a hit area per change leads to it.
+ * The line between the words and the footer is the tour's progress: the cover is not a step, the changes and the end
+ * are — so the last change leaves a bit to go; on the end itself the line is not shown, nothing is left to track.
+ * Full width, unbroken, in the brand's color, filled up to the page (scaleX, 300 ms — transform only), as in
+ * stories. Over it, a hit area per step leads to it.
  */
 const Progress = ({
   steps,
   page,
   onGo,
 }: {
-  /** The changes: pages 1…steps. */
+  /** The pages after the cover: 1…steps, the last one the end. */
   steps: number;
   page: number;
   onGo: (page: number) => void;
@@ -198,7 +199,7 @@ const Progress = ({
         className={cn(
           "bg-primary absolute inset-x-0 -top-px h-0.5 origin-left transition-[transform,opacity] duration-300 motion-reduce:transition-none",
           EASE,
-          page > steps ? "opacity-0" : "opacity-100"
+          page >= steps ? "opacity-0" : "opacity-100"
         )}
         style={{ transform: `scaleX(${Math.min(page, steps) / steps})` }}
       />
@@ -373,7 +374,7 @@ const Tour = ({
 
       <footer className="relative flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-6 py-3">
         {/* The progress is the footer's top line: no room of its own, nothing moves it. */}
-        <Progress onGo={go} page={page} steps={featured.length} />
+        <Progress onGo={go} page={page} steps={last} />
         {/* oxlint-disable-next-line jsx-a11y/label-has-associated-control -- the checkbox inside is the control */}
         <label className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-sm whitespace-nowrap transition-colors duration-150 select-none">
           <Checkbox checked={off} onCheckedChange={(v) => setOff(Boolean(v))} />
