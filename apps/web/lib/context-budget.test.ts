@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   budgetMessages,
+  clearPastTurns,
   capOf,
   estimateTokens,
   isContextOverflow,
@@ -231,5 +232,71 @@ describe("a provider's «does not fit» error", () => {
   it("does not take another error for it", () => {
     expect(isContextOverflow(new Error("401 invalid api key"))).toBe(false);
     expect(isContextOverflow("nope")).toBe(false);
+  });
+});
+
+describe("the answers to earlier questions", () => {
+  const KEEP = ["find_tools", "ask_user"];
+  const past = [
+    user("вопрос 0"),
+    call("c0"),
+    result("c0", 5000),
+    answer("ответ 0"),
+    user("вопрос 1"),
+    call("c1"),
+    result("c1", 5000),
+  ];
+
+  it("lose their tool results; the question asked now keeps its own whole", () => {
+    const sent = clearPastTurns(past, { keep: KEEP });
+    const [old, now] = outputs(sent);
+    expect(old).toContain("[The result of run_query");
+    expect(now).toBe(big(5000));
+  });
+
+  it("keep what was asked and answered, and every call", () => {
+    const sent = clearPastTurns(past, { keep: KEEP });
+    expect(sent).toHaveLength(past.length);
+    expect(sent[1]).toBe(past[1]);
+    expect(sent[3]).toBe(past[3]);
+  });
+
+  it("keep the found tools, the user's answers and what is too small to matter", () => {
+    const history = [
+      user("вопрос 0"),
+      call("f0", "find_tools"),
+      result("f0", 3000, "find_tools"),
+      call("a0", "ask_user"),
+      result("a0", 3000, "ask_user"),
+      call("t0", "get_time"),
+      result("t0", 50, "get_time"),
+      answer("ответ 0"),
+      user("вопрос 1"),
+    ];
+    expect(clearPastTurns(history, { keep: KEEP })).toBe(history);
+  });
+
+  it("give every step of an answer the same history before it — the cache holds through the answer", () => {
+    const first = clearPastTurns(past, { keep: KEEP });
+    const later = clearPastTurns([...past, call("c2"), result("c2", 5000)], {
+      keep: KEEP,
+    });
+    expect(later.slice(0, first.length)).toEqual(first);
+  });
+
+  it("leave what was cleared as it was when the next question comes", () => {
+    const now = clearPastTurns(past, { keep: KEEP });
+    const next = clearPastTurns(
+      [...past, answer("ответ 1"), user("вопрос 2")],
+      {
+        keep: KEEP,
+      }
+    );
+    expect(next.slice(0, 4)).toEqual(now.slice(0, 4));
+  });
+
+  it("leave a chat of one question as it is", () => {
+    const one = [user("вопрос"), call("c0"), result("c0", 5000)];
+    expect(clearPastTurns(one, { keep: KEEP })).toBe(one);
   });
 });
