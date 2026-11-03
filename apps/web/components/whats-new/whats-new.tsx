@@ -11,9 +11,9 @@ import {
   DialogTitle,
 } from "@metobe/ui/components/dialog";
 import { cn } from "@metobe/ui/lib/utils";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { closeWhatsNewAction } from "@/app/(app)/(chat)/actions";
 import { AutoDemo, LiveDemo } from "@/components/whats-new/autoplay";
@@ -28,84 +28,156 @@ import { StarCover } from "@/components/whats-new/star-cover";
 
 type Changes = Messages["whatsNew"]["changes"];
 type ChangeId = keyof Changes;
-/** «И ещё» and an admin's own: the changes with a line of their own. */
-type RestId = {
-  [K in ChangeId]: Changes[K] extends { line: string } ? K : never;
-}[ChangeId];
 type FeaturedId = {
   [K in ChangeId]: Changes[K] extends { short: string } ? K : never;
 }[ChangeId];
 
 const EASE = "ease-[cubic-bezier(0.23,1,0.32,1)]";
 
-/** A small glint: the bullet of a line of «И ещё», the stars' own. */
+/** More than a line's worth left under the fold. */
+const hasBelow = (el: HTMLElement) =>
+  el.scrollHeight - el.scrollTop - el.clientHeight > 8;
+
+/** A tiny glint: the bullet of a line on the night sky. */
 const Glint = () => (
   <svg
     aria-hidden
-    className="text-muted-foreground mt-[6px] size-2 shrink-0"
+    className="mt-[7px] size-2 shrink-0 opacity-70"
     viewBox="-8 -8 16 16"
   >
     <path
       d="M0 -7 L1.4 -1.4 L7 0 L1.4 1.4 L0 7 L-1.4 1.4 L-7 0 L-1.4 -1.4 Z"
-      fill="currentColor"
+      fill="white"
     />
   </svg>
 );
 
-const Lines = ({ title, ids }: { title: React.ReactNode; ids: RestId[] }) => {
+/** A change in one run of text on the night: its name, then what it does; the lines come in one after another. */
+const Line = ({ id, order }: { id: ChangeId; order: number }) => {
   const t = useTranslations("whatsNew.changes");
   return (
-    <section className="flex min-w-0 flex-col gap-2">
-      <h3 className="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
-        {title}
-      </h3>
-      <ul className="flex flex-col gap-1">
-        {ids.map((id) => (
-          <li className="flex gap-2 text-sm leading-snug" key={id}>
-            <Glint />
-            <span title={t(`${id}.text`)}>{t(`${id}.line`)}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <li
+      className="cs-rise flex gap-2.5 text-sm leading-relaxed text-white/65"
+      style={{ animationDelay: `${700 + order * 70}ms` }}
+    >
+      <Glint />
+      <span>
+        <span className="font-medium text-white">{t(`${id}.title`)}.</span>{" "}
+        {t(`${id}.text`)}
+      </span>
+    </li>
+  );
+};
+
+const Heading = ({
+  children,
+  delay,
+}: {
+  children: React.ReactNode;
+  delay: number;
+}) => (
+  <h3
+    className="cs-rise flex items-center gap-2 text-xs font-medium tracking-[0.18em] text-white/50 uppercase"
+    style={{ animationDelay: `${delay}ms` }}
+  >
+    {children}
+  </h3>
+);
+
+/** «Ещё ниже»: the list goes on under the fold — a chip in the corner; a click scrolls on, at the end it goes. */
+const MoreBelow = ({
+  shown,
+  onClick,
+}: {
+  shown: boolean;
+  onClick: () => void;
+}) => {
+  const t = useTranslations("whatsNew");
+  return (
+    <button
+      aria-hidden={!shown}
+      className={cn(
+        "absolute right-4 bottom-3 flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/80 ring-1 ring-white/20 backdrop-blur-sm transition-[opacity,transform,color,background-color] duration-200 hover:bg-white/15 hover:text-white",
+        EASE,
+        shown
+          ? "translate-y-0 opacity-100"
+          : "pointer-events-none translate-y-1 opacity-0"
+      )}
+      onClick={onClick}
+      tabIndex={shown ? 0 : -1}
+      type="button"
+    >
+      {t("moreBelow")} <ChevronDown className="size-3.5" />
+    </button>
   );
 };
 
 /**
- * The last page's words: «И ещё» a line each — and, for an admin, their own beside it — under the finished chart.
- * Short lines, so the page keeps the others' height and nothing scrolls.
+ * The last page's stage: the cover's sky again with the chart finished — every star lit, smaller, in the corner,
+ * its lines drawn once more — and «И ещё» (an admin's own after it) on the same night. Scrolls only when it must,
+ * and then says so.
  */
-const RestWords = ({ more, admin }: { more: RestId[]; admin: RestId[] }) => {
+const RestList = ({ more, admin }: { more: ChangeId[]; admin: ChangeId[] }) => {
   const t = useTranslations("whatsNew");
+  const box = useRef<HTMLDivElement>(null);
+  const [below, setBelow] = useState(false);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) {
+      return;
+    }
+    const measure = () => setBelow(hasBelow(el));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   return (
-    <div
-      className={cn(
-        "animate-in fade-in grid gap-x-6 gap-y-4 px-6 pt-5 pb-4 duration-200",
-        EASE,
-        more.length > 0 && admin.length > 0 && "sm:grid-cols-2"
-      )}
-    >
-      {more.length > 0 && <Lines ids={more} title={t("more")} />}
-      {admin.length > 0 && (
-        <Lines
-          ids={admin}
-          title={
-            <>
-              {t("admin")}
-              <span className="bg-muted rounded px-1.5 py-0.5 text-[10px] tracking-normal normal-case">
-                {t("adminBadge")}
-              </span>
-            </>
-          }
-        />
-      )}
+    <div className="relative h-full">
+      <div
+        className="h-full [scrollbar-width:none] overflow-y-auto overscroll-contain [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)] px-7 pb-6"
+        onScroll={(e) => setBelow(hasBelow(e.currentTarget))}
+        ref={box}
+      >
+        <div className="flex flex-col gap-4">
+          {more.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <Heading delay={600}>{t("more")}</Heading>
+              <ul className="flex flex-col gap-1.5">
+                {more.map((id, i) => (
+                  <Line id={id} key={id} order={i} />
+                ))}
+              </ul>
+            </section>
+          )}
+          {admin.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <Heading delay={700 + more.length * 70}>
+                {t("admin")}
+                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] tracking-normal text-white/70 normal-case">
+                  {t("adminBadge")}
+                </span>
+              </Heading>
+              <ul className="flex flex-col gap-1.5">
+                {admin.map((id, i) => (
+                  <Line id={id} key={id} order={more.length + i} />
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      </div>
+      <MoreBelow
+        onClick={() => box.current?.scrollBy({ behavior: "smooth", top: 120 })}
+        shown={below}
+      />
     </div>
   );
 };
 
 /**
  * The line between the words and the footer is the tour's progress: full width, unbroken, filled up to the page
- * (scaleX, 300 ms — transform only), as in stories. Over it, a strip of hit areas, one per page, leads to any page.
+ * (scaleX, 300 ms — transform only), as in stories; not on the last page. Over it, a strip of hit areas, one per page, leads to any page.
  */
 const Progress = ({
   count,
@@ -120,17 +192,14 @@ const Progress = ({
   return (
     <div className="absolute inset-x-0 top-0">
       <div className="bg-border h-px" />
-      {/* Filled to the end, it has nothing left to tell: it goes out a moment later, the plain line stays. */}
+      {/* On the last page there is nothing left to track: the fill goes, the plain line stays. */}
       <span
-        className="bg-primary absolute inset-x-0 -top-px h-0.5 origin-left motion-reduce:transition-none"
-        style={{
-          opacity: page === count - 1 ? 0 : 1,
-          transform: `scaleX(${(page + 1) / count})`,
-          transition:
-            page === count - 1
-              ? "transform 300ms cubic-bezier(0.23, 1, 0.32, 1), opacity 400ms ease 700ms"
-              : "transform 300ms cubic-bezier(0.23, 1, 0.32, 1), opacity 150ms ease",
-        }}
+        className={cn(
+          "bg-foreground absolute inset-x-0 -top-px h-0.5 origin-left transition-[transform,opacity] duration-300 motion-reduce:transition-none",
+          EASE,
+          page === count - 1 ? "opacity-0" : "opacity-100"
+        )}
+        style={{ transform: `scaleX(${(page + 1) / count})` }}
       />
       <div className="absolute inset-x-0 -top-2 flex h-4">
         {Array.from({ length: count }, (_, i) => (
@@ -198,8 +267,8 @@ const Tour = ({
 }) => {
   const t = useTranslations("whatsNew");
   const featured = note.featured.filter((id): id is FeaturedId => id in DEMOS);
-  const more = note.more as RestId[];
-  const forAdmin = admin ? (note.admin as RestId[]) : [];
+  const more = note.more as ChangeId[];
+  const forAdmin = admin ? (note.admin as ChangeId[]) : [];
   const hasRest = more.length + forAdmin.length > 0;
   /** 0 — the cover, 1…n — the changes, then «И ещё» (if any). */
   const last = featured.length + (hasRest ? 1 : 0);
@@ -236,22 +305,11 @@ const Tour = ({
         <AutoDemo active={i === page} id={id} />
       );
     }
-    if (i === 0) {
-      return (
-        <StarCover
-          date={note.date}
-          onPick={(k) => go(k + 1)}
-          seen={seen}
-          stars={stars}
-          version={note.version}
-        />
-      );
-    }
     return (
       <StarCover
         date={note.date}
-        end
         onPick={(k) => go(k + 1)}
+        rest={i === 0 ? undefined : <RestList admin={forAdmin} more={more} />}
         seen={seen}
         stars={stars}
         version={note.version}
@@ -272,50 +330,44 @@ const Tour = ({
       }}
       role="presentation"
     >
-      <div className="relative shrink-0">
-        <div className="relative h-[22rem] shrink-0 overflow-clip border-b">
-          <div
-            className={cn(
-              "flex h-full transition-transform duration-300 motion-reduce:transition-none",
-              EASE
-            )}
-            style={{ transform: `translateX(${-page * 100}%)` }}
-          >
-            {Array.from({ length: last + 1 }, (_, i) => (
-              <div
-                aria-hidden={i !== page}
-                className="h-full w-full shrink-0"
-                inert={i !== page}
-                // oxlint-disable-next-line react/no-array-index-key -- a page's stage, by its number
-                key={i}
-              >
-                {reached.has(i) && stageOf(i)}
-              </div>
-            ))}
-          </div>
-          <Button
-            aria-label={t("close")}
-            className={cn(
-              "absolute top-3 right-3 z-20",
-              onDemo
-                ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                : "text-white/70 hover:bg-white/10 hover:text-white"
-            )}
-            onClick={() => onDone(off)}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <X />
-          </Button>
-        </div>
-
-        <div className="h-[12rem] shrink-0 overflow-y-auto overscroll-contain sm:h-[9.5rem]">
-          {page === last && hasRest ? (
-            <RestWords admin={forAdmin} more={more} />
-          ) : (
-            <Words dir={dir} featured={featured} last={last} page={page} />
+      <div className="relative h-[22rem] shrink-0 overflow-clip border-b">
+        <div
+          className={cn(
+            "flex h-full transition-transform duration-300 motion-reduce:transition-none",
+            EASE
           )}
+          style={{ transform: `translateX(${-page * 100}%)` }}
+        >
+          {Array.from({ length: last + 1 }, (_, i) => (
+            <div
+              aria-hidden={i !== page}
+              className="h-full w-full shrink-0"
+              inert={i !== page}
+              // oxlint-disable-next-line react/no-array-index-key -- a page's stage, by its number
+              key={i}
+            >
+              {reached.has(i) && stageOf(i)}
+            </div>
+          ))}
         </div>
+        <Button
+          aria-label={t("close")}
+          className={cn(
+            "absolute top-3 right-3 z-10",
+            onDemo
+              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+              : "text-white/70 hover:bg-white/10 hover:text-white"
+          )}
+          onClick={() => onDone(off)}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <X />
+        </Button>
+      </div>
+
+      <div className="h-[12rem] shrink-0 overflow-y-auto overscroll-contain sm:h-[9.5rem]">
+        <Words dir={dir} featured={featured} last={last} page={page} />
       </div>
 
       <footer className="relative flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-6 py-3">
