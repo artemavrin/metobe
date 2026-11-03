@@ -179,3 +179,59 @@ describe("stopping a request", () => {
     server.close();
   });
 });
+
+/** A server that drops the first `drops` requests without a word, then answers. */
+const flaky = async (drops: number) => {
+  let seen = 0;
+  const server = createServer((req, res) => {
+    seen += 1;
+    if (seen <= drops) {
+      req.socket.destroy();
+      return;
+    }
+    res.end("ok");
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port: at } = server.address() as AddressInfo;
+  return { calls: () => seen, server, url: `http://127.0.0.1:${at}/` };
+};
+
+describe("a connection dropped before any answer", () => {
+  it("is sent once more, on a fresh connection: the model's request is not lost", async () => {
+    const { calls, server, url } = await flaky(1);
+    const res = await fetchWith(directAgent())(url, {
+      body: JSON.stringify({ prompt: "hi" }),
+      method: "POST",
+    });
+    expect(await res.text()).toBe("ok");
+    expect(calls()).toBe(2);
+    server.close();
+  });
+
+  it("is sent once more only: a connection that keeps failing is the caller's to know", async () => {
+    const { calls, server, url } = await flaky(5);
+    await expect(fetchWith(directAgent())(url)).rejects.toThrow();
+    expect(calls()).toBe(2);
+    server.close();
+  });
+
+  it("is not sent again when the body cannot be read twice", async () => {
+    const { calls, server, url } = await flaky(1);
+    const body = new ReadableStream({
+      start(c) {
+        c.enqueue(new TextEncoder().encode("hi"));
+        c.close();
+      },
+    });
+    await expect(
+      fetchWith(directAgent())(url, {
+        body,
+        duplex: "half",
+        method: "POST",
+      } as RequestInit)
+    ).rejects.toThrow();
+    expect(calls()).toBe(1);
+    server.close();
+  });
+});
