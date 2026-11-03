@@ -64,7 +64,11 @@ import {
   REQUEST_CONNECTION,
   requestConnectionTool,
 } from "@/lib/connect-tool";
-import { budgetMessages, isContextOverflow } from "@/lib/context-budget";
+import {
+  budgetMessages,
+  clearPastTurns,
+  isContextOverflow,
+} from "@/lib/context-budget";
 import { emailTools } from "@/lib/email-tools";
 import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
@@ -76,7 +80,7 @@ import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { saidNothing, streamAnswer, sumUpPrompt } from "@/lib/sum-up";
 import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
 import { TIME_NOTE, TIME_TOOL, timeTool } from "@/lib/time-tool";
-import { lendTools, servicesNote } from "@/lib/tool-search";
+import { FIND_TOOLS, lendTools, servicesNote } from "@/lib/tool-search";
 import { SourceError, createSources, shareResults } from "@/lib/tool-sources";
 import { withNotes } from "@/lib/user-notes";
 import {
@@ -552,14 +556,19 @@ export const POST = async (request: Request) => {
       const prompt = withPromptCache(
         model.kind,
         budgetMessages(
-          await convertToModelMessages(
-            await forModel(session.user.id, uiMessages, {
-              pdf: readsPdf(model.kind, model.modelId),
-              tools: model.capabilities.tools !== false,
-              vision: model.capabilities.vision,
-            }),
-            // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources).
-            { tools }
+          // Earlier questions' tool results go first: their data was answered; the found tools and the user's
+          // answers stay (lib/context-budget).
+          clearPastTurns(
+            await convertToModelMessages(
+              await forModel(session.user.id, uiMessages, {
+                pdf: readsPdf(model.kind, model.modelId),
+                tools: model.capabilities.tools !== false,
+                vision: model.capabilities.vision,
+              }),
+              // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources).
+              { tools }
+            ),
+            { keep: [FIND_TOOLS, ASK_USER] }
           ),
           budget
         )
