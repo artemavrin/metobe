@@ -10,7 +10,8 @@ import { Sky, SKY_CSS } from "@/components/chat/night-sky";
 // sky — with its short name, joined to the next by a hairline that stops short of it. The shape comes from the count
 // and the version: the stars walk left to right over the upper part, up and down by a seed of the version, so every
 // release has its own constellation (at most six stars — docs/RELEASE.md). A star brightens once its page was seen;
-// the next one to see twinkles. The lines draw themselves once, as the window opens — rare and first-time, the
+// the next one to see twinkles; on the last page every star burns and «Вот и всё» stands where the version did. The
+// lines draw themselves once, as the window opens — rare and first-time, the
 // delight budget. Transform, opacity, stroke-dashoffset; reduced motion keeps the drawing still.
 
 const CSS = `
@@ -50,14 +51,11 @@ const seeded = (seed: string) => {
   };
 };
 
-/** The cover's room for the chart, and the last page's: the same figure, smaller, in the upper right corner. */
-const ROOM = {
-  cover: { h: 24, w: 54, x: 36, y: 20 },
-  end: { h: 13, w: 30, x: 62, y: 14 },
-};
+/** The chart's room, in % of the cover: the upper right, the title keeps the lower left. */
+const ROOM = { h: 24, w: 54, x: 36, y: 20 };
 
 /** Where the stars stand, in % of the cover: left to right over the room, up and down in turn, nudged by the seed. */
-const layout = (count: number, seed: string, room = ROOM.cover) => {
+const layout = (count: number, seed: string, room = ROOM) => {
   const rand = seeded(seed);
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0.5 : i / (count - 1);
@@ -140,7 +138,7 @@ export const StarCover = ({
   onPick,
   version,
   date,
-  rest,
+  end,
 }: {
   stars: CoverStar[];
   /** The pages already seen, by the star's index. */
@@ -149,14 +147,13 @@ export const StarCover = ({
   version: string;
   /** `YYYY-MM-DD`. */
   date: string;
-  /** The last page: the chart finished — all lit, smaller, in the corner — and this under it, on the same sky. */
-  rest?: React.ReactNode;
+  /** The last page, the cover's mirror: the same chart with every star lit, «Вот и всё» where the version stood. */
+  end?: boolean;
 }) => {
   const t = useTranslations("whatsNew");
   const format = useFormatter();
   const { box, size } = useSize();
-  const end = Boolean(rest);
-  const spots = layout(stars.length, version, end ? ROOM.end : ROOM.cover);
+  const spots = layout(stars.length, version);
   const next = end ? -1 : stars.findIndex((_, i) => !seen.has(i));
   const lit = (i: number) => end || seen.has(i);
   return (
@@ -220,29 +217,31 @@ export const StarCover = ({
           </button>
         );
       })}
-      {rest ? (
-        <div className="absolute inset-x-0 top-[38%] bottom-0">{rest}</div>
-      ) : (
-        <div className="absolute bottom-7 left-7 flex flex-col gap-1">
-          <span
-            className="cs-rise text-xs font-medium tracking-[0.18em] text-white/60 uppercase"
-            style={{ animationDelay: "80ms" }}
-          >
-            {t("eyebrow", {
-              date: format.dateTime(new Date(`${date}T12:00:00`), {
-                day: "numeric",
-                month: "long",
-              }),
-            })}
-          </span>
-          <span
-            className="cs-rise text-4xl font-semibold tracking-tight"
-            style={{ animationDelay: "140ms" }}
-          >
-            {t("brand", { version: `v${version}` })}
-          </span>
-        </div>
-      )}
+      <div className="absolute bottom-7 left-7 flex flex-col gap-1">
+        <span
+          className={cn(
+            "cs-rise text-xs font-medium tracking-[0.18em] text-white/60",
+            // The version keeps its own case: «v0.6.0», not «V0.6.0».
+            end ? "tracking-[0.08em]" : "uppercase"
+          )}
+          style={{ animationDelay: "80ms" }}
+        >
+          {end
+            ? t("doneEyebrow", { version: `v${version}` })
+            : t("eyebrow", {
+                date: format.dateTime(new Date(`${date}T12:00:00`), {
+                  day: "numeric",
+                  month: "long",
+                }),
+              })}
+        </span>
+        <span
+          className="cs-rise text-4xl font-semibold tracking-tight"
+          style={{ animationDelay: "140ms" }}
+        >
+          {end ? t("doneTitle") : t("brand", { version: `v${version}` })}
+        </span>
+      </div>
     </div>
   );
 };

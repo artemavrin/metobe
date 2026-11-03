@@ -2333,22 +2333,27 @@
         "text": "A new chat welcomes you for the time of day, with a line of the day. And if you hold the mouse down on an empty spot — see for yourself."
       },
       "answerEnds": {
+        "line": "An answer always ends with a conclusion",
         "title": "Answers don't trail off",
         "text": "Even after long work with data, an answer ends with a conclusion, not silence"
       },
       "chatHeader": {
+        "line": "Rename a chat with a click in its header",
         "title": "Chat header",
         "text": "Click the chat's name in the header to rename it"
       },
       "sidebar": {
+        "line": "New chat — the pencil by the logo",
         "title": "Sidebar",
         "text": "The pencil next to the logo starts a new chat, and the logo itself takes you home"
       },
       "serverInstructions": {
+        "line": "Instructions for the model on an MCP server",
         "title": "Instructions for the model",
         "text": "An MCP server can have instructions that only the model sees: where to start and what to offer on its own"
       },
       "localSources": {
+        "line": "Local sources are marked automatically",
         "title": "Local sources",
         "text": "Sources on your own hardware (localhost, a private network, .local) are marked local automatically"
       }
@@ -2413,6 +2418,6 @@
       "line": "Do one important thing today.",
       "placeholder": "Ask anything…"
     },
-    "moreBelow": "More below"
+    "doneEyebrow": "Metobe {version}"
   }
 }
