@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/artemavrin/metobe/compare/v0.7.0...v0.7.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* a request whose connection dropped before any answer is sent once more ([#99](https://github.com/artemavrin/metobe/issues/99)) ([4e33e7b](https://github.com/artemavrin/metobe/commit/4e33e7bebdc80fa45042834fb6a542eafc903bff))
+
 ## [0.7.0](https://github.com/artemavrin/metobe/compare/v0.6.0...v0.7.0) (2026-11-03)
 
 
