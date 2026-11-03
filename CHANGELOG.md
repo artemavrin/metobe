@@ -6,16 +6,13 @@
 ### Features
 
 * compact a long chat into a summary by a service model ([8645e55](https://github.com/artemavrin/metobe/commit/8645e556041975a7e4b15f6ab6b32cd84846430b))
-* compact a long chat into a summary by a service model ([03d6862](https://github.com/artemavrin/metobe/commit/03d686252a3e2c7ac88e617ca89b9f1d067fafa9))
 * what's new for 0.7.0, and every version on a page of its own ([22f85f8](https://github.com/artemavrin/metobe/commit/22f85f87285b210eb190fb70398979589785b80b))
-* what's new for 0.7.0, and every version on a page of its own ([cdae115](https://github.com/artemavrin/metobe/commit/cdae115478e866dc28febd88f21d18d90f43c19e))
 
 
 ### Bug Fixes
 
 * earlier answers' reasoning is not sent again either ([7b5e59a](https://github.com/artemavrin/metobe/commit/7b5e59a23114397fd9f2644fb831c5970ff3664b))
 * earlier questions' tool results are not sent again with every step ([2a9d032](https://github.com/artemavrin/metobe/commit/2a9d0321c66e2413aa68f9a4aa46d14efa463ef6))
-* earlier questions' tool results are not sent again with every step ([d1225ba](https://github.com/artemavrin/metobe/commit/d1225ba5dc756a4c7862a6feb881bc149d94564b))
 
 ## [0.6.0](https://github.com/artemavrin/metobe/compare/v0.5.1...v0.6.0) (2026-11-03)
 
