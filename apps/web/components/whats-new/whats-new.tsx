@@ -176,15 +176,17 @@ const RestList = ({ more, admin }: { more: ChangeId[]; admin: ChangeId[] }) => {
 };
 
 /**
- * The line between the words and the footer is the tour's progress: full width, unbroken, filled up to the page
- * (scaleX, 300 ms — transform only), as in stories; not on the last page. Over it, a strip of hit areas, one per page, leads to any page.
+ * The line between the words and the footer is the tour's progress over its changes — the cover is not a step, the
+ * end has nothing left to track: full width, unbroken, in the brand's color, filled up to the change on screen
+ * (scaleX, 300 ms — transform only), as in stories. Over it, a hit area per change leads to it.
  */
 const Progress = ({
-  count,
+  steps,
   page,
   onGo,
 }: {
-  count: number;
+  /** The changes: pages 1…steps. */
+  steps: number;
   page: number;
   onGo: (page: number) => void;
 }) => {
@@ -192,24 +194,23 @@ const Progress = ({
   return (
     <div className="absolute inset-x-0 top-0">
       <div className="bg-border h-px" />
-      {/* On the last page there is nothing left to track: the fill goes, the plain line stays. */}
       <span
         className={cn(
-          "bg-foreground absolute inset-x-0 -top-px h-0.5 origin-left transition-[transform,opacity] duration-300 motion-reduce:transition-none",
+          "bg-primary absolute inset-x-0 -top-px h-0.5 origin-left transition-[transform,opacity] duration-300 motion-reduce:transition-none",
           EASE,
-          page === count - 1 ? "opacity-0" : "opacity-100"
+          page > steps ? "opacity-0" : "opacity-100"
         )}
-        style={{ transform: `scaleX(${(page + 1) / count})` }}
+        style={{ transform: `scaleX(${Math.min(page, steps) / steps})` }}
       />
       <div className="absolute inset-x-0 -top-2 flex h-4">
-        {Array.from({ length: count }, (_, i) => (
+        {Array.from({ length: steps }, (_, i) => (
           <button
-            aria-current={i === page ? "step" : undefined}
+            aria-current={i + 1 === page ? "step" : undefined}
             aria-label={t("page", { n: i + 1 })}
             className="focus-visible:ring-ring/60 flex-1 outline-none focus-visible:ring-2"
-            // oxlint-disable-next-line react/no-array-index-key -- the pages, by number
+            // oxlint-disable-next-line react/no-array-index-key -- the changes, by number
             key={i}
-            onClick={() => onGo(i)}
+            onClick={() => onGo(i + 1)}
             type="button"
           />
         ))}
@@ -372,7 +373,7 @@ const Tour = ({
 
       <footer className="relative flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-6 py-3">
         {/* The progress is the footer's top line: no room of its own, nothing moves it. */}
-        <Progress count={last + 1} onGo={go} page={page} />
+        <Progress onGo={go} page={page} steps={featured.length} />
         {/* oxlint-disable-next-line jsx-a11y/label-has-associated-control -- the checkbox inside is the control */}
         <label className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-sm whitespace-nowrap transition-colors duration-150 select-none">
           <Checkbox checked={off} onCheckedChange={(v) => setOff(Boolean(v))} />
