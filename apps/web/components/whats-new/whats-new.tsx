@@ -11,8 +11,9 @@ import {
   DialogTitle,
 } from "@metobe/ui/components/dialog";
 import { cn } from "@metobe/ui/lib/utils";
-import { ChevronDown, X } from "lucide-react";
+import { ArrowRight, ChevronDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { closeWhatsNewAction } from "@/app/(app)/(chat)/actions";
@@ -226,16 +227,23 @@ const Words = ({
   last,
   featured,
   dir,
+  onHistory,
 }: {
   page: number;
   last: number;
   featured: FeaturedId[];
   dir: 1 | -1;
+  /** «Все изменения по версиям»: the window closes, the history page opens. */
+  onHistory: () => void;
 }) => {
   const t = useTranslations("whatsNew");
   const id = page >= 1 && page < last ? featured[page - 1] : undefined;
   let title = t("introTitle");
-  let text = t("intro", { count: featured.length });
+  // «И ещё» is the page after the last big change, when there is one.
+  let text = t("intro", {
+    count: featured.length,
+    rest: last > featured.length ? "yes" : "no",
+  });
   if (id) {
     title = t(`changes.${id}.title`);
     text = t(`changes.${id}.text`);
@@ -254,6 +262,18 @@ const Words = ({
     >
       <h2 className="text-lg font-semibold">{title}</h2>
       <p className="text-muted-foreground text-sm leading-relaxed">{text}</p>
+      {/* Only the newest version is in the window; every one before it, in full, is a click away. */}
+      {page === last && (
+        <Button
+          className="mt-2 self-start"
+          nativeButton={false}
+          render={<Link href="/whats-new" onClick={onHistory} />}
+          size="sm"
+          variant="outline"
+        >
+          {t("historyLink")} <ArrowRight />
+        </Button>
+      )}
     </div>
   );
 };
@@ -369,7 +389,13 @@ const Tour = ({
       </div>
 
       <div className="h-[12rem] shrink-0 overflow-y-auto overscroll-contain sm:h-[9.5rem]">
-        <Words dir={dir} featured={featured} last={last} page={page} />
+        <Words
+          dir={dir}
+          featured={featured}
+          last={last}
+          onHistory={() => onDone(off)}
+          page={page}
+        />
       </div>
 
       <footer className="relative flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-6 py-3">

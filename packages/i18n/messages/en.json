@@ -2315,7 +2315,7 @@
     "brand": "Metobe {version}",
     "description": "What came with the update",
     "introTitle": "Metobe has been updated",
-    "intro": "{count, plural, =1 {One notable change} =2 {Two notable changes} =3 {Three notable changes} =4 {Four notable changes} =5 {Five notable changes} =6 {Six notable changes} other {# notable changes}} and a few small ones at the end. The cursor shows how each one works; click the picture to try it yourself.",
+    "intro": "{count, plural, =1 {One notable change} =2 {Two notable changes} =3 {Three notable changes} =4 {Four notable changes} =5 {Five notable changes} =6 {Six notable changes} other {# notable changes}}{rest, select, yes { and a few small ones at the end} other {}}.",
     "doneTitle": "That's all",
     "doneText": "You can read it again any time: account menu → “What's new”.",
     "more": "Also",
@@ -2372,6 +2372,15 @@
       "localSources": {
         "title": "Local sources",
         "text": "Sources on your own hardware (localhost, a private network, .local) are marked local automatically"
+      },
+      "compactChat": {
+        "short": "Compact",
+        "title": "A long chat can be compacted",
+        "text": "When a conversation grows long, an offer to compact it appears under the answer: the model goes on from a detailed summary, and answers are faster and cheaper again. You keep the whole chat, and you can compact it from the «⋯» menu in the header too."
+      },
+      "summariesSlot": {
+        "title": "A service model for compacting",
+        "text": "«Service models» has a new job, «Compacting chats» — pick a model with a large context window. What compacting costs is a line of its own in «Usage»."
       }
     },
     "demo": {
@@ -2432,8 +2441,20 @@
         "night": "Good night"
       },
       "line": "Do one important thing today.",
-      "placeholder": "Ask anything…"
+      "placeholder": "Ask anything…",
+      "compact": {
+        "summary": "## Goal\n- A spring mailing plan for customers: three emails over two weeks.\n\n## What was found\n- Emails are opened most on Tuesday and Thursday mornings.\n- The second email is cut down to 90 words.\n\n## Agreed\n- Short subject lines, the benefit in the first words.\n\n## Open\n- Put everything in one table.",
+        "messages": 12
+      }
     },
-    "moreBelow": "More below"
+    "moreBelow": "More below",
+    "historyLink": "All changes by version",
+    "history": {
+      "title": "What's new in Metobe",
+      "description": "Every change by version — what you can do now and how.",
+      "version": "Metobe {version}",
+      "current": "installed here",
+      "empty": "Nothing yet."
+    }
   }
 }

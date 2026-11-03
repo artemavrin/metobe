@@ -23,8 +23,16 @@ const RAIL = "[data-map-rail]";
 const OPTION = '[role="option"]:nth-of-type(2)';
 const SHARE = '[data-demo="share-header"] button:has(svg.lucide-share)';
 
+const COMPACT = '[data-demo="compact-offer"] button:first-of-type';
+
 const SCRIPTS: Record<string, Step[]> = {
   askUser: [{ wait: 900 }, { move: OPTION }, { click: OPTION }, { wait: 2600 }],
+  compactChat: [
+    { wait: 900 },
+    { move: COMPACT },
+    { click: COMPACT },
+    { wait: 3800 },
+  ],
   shareChat: [
     { wait: 700 },
     { move: SHARE },
