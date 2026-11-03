@@ -59,6 +59,7 @@ import {
 import { fileIdsOf, forModel, ownFiles, readsPdf } from "@/lib/attachments";
 import { getAuth } from "@/lib/auth";
 import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
+import { fromCompaction } from "@/lib/compaction";
 import {
   MAIL_KEY,
   REQUEST_CONNECTION,
@@ -560,7 +561,8 @@ export const POST = async (request: Request) => {
           // answers stay (lib/context-budget).
           clearPastTurns(
             await convertToModelMessages(
-              await forModel(session.user.id, uiMessages, {
+              // After a compaction (D37) the model gets its summary and what follows it, not the messages before.
+              await forModel(session.user.id, fromCompaction(uiMessages), {
                 pdf: readsPdf(model.kind, model.modelId),
                 tools: model.capabilities.tools !== false,
                 vision: model.capabilities.vision,
@@ -658,6 +660,8 @@ export const POST = async (request: Request) => {
         tools,
       });
       // The end of the answer says how long it reasoned and worked, and each step's time.
+      // What the answer sent the model, over its steps: its weight a step, for the offer to compact (D37).
+      const weight = { input: 0, steps: 0 };
       const finishMetadata = () => ({
         ...(reasoningFrom === null
           ? {}
@@ -690,7 +694,20 @@ export const POST = async (request: Request) => {
           stepMs[ended] = ms;
           return { stepMs: { [ended]: ms } };
         }
-        return part.type === "finish" ? finishMetadata() : undefined;
+        if (part.type === "start-step") {
+          weight.steps += 1;
+        }
+        if (part.type !== "finish") {
+          return;
+        }
+        // The work's and the sum-up's passes each end with their own total: the answer's weight is both.
+        weight.input += part.totalUsage.inputTokens ?? 0;
+        return {
+          ...finishMetadata(),
+          ...(weight.steps > 0
+            ? { stepTokens: Math.round(weight.input / weight.steps) }
+            : {}),
+        };
       };
       const toUI = (
         uiStream: ReadableStream<TextStreamPart<ToolSet>>,

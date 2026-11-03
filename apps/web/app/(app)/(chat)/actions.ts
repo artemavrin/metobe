@@ -8,12 +8,14 @@ import {
 import {
   deleteChat,
   forkChat,
+  getChat,
   renameChat,
   searchChats,
   setChatPinned,
   setChatVisibility,
   setVote,
 } from "@metobe/core/chat";
+import { compactChat } from "@metobe/core/chat-compact";
 import { listChatServers } from "@metobe/core/mcp";
 import { setFavoriteModels } from "@metobe/core/model-choices";
 import { closeWhatsNew } from "@metobe/core/whats-new";
@@ -24,6 +26,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { getAuth } from "@/lib/auth";
+import { isGenerating } from "@/lib/generations";
+import { getPrefs } from "@/lib/prefs";
 
 export const signOut = async () => {
   await getAuth().api.signOut({ headers: await headers() });
@@ -212,4 +216,25 @@ export const closeWhatsNewAction = async (version: string, off: boolean) => {
     return;
   }
   await closeWhatsNew(session.user.id, version, off === true);
+};
+
+/**
+ * «Сжать чат» (D37): the service model writes the summary of the user's chat, which joins the history as a message;
+ * the page adds it to the thread. Not while an answer is being written, nor in a chat that is not the user's.
+ */
+export const compactChatAction = async (id: string) => {
+  const user = await userId();
+  const parsed = chatId.safeParse(id);
+  if (!(user && parsed.success)) {
+    return { ok: false as const, reason: "failed" as const };
+  }
+  const chat = await getChat(parsed.data);
+  if (chat?.userId !== user) {
+    return { ok: false as const, reason: "failed" as const };
+  }
+  if (isGenerating(parsed.data)) {
+    return { ok: false as const, reason: "busy" as const };
+  }
+  const { locale } = await getPrefs();
+  return compactChat({ chatId: parsed.data, locale, userId: user });
 };

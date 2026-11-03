@@ -563,6 +563,22 @@
         "next": "Tab for next question",
         "skip": "Esc to skip"
       }
+    },
+    "compact": {
+      "menu": "Compact chat",
+      "heavyTitle": "This chat has grown long",
+      "heavyText": "The last answer sent the model about {tokens} tokens at every step. Without compacting, answers will be slower and cost more, and the model remembers the start of the conversation less well. A service model will compact the chat into a summary — you keep the whole chat.",
+      "compact": "Compact chat",
+      "later": "Not now",
+      "writing": "Writing the summary…",
+      "summaryTitle": "Conversation summary",
+      "summaryCount": "{count, plural, one {# message} other {# messages}} compacted",
+      "kept": "From here on the model works from this summary. You keep the whole chat.",
+      "showAll": "Show all",
+      "collapse": "Collapse",
+      "failed": "Couldn’t compact the chat — try again",
+      "busy": "You can compact once the answer is done",
+      "short": "The chat is still short — nothing to compact"
     }
   },
   "login": {
@@ -1394,6 +1410,10 @@
       "vision": {
         "label": "Vision",
         "hint": "Describes pictures for models that cannot see them and writes out the text in them. Needs a model with sight. Without one, such models get no pictures."
+      },
+      "summaries": {
+        "label": "Chat compaction",
+        "hint": "Writes the summary of a long chat when it is compacted. Needs a model with a large context window. Without one, the chat’s own model writes it."
       }
     },
     "empty": "No working sources with models — connect a source",
@@ -2072,7 +2092,8 @@
     "purposes": {
       "chat": "Chat answers",
       "title": "Chat titles",
-      "describe": "Vision"
+      "describe": "Vision",
+      "compact": "Chat compaction"
     },
     "other": "Other",
     "removedModel": "Deleted model",

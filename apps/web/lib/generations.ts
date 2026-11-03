@@ -36,6 +36,9 @@ export const endGeneration = (chatId: string, controller: AbortController) => {
   }
 };
 
+/** An answer is being written in the chat now (by this server): a compaction waits for it to end. */
+export const isGenerating = (chatId: string) => running.has(chatId);
+
 /** Stops the chat's answer; false when nothing was being written. */
 export const stopGeneration = (chatId: string) => {
   const controller = running.get(chatId);

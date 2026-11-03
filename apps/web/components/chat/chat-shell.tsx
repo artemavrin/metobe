@@ -40,6 +40,10 @@ import type { Person } from "@/components/chat/account-menu";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatRow } from "@/components/chat/chat-item";
 import type { ChatItem, ChatOps } from "@/components/chat/chat-item";
+import {
+  CompactBridgeProvider,
+  useCompactBridgeValue,
+} from "@/components/chat/compact-bridge";
 import { ShareDialog } from "@/components/chat/share-dialog";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
 import { groupChats } from "@/lib/chat-history";
@@ -226,6 +230,7 @@ export const ChatShell = ({
   const current = chats.find((c) => pathname === `/chat/${c.id}`);
   // Rename and delete show at once and tell the server; pinning waits for the server's list, which knows the
   // day a chat goes back to. A refused change is put right by reading the list again.
+  const compactBridge = useCompactBridgeValue();
   const ops = useMemo<ChatOps>(() => {
     const settle = async (task: Promise<{ ok: boolean }>) => {
       const result = await task;
@@ -234,6 +239,8 @@ export const ChatShell = ({
       }
     };
     return {
+      // Runs in the open chat's thread, which holds its messages (components/chat/compact-bridge).
+      compact: () => compactBridge.request(),
       pin: (id, pinned) => {
         settle(pinChatAction(id, pinned));
       },
@@ -252,73 +259,75 @@ export const ChatShell = ({
       },
       share: (id) => setSharingId(id),
     };
-  }, [pathname, router]);
+  }, [compactBridge, pathname, router]);
   // ⌘, (Ctrl+, elsewhere) from anywhere, text fields included; the physical key, so ЙЦУКЕН works too.
   useHotkey("Mod+,", () => router.push("/settings"), { ignoreInputs: false });
 
   return (
     <ChatListContext.Provider value={touch}>
       <ChatPrefsContext.Provider value={prefs}>
-        <SidebarProvider>
-          <Sidebar variant="floating">
-            <SidebarHeader>
-              <div className="flex h-8 items-center justify-between ps-2">
-                <Brand />
-                <NewChat />
-              </div>
-            </SidebarHeader>
-            <SidebarContent>
-              <SidebarSearch admin={admin} chats={chats}>
-                <History chats={chats} ops={ops} />
-              </SidebarSearch>
-            </SidebarContent>
-            <SidebarFooter>
-              <AccountMenu
-                whatsNew={
-                  notes
-                    ? {
-                        open: () => setWhatsNewOpen(true),
-                        version: notes.version,
-                      }
-                    : undefined
-                }
-                user={user}
+        <CompactBridgeProvider value={compactBridge}>
+          <SidebarProvider>
+            <Sidebar variant="floating">
+              <SidebarHeader>
+                <div className="flex h-8 items-center justify-between ps-2">
+                  <Brand />
+                  <NewChat />
+                </div>
+              </SidebarHeader>
+              <SidebarContent>
+                <SidebarSearch admin={admin} chats={chats}>
+                  <History chats={chats} ops={ops} />
+                </SidebarSearch>
+              </SidebarContent>
+              <SidebarFooter>
+                <AccountMenu
+                  whatsNew={
+                    notes
+                      ? {
+                          open: () => setWhatsNewOpen(true),
+                          version: notes.version,
+                        }
+                      : undefined
+                  }
+                  user={user}
+                />
+              </SidebarFooter>
+            </Sidebar>
+            {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
+            <SidebarInset className="h-dvh min-h-0 overflow-hidden">
+              <header className="flex h-12 shrink-0 items-center gap-2 px-3">
+                <SidebarTrigger aria-label={t("openSidebar")} />
+                {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share. */}
+                {current && (
+                  <ChatHeader chat={current} key={current.id} ops={ops} />
+                )}
+              </header>
+              <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            </SidebarInset>
+            {notes && whatsNewOpen && (
+              <WhatsNewDialog
+                admin={admin}
+                note={notes}
+                onOpenChange={setWhatsNewOpen}
+                open={whatsNewOpen}
               />
-            </SidebarFooter>
-          </Sidebar>
-          {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
-          <SidebarInset className="h-dvh min-h-0 overflow-hidden">
-            <header className="flex h-12 shrink-0 items-center gap-2 px-3">
-              <SidebarTrigger aria-label={t("openSidebar")} />
-              {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share. */}
-              {current && (
-                <ChatHeader chat={current} key={current.id} ops={ops} />
-              )}
-            </header>
-            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-          </SidebarInset>
-          {notes && whatsNewOpen && (
-            <WhatsNewDialog
-              admin={admin}
-              note={notes}
-              onOpenChange={setWhatsNewOpen}
-              open={whatsNewOpen}
-            />
-          )}
-          <ShareDialog
-            chat={sharing}
-            onOpenChange={(open) => {
-              if (!open) {
-                setSharingId(null);
+            )}
+            <ShareDialog
+              chat={sharing}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setSharingId(null);
+                }
+              }}
+              onShared={(id, shared) =>
+                setChats((list) =>
+                  list.map((c) => (c.id === id ? { ...c, shared } : c))
+                )
               }
-            }}
-            onShared={(id, shared) =>
-              setChats((list) =>
-                list.map((c) => (c.id === id ? { ...c, shared } : c))
-              )
-            }
-          />
-        </SidebarProvider>
+            />
+          </SidebarProvider>
+        </CompactBridgeProvider>
       </ChatPrefsContext.Provider>
     </ChatListContext.Provider>
   );

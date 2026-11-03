@@ -10,11 +10,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import { forkChatAction } from "@/app/(app)/(chat)/actions";
+import { CompactionCard } from "@/components/chat/compaction";
 import {
   AssistantMessage,
   ModelSwitch,
   UserMessage,
 } from "@/components/chat/messages";
+import { compactionOf } from "@/lib/compaction";
 import { threadRows } from "@/lib/thread-rows";
 
 /** How often an open shared chat looks for what its owner wrote since — while the tab is in view. */
@@ -80,6 +82,10 @@ export const SharedChat = ({
           {threadRows(messages, "ready").map((row) => {
             if (row.role === "switch") {
               return <ModelSwitch key={row.key} label={labelOf(row.modelId)} />;
+            }
+            if (row.role === "compaction") {
+              const data = compactionOf(row.message);
+              return data ? <CompactionCard data={data} key={row.key} /> : null;
             }
             if (row.role === "user") {
               return (

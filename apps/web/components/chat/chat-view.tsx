@@ -46,6 +46,11 @@ import { AskPanel } from "@/components/chat/ask-user";
 import { FileSinkContext, useAttachments } from "@/components/chat/attachments";
 import { BlackHole } from "@/components/chat/black-hole";
 import { useTouchChat } from "@/components/chat/chat-shell";
+import {
+  CompactionCard,
+  CompactOffer,
+  useCompaction,
+} from "@/components/chat/compaction";
 import { Composer } from "@/components/chat/composer";
 import type { ComposerHandle } from "@/components/chat/composer";
 import {
@@ -64,6 +69,7 @@ import { Welcome } from "@/components/chat/welcome";
 import type { WelcomeData } from "@/components/chat/welcome";
 import { openQuestion, questionsOf } from "@/lib/ask-user";
 import { chatProblem, retryAtOf } from "@/lib/chat-errors";
+import { compactionOf } from "@/lib/compaction";
 import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
 import { threadMapItems } from "@/lib/thread-map";
 import { threadRows } from "@/lib/thread-rows";
@@ -353,6 +359,18 @@ const ChatError = ({
  * rises in, and the composer keeps its place and its focus.
  */
 const NO_SKILLS: ChatSkill[] = [];
+
+/** The offer to compact (or the service model at work) at the thread's end, when there is one. */
+const CompactSlot = ({
+  compaction,
+}: {
+  compaction: ReturnType<typeof useCompaction>;
+}) =>
+  compaction.shown ? (
+    <MessageScrollerItem messageId="compact">
+      <CompactOffer {...compaction.offer} />
+    </MessageScrollerItem>
+  ) : null;
 
 export const ChatView = ({
   id: givenId,
@@ -760,9 +778,16 @@ export const ChatView = ({
     const picked = models.find((x) => x.id === modelId);
     return picked ? asLabel(picked) : labels.find((l) => l.id === modelId);
   };
+  // «Сжать чат» (D37): the offer under a heavy answer, and the work — asked from here or from the header's menu.
+  const compaction = useCompaction({ busy, chatId: id, messages, setMessages });
+
   const rowOf = (row: ThreadRow) => {
     if (row.role === "switch") {
       return <ModelSwitch label={labelOf(row.modelId)} />;
+    }
+    if (row.role === "compaction") {
+      const data = compactionOf(row.message);
+      return data ? <CompactionCard data={data} /> : null;
     }
     if (row.role === "user") {
       return (
@@ -879,6 +904,8 @@ export const ChatView = ({
                           />
                         </MessageScrollerItem>
                       ))}
+                      {/* «Сжать чат» (D37): offered under a heavy answer, or asked for from the menu */}
+                      <CompactSlot compaction={compaction} />
                       {error && !busy && chatProblem(error) !== "updating" && (
                         <MessageScrollerItem messageId="error">
                           <ChatError error={error} onRetry={retry} />
