@@ -36,6 +36,7 @@ import {
   ChevronRight,
   Clock,
   Eye,
+  HardDrive,
   Search,
   Star,
   TriangleAlert,
@@ -90,12 +91,16 @@ export interface PaletteOpening {
 
 // --- data helpers ----------------------------------------------------------------------------------
 
-type CapKey = "vision" | "tools" | "reasoning";
+// What the model can do — and «local»: the source runs on the organization's own hardware, the data stays inside.
+type CapKey = "vision" | "tools" | "reasoning" | "local";
 const CAPS: { key: CapKey; icon: typeof Eye }[] = [
   { icon: Eye, key: "vision" },
   { icon: Wrench, key: "tools" },
   { icon: Brain, key: "reasoning" },
+  { icon: HardDrive, key: "local" },
 ];
+const hasCap = (m: ChatModel, k: CapKey) =>
+  k === "local" ? m.local : m.caps[k] === true;
 
 type SortKey = "maker" | "context" | "price" | "latency";
 interface Sort {
@@ -417,7 +422,7 @@ const build = (
   sort: Sort,
   frozen: string[]
 ) => {
-  const pool = data.models.filter((m) => caps.every((k) => m.caps[k] === true));
+  const pool = data.models.filter((m) => caps.every((k) => hasCap(m, k)));
   const q = query.trim();
   if (!q) {
     return {
@@ -582,13 +587,13 @@ const Title = ({ text, mask }: { text: string; mask?: string }) => {
   );
 };
 
-/** Three fixed slots, strictly monochrome: yes — the icon, the source did not say — a faint icon, no — nothing. */
+/** Fixed slots, strictly monochrome: yes — the icon, the source did not say — a faint icon, no — nothing. */
 const CapCells = ({ m }: { m: ChatModel }) => {
   const t = useTranslations("chat.picker");
   return (
     <span className="flex">
       {CAPS.map(({ key, icon: Icon }) => {
-        const v = m.caps[key];
+        const v = key === "local" ? m.local : m.caps[key];
         return (
           <span
             className={cn(

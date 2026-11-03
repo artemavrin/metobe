@@ -41,6 +41,7 @@ export const chats = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /** `team` — anyone signed in may read it by the link and continue in a copy of their own; only the owner writes. */
     visibility: text("visibility")
       .$type<ChatVisibility>()
       .notNull()
@@ -49,10 +50,7 @@ export const chats = pgTable(
   (table) => [
     index("chats_user_updated").on(table.userId, table.updatedAt.desc()),
     check("chats_kind", sql`${table.kind} in ('chat', 'agent_run')`),
-    check(
-      "chats_visibility",
-      sql`${table.visibility} in ('private', 'public')`
-    ),
+    check("chats_visibility", sql`${table.visibility} in ('private', 'team')`),
   ]
 );
 

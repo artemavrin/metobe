@@ -33,6 +33,7 @@ export const listModelChoices = (scope: "chat" | "working" = "chat") => {
       providerSlug: providers.slug,
       providerTitle: providers.title,
       releasedAt: models.releasedAt,
+      sourceLocal: sources.local,
       sourceTitle: sources.title,
       title: models.title,
     })

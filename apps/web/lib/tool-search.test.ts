@@ -48,12 +48,14 @@ const bigNames = [
 ];
 const big = {
   description: "CRM компании — сделки и задачи",
+  instructions: null,
   key: "bitrix",
   title: "Битрикс",
   tools: named(bigNames),
 };
 const small = {
   description: null,
+  instructions: null,
   key: "notes",
   title: "Заметки",
   tools: named(["notes_read"]),
@@ -174,6 +176,26 @@ describe("what the model is told of the chat's services", () => {
         "MCP services connected in this chat:",
         `- Битрикс (tools named bitrix_…): CRM компании — сделки и задачи. Its tools are found with ${FIND_TOOLS}.`,
         "- Заметки (tools named notes_…)",
+      ].join("\n")
+    );
+  });
+
+  it("puts the admin's instructions under the service's line, for the model only", () => {
+    expect(
+      servicesNote([
+        {
+          ...small,
+          instructions:
+            "Если разбор был непростым — предложи записать кейс.\nСпрашивай через ask_user. ",
+        },
+      ])
+    ).toBe(
+      [
+        "MCP services connected in this chat:",
+        "- Заметки (tools named notes_…)",
+        "  How to work with it:",
+        "  Если разбор был непростым — предложи записать кейс.",
+        "  Спрашивай через ask_user.",
       ].join("\n")
     );
   });

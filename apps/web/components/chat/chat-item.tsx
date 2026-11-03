@@ -24,8 +24,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@metobe/ui/components/sidebar";
-import { cn } from "@metobe/ui/lib/utils";
-import { Ellipsis, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
+import { Ellipsis, Pencil, Pin, PinOff, Share, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -40,6 +39,8 @@ export interface ChatItem {
   group: ChatGroup;
   /** The titles model is naming this chat: its title is only its first line so far. */
   naming?: boolean;
+  /** Open to the team by its link (read only). */
+  shared?: boolean;
 }
 
 /** What the sidebar does with a chat: each changes the list at once and tells the server. */
@@ -47,6 +48,8 @@ export interface ChatOps {
   rename: (id: string, title: string) => void;
   pin: (id: string, pinned: boolean) => void;
   remove: (id: string) => void;
+  /** Opens «Поделиться чатом». */
+  share: (id: string) => void;
 }
 
 // How fast a long title slides under the cursor, in pixels per second — and the longest it may take: a very long
@@ -80,16 +83,14 @@ const MarqueeTitle = ({ title }: { title: string }) => {
   }, []);
   return (
     <span
-      className={cn(
-        "[container-type:inline-size] block min-w-0 flex-1 overflow-hidden",
-        // The fade marks a cut title; with the pointer on the row the title slides, and its end must be plain.
-        overflow > 0 &&
-          "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)] group-hover/menu-item:[mask-image:none]"
-      )}
+      className="[container-type:inline-size] block min-w-0 flex-1 overflow-hidden"
       ref={outer}
     >
+      {/* The fade marks a cut title, in CSS alone so the server's page has it too: it sits at the row's edge
+          (100cqw) of the title's own box, which a title that fits never reaches. With the pointer on the row the
+          title slides, and its end must be plain. */}
       <span
-        className="block w-max whitespace-nowrap transition-transform duration-200 ease-out group-hover/menu-item:[transform:translateX(min(0px,calc(100cqw-100%)))] group-hover/menu-item:delay-300 group-hover/menu-item:[transition-duration:var(--marquee)] group-hover/menu-item:ease-linear motion-reduce:group-hover/menu-item:transform-none"
+        className="block w-max [mask-image:linear-gradient(to_right,black_calc(100cqw-1.5rem),transparent_100cqw)] whitespace-nowrap transition-transform duration-200 ease-out group-hover/menu-item:[transform:translateX(min(0px,calc(100cqw-100%)))] group-hover/menu-item:[mask-image:none] group-hover/menu-item:delay-300 group-hover/menu-item:[transition-duration:var(--marquee)] group-hover/menu-item:ease-linear motion-reduce:group-hover/menu-item:transform-none"
         data-overflow={overflow > 0 ? "" : undefined}
         ref={inner}
         style={
@@ -105,12 +106,14 @@ const MarqueeTitle = ({ title }: { title: string }) => {
 };
 
 /** The name in an input where the title stood: Enter keeps it, Esc and leaving the field with nothing new drop it. */
-const RenameField = ({
+export const RenameField = ({
   title,
   onDone,
+  className = "h-8",
 }: {
   title: string;
   onDone: (next: string | null) => void;
+  className?: string;
 }) => {
   const t = useTranslations("chat.item");
   const [draft, setDraft] = useState(title);
@@ -128,7 +131,7 @@ const RenameField = ({
       aria-label={t("renameLabel")}
       autoComplete="off"
       autoFocus
-      className="h-8"
+      className={className}
       maxLength={200}
       onBlur={() => finish(true)}
       onChange={(e) => setDraft(e.target.value)}
@@ -146,7 +149,7 @@ const RenameField = ({
 };
 
 /** «Удалить чат?»: a chat cannot be brought back, so a click asks once. */
-const ConfirmDelete = ({
+export const ConfirmDelete = ({
   title,
   open,
   onOpenChange,
@@ -184,7 +187,7 @@ const ConfirmDelete = ({
   );
 };
 
-/** A chat in the sidebar: its title (a long one slides on hover) and, on hover, a menu — pin, rename, delete. */
+/** A chat in the sidebar: its title (a long one slides on hover) and, on hover, a menu — pin, rename, share, delete. */
 export const ChatRow = ({
   chat,
   active,
@@ -255,6 +258,9 @@ export const ChatRow = ({
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setEditing(true)}>
             <Pencil /> {t("rename")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => ops.share(chat.id)}>
+            <Share /> {t("share")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

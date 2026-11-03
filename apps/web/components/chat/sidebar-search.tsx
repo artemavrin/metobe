@@ -290,7 +290,8 @@ export const SidebarSearch = ({
             <SidebarInput
               {...NO_AUTOFILL}
               aria-label={t("label")}
-              className="pr-10 pl-8"
+              // The ring goes inside the field: the palette around it clips anything drawn outside.
+              className="focus-visible:ring-ring/60 pr-10 pl-8 focus-visible:ring-1 focus-visible:ring-inset"
               onChange={(e) => {
                 setQuery(e.target.value);
                 setMoved(false);

@@ -11,11 +11,24 @@
     },
     "welcome": {
       "start": "Start with",
-      "resume": "Continue",
       "mail": "Unread mail",
       "mailAsk": "What is unread in my mail?",
       "file": "Go through a file",
-      "fileHint": "PDF, Word, Excel, images"
+      "fileHint": "PDF, Word, Excel, images",
+      "phrases": [
+        "The hardest part is the first question.",
+        "A precise question saves an hour of searching.",
+        "A big task is easier step by step.",
+        "Don't keep it all in your head — ask.",
+        "Numbers make more sense when you can see them.",
+        "A good answer starts with a good question.",
+        "A small fix today saves a week tomorrow.",
+        "Decisions hold up better on data than on guesses.",
+        "Get one important thing done today.",
+        "A break is part of the work, too.",
+        "You don't need the answer — just the question.",
+        "A long document doesn't have to be read end to end."
+      ]
     },
     "placeholder": "Ask anything…",
     "send": "Send",
@@ -102,7 +115,8 @@
       "caps": {
         "vision": "Images",
         "tools": "Tools",
-        "reasoning": "Reasoning"
+        "reasoning": "Reasoning",
+        "local": "Local"
       },
       "capState": {
         "yes": "{cap}: yes",
@@ -345,7 +359,8 @@
       "delete": "Delete",
       "deleteTitle": "Delete the chat?",
       "deleteText": "The chat “{title}” and all its messages will be deleted for good. It cannot be brought back.",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "share": "Share"
     },
     "activity": {
       "working": "Working",
@@ -436,7 +451,7 @@
     "voteDown": "Not helpful",
     "search": {
       "label": "Search chats and settings",
-      "placeholder": "Find a chat or a setting",
+      "placeholder": "Search",
       "nothing": "Nothing found in chats or settings",
       "chats": "Chats",
       "sections": "Settings",
@@ -459,6 +474,95 @@
       "menu": "Skills",
       "shared": "organization's",
       "save": "Saving a skill"
+    },
+    "share": {
+      "button": "Share",
+      "shared": "Shared by link",
+      "title": "Share chat",
+      "text": "Anyone signed in to Metobe can open the chat by its link. Only you can write in it — others continue in a copy of their own.",
+      "toggle": "Link access",
+      "on": "Open to anyone with the link",
+      "off": "Only you can see this chat now",
+      "link": "Link to the chat",
+      "copy": "Copy",
+      "copied": "Copied",
+      "note": "Everything in the chat is visible, including what you write next, answers from your connections and files.",
+      "failed": "Could not save — try again",
+      "author": "By {name} · read only",
+      "readOnly": "Only the author can write here. In your own copy, answers come from your models and connections.",
+      "continue": "Continue in my copy",
+      "continuing": "Copying…",
+      "continueFailed": "Could not copy the chat — try again"
+    },
+    "map": {
+      "jump": "Go to question: {question}",
+      "previous": "Previous question",
+      "next": "Next question",
+      "noText": "Question without text"
+    },
+    "beyond": {
+      "back": "New chat",
+      "eyebrow": "Beyond the event horizon",
+      "rest": [
+        {
+          "head": ["You can't get it all done.", "And you don't have to."],
+          "lines": [
+            "The to-do list will never end, but this evening will.",
+            "Even stars don't rush — they burn for billions of years.",
+            "Take a break. What matters will wait for you."
+          ]
+        },
+        {
+          "head": ["Even Earth", "needs the night."],
+          "lines": [
+            "Every day, half the planet is in the dark.",
+            "And every morning still comes on time.",
+            "Close the laptop. Tomorrow brings a new sunrise."
+          ]
+        },
+        {
+          "head": [
+            "The universe isn't in a hurry.",
+            "You don't have to be either."
+          ],
+          "lines": [
+            "It's 13.8 billion years old and still a work in progress.",
+            "The best of it came together slowly.",
+            "Rest — your tasks won't fly away."
+          ]
+        },
+        {
+          "head": [
+            "Stars shine for ages",
+            "because they don't burn out in a day."
+          ],
+          "lines": [
+            "Pace beats a sprint.",
+            "Breathe out, make some tea, look out the window.",
+            "Come back — and it'll all go faster."
+          ]
+        }
+      ]
+    },
+    "ask": {
+      "label": "The model's question",
+      "several": "Pick any.",
+      "own": "Something else…",
+      "send": "Send",
+      "next": "Next",
+      "answer": "Answer",
+      "review": "Check your answers",
+      "noAnswer": "no answer",
+      "skip": "Skip",
+      "skipped": "You decide",
+      "answered": "answered",
+      "keys": {
+        "pick": "↑↓ choose",
+        "answer": "Enter to answer",
+        "send": "Enter to send",
+        "next": "Tab for next question",
+        "skip": "Esc to skip"
+      }
     }
   },
   "login": {
@@ -961,7 +1065,9 @@
           "reasoning": "Thinks before answering",
           "structured": "Answers strictly by a JSON schema"
         }
-      }
+      },
+      "local": "Local",
+      "localHint": "Runs on the organization's own hardware: the data stays inside. The model picker can filter by it"
     }
   },
   "providers": {
@@ -1038,6 +1144,9 @@
       "description": "Description",
       "descriptionHint": "For the model: what the service is and when to turn to it. Optional",
       "descriptionPlaceholder": "E.g.: the company's CRM — deals, funnels, employees' tasks",
+      "instructions": "Instructions for the model",
+      "instructionsHint": "Only the model reads them, users never see them: how to work with the service and what to offer on its own. Optional",
+      "instructionsPlaceholder": "Where to start, what to ask the user, what to offer on its own",
       "access": "Access",
       "mode": "Credentials",
       "modes": {
@@ -2178,5 +2287,132 @@
       "patches": "automatic patch",
       "nightly": "nightly"
     }
+  },
+  "whatsNew": {
+    "menu": "What's new",
+    "eyebrow": "What's new · {date}",
+    "brand": "Metobe {version}",
+    "description": "What came with the update",
+    "introTitle": "Metobe has been updated",
+    "intro": "{count, plural, =1 {One notable change} =2 {Two notable changes} =3 {Three notable changes} =4 {Four notable changes} =5 {Five notable changes} =6 {Six notable changes} other {# notable changes}} and a few small ones at the end. The cursor shows how each one works; click the picture to try it yourself.",
+    "doneTitle": "That's all",
+    "doneText": "You can read it again any time: account menu → “What's new”.",
+    "more": "Also",
+    "admin": "For admins",
+    "adminBadge": "only you see this",
+    "dontShow": "Don't show after updates",
+    "back": "Back",
+    "next": "Next",
+    "done": "Got it",
+    "close": "Close",
+    "page": "Page {n}",
+    "star": "{title} — open",
+    "tryIt": "Click to try it",
+    "takeOver": "Try it yourself",
+    "replay": "Show again",
+    "again": "Again",
+    "changes": {
+      "shareChat": {
+        "short": "Share",
+        "title": "Send a chat to a colleague",
+        "text": "Turn on link access, and your colleague sees the whole chat, along with anything you add later. The link opens only inside Metobe, and your colleague can continue the conversation in their own copy."
+      },
+      "askUser": {
+        "short": "Questions",
+        "title": "The model asks instead of guessing",
+        "text": "When the answer depends on something only you know — a period, who an email goes to, which report — the model asks first. Pick an option, write your own, or leave the choice to it."
+      },
+      "threadMap": {
+        "short": "Chat map",
+        "title": "Long chats have a map",
+        "text": "To the left of a long chat there's a strip with a tick for every question. Hover to see the question and the start of its answer; click to jump to it."
+      },
+      "greeting": {
+        "short": "Greeting",
+        "title": "A new greeting every day",
+        "text": "A new chat welcomes you for the time of day, with a line of the day. And if you hold the mouse down on an empty spot — see for yourself."
+      },
+      "answerEnds": {
+        "title": "Answers don't trail off",
+        "text": "Even after long work with data, an answer ends with a conclusion, not silence"
+      },
+      "chatHeader": {
+        "title": "Chat header",
+        "text": "Click the chat's name in the header to rename it"
+      },
+      "sidebar": {
+        "title": "Sidebar",
+        "text": "The pencil next to the logo starts a new chat, and the logo itself takes you home"
+      },
+      "serverInstructions": {
+        "title": "Instructions for the model",
+        "text": "An MCP server can have instructions that only the model sees: where to start and what to offer on its own"
+      },
+      "localSources": {
+        "title": "Local sources",
+        "text": "Sources on your own hardware (localhost, a private network, .local) are marked local automatically"
+      }
+    },
+    "demo": {
+      "chatTitle": "Spring newsletter plan",
+      "question": "Plan a spring newsletter for our customers",
+      "answer": "Three emails over two weeks: an announcement, a roundup and a reminder — subjects and send days below.",
+      "report": "Put together a sales report",
+      "lead": "Let me check the period so I don't count too much.",
+      "period": "What period should the report cover?",
+      "periodHeader": "Period",
+      "options": [
+        {
+          "label": "Last quarter",
+          "description": "Closed, complete data"
+        },
+        {
+          "label": "Last month",
+          "description": "The last full month"
+        },
+        {
+          "label": "Year to date",
+          "description": "January to today"
+        }
+      ],
+      "working": "Working on it — {answer}…",
+      "workingSkipped": "Working on it…",
+      "thread": [
+        [
+          "Plan a spring newsletter",
+          "Three emails over two weeks: an announcement, a roundup and a reminder."
+        ],
+        [
+          "Which subject lines will work best?",
+          "Short ones that lead with the benefit — here are five to choose from."
+        ],
+        [
+          "Cut the second email in half",
+          "Done: 90 words left, the key point in the first paragraph."
+        ],
+        [
+          "Make a version for social media",
+          "Three posts for different platforms, with captions for the images."
+        ],
+        [
+          "When should we send them?",
+          "Tuesday or Thursday morning — that's when work emails get opened most."
+        ],
+        [
+          "Put it all in one table",
+          "Table below: email, subject, send day and owner."
+        ]
+      ],
+      "threadLabel": "Conversation",
+      "greetings": {
+        "morning": "Good morning",
+        "day": "Good afternoon",
+        "evening": "Good evening",
+        "night": "Good night"
+      },
+      "line": "Do one important thing today.",
+      "placeholder": "Ask anything…"
+    },
+    "moreBelow": "More below"
   }
 }

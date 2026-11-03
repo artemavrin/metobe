@@ -1,5 +1,6 @@
 import "server-only";
-import type { ChatMessage } from "@metobe/contracts/chat";
+import type { ChatMessage, ChatVisibility } from "@metobe/contracts/chat";
+import { user } from "@metobe/db/schema/auth";
 import { chats, messages, votes } from "@metobe/db/schema/chat";
 import {
   modelRuns,
@@ -9,8 +10,9 @@ import {
 } from "@metobe/db/schema/models";
 import { and, asc, desc, eq, gte, ilike, inArray, or, sql } from "drizzle-orm";
 
+import { withCopiedFiles } from "./chat-share";
 import { getDb } from "./db";
-import { deleteChatObjects } from "./files";
+import { copyChatFiles, deleteChatObjects } from "./files";
 
 // Chats and their messages (ARCH §5.3, §6): what `api/chat` reads and writes. Messages are AI SDK UI messages
 // stored as they are; the history is always read from here, the client sends only its newest message.
@@ -39,6 +41,7 @@ export const listChats = (userId: string, limit = 200) => {
       pinnedAt: chats.pinnedAt,
       title: chats.title,
       updatedAt: chats.updatedAt,
+      visibility: chats.visibility,
     })
     .from(chats)
     .where(and(eq(chats.userId, userId), eq(chats.kind, "chat")))
@@ -66,6 +69,42 @@ export const setChatPinned = async (
     .update(chats)
     .set({ pinnedAt: pinned ? new Date() : null })
     .where(own(userId, id));
+};
+
+/** Opens the chat to everyone signed in, by its link (read only), or takes it back to its owner alone. */
+export const setChatVisibility = async (
+  userId: string,
+  id: string,
+  visibility: ChatVisibility
+) => {
+  const { db } = getDb();
+  const [changed] = await db
+    .update(chats)
+    .set({ visibility })
+    .where(own(userId, id))
+    .returning({ id: chats.id });
+  return Boolean(changed);
+};
+
+/** A chat its owner opened to the team, with who the owner is; null — private, or no such chat. */
+export const getSharedChat = async (id: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({
+      chat: chats,
+      owner: { email: user.email, id: user.id, name: user.name },
+    })
+    .from(chats)
+    .innerJoin(user, eq(user.id, chats.userId))
+    .where(
+      and(
+        eq(chats.id, id),
+        eq(chats.kind, "chat"),
+        eq(chats.visibility, "team")
+      )
+    )
+    .limit(1);
+  return row ?? null;
 };
 
 /** Deletes a chat with its messages (they go with it by foreign key); what it cost stays in the usage. */
@@ -256,6 +295,25 @@ export const listMessages = async (chatId: string): Promise<ChatMessage[]> => {
 };
 
 /**
+ * The value with every NUL character taken out of its strings, however deep. Postgres refuses `\u0000` in jsonb and
+ * text, and one NUL in a tool's result (a PDF's text had it) failed the whole insert — the answer was lost.
+ */
+export const withoutNul = <T>(value: T): T => {
+  if (typeof value === "string") {
+    return (value.includes("\0") ? value.replaceAll("\0", "") : value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map(withoutNul) as T;
+  }
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, withoutNul(v)])
+    ) as T;
+  }
+  return value;
+};
+
+/**
  * Stores messages of a chat and moves the chat up. A message saved again (the same id) keeps its place and
  * takes the new parts — a response that went on after a reconnect, or an edited one later (M3.2).
  */
@@ -274,8 +332,8 @@ export const saveMessages = async (chatId: string, list: ChatMessage[]) => {
           // One insert, one timestamp: a step apart keeps them in order.
           createdAt: new Date(now + i),
           id: m.id,
-          metadata: m.metadata ?? null,
-          parts: m.parts,
+          metadata: withoutNul(m.metadata ?? null),
+          parts: withoutNul(m.parts),
           role: m.role,
         }))
       )
@@ -414,3 +472,45 @@ export const getChatModel = async (id: string) => {
   return model ?? null;
 };
 export type ChatModel = NonNullable<Awaited<ReturnType<typeof getChatModel>>>;
+
+/**
+ * Continues a chat in a copy of the user's own: the same title and messages (new ids, the times they were said),
+ * the files copied, nothing of the votes. Only a chat shared with the team, or the user's own. The copy is private;
+ * from here on its answers use the user's own models and connections. Answers the new chat's id, or null.
+ */
+export const forkChat = async (userId: string, sourceId: string) => {
+  const { db } = getDb();
+  const [source] = await db
+    .select({ id: chats.id, title: chats.title })
+    .from(chats)
+    .where(
+      and(
+        eq(chats.id, sourceId),
+        eq(chats.kind, "chat"),
+        or(eq(chats.visibility, "team"), eq(chats.userId, userId))
+      )
+    );
+  if (!source) {
+    return null;
+  }
+  const id = crypto.randomUUID();
+  await db.insert(chats).values({ id, title: source.title, userId });
+  const copied = await copyChatFiles(source.id, id, userId);
+  const list = withCopiedFiles(await listMessages(source.id), copied);
+  if (list.length > 0) {
+    await db.insert(messages).values(
+      list.map((m) => {
+        const { createdAt, ...metadata } = m.metadata ?? {};
+        return {
+          chatId: id,
+          createdAt: createdAt ? new Date(createdAt) : new Date(),
+          id: crypto.randomUUID(),
+          metadata: Object.keys(metadata).length > 0 ? metadata : null,
+          parts: m.parts,
+          role: m.role,
+        };
+      })
+    );
+  }
+  return id;
+};

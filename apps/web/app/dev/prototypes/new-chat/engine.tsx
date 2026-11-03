@@ -19,6 +19,8 @@ import type { Favorites, PickerModel } from "@/components/chat/picker/data";
 
 export interface Data {
   greeting: string;
+  /** The user's first name, for the greeting by another part of the day (round 3). */
+  name: string;
   model: PickerModel;
   models: PickerModel[];
   favorites: string[];

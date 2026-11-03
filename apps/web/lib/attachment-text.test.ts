@@ -5,11 +5,19 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@metobe/core/files", () => ({ readFile: vi.fn() }));
 
-const { PART_SIZE, extractParts, splitParts } =
+const { PART_SIZE, cleanText, extractParts, splitParts } =
   await import("./attachment-text");
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(new URL(`fixtures/${name}`, import.meta.url)));
+
+describe("cleanText", () => {
+  it("drops control characters a PDF's text carries, keeps lines and tabs", () => {
+    expect(cleanText("Калуга\u0000\u0007 и\tТула\nОрёл\r\n")).toBe(
+      "Калуга и\tТула\nОрёл\r\n"
+    );
+  });
+});
 
 describe("splitParts", () => {
   it("keeps a short text whole and an empty one as one empty part", () => {

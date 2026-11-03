@@ -1,5 +1,7 @@
 "use client";
 
+import type { WhatsNew } from "@metobe/core/whats-new";
+import { Button } from "@metobe/ui/components/button";
 import {
   Sidebar,
   SidebarContent,
@@ -10,15 +12,19 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from "@metobe/ui/components/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@metobe/ui/components/tooltip";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { SquarePen } from "lucide-react";
 import { useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useMemo, useState } from "react";
@@ -31,10 +37,23 @@ import {
 } from "@/app/(app)/(chat)/actions";
 import { AccountMenu } from "@/components/chat/account-menu";
 import type { Person } from "@/components/chat/account-menu";
+import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatRow } from "@/components/chat/chat-item";
 import type { ChatItem, ChatOps } from "@/components/chat/chat-item";
+import { ShareDialog } from "@/components/chat/share-dialog";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
 import { groupChats } from "@/lib/chat-history";
+
+const NO_NEWS: WhatsNew = { latest: null, show: null };
+
+// Loaded when it first opens: the demos bring the thread's map, the sky and the question panel along.
+const WhatsNewDialog = dynamic(
+  async () => {
+    const mod = await import("@/components/whats-new/whats-new");
+    return mod.WhatsNewDialog;
+  },
+  { ssr: false }
+);
 
 /**
  * Lets the chat screen put a chat on top of the list the moment it gets a message. A title names it (a new chat);
@@ -59,14 +78,22 @@ export const useTouchChat = () => {
   return touch;
 };
 
-const Brand = () => (
-  <span className="flex items-center gap-2 text-sm font-semibold">
-    <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs">
-      M
-    </span>
-    Metobe
-  </span>
-);
+/** The brand leads home, as everywhere: to a new chat. */
+const Brand = () => {
+  const { isMobile, setOpenMobile } = useSidebar();
+  return (
+    <Link
+      className="focus-visible:ring-ring/60 flex items-center gap-2 rounded-md text-sm font-semibold outline-none focus-visible:ring-2"
+      href="/"
+      onClick={() => isMobile && setOpenMobile(false)}
+    >
+      <span className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md text-xs">
+        M
+      </span>
+      Metobe
+    </Link>
+  );
+};
 
 const History = ({ chats, ops }: { chats: ChatItem[]; ops: ChatOps }) => {
   const t = useTranslations("chat");
@@ -102,20 +129,36 @@ const History = ({ chats, ops }: { chats: ChatItem[]; ops: ChatOps }) => {
   ));
 };
 
+/** «Новый чат» as an icon beside the brand: the header stays one line, the search right under it. */
 const NewChat = () => {
   const t = useTranslations("chat");
   const { isMobile, setOpenMobile } = useSidebar();
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          onClick={() => isMobile && setOpenMobile(false)}
-          render={<Link href="/" />}
-        >
-          <SquarePen /> <span>{t("newChat")}</span>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
+    <Tooltip>
+      <TooltipTrigger
+        delay={500}
+        render={
+          <Button
+            aria-label={t("newChat")}
+            className="text-muted-foreground hover:text-foreground"
+            nativeButton={false}
+            onClick={() => isMobile && setOpenMobile(false)}
+            render={<Link href="/" />}
+            size="icon-sm"
+            variant="ghost"
+          />
+        }
+      >
+        <SquarePen />
+      </TooltipTrigger>
+      <TooltipContent
+        arrow={false}
+        className="bg-sidebar text-foreground ring-foreground/10 shadow-md ring-1"
+        sideOffset={6}
+      >
+        {t("newChat")}
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
@@ -128,6 +171,7 @@ export const ChatShell = ({
   admin,
   user,
   sendKey,
+  whatsNew = NO_NEWS,
   children,
 }: {
   /** The user's chats, latest first, each in its day group by the user's calendar. */
@@ -137,12 +181,16 @@ export const ChatShell = ({
   user: Person;
   /** The key that sends a message, as the user chose it. */
   sendKey: "enter" | "mod-enter";
+  /** «Что нового»: the window to open now, after an update, and the notes the account menu reads again. */
+  whatsNew?: WhatsNew;
   children: ReactNode;
 }) => {
   const t = useTranslations("chat");
   const router = useRouter();
   const prefs = useMemo(() => ({ sendKey }), [sendKey]);
   const [chats, setChats] = useState(initialChats);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(Boolean(whatsNew.show));
+  const notes = whatsNew.show ?? whatsNew.latest;
   // A fresh list from the server (a reload of the layout) replaces the local one.
   const [seen, setSeen] = useState(initialChats);
   if (seen !== initialChats) {
@@ -172,6 +220,10 @@ export const ChatShell = ({
     []
   );
   const pathname = usePathname();
+  // «Поделиться чатом» — from the chat's menu in the sidebar or from the header of the chat on screen.
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const sharing = chats.find((c) => c.id === sharingId) ?? null;
+  const current = chats.find((c) => pathname === `/chat/${c.id}`);
   // Rename and delete show at once and tell the server; pinning waits for the server's list, which knows the
   // day a chat goes back to. A refused change is put right by reading the list again.
   const ops = useMemo<ChatOps>(() => {
@@ -198,6 +250,7 @@ export const ChatShell = ({
         );
         settle(renameChatAction(id, title));
       },
+      share: (id) => setSharingId(id),
     };
   }, [pathname, router]);
   // ⌘, (Ctrl+, elsewhere) from anywhere, text fields included; the physical key, so ЙЦУКЕН works too.
@@ -209,10 +262,10 @@ export const ChatShell = ({
         <SidebarProvider>
           <Sidebar variant="floating">
             <SidebarHeader>
-              <div className="flex h-8 items-center px-1">
+              <div className="flex h-8 items-center justify-between ps-2">
                 <Brand />
+                <NewChat />
               </div>
-              <NewChat />
             </SidebarHeader>
             <SidebarContent>
               <SidebarSearch admin={admin} chats={chats}>
@@ -220,16 +273,51 @@ export const ChatShell = ({
               </SidebarSearch>
             </SidebarContent>
             <SidebarFooter>
-              <AccountMenu user={user} />
+              <AccountMenu
+                whatsNew={
+                  notes
+                    ? {
+                        open: () => setWhatsNewOpen(true),
+                        version: notes.version,
+                      }
+                    : undefined
+                }
+                user={user}
+              />
             </SidebarFooter>
           </Sidebar>
           {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
           <SidebarInset className="h-dvh min-h-0 overflow-hidden">
             <header className="flex h-12 shrink-0 items-center gap-2 px-3">
               <SidebarTrigger aria-label={t("openSidebar")} />
+              {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share. */}
+              {current && (
+                <ChatHeader chat={current} key={current.id} ops={ops} />
+              )}
             </header>
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>
           </SidebarInset>
+          {notes && whatsNewOpen && (
+            <WhatsNewDialog
+              admin={admin}
+              note={notes}
+              onOpenChange={setWhatsNewOpen}
+              open={whatsNewOpen}
+            />
+          )}
+          <ShareDialog
+            chat={sharing}
+            onOpenChange={(open) => {
+              if (!open) {
+                setSharingId(null);
+              }
+            }}
+            onShared={(id, shared) =>
+              setChats((list) =>
+                list.map((c) => (c.id === id ? { ...c, shared } : c))
+              )
+            }
+          />
         </SidebarProvider>
       </ChatPrefsContext.Provider>
     </ChatListContext.Provider>

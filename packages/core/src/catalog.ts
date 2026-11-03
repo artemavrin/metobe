@@ -72,6 +72,7 @@ export const updateCatalogItem = async (
   patch: Partial<{
     title: string;
     description: string | null;
+    instructions: string | null;
     logo: string | null;
     config: McpConfig;
     credentialMode: CredentialMode;

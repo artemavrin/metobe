@@ -2,7 +2,7 @@
 
 Порядок: **spikes → прототипы → v1 → v2 → v3**. Spikes снимают технические риски, прототипы снимают риски интерфейса. Писать продуктовый код до них — значит переделывать.
 
-Контекст — [ARCHITECTURE.md](ARCHITECTURE.md), решения — [DECISIONS.md](DECISIONS.md), как строим по шагам и из каких заготовок — [IMPLEMENTATION.md](IMPLEMENTATION.md).
+Контекст — [ARCHITECTURE.md](ARCHITECTURE.md), решения — [DECISIONS.md](DECISIONS.md), как строим по шагам и из каких заготовок — [IMPLEMENTATION.md](IMPLEMENTATION.md), как выпускаем версию — [RELEASE.md](RELEASE.md).
 
 ## Этап 0. Spikes
 

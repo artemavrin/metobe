@@ -49,6 +49,7 @@ import {
   rename,
   replaceKey,
   setEnabled,
+  setLocal,
   setLogo,
   setRoute,
   updateConfig,
@@ -555,6 +556,12 @@ export const SourceDetail = ({ detail }: { detail: Detail }) => {
       setOptimisticEnabled(on);
       await setEnabled(source.id, on);
     });
+  const [local, setOptimisticLocal] = useOptimistic(source.local);
+  const toggleLocal = (on: boolean) =>
+    startToggle(async () => {
+      setOptimisticLocal(on);
+      await setLocal(source.id, on);
+    });
   const [name, setName] = useState(source.title);
   const broken = source.health?.state === "error";
   const hasConfig =
@@ -604,6 +611,14 @@ export const SourceDetail = ({ detail }: { detail: Detail }) => {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Local: on the organization's own hardware — the chat's model picker filters by it. */}
+          <label
+            className="flex items-center gap-2 text-sm"
+            title={t("detail.localHint")}
+          >
+            {t("detail.local")}
+            <Switch checked={local} onCheckedChange={toggleLocal} />
+          </label>
           <label className="flex items-center gap-2 text-sm">
             {t("detail.enabled")}
             <Switch checked={enabled} onCheckedChange={toggleEnabled} />

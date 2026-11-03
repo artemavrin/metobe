@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CATALOG_INSTRUCTIONS_MAX,
   catalogAccessModes,
   credentialModes,
   mcpAuthKinds,
@@ -53,6 +54,7 @@ import {
   remove,
   rename,
   setDescription,
+  setInstructions,
   setAccess,
   setApprovals,
   setLogo,
@@ -711,6 +713,7 @@ export const ServerDetail = ({
   const [name, setName] = useState(item.title);
   const [url, setUrl] = useState(item.config.url);
   const [about, setAbout] = useState(item.description ?? "");
+  const [howTo, setHowTo] = useState(item.instructions ?? "");
   const [checking, startCheck] = useTransition();
   const [, startChange] = useTransition();
   const [removing, startRemove] = useTransition();
@@ -856,6 +859,23 @@ export const ServerDetail = ({
               onChange={(e) => setAbout(e.target.value)}
               placeholder={t("descriptionPlaceholder")}
               value={about}
+            />
+          </Row>
+          <Row hint={t("instructionsHint")} label={t("instructions")}>
+            <Textarea
+              aria-label={t("instructions")}
+              className="max-h-64 min-h-20 w-full md:w-96"
+              maxLength={CATALOG_INSTRUCTIONS_MAX}
+              onBlur={() => {
+                if (howTo.trim() !== (item.instructions ?? "")) {
+                  startChange(async () => {
+                    await setInstructions(item.id, howTo);
+                  });
+                }
+              }}
+              onChange={(e) => setHowTo(e.target.value)}
+              placeholder={t("instructionsPlaceholder")}
+              value={howTo}
             />
           </Row>
           <Row hint={t("transportHint")} label={t("transport")}>

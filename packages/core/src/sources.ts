@@ -22,6 +22,7 @@ import type { SourceSpec } from "./discovery-fetch";
 import { addProxy, enabledProxies, fetchFor, fetchThrough } from "./net";
 import { fetchWith, parseProxyUrl, proxyDispatcher } from "./net-transport";
 import { removeSecrets, setSecret, withSecret } from "./secrets";
+import { isLocalAddress } from "./source-local";
 import { classifyFailure, probeSource } from "./sources-probe";
 import type { ProbeResult } from "./sources-probe";
 
@@ -111,6 +112,7 @@ const save = async (
       baseUrl: input.baseUrl ?? null,
       health,
       kind: input.kind,
+      local: isLocalAddress(input.baseUrl),
       options: input.options,
       proxyId: route.proxyId,
       proxyMode: route.mode,
@@ -331,10 +333,15 @@ export const setSourceRoute = async (
   return recheckSource(id);
 };
 
-/** Name, logo, on/off: nothing to check. */
+/** Name, logo, on/off, local: nothing to check. */
 export const updateSource = async (
   id: string,
-  patch: { title?: string; logo?: string | null; enabled?: boolean }
+  patch: {
+    title?: string;
+    logo?: string | null;
+    enabled?: boolean;
+    local?: boolean;
+  }
 ) => {
   const { db } = getDb();
   await db.update(sources).set(patch).where(eq(sources.id, id));

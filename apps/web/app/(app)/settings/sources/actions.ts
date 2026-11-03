@@ -189,6 +189,12 @@ export const setEnabled = async (id: string, enabled: boolean) => {
   refresh();
 };
 
+export const setLocal = async (id: string, local: boolean) => {
+  await requireAdmin();
+  await updateSource(idSchema.parse(id), { local: Boolean(local) });
+  refresh();
+};
+
 export const remove = async (id: string) => {
   await requireAdmin();
   await deleteSource(idSchema.parse(id));

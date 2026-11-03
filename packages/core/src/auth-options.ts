@@ -97,6 +97,14 @@ export const buildAuthOptions = ({
         sendKey: { input: false, required: false, type: "string" },
         timeZone: { input: false, required: false, type: "string" },
         weekStart: { input: false, required: false, type: "number" },
+        // «Что нового»: the last version seen, and the opt-out.
+        whatsNewOff: {
+          defaultValue: false,
+          input: false,
+          required: false,
+          type: "boolean",
+        },
+        whatsNewSeen: { input: false, required: false, type: "string" },
       },
     },
   }) satisfies BetterAuthOptions;
