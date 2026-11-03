@@ -8,14 +8,16 @@ import type { Release } from "./updates-notes";
 import { APP_VERSION } from "./version";
 
 // «О системе» (D35): the version this server runs and the releases newer than it, from GitHub. Checked at most every
-// six hours — the admin's page and the settings menu read the last check, «Проверить сейчас» forces one. The last
+// hour — the admin's page and the settings menu read the last check, «Проверить сейчас» forces one. The last
 // check lives in system_settings.policies.updates, so the app and the worker see the same. METOBE_RELEASES_URL points
 // the list elsewhere (the same JSON as GitHub's API): a test stand's own releases.
 
 const RELEASES =
   process.env.METOBE_RELEASES_URL ??
   "https://api.github.com/repos/artemavrin/metobe/releases?per_page=30";
-const EVERY_MS = 6 * 60 * 60 * 1000;
+// An hour: a fix released after this server's last update is seen the same hour, not by the evening. One request an
+// hour to GitHub, well under its 60 an hour for an address without a token.
+const EVERY_MS = 60 * 60 * 1000;
 
 export interface UpdateCheck {
   current: string;
@@ -126,7 +128,7 @@ export const checkForUpdates = async (): Promise<UpdateCheck> => {
   return viewOf(stored);
 };
 
-/** The last check; a fresh one first when it is older than six hours. */
+/** The last check; a fresh one first when it is older than an hour. */
 export const getUpdates = async (): Promise<UpdateCheck> => {
   const stored = await readStored();
   const age = stored.checkedAt

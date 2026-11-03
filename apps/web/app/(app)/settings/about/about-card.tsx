@@ -644,7 +644,8 @@ export const AboutCard = ({
       updates={updates}
     />
   );
-  let body: React.ReactNode = (
+  // Nothing newer known: say so, with the button that asks GitHub now.
+  const latest = (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-muted-foreground text-sm">
         {updates.checkedAt ? t("latest") : t("never")}
@@ -652,6 +653,7 @@ export const AboutCard = ({
       <CheckNow />
     </div>
   );
+  let body: React.ReactNode = latest;
   if (run && running) {
     body = <Progress lost={lost} now={now} run={run} />;
   } else if (askedAt !== null) {
@@ -662,7 +664,8 @@ export const AboutCard = ({
       </p>
     );
   } else if (ended) {
-    // Updated, and there is newer still: that one and its button; otherwise the steps the run took.
+    // Updated, and there is newer still: that one and its button. Otherwise the steps the run took — and, after a
+    // good one, whether anything newer came out since: a fix may follow within the hour.
     body = (
       <div className="flex flex-col gap-5">
         <Outcome retry={retry} run={ended} />
@@ -671,6 +674,7 @@ export const AboutCard = ({
         ) : (
           <Progress lost={false} now={now} run={ended} />
         )}
+        {ended.status === "done" && !next && latest}
       </div>
     );
   } else if (next) {

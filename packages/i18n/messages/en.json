@@ -2196,7 +2196,7 @@
       "unknown": "not checked"
     },
     "checked": "checked {when}",
-    "latest": "This is the latest version. Metobe checks for updates every 6 hours by itself.",
+    "latest": "This is the latest version. Metobe checks for updates every hour by itself.",
     "never": "Updates have not been checked yet.",
     "checkNow": "Check now",
     "failed": "Could not check for updates: {reason}",

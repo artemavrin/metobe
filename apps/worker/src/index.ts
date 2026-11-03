@@ -12,7 +12,7 @@ const keepAlive = setInterval(async () => {
   }
 }, 60_000);
 
-// New releases on GitHub (D35): asked at most every six hours, so the admin's dot appears without anyone looking.
+// New releases on GitHub (D35): asked at most every hour, so the admin's dot appears without anyone looking.
 const releases = async () => {
   try {
     await getUpdates();
