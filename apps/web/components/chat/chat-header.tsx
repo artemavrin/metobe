@@ -9,7 +9,15 @@ import {
   DropdownMenuTrigger,
 } from "@metobe/ui/components/dropdown-menu";
 import { cn } from "@metobe/ui/lib/utils";
-import { Ellipsis, Pencil, Pin, PinOff, Share, Trash2 } from "lucide-react";
+import {
+  Ellipsis,
+  FoldVertical,
+  Pencil,
+  Pin,
+  PinOff,
+  Share,
+  Trash2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
@@ -88,6 +96,11 @@ export const ChatHeader = ({ chat, ops }: { chat: ChatItem; ops: ChatOps }) => {
           <DropdownMenuItem onClick={() => setEditing(true)}>
             <Pencil /> {t("item.rename")}
           </DropdownMenuItem>
+          {ops.compact && (
+            <DropdownMenuItem onClick={() => ops.compact?.(chat.id)}>
+              <FoldVertical /> {t("compact.menu")}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setConfirming(true)}

@@ -246,6 +246,13 @@
       "when": 1793686122713,
       "tag": "0034_whats_new",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793696021241,
+      "tag": "0035_compact_purpose",
+      "breakpoints": true
     }
   ]
 }

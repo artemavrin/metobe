@@ -32,6 +32,7 @@ import {
   Pencil,
   RefreshCw,
   Gift,
+  FoldVertical,
   Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -91,6 +92,7 @@ const ENTRIES: Entry[] = [
   { about: "Статистика в ответе: числа, динамика, прогресс к цели, доли, разброс, рейтинг; плитки, лента или полоса", area: "chat", chosen: "«Полоса»", href: "/dev/prototypes/metrics", icon: Gauge, status: "chosen", title: "Показатели в ответе" },
   { about: "Ещё формы показателей: кто вырос и упал, Парето / ABC, выбросы, воронка, состав (кольцо или полоса) — по два вида каждой", area: "chat", chosen: "«Кто вырос», «Парето», «Выбросы», «Состав»; воронку не взяли", href: "/dev/prototypes/metrics-forms", icon: Gauge, status: "chosen", title: "Показатели: ещё формы" },
   { about: "Графики evilcharts (ECharts) на наших данных и цветах темы: площадь, линия, столбцы, радар, круговая; как их рисует ответ — /evilcharts/in-answer", area: "reference", href: "/dev/prototypes/evilcharts", icon: LayoutDashboard, status: "reference", title: "Графики evilcharts" },
+  { about: "D37 · сжать длинный чат итогом служебной модели: как предложить (тихая строка, карточка с цифрами, чип над полем ввода), как идёт сжатие и как итог выглядит в ленте; вернуть как было", area: "chat", href: "/dev/prototypes/compact", icon: FoldVertical, status: "open", title: "Сжатие чата" },
   { about: "Что нового после обновления: окно-тур поверх чата, «Больше не показывать»; раунд 2 — вместо скриншотов сам продукт: потрогать, посмотреть, как его нажимает курсор, или рисунок идеи. Раунд 1 со скриншотами (журнал, тур, оглавление) — /whats-new/round-1", area: "chat", href: "/dev/prototypes/whats-new", icon: Gift, status: "open", title: "Что нового" },
   { about: "Обновление Metobe из приложения: что нового, «сейчас» или «ночью», шаги на сервере, откат, история с копиями базы — и что видит человек в чате", area: "settings", chosen: "«Карточка»", href: "/dev/prototypes/updates", icon: RefreshCw, status: "chosen", title: "О системе: обновления" },
   { about: "Расходы по моделям, людям и дням с графиками; две валюты рядом, без суммы: как у Vercel, обзор с плитками, сводка «кто на чём» или отчёт одним столбцом", area: "settings", chosen: "«Обзор», на телефоне — без мини-графиков в плитках и рейтинги вкладками", href: "/dev/prototypes/usage", icon: ChartColumn, status: "chosen", title: "Расходы" },

@@ -185,7 +185,7 @@ export const modelRuns = pgTable(
     ),
     check(
       "model_runs_purpose",
-      sql`${table.purpose} in ('chat', 'describe', 'title')`
+      sql`${table.purpose} in ('chat', 'describe', 'title', 'compact')`
     ),
   ]
 );

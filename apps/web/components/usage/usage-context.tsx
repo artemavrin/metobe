@@ -218,7 +218,7 @@ export const useLabel = () => {
     if (group === "person") {
       return labels.people[key]?.name ?? t("removedPerson");
     }
-    return t(`purposes.${key as "chat" | "title" | "describe"}`);
+    return t(`purposes.${key as "chat" | "title" | "describe" | "compact"}`);
   };
   const note = (group: Group, key: string) => {
     if (group === "model") {

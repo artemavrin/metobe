@@ -50,6 +50,8 @@ export interface ChatOps {
   remove: (id: string) => void;
   /** Opens «Поделиться чатом». */
   share: (id: string) => void;
+  /** «Сжать чат» (D37): only where the chat's thread is open to do it. */
+  compact?: (id: string) => void;
 }
 
 // How fast a long title slides under the cursor, in pixels per second — and the longest it may take: a very long

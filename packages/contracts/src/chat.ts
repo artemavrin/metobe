@@ -30,19 +30,39 @@ export const chatMessageMetadataSchema = z.object({
   stepStartedAt: z
     .record(z.string(), z.number().int().nonnegative())
     .optional(),
+  /** What the answer sent the model a step, on average — its input tokens (cached ones too) by its steps. A heavy one
+   * offers to compact the chat (D37). */
+  stepTokens: z.number().int().nonnegative().optional(),
   /** How long the work with tools took, to its last tool result, as the server measured it. */
   workMs: z.number().int().nonnegative().optional(),
 });
 export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 
 /**
+ * A chat compacted (D37): the summary a service model wrote of everything before it, which the chat's model goes on
+ * from; how many messages it covers, and the model that wrote it. Stored — the one data part that is.
+ */
+// oxlint-disable-next-line typescript/consistent-type-definitions -- a Record for AI SDK, as below
+export type CompactionData = {
+  summary: string;
+  messages: number;
+  modelId?: string;
+};
+
+/**
  * Data the stream sends besides the answer; `title` — a new chat's name from the titles model, `naming` — that the
  * request for it has begun, so the sidebar shows the chat being named, `clock` — the server's time now, so the page can
- * count a running step from the server's clock (none of them is stored).
+ * count a running step from the server's clock (none of them is stored); `compaction` — a stored compaction message's
+ * own part (above).
  */
 // A type alias, not an interface: AI SDK wants a Record, and an interface is not assignable to one.
 // oxlint-disable-next-line typescript/consistent-type-definitions -- see above
-export type ChatDataParts = { title: string; naming: boolean; clock: number };
+export type ChatDataParts = {
+  title: string;
+  naming: boolean;
+  clock: number;
+  compaction: CompactionData;
+};
 
 /**
  * Our own tools (MCP tools arrive as dynamic tools): the table and the chart drawn in the answer, searching the web

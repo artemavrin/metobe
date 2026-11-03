@@ -12,7 +12,9 @@ export type ThreadRow =
       live: boolean;
     }
   /** Where the model changes: before the question the new model answered. Drawn only — never a message. */
-  | { role: "switch"; key: string; modelId: string };
+  | { role: "switch"; key: string; modelId: string }
+  /** The chat compacted (D37): the summary the model goes on from, drawn as a card of its own. */
+  | { role: "compaction"; key: string; message: ChatMessage };
 
 /**
  * The thread as rows. An answer is keyed by the question before it, so from the moment the question goes until the
@@ -69,6 +71,10 @@ export const threadRows = (
   const rows: ThreadRow[] = [];
   let model: string | undefined;
   for (const [i, message] of list.entries()) {
+    if (message?.role === "system") {
+      rows.push({ key: message.id, message, role: "compaction" });
+      continue;
+    }
     if (message?.role === "user") {
       const by = byModel(list[i + 1], isLive(i + 1), asked);
       rows.push(...questionRows(message, by, model));
