@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Picker } from "../_shared/picker";
 import { ProtoProvider } from "../first-agent/state";
-import { Attention, Cards, CountProvider, Lines, Params } from "./variants";
+import { Attention, Attention2, Cards, CountProvider, Lines, Params } from "./variants";
 
 // P13 · список задач: страница «Задачи». Без задач — экран «Что поручить?» из P11. С задачами — «Строки», «Карточки»
 // или «По вниманию»; внизу поле для новой задачи. Первые три задачи открываются на своей странице (/task-edit).
@@ -22,6 +22,7 @@ const TasksListPrototypePage = () => (
       <Picker
         params={<Params />}
         variants={[
+          { Component: () => <Mounted><Attention2 /></Mounted>, name: "По вниманию · 2", pickerTop: true },
           { Component: () => <Mounted><Lines /></Mounted>, name: "Строки", pickerTop: true },
           { Component: () => <Mounted><Cards /></Mounted>, name: "Карточки", pickerTop: true },
           { Component: () => <Mounted><Attention /></Mounted>, name: "По вниманию", pickerTop: true },

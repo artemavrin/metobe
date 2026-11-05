@@ -1,14 +1,19 @@
 "use client";
 
+import { Button } from "@metobe/ui/components/button";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { createContext, use, useEffect, useState } from "react";
 
-import { PRESS, Shell } from "../first-agent/frame";
+import { AssistantMessage } from "@/components/chat/messages";
+
+import { MODEL } from "../first-agent/data";
+import { ENTER, PRESS, Shell } from "../first-agent/frame";
 import { InChat, SlotComposer } from "../first-agent/round3";
 import { useProto } from "../first-agent/state";
-import { Mark } from "../task-results/variants";
-import { LISTS, sorted } from "./data";
+import { Fix, Mark } from "../task-results/variants";
+import { LISTS, sorted, when } from "./data";
 import type { Item } from "./data";
 
 // P13 · список задач — страница «Задачи» из боковой панели. Без задач это экран «Что поручить?» из P11 (выбран), здесь
@@ -16,6 +21,7 @@ import type { Item } from "./data";
 // «Строки» — по строке на задачу: имя и расписание, итог последнего запуска, следующий запуск, выключатель.
 // «Карточки» — то же сеткой, итог крупнее.
 // «По вниманию» — строки, разложенные по тому, что с ними делать: нужно действие, новые итоги, остальные, выключенные.
+// «По вниманию · 2» — то же, но каждую группу разбирают прямо в списке (выбран за основу, доводим).
 
 type Count = keyof typeof LISTS;
 
@@ -239,6 +245,162 @@ export const Attention = () => {
             <Rows e={e} items={g.items} />
           </section>
         ))}
+    </Page>
+  );
+};
+
+// ── «По вниманию · 2» ────────────────────────────────────────────────────────────────────────────────────────────────
+// То же разложение, но каждую группу можно разобрать прямо в списке: сбой — кнопкой в строке, новый итог — прочитать,
+// раскрыв строку (точка гаснет), выключенную — включить. Строка короче: без расписания и выключателя (он в шапке
+// задачи), следующий запуск словами.
+
+const RunMessage = ({ item }: { item: Item }) =>
+  item.last.parts ? (
+    <div className="[&_[data-slot=message-footer]]:hidden">
+      <AssistantMessage label={MODEL} live={false} message={{ id: item.last.id ?? item.id, metadata: { createdAt: "2026-11-30T07:00:00Z", modelId: MODEL.id }, parts: item.last.parts, role: "assistant" }} />
+    </div>
+  ) : null;
+
+const Name = ({ item, unread }: { item: Item; unread: boolean }) => (
+  <span className="flex min-w-0 items-center gap-2">
+    <span className="size-2 shrink-0 rounded-full" style={{ background: item.color }} />
+    <span className={cn("truncate", unread ? "font-semibold" : "font-medium")}>{item.name}</span>
+    {unread && <span aria-label="новый итог" className="bg-foreground size-1.5 shrink-0 rounded-full" />}
+  </span>
+);
+
+const Group = ({ title, count, action, children }: { title: string; count: number; action?: React.ReactNode; children: React.ReactNode }) => (
+  <section className="flex flex-col gap-2">
+    <h2 className="text-muted-foreground flex min-h-7 items-center gap-1 px-1 text-xs">
+      {title}
+      <span className="tabular-nums">· {count}</span>
+      {action && <span className="ml-auto">{action}</span>}
+    </h2>
+    <div className="bg-card overflow-hidden rounded-xl border">{children}</div>
+  </section>
+);
+
+const ROW = "flex items-center gap-3 border-b px-3 py-2.5 text-sm last:border-b-0";
+
+export const Attention2 = () => {
+  const { count } = use(Many);
+  const { say } = useProto();
+  const items = sorted(LISTS[count]);
+  const [read, setRead] = useState<Set<string>>(() => new Set());
+  const [open, setOpen] = useState<string | null>(null);
+  const [on, setOn] = useState<Set<string>>(() => new Set());
+  const [showOff, setShowOff] = useState(false);
+  if (items.length === 0) return <InChat />;
+  const enabled = (it: Item) => it.enabled || on.has(it.id);
+  const unread = (it: Item) => Boolean(it.unread) && !read.has(it.id);
+  const failed = items.filter((it) => enabled(it) && it.last.outcome === "failed");
+  // Прочитанный итог остаётся в группе, пока страница открыта: строки не прыгают из-под руки.
+  const fresh = items.filter((it) => enabled(it) && it.last.outcome !== "failed" && it.unread);
+  const rest = items.filter((it) => enabled(it) && it.last.outcome !== "failed" && !it.unread);
+  const off = items.filter((it) => !enabled(it));
+  const toggle = (it: Item) => {
+    setOpen((o) => (o === it.id ? null : it.id));
+    setRead((r) => new Set(r).add(it.id));
+  };
+  return (
+    <Page items={items.map((it) => ({ ...it, unread: unread(it) }))}>
+      {failed.length > 0 && (
+        <Group count={failed.length} title="Нужно действие">
+          {failed.map((it) => (
+            <div className={cn(ROW, "flex-wrap")} key={it.id}>
+              <Open className="min-w-0 shrink-0 basis-60 @max-md:basis-full" item={it}>
+                <Name item={it} unread={false} />
+              </Open>
+              <span className="flex min-w-48 flex-1 items-center gap-2">
+                <Mark color={it.color} outcome="failed" />
+                <span>{it.last.summary}</span>
+              </span>
+              {it.last.fix && <Fix label={it.last.fix} />}
+            </div>
+          ))}
+        </Group>
+      )}
+      {fresh.length > 0 && (
+        <Group
+          action={
+            fresh.some(unread) && (
+              <Button className={PRESS} onClick={() => setRead((r) => new Set([...r, ...fresh.map((it) => it.id)]))} size="xs" variant="ghost">
+                Отметить прочитанными
+              </Button>
+            )
+          }
+          count={fresh.length}
+          title="Новые итоги"
+        >
+          {fresh.map((it) => (
+            <div className="border-b last:border-b-0" key={it.id}>
+              <button aria-expanded={open === it.id} className={cn(ROW, "hover:bg-muted/40 w-full border-b-0 text-left transition-colors duration-150 @max-md:flex-wrap @max-md:gap-y-1")} onClick={() => toggle(it)} type="button">
+                <span className="w-52 shrink-0 @max-md:w-auto @max-md:min-w-0 @max-md:flex-1">
+                  <Name item={it} unread={unread(it)} />
+                </span>
+                <span className={cn("min-w-0 flex-1 truncate @max-md:order-last @max-md:basis-full @max-md:pl-4", unread(it) ? "text-foreground" : "text-muted-foreground")}>{it.last.summary}</span>
+                <span className="text-muted-foreground w-28 shrink-0 text-right text-xs tabular-nums">{it.last.day}</span>
+                <ChevronDown className={cn("text-muted-foreground size-4 shrink-0 transition-transform duration-200", open === it.id && "rotate-180")} />
+              </button>
+              {open === it.id && (
+                <div className={cn("flex flex-col gap-3 px-3 pt-1 pb-4 pl-8", ENTER)}>
+                  <RunMessage item={it} />
+                  <div>
+                    <Open className={cn("text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors duration-150")} item={it}>
+                      Открыть задачу
+                      <ArrowRight className="size-3.5" />
+                    </Open>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </Group>
+      )}
+      {rest.length > 0 && (
+        <Group count={rest.length} title="Остальные">
+          {rest.map((it) => (
+            <Open className={cn(ROW, "hover:bg-muted/40 w-full transition-colors duration-150")} item={it} key={it.id}>
+              <span className="w-52 shrink-0 @max-md:w-auto @max-md:min-w-0 @max-md:flex-1">
+                <Name item={it} unread={false} />
+              </span>
+              <span className="text-muted-foreground min-w-0 flex-1 truncate @max-md:hidden">{it.last.summary}</span>
+              <span className="text-muted-foreground w-28 shrink-0 text-right text-xs tabular-nums">{it.next ? when(it.next) : ""}</span>
+            </Open>
+          ))}
+        </Group>
+      )}
+      {off.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <button aria-expanded={showOff} className="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start px-1 text-xs transition-colors duration-150" onClick={() => setShowOff((v) => !v)} type="button">
+            <ChevronDown className={cn("size-3.5 transition-transform duration-200", showOff && "rotate-180")} />
+            Выключены · {off.length}
+          </button>
+          {showOff && (
+            <div className={cn("bg-card overflow-hidden rounded-xl border", ENTER)}>
+              {off.map((it) => (
+                <div className={ROW} key={it.id}>
+                  <span className="min-w-0 flex-1 opacity-60">
+                    <Name item={it} unread={false} />
+                  </span>
+                  <span className="text-muted-foreground text-xs @max-md:hidden">{it.schedule}</span>
+                  <Button
+                    className={PRESS}
+                    onClick={() => {
+                      setOn((s) => new Set(s).add(it.id));
+                      say(`Задача «${it.name}» включена`);
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Включить
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </Page>
   );
 };
