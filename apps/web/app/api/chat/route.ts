@@ -30,6 +30,7 @@ import {
   metricsTool,
 } from "@metobe/core/chat-tools/metrics-tool";
 import { TABLE_TOOL, tableTool } from "@metobe/core/chat-tools/table-tool";
+import { taskDraftFor } from "@metobe/core/chat-tools/task-draft-tool";
 import {
   TIME_NOTE,
   TIME_TOOL,
@@ -57,6 +58,7 @@ import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
+import { getTaskByChat } from "@metobe/core/tasks";
 import { isDraining } from "@metobe/core/updater-bus";
 import { webToolsOn } from "@metobe/core/web-settings";
 import {
@@ -336,7 +338,7 @@ export const POST = async (request: Request) => {
   }
   // The user's own zone (their choice, else the browser's): the clock the model asks tells the time in it.
   const { locale, timeZone } = await getPrefs();
-  const [stored, chatServers, ownBoxes, notes, personal, skills] =
+  const [stored, chatServers, ownBoxes, notes, personal, skills, ownTask] =
     await Promise.all([
       chat ? listMessages(id) : [],
       listChatServers(session.user.id),
@@ -344,6 +346,8 @@ export const POST = async (request: Request) => {
       getInstructions(session.user.id),
       getPersonalPolicy(),
       skillsForChat(session.user.id),
+      // A chat a task was set up in is that task's: no second draft in it (ARCH §16.1).
+      getTaskByChat(session.user.id, id),
     ]);
   // Own connections turned off in «Доступ»: the boxes stay, the chat neither uses nor asks for them.
   const mailOn = personal.mode !== "off";
@@ -528,6 +532,18 @@ export const POST = async (request: Request) => {
       const room =
         model.contextWindow === null ||
         model.contextWindow >= WIDGETS_MIN_WINDOW;
+      const drafting = taskDraftFor(
+        {
+          locale: locale === "en" ? "en" : "ru",
+          servers: chatServers,
+          timeZone,
+        },
+        {
+          hasTask: ownTask !== null,
+          intent: body.data.intent === "task",
+          tools: model.capabilities.tools !== false,
+        }
+      );
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -547,6 +563,8 @@ export const POST = async (request: Request) => {
                   }
                 : {}),
               [TIME_TOOL]: timeTool(timeZone),
+              // A periodic task in words (P11), while the chat has none.
+              ...drafting.tools,
               // What only the user knows: the model asks instead of guessing.
               [ASK_USER]: askUserTool,
               ...skilled.tools,
@@ -595,6 +613,7 @@ export const POST = async (request: Request) => {
         STYLE_NOTE,
         hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
         skilled.note,
+        drafting.note,
         withNotes(notes, servicesNote(servers)),
       ]
         .filter(Boolean)

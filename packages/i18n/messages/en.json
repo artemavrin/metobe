@@ -2500,8 +2500,48 @@
     "actionFailed": "That did not work. Try again.",
     "answerFailed": "Could not load the run's answer.",
     "notFound": "Task not found",
+    "draft": {
+      "slots": {
+        "what": "what",
+        "when": "when",
+        "with": "from",
+        "where": "where"
+      },
+      "notSet": "not set",
+      "first": "first — {when}",
+      "whereChanges": "Only when something changes",
+      "whereAlways": "After every run",
+      "wherePage": "on the task's page",
+      "whereMail": "on the task's page and by email",
+      "nameLabel": "Task name",
+      "colorLabel": "Task colour",
+      "color": "Colour {n}",
+      "create": "Create task",
+      "creating": "Creating…",
+      "created": "created",
+      "createdNote": "First run — {when}. Run results are shown on the task's page.",
+      "open": "Open task",
+      "older": "Task draft · a newer one is below",
+      "createFailed": "The task was not created. Try again.",
+      "introEyebrow": "Tasks",
+      "introTitle": "What should be done regularly?",
+      "introText": "Describe the task in your own words.",
+      "placeholder": "Describe the task…",
+      "placeholderShort": "Task…",
+      "parts": {
+        "what": "What",
+        "when": "When",
+        "with": "From",
+        "where": "Where"
+      },
+      "hints": {
+        "what": "what to check and report",
+        "when": "weekdays and time",
+        "with": "services, mail, websites",
+        "where": "the task's page, email"
+      }
+    },
     "list": {
-      "empty": "No tasks yet.",
       "new": "New task"
     }
   }

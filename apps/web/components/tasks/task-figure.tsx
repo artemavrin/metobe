@@ -3,10 +3,9 @@
 import { cn } from "@metobe/ui/lib/utils";
 import { useEffect, useRef } from "react";
 
+import conveyor from "@/components/hairline/conveyor";
 import { mk } from "@/components/hairline/stage";
 import { inject } from "@/components/hairline/styles";
-
-import conveyor from "./figures/conveyor";
 
 // A periodic task drawn as a Hairline figure: a small desk conveyor (spikes/hairline-agents/conveyor.js). Every step of the
 // belt is one run: a sheet leaves the feeder, the one under the arch is scanned, the one at the end drops onto the results.
@@ -50,15 +49,32 @@ const PALETTE_CSS = `
 `;
 
 /** The task; `color` — its colour (none: drawn plain, while it is being set up); `running` — whether the belt steps. */
-export const TaskFigure = ({ color, className, running = true }: { color?: string; className?: string; running?: boolean }) => {
+export const TaskFigure = ({
+  color,
+  className,
+  running = true,
+}: {
+  color?: string;
+  className?: string;
+  running?: boolean;
+}) => {
   const ref = useRef<HTMLDivElement>(null);
   const handle = useRef<{ run: (on: boolean) => void } | null>(null);
   useEffect(() => {
     const stage = ref.current;
-    if (!stage) return;
+    if (!stage) {
+      return;
+    }
     inject(document);
-    const svg = mk("svg", { "aria-hidden": "true", viewBox: "0 0 400 320" }, stage);
-    const h = conveyor.mount({ read: { textContent: null }, stage, svg }, conveyor.range[1]);
+    const svg = mk(
+      "svg",
+      { "aria-hidden": "true", viewBox: "0 0 400 320" },
+      stage
+    );
+    const h = conveyor.mount(
+      { read: { textContent: null }, stage, svg },
+      conveyor.range[1]
+    );
     handle.current = h;
     return () => {
       handle.current = null;
@@ -74,13 +90,18 @@ export const TaskFigure = ({ color, className, running = true }: { color?: strin
       <style>{PALETTE_CSS}</style>
       {/* The drawing fills two thirds of Hairline's 400 × 320 frame; the stage is drawn larger and clipped, so the
           pointer, which the engine reads against the stage's own box, still lands where it is. */}
-      <div aria-hidden className={cn("relative aspect-[5/4] overflow-hidden", className)}>
+      <div
+        aria-hidden
+        className={cn("relative aspect-[5/4] overflow-hidden", className)}
+      >
         <div
           className="absolute top-1/2 left-1/2 aspect-[5/4] w-[140%] -translate-x-1/2 -translate-y-1/2"
           data-colored={color ? "" : undefined}
           data-hairline="task"
           ref={ref}
-          style={color ? ({ "--task": color } as React.CSSProperties) : undefined}
+          style={
+            color ? ({ "--task": color } as React.CSSProperties) : undefined
+          }
         />
       </div>
     </>

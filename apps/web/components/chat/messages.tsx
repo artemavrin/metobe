@@ -72,6 +72,7 @@ import { SecretNote } from "@/components/chat/secret-note";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { WebSources } from "@/components/chat/web-step";
+import { TaskDraftCard } from "@/components/tasks/task-draft-card";
 import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
 import type { AnswerBlock, ToolPart, WorkStep } from "@/lib/answer-work";
@@ -841,6 +842,9 @@ const AnswerPiece = ({
   }
   if (block.kind === "metrics") {
     return <AnswerMetrics part={block.part} />;
+  }
+  if (block.kind === "task") {
+    return <TaskDraftCard part={block.part} />;
   }
   if (block.kind === "ask") {
     // Still open, the questions stand in the composer's place; answered, what the user said is their message here.

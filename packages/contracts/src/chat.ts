@@ -5,6 +5,7 @@ import type { ChartInput, ChartOutput } from "./chart";
 import { FILES_PER_MESSAGE } from "./files";
 import type { MetricsInput, MetricsOutput } from "./metrics";
 import type { TableInput, TableOutput } from "./table";
+import type { TaskDraft, TaskDraftOutput } from "./tasks";
 import type {
   WebFetchInput,
   WebFetchOutput,
@@ -79,6 +80,8 @@ export type ChatTools = {
     input: RequestConnectionInput;
     output: RequestConnectionOutput;
   };
+  /** A periodic task drafted in the chat (P11): drawn as its card, created by the person. */
+  draft_task: { input: TaskDraft; output: TaskDraftOutput };
   /** The model asks the user what only they know; the user's answer comes back as output, drawn as their message. */
   ask_user: { input: AskUserInput; output: AskUserOutput };
   /** The clock: the model has none of its own. Not drawn in the answer. */
@@ -331,6 +334,8 @@ export const chatRequestSchema = z
   .object({
     approvals: approvalsSchema.optional(),
     id: z.uuid(),
+    /** «Что поручить?»: the person sets up a periodic task (P11). */
+    intent: z.literal("task").optional(),
     message: userMessageSchema.optional(),
     modelId: z.uuid().optional(),
   })

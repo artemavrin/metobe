@@ -2,6 +2,7 @@
 
 import {
   createRun,
+  createTaskFromDraft,
   getRunAnswer,
   getTask,
   markTaskSeen,
@@ -86,4 +87,25 @@ export const markTaskSeenAction = async (taskId: string) => {
   }
   await markTaskSeen(userId, taskId);
   revalidatePath("/", "layout");
+};
+
+const draftInput = z.object({
+  chatId: z.uuid(),
+  color: z.string().max(40),
+  name: z.string().trim().min(1).max(60),
+  timeZone: z.string().max(80),
+  toolCallId: z.string().min(1).max(200),
+});
+
+/** «Создать задачу» on a draft's card (P11): the task from the draft stored in the chat, in the browser's time zone. */
+export const createTaskAction = async (input: z.input<typeof draftInput>) => {
+  const userId = await owner();
+  const parsed = draftInput.safeParse(input);
+  if (!userId || !parsed.success) {
+    return { ok: false as const };
+  }
+  const result = await createTaskFromDraft({ ...parsed.data, ownerId: userId });
+  return result.id
+    ? { id: result.id, ok: true as const }
+    : { ok: false as const };
 };

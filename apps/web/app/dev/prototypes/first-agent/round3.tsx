@@ -14,7 +14,7 @@ import type { Draft, Schedule, Tool } from "./data";
 import { ENTER, PRESS, Shell, Thinking, ToolChip } from "./frame";
 import { DOT, MARK, tokenize, understand } from "./round2";
 import { useProto } from "./state";
-import { TaskFigure } from "./task-figure";
+import { TaskFigure } from "@/components/tasks/task-figure";
 import { useFresh, useLater } from "./variants";
 
 // P11 · первая задача, раунд 3. Всё как в чате: тот же экран нового чата и тот же композер. Пока человек пишет, понятые

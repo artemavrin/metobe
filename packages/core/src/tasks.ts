@@ -1,4 +1,5 @@
 import "server-only";
+import type { ChatMessage } from "@metobe/contracts/chat";
 import type {
   TaskOutcome,
   TaskReportWhen,
@@ -6,12 +7,18 @@ import type {
   TaskSnapshot,
   TaskTrigger,
 } from "@metobe/contracts/tasks";
+import {
+  MAIL_SOURCE,
+  TASK_COLORS,
+  WEB_SOURCE,
+  colorForTask,
+} from "@metobe/contracts/tasks";
 import { taskRuns, taskVersions, tasks } from "@metobe/db/schema/tasks";
 import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 
-import { listMessages } from "./chat";
+import { getChat, listMessages } from "./chat";
 import { getDb } from "./db";
-import { nextRun, planDue } from "./task-schedule";
+import { isValidSchedule, nextRun, planDue } from "./task-schedule";
 
 // Periodic tasks in the database (ARCH §16, D23): a task and its versions, the minute tick that claims what is due,
 // and a run's life from queued to done. Postgres holds the schedule; BullMQ only executes what the tick hands it.
@@ -457,4 +464,89 @@ export const setTaskNotify = async (
     .where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId)))
     .returning({ id: tasks.id });
   return changed.length > 0;
+};
+
+/** The task set up in this chat, if there is one: the chat is its own (§16.1). */
+export const getTaskByChat = async (ownerId: string, chatId: string) => {
+  const { db } = getDb();
+  const [task] = await db
+    .select({ color: tasks.color, id: tasks.id, name: tasks.name })
+    .from(tasks)
+    .where(and(eq(tasks.chatId, chatId), eq(tasks.ownerId, ownerId)))
+    .limit(1);
+  return task ?? null;
+};
+
+/** The person's words the task grew from: the first question of the chat. */
+const firstAsk = (messages: ChatMessage[]) =>
+  messages
+    .find((m) => m.role === "user")
+    ?.parts.flatMap((p) => (p.type === "text" ? [p.text] : []))
+    .join("\n")
+    .slice(0, 2000) ?? null;
+
+/**
+ * «Создать задачу» on a draft's card (P11): the task is made from the draft the server stored in the chat — never from
+ * what the page sends — with the person's name and colour, the model that drafted it, and the chat as its own.
+ */
+export const createTaskFromDraft = async (input: {
+  ownerId: string;
+  chatId: string;
+  toolCallId: string;
+  name: string;
+  color: string;
+  timeZone: string;
+}) => {
+  const chat = await getChat(input.chatId);
+  if (!chat || chat.userId !== input.ownerId) {
+    return { error: "not-found" as const };
+  }
+  if (await getTaskByChat(input.ownerId, input.chatId)) {
+    return { error: "exists" as const };
+  }
+  const messages = await listMessages(input.chatId);
+  const message = messages.find((m) =>
+    m.parts.some(
+      (p) => p.type === "tool-draft_task" && p.toolCallId === input.toolCallId
+    )
+  );
+  const part = message?.parts.find(
+    (p) => p.type === "tool-draft_task" && p.toolCallId === input.toolCallId
+  );
+  if (part?.type !== "tool-draft_task") {
+    return { error: "not-found" as const };
+  }
+  const modelId = message?.metadata?.modelId;
+  if (part.state !== "output-available" || !part.output.ok || !modelId) {
+    return { error: "incomplete" as const };
+  }
+  const draft = part.input;
+  const { cron } = draft;
+  if (!cron) {
+    return { error: "incomplete" as const };
+  }
+  const timezone = isValidSchedule(cron, input.timeZone)
+    ? input.timeZone
+    : part.output.timeZone;
+  const task = await createTask({
+    // The mail and the web are no catalog servers: a task with only them takes no server at all.
+    catalogIds:
+      part.output.sources
+        ?.filter((s) => s.id !== MAIL_SOURCE && s.id !== WEB_SOURCE)
+        .map((s) => s.id) ?? null,
+    chatId: input.chatId,
+    color: TASK_COLORS.includes(input.color)
+      ? input.color
+      : colorForTask(input.name),
+    cron,
+    instructions: draft.instructions,
+    modelId,
+    name: input.name.trim().slice(0, 60) || draft.name,
+    notifyEmail: draft.email,
+    ownerId: input.ownerId,
+    reportWhen: draft.reportWhen,
+    request: firstAsk(messages) ?? undefined,
+    timezone,
+  });
+  return { id: task.id };
 };

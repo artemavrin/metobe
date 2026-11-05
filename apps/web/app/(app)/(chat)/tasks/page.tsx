@@ -1,8 +1,11 @@
 import { scheduleWords } from "@metobe/core/task-schedule";
 import { listTasks, waitsFor } from "@metobe/core/tasks";
+import { Button } from "@metobe/ui/components/button";
+import { Plus } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 
+import { NewTask } from "@/components/tasks/new-task";
 import { getSettingsViewer } from "@/lib/settings-access";
 
 // The owner's tasks (ARCH §16.4): a line each — its colour, name, schedule and the last run's line; the ones that
@@ -15,13 +18,27 @@ const TasksPage = async () => {
   ]);
   const list = user ? await listTasks(user.id) : [];
   const lang = locale === "en" ? "en" : "ru";
+  // No task yet: the page is «Что поручить?» itself (P13).
+  if (list.length === 0) {
+    return <NewTask home="/tasks" />;
+  }
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 pt-8 pb-24">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        {list.length === 0 && (
-          <p className="text-muted-foreground text-sm">{t("list.empty")}</p>
-        )}
+        <header className="flex items-center gap-3">
+          <h1 className="flex-1 text-2xl font-semibold tracking-tight">
+            {t("title")}
+          </h1>
+          <Button
+            nativeButton={false}
+            render={<Link href="/tasks/new" />}
+            size="sm"
+            variant="outline"
+          >
+            <Plus />
+            {t("list.new")}
+          </Button>
+        </header>
         {list.length > 0 && (
           <ul className="bg-card overflow-hidden rounded-xl border">
             {list.map(({ task, last }) => {
