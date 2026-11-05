@@ -14,7 +14,20 @@ import {
   colorForTask,
 } from "@metobe/contracts/tasks";
 import { taskRuns, taskVersions, tasks } from "@metobe/db/schema/tasks";
-import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  max,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import { getChat, listMessages } from "./chat";
 import { getDb } from "./db";
@@ -371,15 +384,93 @@ export const getTask = async (ownerId: string, id: string) => {
 };
 
 /** A task's runs, the newest first; a run still going is among them. */
-export const listTaskRuns = async (taskId: string, limit = 30) => {
+/** A run with something to read: a result, a question, an action for the person. */
+const isResult = and(
+  eq(taskRuns.status, "done"),
+  sql`${taskRuns.outcome} in ('news', 'question', 'action')`
+);
+
+/** How many failures after the last result stand as rows above it. */
+const FAILURE_ROWS = 3;
+
+/** How many earlier runs the spoiler holds. */
+const PAST_ROWS = 30;
+
+/**
+ * A task's runs as its page shows them (P12): the run on its way, the last result, the failures after it, how many
+ * runs after it found nothing new, and the earlier results and failures. Runs with nothing new are counted, never
+ * listed: a task every five minutes makes hundreds of them, and the result must not fall out of the page under them.
+ */
+export const getTaskRuns = async (taskId: string) => {
   const { db } = getDb();
-  return await db
-    .select()
-    .from(taskRuns)
-    .where(eq(taskRuns.taskId, taskId))
-    .orderBy(desc(taskRuns.scheduledFor))
-    .limit(limit);
+  const ofTask = eq(taskRuns.taskId, taskId);
+  const [[active], [result]] = await Promise.all([
+    db
+      .select()
+      .from(taskRuns)
+      .where(and(ofTask, inArray(taskRuns.status, ["queued", "running"])))
+      .orderBy(desc(taskRuns.createdAt))
+      .limit(1),
+    db
+      .select()
+      .from(taskRuns)
+      .where(and(ofTask, isResult))
+      .orderBy(desc(taskRuns.scheduledFor))
+      .limit(1),
+  ]);
+  const after = result
+    ? gt(taskRuns.scheduledFor, result.scheduledFor)
+    : undefined;
+  const before = result
+    ? lt(taskRuns.scheduledFor, result.scheduledFor)
+    : undefined;
+  const [failures, [quiet], past] = await Promise.all([
+    db
+      .select()
+      .from(taskRuns)
+      .where(
+        and(ofTask, after, inArray(taskRuns.status, ["failed", "cancelled"]))
+      )
+      .orderBy(desc(taskRuns.scheduledFor))
+      .limit(FAILURE_ROWS),
+    db
+      .select({ count: count(), last: max(taskRuns.scheduledFor) })
+      .from(taskRuns)
+      .where(
+        and(
+          ofTask,
+          after,
+          eq(taskRuns.status, "done"),
+          eq(taskRuns.outcome, "quiet")
+        )
+      ),
+    result
+      ? db
+          .select()
+          .from(taskRuns)
+          .where(
+            and(
+              ofTask,
+              before,
+              or(isResult, inArray(taskRuns.status, ["failed", "cancelled"]))
+            )
+          )
+          .orderBy(desc(taskRuns.scheduledFor))
+          .limit(PAST_ROWS)
+      : [],
+  ]);
+  return {
+    active: active ?? null,
+    failures,
+    past,
+    quiet:
+      quiet && quiet.count > 0 && quiet.last
+        ? { count: quiet.count, last: quiet.last }
+        : null,
+    result: result ?? null,
+  };
 };
+export type TaskRuns = Awaited<ReturnType<typeof getTaskRuns>>;
 
 /** Turns a task on or off. On again: the next run is counted from now, and a stop after failures is lifted. */
 export const setTaskEnabled = async (

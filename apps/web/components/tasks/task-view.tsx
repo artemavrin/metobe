@@ -2,12 +2,12 @@
 
 import type { ChatMessage } from "@metobe/contracts/chat";
 import type { ChatServer } from "@metobe/core/mcp";
-import type { TaskRow, TaskRunRow } from "@metobe/core/tasks";
+import type { TaskRow, TaskRunRow, TaskRuns } from "@metobe/core/tasks";
 import { Button } from "@metobe/ui/components/button";
 import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
-import { ChevronDown, Minus, Play, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, Minus, Play, TriangleAlert } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
@@ -27,7 +27,7 @@ import {
   setTaskNotifyAction,
 } from "@/app/(app)/(chat)/tasks/actions";
 import { AssistantMessage } from "@/components/chat/messages";
-import { hasAnswer, splitRuns } from "@/lib/task-runs";
+import { hasAnswer } from "@/lib/task-runs";
 
 // A task's page (ARCH §16.4): the header with its schedule, «Прогнать сейчас» and the switch; «О задаче» folded into a
 // line (P15); the last result whole, what came after it in rows, earlier runs under the spoiler (P12). While a run is
@@ -38,25 +38,51 @@ const ENTER =
 const PRESS =
   "transition-transform duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100";
 
-/** How often the page looks again while a run is queued or going. */
-const POLL_MS = 3000;
+/** How often the page looks again: often while a run is queued or going, now and then otherwise — a run comes on its
+ *  schedule, and the page shows it without a reload. */
+const POLL_MS = { active: 3000, idle: 15_000 };
 
 const Ctx = createContext<{ task: TaskRow; servers: ChatServer[] }>(
   null as never
 );
 
-/** «5 ноя, 09:00» in the task's own time zone. */
-const useWhen = () => {
+/** A run's time as people say it: today, tomorrow, yesterday, else the date — in the task's own time zone. */
+const useRunTime = (zone: string) => {
+  const t = useTranslations("tasks");
   const format = useFormatter();
-  const { task } = use(Ctx);
-  return (d: Date) =>
-    format.dateTime(d, {
+  const day = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(d);
+  return (d: Date) => {
+    const time = format.dateTime(d, {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: zone,
+    });
+    const now = new Date();
+    if (day(d) === day(now)) {
+      return t("todayAt", { time });
+    }
+    if (day(d) === day(new Date(now.getTime() + 86_400_000))) {
+      return t("tomorrowAt", { time });
+    }
+    if (day(d) === day(new Date(now.getTime() - 86_400_000))) {
+      return t("yesterdayAt", { time });
+    }
+    return format.dateTime(d, {
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
       month: "short",
-      timeZone: task.timezone,
+      timeZone: zone,
+      weekday: "short",
     });
+  };
+};
+
+/** «сегодня в 16:56», «вчера в 9:00», «пт, 6 нояб., 9:00» — in the task's own time zone. */
+const useWhen = () => {
+  const { task } = use(Ctx);
+  return useRunTime(task.timezone);
 };
 
 /** How long a run went: «40 с», «3 мин». */
@@ -227,7 +253,7 @@ const About = ({
 
 // ── Runs ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** A run after the last result with nothing to read: a failure (with «Прогнать ещё раз») or «нового нет». */
+/** A failure after the last result: a row with why, and «Прогнать ещё раз». */
 const Since = ({
   run,
   onRetry,
@@ -245,7 +271,7 @@ const Since = ({
     <div
       className={cn(
         "flex flex-wrap items-center gap-x-2 gap-y-2 rounded-lg px-3 py-2 text-sm",
-        failed ? "bg-amber-500/10" : "bg-muted/50 text-muted-foreground"
+        failed ? "bg-amber-500/10" : "bg-muted/50"
       )}
     >
       <Mark run={run} />
@@ -387,24 +413,51 @@ const Going = ({ run }: { run: TaskRunRow }) => {
   );
 };
 
+/** «После него 3 запуска без изменений, последний сегодня в 17:00» — the runs with nothing new, counted. */
+const QuietLine = ({
+  quiet,
+  after,
+}: {
+  quiet: NonNullable<TaskRuns["quiet"]>;
+  after: boolean;
+}) => {
+  const t = useTranslations("tasks");
+  const when = useWhen();
+  return (
+    <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+      <Check aria-hidden className="size-3.5 shrink-0" />
+      {t(after ? "quietAfter" : "quietOnly", {
+        count: quiet.count,
+        when: when(quiet.last),
+      })}
+    </p>
+  );
+};
+
 const Result = ({
   run,
   answer,
+  quiet,
 }: {
   run: TaskRunRow;
   answer: ChatMessage | null;
+  quiet: TaskRuns["quiet"];
 }) => {
   const t = useTranslations("tasks");
   const when = useWhen();
   const took = useTook();
+  const length = took(run);
   return (
-    <section className="flex flex-col gap-2">
-      <header className="text-muted-foreground flex items-center gap-2 text-xs">
-        <Mark run={run} />
-        <span className="text-foreground font-medium">
-          {t("latest", { at: when(run.scheduledFor) })}
-        </span>
-        <span className="ml-auto tabular-nums">{took(run)}</span>
+    <section className="flex flex-col gap-3">
+      <header className="flex flex-col gap-1">
+        <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+          <span className="font-medium">{t("latestTitle")}</span>
+          <span className="text-muted-foreground tabular-nums">
+            {when(run.scheduledFor)}
+            {length && ` · ${length}`}
+          </span>
+        </p>
+        {quiet && <QuietLine after quiet={quiet} />}
       </header>
       {answer ? (
         <Answer message={answer} />
@@ -412,6 +465,45 @@ const Result = ({
         <p className="text-sm leading-6">{run.summary}</p>
       )}
     </section>
+  );
+};
+
+/** The runs: the one on its way, the failures after the last result, the result with the quiet ones counted, the past. */
+const Runs = ({
+  runs,
+  answer,
+  busy,
+  onRetry,
+}: {
+  runs: TaskRuns;
+  answer: ChatMessage | null;
+  busy: boolean;
+  onRetry: () => void;
+}) => {
+  const t = useTranslations("tasks");
+  const { task } = use(Ctx);
+  const when = useWhen();
+  const { active, failures, result, past, quiet } = runs;
+  const nothing = !(result || quiet || failures.length > 0 || active);
+  return (
+    <>
+      {active && <Going run={active} />}
+      {failures.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {failures.map((r) => (
+            <Since busy={busy} key={r.id} onRetry={onRetry} run={r} />
+          ))}
+        </div>
+      )}
+      {result && <Result answer={answer} quiet={quiet} run={result} />}
+      {!result && quiet && <QuietLine after={false} quiet={quiet} />}
+      {nothing && task.nextRunAt && (
+        <p className="text-muted-foreground text-sm">
+          {t("noRuns", { when: when(task.nextRunAt) })}
+        </p>
+      )}
+      {past.length > 0 && <Past runs={past} />}
+    </>
   );
 };
 
@@ -451,48 +543,18 @@ const Controls = ({
   );
 };
 
-/** «сегодня в 16:55», «завтра в 9:00», «пт, 6 нояб., 9:00» — in the task's own time zone. */
-const useNextWords = (zone: string) => {
-  const t = useTranslations("tasks");
-  const format = useFormatter();
-  const day = (d: Date) =>
-    new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(d);
-  return (d: Date) => {
-    const time = format.dateTime(d, {
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: zone,
-    });
-    const now = new Date();
-    if (day(d) === day(now)) {
-      return t("todayAt", { time });
-    }
-    if (day(d) === day(new Date(now.getTime() + 86_400_000))) {
-      return t("tomorrowAt", { time });
-    }
-    return format.dateTime(d, {
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      month: "short",
-      timeZone: zone,
-      weekday: "short",
-    });
-  };
-};
-
-/** Looks again every few seconds while `active`, and only while the tab is in view. */
+/** Looks again while the tab is in view: every few seconds while a run goes, else now and then. */
 const usePoll = (active: boolean) => {
   const router = useRouter();
   useEffect(() => {
-    if (!active) {
-      return;
-    }
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        router.refresh();
-      }
-    }, POLL_MS);
+    const timer = setInterval(
+      () => {
+        if (document.visibilityState === "visible") {
+          router.refresh();
+        }
+      },
+      active ? POLL_MS.active : POLL_MS.idle
+    );
     return () => clearInterval(timer);
   }, [active, router]);
 };
@@ -506,8 +568,7 @@ export const TaskView = ({
   servers,
 }: {
   task: TaskRow;
-  /** Newest first. */
-  runs: TaskRunRow[];
+  runs: TaskRuns;
   /** The last result's answer. */
   answer: ChatMessage | null;
   /** The schedule in words. */
@@ -520,11 +581,9 @@ export const TaskView = ({
   const [on, setOn] = useState(task.enabled && !task.pausedReason);
   const [failed, setFailed] = useState(false);
   const [pending, start] = useTransition();
-  const { active, since, result, past } = splitRuns(runs);
+  const { active, result } = runs;
   usePoll(active !== null);
-  const unseen = runs.some(
-    (r) => r.status === "done" && r.outcome === "news" && !r.seenAt
-  );
+  const unseen = result?.outcome === "news" && !result.seenAt;
   useEffect(() => {
     if (unseen) {
       void markTaskSeenAction(task.id);
@@ -549,7 +608,7 @@ export const TaskView = ({
   };
   const busy = pending || active !== null;
   const ctx = useMemo(() => ({ servers, task }), [servers, task]);
-  const nextWords = useNextWords(task.timezone);
+  const nextWords = useRunTime(task.timezone);
   const state =
     on && task.nextRunAt
       ? t("next", { when: nextWords(task.nextRunAt) })
@@ -607,26 +666,7 @@ export const TaskView = ({
             schedule={schedule}
             sources={sources}
           />
-          {active && <Going run={active} />}
-          {since.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              {since.map((r) => (
-                <Since busy={busy} key={r.id} onRetry={runNow} run={r} />
-              ))}
-            </div>
-          )}
-          {result && <Result answer={answer} run={result} />}
-          {!result && runs.length === 0 && task.nextRunAt && (
-            <p className="text-muted-foreground text-sm">
-              {t("noRuns", { when: nextWords(task.nextRunAt) })}
-            </p>
-          )}
-          {!result &&
-            since.length > 0 &&
-            since.every((r) => r.outcome === "quiet") && (
-              <p className="text-muted-foreground text-sm">{t("noResult")}</p>
-            )}
-          {past.length > 0 && <Past runs={past} />}
+          <Runs answer={answer} busy={busy} onRetry={runNow} runs={runs} />
         </div>
       </div>
     </Ctx>

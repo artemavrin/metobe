@@ -1,13 +1,12 @@
 import { listChatServers } from "@metobe/core/mcp";
 import { scheduleWords } from "@metobe/core/task-schedule";
-import { getRunAnswer, getTask, listTaskRuns } from "@metobe/core/tasks";
+import { getRunAnswer, getTask, getTaskRuns } from "@metobe/core/tasks";
 import { getLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import { TaskView } from "@/components/tasks/task-view";
 import { getSettingsViewer } from "@/lib/settings-access";
-import { resultOf } from "@/lib/task-runs";
 
 // A task's page (ARCH §16.4, P12 + P15): what it does in a card, the last result whole, what came after it in rows,
 // earlier runs under a spoiler. Someone else's task is as missing as one that never was.
@@ -25,11 +24,12 @@ const TaskPage = async ({ params }: { params: Promise<{ id: string }> }) => {
     notFound();
   }
   const [runs, servers] = await Promise.all([
-    listTaskRuns(task.id),
+    getTaskRuns(task.id),
     listChatServers(user.id),
   ]);
-  const result = resultOf(runs);
-  const answer = result ? await getRunAnswer(user.id, result.id) : null;
+  const answer = runs.result
+    ? await getRunAnswer(user.id, runs.result.id)
+    : null;
   const sources =
     task.catalogIds?.flatMap(
       (c) => servers.find((s) => s.id === c)?.title ?? []
