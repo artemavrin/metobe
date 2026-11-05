@@ -37,6 +37,8 @@ export interface Task {
   unread?: boolean;
   /** От нового к старому. */
   runs: Run[];
+  /** Прошлые изменения задачи: `before` — первый запуск, что прошёл по новой версии; отметка встаёт под ним. */
+  edits?: { before: string; day: string; summary: string }[];
 }
 
 const text = (t: string): ChatMessage["parts"] => [{ text: t, type: "text" }];
@@ -48,6 +50,7 @@ const prices: Task = {
   color: "var(--chart-7)",
   created: "3 ноя",
   id: "prices",
+  edits: [{ before: "p2", day: "12 ноя", summary: "расписание — по понедельникам в 10:00 (было 9:00)" }],
   name: "Цены конкурентов",
   next: "пн, 7 дек, 10:00",
   runs: [
@@ -69,7 +72,7 @@ const prices: Task = {
     { at: "пн, 23 ноя, 10:00", day: "23 ноя", id: "p3", outcome: "quiet", summary: "Цены 16 товаров не изменились", took: "1 мин 35 с" },
     { at: "пн, 16 ноя, 10:00", day: "16 ноя", id: "p2", outcome: "quiet", summary: "Цены 16 товаров не изменились", took: "1 мин 31 с" },
     {
-      at: "пн, 9 ноя, 10:00",
+      at: "пн, 9 ноя, 9:00",
       day: "9 ноя",
       id: "p1",
       outcome: "baseline",

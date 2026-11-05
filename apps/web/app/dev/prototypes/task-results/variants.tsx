@@ -3,8 +3,8 @@
 import { Button } from "@metobe/ui/components/button";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
-import { ChevronDown, LogIn, Minus, Play, TriangleAlert } from "lucide-react";
-import { createContext, use, useEffect, useRef, useState } from "react";
+import { ChevronDown, LogIn, Minus, PencilLine, Play, TriangleAlert } from "lucide-react";
+import { Fragment, createContext, use, useEffect, useRef, useState } from "react";
 
 import { AssistantMessage } from "@/components/chat/messages";
 
@@ -349,9 +349,24 @@ export const LatestBody = () => {
           </button>
           {history && (
             <div className={cn("bg-card overflow-hidden rounded-xl border", ENTER)}>
-              {past.map((r) => (
-                <LogRow color={task.color} key={r.id} onToggle={() => setOpen((o) => (o === r.id ? null : r.id))} open={open === r.id} run={r} />
-              ))}
+              {past.map((r) => {
+                // Изменение задачи — строкой под первым запуском новой версии (список идёт от нового к старому): видно, с какого
+                // запуска итоги идут по ней.
+                const edit = task.edits?.find((x) => x.before === r.id);
+                return (
+                  <Fragment key={r.id}>
+                    <LogRow color={task.color} onToggle={() => setOpen((o) => (o === r.id ? null : r.id))} open={open === r.id} run={r} />
+                    {edit && (
+                      <div className="text-muted-foreground flex items-center gap-3 border-b bg-muted/30 px-3 py-2 text-xs">
+                        <PencilLine className="size-3.5 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          Изменена {edit.day}: {edit.summary}
+                        </span>
+                      </div>
+                    )}
+                  </Fragment>
+                );
+              })}
             </div>
           )}
         </div>
