@@ -6,6 +6,7 @@ import { Input } from "@metobe/ui/components/input";
 import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
 import {
   Bot,
+  CalendarClock,
   ChartColumn,
   Inbox,
   Check,
@@ -31,6 +32,7 @@ import {
   Paperclip,
   Pencil,
   RefreshCw,
+  ScrollText,
   Gift,
   FoldVertical,
   Sparkles,
@@ -43,8 +45,8 @@ import { useState } from "react";
 // the reference pages. Prototypes are never deleted after the choice — this list is where the choice is written down.
 // To add one: an entry below with its area, and — once picked — `chosen` naming the variant.
 
-type Status = "chosen" | "open" | "paused" | "reference";
-type Area = "start" | "settings" | "chat" | "agents" | "reference";
+type Status = "chosen" | "open" | "paused" | "dropped" | "reference";
+type Area = "start" | "settings" | "chat" | "tasks" | "reference";
 
 interface Entry {
   href: string;
@@ -59,11 +61,11 @@ interface Entry {
 }
 
 const AREAS: Record<Area, string> = {
-  agents: "Агенты",
-  chat: "Чат",
-  reference: "Справочно",
-  settings: "Настройки и аккаунт",
   start: "Вход и первый запуск",
+  settings: "Настройки и аккаунт",
+  chat: "Чат",
+  tasks: "Задачи",
+  reference: "Справочно",
 };
 
 const ENTRIES: Entry[] = [
@@ -86,18 +88,21 @@ const ENTRIES: Entry[] = [
   { about: "Модель спрашивает то, что знает только пользователь (период, кому писать), по образцу AskUserQuestion из Claude: вопросы на месте поля ввода, чипы вопросов, свой вариант, проверка перед отправкой; раунд 1 (карточка, кнопки) — /ask-user/round-1", area: "chat", chosen: "«Как у Claude», чипы вопросов — степпер ReUI", href: "/dev/prototypes/ask-user", icon: MessageCircleQuestion, status: "chosen", title: "Вопрос от модели" },
   { about: "Просьба подключить сервис прямо в ответе", area: "chat", chosen: "«Плашка»", href: "/dev/prototypes/request-connection", icon: Unplug, status: "chosen", title: "Запрос подключения из чата" },
   { about: "Падающие звёзды по Animata Shooting Stars: звездопад, редкие, окно, к вопросу, отскок от поля ввода. Пасхалка: зажать 1 с на пустом месте — звёзды летят в курсор, заряд (звезда, созвездие, вихрь, сгусток, чёрная дыра), отпустить — фейерверк; чёрная дыра на максимуме 5 с съедает страницу, за горизонтом — экран про отдых. Раунд 3 — /new-chat/round-3", area: "chat", chosen: "«Отскок»; пасхалка — чёрная дыра и экран за горизонтом", href: "/dev/prototypes/new-chat/round-4", icon: Sparkles, status: "chosen", title: "Фон нового чата: звёзды" },
-  { about: "Что под экраном нового чата: точечная сетка, которая чувствует курсор; свет в цвете времени суток, стекающий к полю ввода, пока печатаешь; линии от «Начать с» в поле ввода. Параметры: время суток, меньше движения", area: "chat", chosen: "Ни один — дальше звёзды, раунд 4", href: "/dev/prototypes/new-chat/round-3", icon: Sparkles, status: "chosen", title: "Фон нового чата" },
+  { about: "Что под экраном нового чата: точечная сетка, которая чувствует курсор; свет в цвете времени суток, стекающий к полю ввода, пока печатаешь; линии от «Начать с» в поле ввода. Параметры: время суток, меньше движения. Ни один не взяли — дальше звёзды, раунд 4", area: "chat", href: "/dev/prototypes/new-chat/round-3", icon: Sparkles, status: "dropped", title: "Фон нового чата" },
   { about: "По ReUI ai-chat-3: приветствие, «Начать с», «Продолжить»; иллюстрация сверху, сбоку, слева от приветствия, без неё или только в первом чате. Первый раунд — /new-chat/round-1", area: "chat", href: "/dev/prototypes/new-chat", icon: Sparkles, chosen: "«Без картинки»; картинка — в первом чате", status: "chosen", title: "Экран нового чата" },
   { about: "Палитра ⌘K: перейти в чат по названию или словам, в раздел настроек, выполнить действие; окно, окно с превью или поиск в боковой панели", area: "chat", href: "/dev/prototypes/command-palette", icon: Command, chosen: "«В сайдбаре»", status: "chosen", title: "Палитра ⌘K" },
   { about: "Статистика в ответе: числа, динамика, прогресс к цели, доли, разброс, рейтинг; плитки, лента или полоса", area: "chat", chosen: "«Полоса»", href: "/dev/prototypes/metrics", icon: Gauge, status: "chosen", title: "Показатели в ответе" },
   { about: "Ещё формы показателей: кто вырос и упал, Парето / ABC, выбросы, воронка, состав (кольцо или полоса) — по два вида каждой", area: "chat", chosen: "«Кто вырос», «Парето», «Выбросы», «Состав»; воронку не взяли", href: "/dev/prototypes/metrics-forms", icon: Gauge, status: "chosen", title: "Показатели: ещё формы" },
   { about: "Графики evilcharts (ECharts) на наших данных и цветах темы: площадь, линия, столбцы, радар, круговая; как их рисует ответ — /evilcharts/in-answer", area: "reference", href: "/dev/prototypes/evilcharts", icon: LayoutDashboard, status: "reference", title: "Графики evilcharts" },
-  { about: "D37 · сжать длинный чат итогом служебной модели: как предложить (тихая строка, карточка с цифрами, чип над полем ввода), как идёт сжатие и как итог выглядит в ленте; вернуть как было", area: "chat", href: "/dev/prototypes/compact", icon: FoldVertical, status: "open", title: "Сжатие чата" },
-  { about: "Что нового после обновления: окно-тур поверх чата, «Больше не показывать»; раунд 2 — вместо скриншотов сам продукт: потрогать, посмотреть, как его нажимает курсор, или рисунок идеи. Раунд 1 со скриншотами (журнал, тур, оглавление) — /whats-new/round-1", area: "chat", href: "/dev/prototypes/whats-new", icon: Gift, status: "open", title: "Что нового" },
+  { about: "D37 · сжать длинный чат итогом служебной модели: как предложить (тихая строка, карточка с цифрами, чип над полем ввода), как идёт сжатие и как итог выглядит в ленте; вернуть как было", area: "chat", chosen: "«Карточка»", href: "/dev/prototypes/compact", icon: FoldVertical, status: "chosen", title: "Сжатие чата" },
+  { about: "Что нового после обновления: окно-тур поверх чата, «Больше не показывать»; раунд 2 — вместо скриншотов сам продукт: потрогать, посмотреть, как его нажимает курсор, или рисунок идеи. Раунд 1 со скриншотами (журнал, тур, оглавление) — /whats-new/round-1", area: "chat", chosen: "«Смотреть»", href: "/dev/prototypes/whats-new", icon: Gift, status: "chosen", title: "Что нового" },
   { about: "Обновление Metobe из приложения: что нового, «сейчас» или «ночью», шаги на сервере, откат, история с копиями базы — и что видит человек в чате", area: "settings", chosen: "«Карточка»", href: "/dev/prototypes/updates", icon: RefreshCw, status: "chosen", title: "О системе: обновления" },
   { about: "Расходы по моделям, людям и дням с графиками; две валюты рядом, без суммы: как у Vercel, обзор с плитками, сводка «кто на чём» или отчёт одним столбцом", area: "settings", chosen: "«Обзор», на телефоне — без мини-графиков в плитках и рейтинги вкладками", href: "/dev/prototypes/usage", icon: ChartColumn, status: "chosen", title: "Расходы" },
-  { about: "P13 · раунд 3: агенты как чаты, агент держит страницу «что сейчас» или сводка всех итогов; фраза с нажимаемыми кусками, «Ждут вас», уведомление с кнопкой. Раунды 1 и 2 — /agents/round-1, /agents/round-2", area: "agents", href: "/dev/prototypes/agents", icon: Bot, status: "paused", title: "Агенты" },
-  { about: "P12 · входящие агентов: сводки, вопросы, сбои и подтверждения в одном списке — лентой, как почта или сначала решения", area: "agents", href: "/dev/prototypes/inbox", icon: Inbox, status: "paused", title: "Входящие агентов" },
+  { about: "Лицо агента — «Юнит», настольный робот в Hairline: глаза ведут, голова догоняет курсор, моргает, ^ ^ при наведении; цвет агента — свет глаз на тёмном экране, лампа и полоска. Раунд с «Бобом», «Котиком» и «Роботом» отвергнут. Заменён конвейером в /first-agent: это задачи, не агенты (D38)", area: "tasks", href: "/dev/prototypes/agent-face", icon: Bot, status: "dropped", title: "Лицо агента" },
+  { about: "P11 · первая задача (не «агент» — только запуски по расписанию, D38), раунд 3 «В чате»: композер подсвечивает части задачи цветом, Hairline-конвейер (шаг ленты — запуск) загорается цветом задачи: лампа и луч сканера, полоска на итогах, недостающее модель спрашивает тут же, в конце — название и свой цвет. Раунды 1–2 — /first-agent/round-1, /first-agent/round-2", area: "tasks", chosen: "Раунд 3 «В чате», фигура — конвейер", href: "/dev/prototypes/first-agent", icon: CalendarClock, status: "chosen", title: "Первая задача" },
+  { about: "P12 · итоги задачи в её чате: первый запуск (сравнивать не с чем), изменения, «нового нет», сбой; запуск — сообщением под датой, строкой журнала или только итоги, где есть что сказать. Параметр — чем кончился последний запуск", area: "tasks", href: "/dev/prototypes/task-results", icon: ScrollText, status: "open", title: "Итоги задачи" },
+  { about: "P13 · до D38, ещё «агенты» · раунд 3: агенты как чаты, агент держит страницу «что сейчас» или сводка всех итогов; фраза с нажимаемыми кусками, «Ждут вас», уведомление с кнопкой. Раунды 1 и 2 — /agents/round-1, /agents/round-2", area: "tasks", href: "/dev/prototypes/agents", icon: Bot, status: "paused", title: "Список задач" },
+  { about: "P12 · до D38, ещё «агенты» · входящие агентов: сводки, вопросы, сбои и подтверждения в одном списке — лентой, как почта или сначала решения", area: "tasks", href: "/dev/prototypes/inbox", icon: Inbox, status: "paused", title: "Входящие задач" },
   { about: "Компоненты ReUI и shadcn в теме Metobe", area: "reference", href: "/dev/showcase", icon: LayoutDashboard, status: "reference", title: "Дизайн-система" },
 ];
 
@@ -105,6 +110,7 @@ const STATUS: Record<Status, { label: string; variant: "success-light" | "warnin
   chosen: { label: "Выбрано", variant: "success-light" },
   open: { label: "Выбираем", variant: "warning-light" },
   paused: { label: "Отложено", variant: "secondary" },
+  dropped: { label: "Не взяли", variant: "secondary" },
   reference: { label: "Справочно", variant: "secondary" },
 };
 
@@ -114,6 +120,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "open", label: "Выбираем" },
   { id: "chosen", label: "Выбрано" },
   { id: "paused", label: "Отложено" },
+  { id: "dropped", label: "Не взяли" },
   { id: "reference", label: "Справочно" },
 ];
 
