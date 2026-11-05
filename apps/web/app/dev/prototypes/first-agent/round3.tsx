@@ -4,7 +4,7 @@ import type { ChatMessage } from "@metobe/contracts/chat";
 import { Button } from "@metobe/ui/components/button";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
-import { ArrowUp, Check } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AssistantMessage } from "@/components/chat/messages";
@@ -223,19 +223,20 @@ const AgentCard = ({ agent, filled, asking, stage, name, color, onName, onColor,
       {stage !== "building" && (
         <div className={cn("flex flex-col gap-3 border-t px-4 py-3.5", ENTER)}>
           <div className="flex items-center gap-3">
-            <span
-              className="grid size-9 shrink-0 place-items-center rounded-xl text-sm font-semibold transition-colors duration-300"
-              style={{ background: `color-mix(in oklab, ${color} 16%, transparent)`, color }}
-            >
-              {name.trim().slice(0, 1).toUpperCase() || "·"}
-            </span>
+            {/* Цвет задачи уже несёт конвейер; здесь — только точка цвета и название. Поле выглядит полем: на телефоне
+                нет наведения, по которому было бы видно, что название можно поменять. */}
+            <span className="size-2.5 shrink-0 rounded-full transition-colors duration-300" style={{ background: color }} />
             {stage === "naming" ? (
-              <input
-                aria-label="Название задачи"
-                className="hover:bg-muted/50 focus:bg-muted/60 -mx-1.5 min-w-0 flex-1 rounded-md px-1.5 py-1 font-medium outline-none transition-colors duration-150"
-                onChange={(e) => onName(e.target.value)}
-                value={name}
-              />
+              <label className="focus-within:border-ring/60 flex min-w-0 flex-1 items-center gap-2 rounded-md border px-2 py-1 transition-colors duration-150 @max-md:min-h-11">
+                <input
+                  aria-invalid={!name.trim() || undefined}
+                  aria-label="Название задачи"
+                  className="min-w-0 flex-1 bg-transparent font-medium outline-none"
+                  onChange={(e) => onName(e.target.value)}
+                  value={name}
+                />
+                <Pencil aria-hidden className="text-muted-foreground size-3.5 shrink-0" />
+              </label>
             ) : (
               <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
             )}
@@ -248,12 +249,12 @@ const AgentCard = ({ agent, filled, asking, stage, name, color, onName, onColor,
           </div>
           {stage === "naming" ? (
             <div className="flex flex-wrap items-center gap-3">
-              <div aria-label="Цвет задачи" className="flex items-center gap-1.5" role="radiogroup">
+              <div aria-label="Цвет задачи" className="flex flex-wrap items-center gap-1.5 @max-md:gap-2.5" role="radiogroup">
                 {COLORS.map((c) => (
                   <button
                     aria-checked={c === color}
                     aria-label={`Цвет ${COLORS.indexOf(c) + 1}`}
-                    className={cn("size-5 rounded-full ring-offset-2 ring-offset-card transition-[box-shadow,transform] duration-150 active:scale-90", c === color && "ring-2")}
+                    className={cn("size-5 rounded-full ring-offset-2 ring-offset-card transition-[box-shadow,transform] duration-150 active:scale-90 @max-md:size-8", c === color && "ring-2")}
                     key={c}
                     onClick={() => onColor(c)}
                     role="radio"
@@ -264,7 +265,7 @@ const AgentCard = ({ agent, filled, asking, stage, name, color, onName, onColor,
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <Button className={PRESS} onClick={() => say("Тестовый запуск: итог появится в этом чате, без уведомлений")} size="sm" variant="ghost">
-                  Прогнать сейчас
+                  Тестовый запуск
                 </Button>
                 <Button className={PRESS} disabled={!name.trim()} onClick={onCreate} size="sm">
                   Создать задачу
@@ -272,9 +273,15 @@ const AgentCard = ({ agent, filled, asking, stage, name, color, onName, onColor,
               </div>
             </div>
           ) : (
-            <span className="text-muted-foreground text-xs">
-              Первый запуск — {first ? runWords(first) : "по расписанию"}. Итоги — в этот чат.
-            </span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-muted-foreground min-w-0 flex-1 text-xs">
+                Первый запуск — {first ? runWords(first) : "по расписанию"}. Итоги — на странице задачи.
+              </span>
+              <a className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors duration-150 @max-md:min-h-11" href={`/dev/prototypes/task-edit?v=3&task=${agent.email ? "mail" : "prices"}`}>
+                Открыть задачу
+                <ArrowRight className="size-3.5" />
+              </a>
+            </div>
           )}
         </div>
       )}
@@ -350,13 +357,13 @@ export const InChat = () => {
       return;
     }
     if (stage === "created") {
-      reply("Учту со следующего запуска.");
+      reply("Задача уже создана: изменения — на её странице, карточкой «было → стало»; применяете вы.");
       return;
     }
     const missing = missingOf(agent);
     if (missing === "when") {
       const u = understand(t, tokenize(t).tokens);
-      if (!u.schedule) return reply("Не понял, когда. Например: «по будням в 9» или «по понедельникам в 10».");
+      if (!u.schedule) return reply("Расписание не распознано. Пример: «по будням в 9» или «по понедельникам в 10».");
       const a = { ...agent, schedule: u.schedule };
       setAgent(a);
       return proceed(a, `Расписание: ${scheduleWords(u.schedule)}.`);
@@ -364,19 +371,19 @@ export const InChat = () => {
     if (missing === "with") {
       if (agent.needSites && agent.tools.length > 0) {
         const sites = sitesFrom(t);
-        if (!sites.length) return reply("Не нашёл адресов — пришлите, например: shop-one.ru, shop-two.ru.");
+        if (!sites.length) return reply("Адреса сайтов не найдены. Пример: shop-one.ru, shop-two.ru.");
         const a = { ...agent, sites };
         setAgent(a);
         return proceed(a, `${sites.length === 1 ? "Сайт" : "Сайты"}: ${sites.join(", ")}.`);
       }
       const u = understand(t, tokenize(t).tokens);
       const tools = u.tools.length ? u.tools : /поиск|интернет|сам/iu.test(t) ? [{ icon: "globe", id: "search", instr: "поиском в интернете", name: "Поиск в интернете" } as Tool] : [];
-      if (!tools.length) return reply("Не понял, откуда брать. Почта, CRM, сайты — или искать в интернете?");
+      if (!tools.length) return reply("Источник не распознан. Почта, CRM, сайты или поиск в интернете?");
       const a = { ...agent, tools };
       setAgent(a);
       return proceed(a, `Источники: ${tools.map((x) => x.name).join(", ")}.`);
     }
-    reply("Учту.");
+    reply("Добавлено в инструкции задачи.");
   };
 
   const create = () => {

@@ -134,12 +134,12 @@ const Last = ({ item, color }: { item: Item; color: string }) => (
   </span>
 );
 
-/** `side` — задачи в боковой панели; по умолчанию все. */
+/** `side` — задачи в боковой панели; по умолчанию — те, что ждут человека: новый итог или сбой, который он исправляет. */
 const Page = ({ children, items, side, counted = true }: { children: React.ReactNode; items: Item[]; side?: Item[]; counted?: boolean }) => {
   const { say } = useProto();
   const [text, setText] = useState("");
   return (
-    <Shell area="agents" tasks={(side ?? items).map((it) => ({ color: it.color, name: it.name, unread: it.unread }))} title="Задачи">
+    <Shell area="agents" tasks={(side ?? items.filter((it) => it.unread || (it.enabled && it.last.outcome === "failed"))).map((it) => ({ color: it.color, name: it.name, unread: true }))} title="Задачи">
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 pt-20 pb-6 @max-md:pt-6">
         <header className="flex items-baseline gap-2 @max-md:hidden">
           <h1 className="text-xl font-semibold tracking-tight">Задачи</h1>

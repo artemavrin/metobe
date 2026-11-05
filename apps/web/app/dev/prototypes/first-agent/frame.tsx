@@ -46,7 +46,8 @@ const Sidebar = ({ chat, area = "agents", tasks }: { chat?: string; area?: "agen
           Задачи
         </span>
         {tasks?.map((t) => (
-          // Новый итог — точка цвета задачи справа: увидел, открыл — точка гаснет.
+          // Под «Задачами» — только задачи, которые ждут человека (новый итог, вопрос, решение), с точкой справа, и открытая
+          // сейчас. Разобрал — задача уходит из панели; все задачи — на странице «Задачи».
           <button
             aria-current={t.active ? "page" : undefined}
             className={cn("ml-6 flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-150", t.active ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/60")}
@@ -57,7 +58,12 @@ const Sidebar = ({ chat, area = "agents", tasks }: { chat?: string; area?: "agen
           >
             <span className="size-2 shrink-0 rounded-full" style={{ background: t.color }} />
             <span className={cn("min-w-0 flex-1 truncate", t.unread && "font-medium")}>{t.name}</span>
-            {t.unread && <span aria-label="новый итог" className="bg-foreground size-1.5 shrink-0 rounded-full" />}
+            {t.unread && (
+              <>
+                <span aria-hidden className="bg-foreground size-1.5 shrink-0 rounded-full" />
+                <span className="sr-only">, ждёт вас</span>
+              </>
+            )}
           </button>
         ))}
         {!tasks && created && (
