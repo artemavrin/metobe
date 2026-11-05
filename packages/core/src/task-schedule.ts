@@ -132,12 +132,60 @@ const weeklyWords = (dow: string, at: string, locale: "ru" | "en") => {
   return ru ? `По ${names} в ${at}` : `On ${names} at ${at}`;
 };
 
+/** «5 минут», «2 часа», «21 минуту» — a count with its noun in Russian. */
+const ruCount = (n: number, [one, few, many]: [string, string, string]) => {
+  const form = new Intl.PluralRules("ru").select(n);
+  const noun = { few, one }[form as "few" | "one"] ?? many;
+  return `${n} ${noun}`;
+};
+
+const MINUTES: [string, string, string] = ["минуту", "минуты", "минут"];
+const HOURS: [string, string, string] = ["час", "часа", "часов"];
+
+/** The N of a step field («every N»); undefined for anything else. */
+const step = (field: string) => /^\*\/(?<n>\d{1,2})$/u.exec(field)?.groups?.n;
+
+/** «Каждые 5 минут», «Каждый час», «Каждые 2 часа» — a run every so often, all day every day; null for anything else. */
+const intervalWords = (fields: string[], locale: "ru" | "en") => {
+  const [minute = "", hour = "", dom = "", month = "", dow = ""] = fields;
+  if (dom !== "*" || month !== "*" || dow !== "*") {
+    return null;
+  }
+  const ru = locale === "ru";
+  const every = (n: number, unit: "minute" | "hour") => {
+    if (n === 1) {
+      if (unit === "minute") {
+        return ru ? "Каждую минуту" : "Every minute";
+      }
+      return ru ? "Каждый час" : "Every hour";
+    }
+    if (!ru) {
+      return `Every ${n} ${unit}s`;
+    }
+    const words = ruCount(n, unit === "minute" ? MINUTES : HOURS);
+    return `${new Intl.PluralRules("ru").select(n) === "one" ? "Каждую" : "Каждые"} ${words}`;
+  };
+  if (hour === "*" && (minute === "*" || step(minute))) {
+    return every(Number(step(minute) ?? 1), "minute");
+  }
+  if (minute === "0" && (hour === "*" || step(hour))) {
+    return every(Number(step(hour) ?? 1), "hour");
+  }
+  return null;
+};
+
 /**
  * A cron as people say it: «По будням в 9:00», «По понедельникам в 10:00», «Каждый день в 18:00», «Каждый месяц
  * 1-го числа в 9:00». A cron outside these shapes is shown as it is — never a wrong sentence.
  */
 export const scheduleWords = (cron: string, locale: "ru" | "en") => {
   const fields = cron.trim().split(/\s+/u);
+  if (fields.length === 5) {
+    const interval = intervalWords(fields, locale);
+    if (interval) {
+      return interval;
+    }
+  }
   const [minute = "", hour = "", dom = "", month = "", dow = ""] = fields;
   const at = timesOf(minute, hour, locale);
   if (!at || month !== "*" || fields.length !== 5) {

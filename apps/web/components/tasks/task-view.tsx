@@ -422,47 +422,63 @@ const Controls = ({
   busy,
   onRun,
   onSwitch,
-  compact = false,
 }: {
   on: boolean;
   busy: boolean;
   onRun: () => void;
   onSwitch: (on: boolean) => void;
-  compact?: boolean;
 }) => {
   const t = useTranslations("tasks");
   return (
-    <span className="ml-auto flex shrink-0 items-center gap-2">
-      {compact ? (
-        <Button
-          aria-label={t("runNow")}
-          className={PRESS}
-          disabled={busy}
-          onClick={onRun}
-          size="icon"
-          variant="outline"
-        >
-          <Play />
-        </Button>
-      ) : (
-        <Button
-          className={PRESS}
-          disabled={busy}
-          onClick={onRun}
-          size="sm"
-          variant="ghost"
-        >
-          <Play />
-          {t("runNow")}
-        </Button>
-      )}
+    <div className="flex shrink-0 items-center gap-3">
+      <Button
+        aria-label={t("runNow")}
+        className={PRESS}
+        disabled={busy}
+        onClick={onRun}
+        size="sm"
+        variant="outline"
+      >
+        <Play />
+        <span className="@max-md:hidden">{t("runNow")}</span>
+      </Button>
       <Switch
         aria-label={t("enabled")}
         checked={on}
         onCheckedChange={onSwitch}
       />
-    </span>
+    </div>
   );
+};
+
+/** «сегодня в 16:55», «завтра в 9:00», «пт, 6 нояб., 9:00» — in the task's own time zone. */
+const useNextWords = (zone: string) => {
+  const t = useTranslations("tasks");
+  const format = useFormatter();
+  const day = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(d);
+  return (d: Date) => {
+    const time = format.dateTime(d, {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: zone,
+    });
+    const now = new Date();
+    if (day(d) === day(now)) {
+      return t("todayAt", { time });
+    }
+    if (day(d) === day(new Date(now.getTime() + 86_400_000))) {
+      return t("tomorrowAt", { time });
+    }
+    return format.dateTime(d, {
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      month: "short",
+      timeZone: zone,
+      weekday: "short",
+    });
+  };
 };
 
 /** Looks again every few seconds while `active`, and only while the tab is in view. */
@@ -501,7 +517,6 @@ export const TaskView = ({
   servers: ChatServer[];
 }) => {
   const t = useTranslations("tasks");
-  const format = useFormatter();
   const [on, setOn] = useState(task.enabled && !task.pausedReason);
   const [failed, setFailed] = useState(false);
   const [pending, start] = useTransition();
@@ -534,55 +549,31 @@ export const TaskView = ({
   };
   const busy = pending || active !== null;
   const ctx = useMemo(() => ({ servers, task }), [servers, task]);
-  const when = (d: Date) =>
-    format.dateTime(d, {
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      month: "short",
-      timeZone: task.timezone,
-    });
+  const nextWords = useNextWords(task.timezone);
   const state =
-    on && task.nextRunAt ? t("next", { when: when(task.nextRunAt) }) : t("off");
+    on && task.nextRunAt
+      ? t("next", { when: nextWords(task.nextRunAt) })
+      : t("off");
   return (
     <Ctx value={ctx}>
       <div className="@container min-h-0 flex-1 overflow-y-auto">
-        <header className="bg-background/90 supports-[backdrop-filter]:bg-background/75 sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b px-4 text-sm backdrop-blur @max-md:hidden">
-          <span
-            aria-hidden
-            className="size-2 shrink-0 rounded-full"
-            style={{ background: task.color }}
-          />
-          <h1 className="truncate font-medium">{task.name}</h1>
-          <span className="text-muted-foreground truncate">
-            · {schedule.toLowerCase()} · {state}
-          </span>
-          <Controls busy={busy} on={on} onRun={runNow} onSwitch={toggle} />
-        </header>
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-24">
-          {/* On a phone there is no header: the name, schedule, run and switch are here. */}
-          <div className="hidden flex-col gap-1 @max-md:flex">
-            <h1 className="flex items-center gap-2 font-medium">
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{ background: task.color }}
-              />
-              <span className="truncate">{task.name}</span>
-            </h1>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground min-w-0 flex-1 truncate">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-4 pb-24 md:pt-6">
+          <header className="flex items-start gap-4">
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
+                <span
+                  aria-hidden
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ background: task.color }}
+                />
+                <span className="truncate">{task.name}</span>
+              </h1>
+              <p className="text-muted-foreground text-sm">
                 {schedule} · {state}
-              </span>
-              <Controls
-                busy={busy}
-                compact
-                on={on}
-                onRun={runNow}
-                onSwitch={toggle}
-              />
+              </p>
             </div>
-          </div>
+            <Controls busy={busy} on={on} onRun={runNow} onSwitch={toggle} />
+          </header>
           {failed && (
             <p className="text-destructive text-sm" role="alert">
               {t("actionFailed")}
@@ -627,7 +618,7 @@ export const TaskView = ({
           {result && <Result answer={answer} run={result} />}
           {!result && runs.length === 0 && task.nextRunAt && (
             <p className="text-muted-foreground text-sm">
-              {t("noRuns", { when: when(task.nextRunAt) })}
+              {t("noRuns", { when: nextWords(task.nextRunAt) })}
             </p>
           )}
           {!result &&

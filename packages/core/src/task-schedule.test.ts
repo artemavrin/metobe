@@ -108,8 +108,19 @@ describe("the schedule in words", () => {
     expect(scheduleWords("0 10 * * 7", "en")).toBe("On Sundays at 10:00");
   });
 
+  it("says a run every so often", () => {
+    expect(scheduleWords("*/5 * * * *", "ru")).toBe("Каждые 5 минут");
+    expect(scheduleWords("*/2 * * * *", "ru")).toBe("Каждые 2 минуты");
+    expect(scheduleWords("*/21 * * * *", "ru")).toBe("Каждую 21 минуту");
+    expect(scheduleWords("* * * * *", "ru")).toBe("Каждую минуту");
+    expect(scheduleWords("0 * * * *", "ru")).toBe("Каждый час");
+    expect(scheduleWords("0 */3 * * *", "ru")).toBe("Каждые 3 часа");
+    expect(scheduleWords("0 */6 * * *", "ru")).toBe("Каждые 6 часов");
+    expect(scheduleWords("*/15 * * * *", "en")).toBe("Every 15 minutes");
+  });
+
   it("shows any other cron as it is, never a wrong sentence", () => {
-    expect(scheduleWords("*/15 * * * *", "ru")).toBe("*/15 * * * *");
+    expect(scheduleWords("*/15 9-18 * * 1-5", "ru")).toBe("*/15 9-18 * * 1-5");
     expect(scheduleWords("0 9 * 1 *", "ru")).toBe("0 9 * 1 *");
     expect(scheduleWords("0 9 L * *", "ru")).toBe("0 9 L * *");
   });
