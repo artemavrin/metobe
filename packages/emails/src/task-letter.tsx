@@ -1,17 +1,17 @@
 import {
   Body,
   Button,
-  Column,
   Container,
   Heading,
   Hr,
   Html,
   Link,
   Preview,
-  Row,
   Text,
 } from "react-email";
 
+import { BLOCKS_DARK, Block } from "./blocks";
+import type { LetterBlock } from "./blocks";
 import { C, FONT, LetterHead, Mark, renderLetter } from "./kit";
 
 // A letter from a periodic task (D38, P14): sent only when the task waits for the person — a new result, a question,
@@ -22,17 +22,8 @@ import { C, FONT, LetterHead, Mark, renderLetter } from "./kit";
 
 export type TaskLetterKind = "result" | "question" | "action";
 
-export type TaskLetterBlock =
-  | { type: "p"; text: string }
-  /** A list; `strong` — the item's lead in bold (who wrote, which product). */
-  | { type: "list"; items: { strong?: string; text: string }[] }
-  /** A table; `right` — the columns aligned right (numbers). */
-  | { type: "table"; head: string[]; rows: string[][]; right?: number[] }
-  /** Key figures from a widget the letter can't draw: the number large, its change small. */
-  | {
-      type: "figures";
-      items: { label: string; value: string; change?: string }[];
-    };
+/** A piece of the result as mail carries it: see blocks.tsx. */
+export type TaskLetterBlock = LetterBlock;
 
 export interface TaskLetterProps {
   locale: string;
@@ -57,164 +48,13 @@ const DARK = `
 .card { background: #171717 !important; border-color: #262626 !important; }
 .t { color: #fafafa !important; }
 .m { color: #a3a3a3 !important; }
-.cell { border-color: #262626 !important; }
-.head { background: #1f1f1f !important; }
-.fig { background: #1f1f1f !important; }
-`;
+${BLOCKS_DARK}`;
 
 /** The label's colour: an action is the only one that asks for attention. */
 const LABEL: Record<TaskLetterKind, string> = {
   action: "#b45309",
   question: C.blue,
   result: C.muted,
-};
-
-/** A cell; `wrap` — only the first column wraps, the rest (sites, sums) stay on one line. */
-const cell = (right: boolean, head: boolean, wrap = true) => ({
-  borderBottom: `1px solid ${C.border}`,
-  color: head ? C.muted : C.text,
-  fontSize: head ? 12 : 14,
-  fontWeight: head ? 500 : 400,
-  lineHeight: "20px",
-  padding: "8px 10px",
-  textAlign: right ? ("right" as const) : ("left" as const),
-  whiteSpace: wrap ? ("normal" as const) : ("nowrap" as const),
-});
-
-const Block = ({ b }: { b: TaskLetterBlock }) => {
-  if (b.type === "p") {
-    return (
-      <Text
-        className="t"
-        style={{
-          color: C.text,
-          fontSize: 15,
-          lineHeight: "24px",
-          margin: "0 0 12px",
-        }}
-      >
-        {b.text}
-      </Text>
-    );
-  }
-  if (b.type === "list") {
-    return (
-      <ol
-        className="t"
-        style={{
-          color: C.text,
-          fontSize: 15,
-          lineHeight: "24px",
-          margin: "0 0 12px",
-          paddingLeft: 22,
-        }}
-      >
-        {b.items.map((it) => (
-          <li key={`${it.strong ?? ""}${it.text}`} style={{ marginBottom: 6 }}>
-            {it.strong && <strong>{it.strong}</strong>}
-            {it.strong && " — "}
-            {it.text}
-          </li>
-        ))}
-      </ol>
-    );
-  }
-  if (b.type === "table") {
-    return (
-      <table
-        cellPadding={0}
-        cellSpacing={0}
-        className="cell"
-        role="presentation"
-        style={{
-          border: `1px solid ${C.border}`,
-          borderCollapse: "separate",
-          borderRadius: 10,
-          margin: "0 0 12px",
-          width: "100%",
-        }}
-      >
-        <thead>
-          <tr className="head" style={{ background: "#fafafa" }}>
-            {b.head.map((h, i) => (
-              <th
-                className="m cell"
-                key={h}
-                style={cell(b.right?.includes(i) ?? false, true, i === 0)}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {b.rows.map((row) => (
-            <tr key={row.join("|")}>
-              {row.map((v, i) => (
-                <td
-                  className="t cell"
-                  key={`${i}-${v}`}
-                  style={cell(b.right?.includes(i) ?? false, false, i === 0)}
-                >
-                  {v}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-  // Key figures side by side: React Email's Row and Column lay them out as the table mail clients need.
-  return (
-    <Row style={{ margin: "0 0 12px" }}>
-      {b.items.map((f, i) => (
-        <Column
-          key={f.label}
-          style={{
-            paddingLeft: i ? 8 : 0,
-            verticalAlign: "top",
-            width: `${100 / b.items.length}%`,
-          }}
-        >
-          <div
-            className="fig"
-            style={{
-              background: "#fafafa",
-              borderRadius: 10,
-              padding: "10px 12px",
-            }}
-          >
-            <div
-              className="m"
-              style={{ color: C.muted, fontSize: 12, lineHeight: "16px" }}
-            >
-              {f.label}
-            </div>
-            <div
-              className="t"
-              style={{
-                color: C.text,
-                fontSize: 20,
-                fontWeight: 600,
-                lineHeight: "28px",
-              }}
-            >
-              {f.value}
-            </div>
-            {f.change && (
-              <div
-                className="m"
-                style={{ color: C.muted, fontSize: 12, lineHeight: "16px" }}
-              >
-                {f.change}
-              </div>
-            )}
-          </div>
-        </Column>
-      ))}
-    </Row>
-  );
 };
 
 const TaskLetter = ({
