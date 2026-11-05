@@ -129,7 +129,7 @@ export const Intro = ({ className }: { className?: string }) => (
   <header className={cn("flex flex-col gap-1.5", className)}>
     <h1 className="text-xl font-semibold tracking-tight">Задачи</h1>
     <p className="text-muted-foreground max-w-prose text-sm text-pretty">
-      Задача запускается по расписанию, работает вашими подключениями и пишет, когда есть что сказать.
+      Задача запускается по расписанию, работает через ваши подключения и присылает итог, когда есть изменения.
     </p>
   </header>
 );
@@ -261,10 +261,10 @@ export const ToolChip = ({ tool, onRemove }: { tool: Tool; onRemove?: () => void
   );
 };
 
-/** «В Metobe · push · на почту» и когда: «когда есть что сказать» или «после каждого запуска». */
+/** «В Metobe · push · на почту» и когда: «только при изменениях» или «после каждого запуска». */
 export const reportWords = (d: Draft) => {
   const where = ["здесь", d.push && "уведомлением", d.email && "на почту"].filter(Boolean).join(", ");
-  return `${d.quiet ? "Когда есть что сказать" : "После каждого запуска"} — ${where}`;
+  return `${d.quiet ? "Только при изменениях" : "После каждого запуска"} — ${where}`;
 };
 
 export const NextRuns = ({ draft, className }: { draft: Draft; className?: string }) => (
@@ -365,11 +365,11 @@ export const Created = ({ draft }: { draft: Draft }) => {
           <p className="font-medium">Первый запуск — {firstRun(draft.schedule)}</p>
           <p className="text-muted-foreground max-w-sm text-sm text-pretty">
             {waits
-              ? "Перед ним понадобится вход в почту — попросим об этом здесь."
-              : `Результат появится здесь${draft.push ? " и придёт уведомлением" : ""}.${draft.quiet ? " Если сказать будет нечего, итога не будет." : ""}`}
+              ? "Перед первым запуском нужно войти в почту."
+              : `Результат появится здесь${draft.push ? " и придёт уведомлением" : ""}.${draft.quiet ? " Если изменений нет, итога не будет." : ""}`}
           </p>
         </div>
-        <Button className={cn("mt-1", PRESS)} onClick={() => say("Тестовый прогон начался — итог придёт сюда, без уведомлений")} size="sm" variant="outline">
+        <Button className={cn("mt-1", PRESS)} onClick={() => say("Тестовый запуск: итог появится здесь, без уведомлений")} size="sm" variant="outline">
           Прогнать сейчас
         </Button>
       </div>

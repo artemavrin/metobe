@@ -214,7 +214,7 @@ const AgentCard = ({ agent, filled, asking, stage, name, color, onName, onColor,
           </SlotRow>
           <SlotRow asking={false} filled={filled[3] ?? false} slot={SLOTS[3] as (typeof SLOTS)[number]}>
             <span>
-              {agent.quiet ? "Когда есть что сказать" : "После каждого запуска"} — {where}
+              {agent.quiet ? "Только при изменениях" : "После каждого запуска"} — {where}
             </span>
           </SlotRow>
         </div>
@@ -263,7 +263,7 @@ const AgentCard = ({ agent, filled, asking, stage, name, color, onName, onColor,
                 ))}
               </div>
               <div className="ml-auto flex items-center gap-2">
-                <Button className={PRESS} onClick={() => say("Тестовый прогон: итог придёт сюда же, без уведомлений")} size="sm" variant="ghost">
+                <Button className={PRESS} onClick={() => say("Тестовый запуск: итог появится в этом чате, без уведомлений")} size="sm" variant="ghost">
                   Прогнать сейчас
                 </Button>
                 <Button className={PRESS} disabled={!name.trim()} onClick={onCreate} size="sm">
@@ -327,7 +327,7 @@ export const InChat = () => {
       return;
     }
     const c = colorFor(a.name);
-    reply(`${lead}${lead ? " " : ""}Всё есть. Назвал задачу «${a.name}» и дал ей цвет — поменяйте, если хотите.`, () => {
+    reply(`${lead}${lead ? " " : ""}Всё заполнено. Название — «${a.name}», цвет выбран автоматически; оба можно поменять.`, () => {
       setName(a.name);
       setColor(c);
       setStage("naming");
@@ -343,7 +343,7 @@ export const InChat = () => {
       setWorking("Разбираю задачу…");
       later(() => {
         setWorking(null);
-        add("assistant", "Принял — настраиваю задачу.");
+        add("assistant", "Настраиваю задачу.");
         setCard(true);
         later(() => proceed(a, ""), 500);
       }, 900);
@@ -359,7 +359,7 @@ export const InChat = () => {
       if (!u.schedule) return reply("Не понял, когда. Например: «по будням в 9» или «по понедельникам в 10».");
       const a = { ...agent, schedule: u.schedule };
       setAgent(a);
-      return proceed(a, `Записал: ${scheduleWords(u.schedule)}.`);
+      return proceed(a, `Расписание: ${scheduleWords(u.schedule)}.`);
     }
     if (missing === "with") {
       if (agent.needSites && agent.tools.length > 0) {
@@ -367,14 +367,14 @@ export const InChat = () => {
         if (!sites.length) return reply("Не нашёл адресов — пришлите, например: shop-one.ru, shop-two.ru.");
         const a = { ...agent, sites };
         setAgent(a);
-        return proceed(a, `Записал ${sites.length === 1 ? "сайт" : "сайты"}: ${sites.join(", ")}.`);
+        return proceed(a, `${sites.length === 1 ? "Сайт" : "Сайты"}: ${sites.join(", ")}.`);
       }
       const u = understand(t, tokenize(t).tokens);
       const tools = u.tools.length ? u.tools : /поиск|интернет|сам/iu.test(t) ? [{ icon: "globe", id: "search", instr: "поиском в интернете", name: "Поиск в интернете" } as Tool] : [];
       if (!tools.length) return reply("Не понял, откуда брать. Почта, CRM, сайты — или искать в интернете?");
       const a = { ...agent, tools };
       setAgent(a);
-      return proceed(a, `Записал: ${tools.map((x) => x.name).join(", ")}.`);
+      return proceed(a, `Источники: ${tools.map((x) => x.name).join(", ")}.`);
     }
     reply("Учту.");
   };
@@ -463,7 +463,7 @@ export const InChat = () => {
             <span className="bg-border h-px flex-1" />
             <span className="flex items-center gap-1.5">
               <span className="size-1.5 rounded-full" style={{ background: color }} />
-              Задача «{name}» создана · итоги — сюда
+              Задача «{name}» создана · итоги запусков — в этом чате
             </span>
             <span className="bg-border h-px flex-1" />
           </div>

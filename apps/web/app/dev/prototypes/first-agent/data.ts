@@ -198,7 +198,7 @@ export const applyWords = (d: Draft, text: string): { draft: Draft; said: string
   if (/тих|молч|не пиши|без уведомл/u.test(t)) {
     return { draft: { ...d, push: false, quiet: true }, said: "Хорошо: без уведомлений, и молчит, если нечего сказать." };
   }
-  return { draft: { ...d, notes: [...d.notes, text.trim()] }, said: "Учёл — это пойдёт в инструкции задачи." };
+  return { draft: { ...d, notes: [...d.notes, text.trim()] }, said: "Добавлено в инструкции задачи." };
 };
 
 /** «shop-one.ru, shop-two.ru» → the list; anything that looks like a domain counts. */

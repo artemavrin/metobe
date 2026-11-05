@@ -86,7 +86,7 @@ const Fix = ({ label }: { label: string }) => {
   const { say } = useProto();
   const login = label.startsWith("Войти");
   return (
-    <Button className={PRESS} onClick={() => say(login ? "Откроется вход в почту, после него — запуск" : "Запуск начат — итог придёт сюда же")} size="sm" variant="outline">
+    <Button className={PRESS} onClick={() => say(login ? "Откроется вход в почту, затем запуск повторится" : "Запуск начат")} size="sm" variant="outline">
       {login ? <LogIn /> : <Play />}
       {label}
     </Button>
@@ -124,7 +124,7 @@ const Setup = ({ task }: { task: Task }) => {
         <div className={cn("flex flex-col gap-3", ENTER)}>
           <div className="bg-muted ml-auto max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-6">{task.asked}</div>
           <p className="text-sm leading-6">
-            Задача «{task.name}» создана: {task.schedule.toLowerCase()}. Итоги — сюда.
+            Задача «{task.name}» создана: {task.schedule.toLowerCase()}. Итоги запусков приходят в этот чат.
           </p>
         </div>
       )}
@@ -151,7 +151,7 @@ const TaskPage = ({ children }: { children: React.ReactNode }) => {
           · {task.schedule.toLowerCase()} · следующий {task.next}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-2">
-          <Button className={PRESS} onClick={() => say("Запуск начат — итог встанет сверху")} size="sm" variant="ghost">
+          <Button className={PRESS} onClick={() => say("Запуск начат")} size="sm" variant="ghost">
             <Play />
             Прогнать сейчас
           </Button>
