@@ -16,7 +16,7 @@ import { TASKS, asMessage } from "./data";
 import type { Outcome, Run, Task } from "./data";
 
 // Чат задачи после запусков. Свежий запуск сверху, история — ниже, листается; в самом низу — разговор, в котором задачу
-// настроили, свёрнутый в строку. Итог запуска — обычный ответ модели, как в чате (текст, таблица, список, виджет
+// создали, свёрнутый в строку «Создана 3 ноя — «просьба»». Итог запуска — обычный ответ модели, как в чате (текст, таблица, список, виджет
 // показателей); у него только своя строка: когда, чем кончился, сколько шёл. Задачи переключаются в боковой панели.
 // «Лента» — каждый итог целиком, пустые запуски подряд — одной строкой. «Журнал» — запуски строками, раскрыт свежий.
 // «Последний итог» — последний ответ, где есть что читать, целиком; сбой или «нового нет» после него — строкой над ним;
@@ -104,19 +104,21 @@ const Mark = ({ outcome, color }: { outcome: Outcome; color: string }) =>
     </span>
   );
 
-/** Разговор, в котором задачу настроили: самое старое в этом чате, поэтому в самом низу и свёрнуто. */
+/** Разговор, в котором задачу создали: самое старое в этом чате, поэтому в самом низу и свёрнуто. */
 const Setup = ({ task }: { task: Task }) => {
   const [open, setOpen] = useState(false);
   return (
     <div className="flex flex-col gap-3 border-t pt-5">
+      {/* С какой просьбы задача началась: это и есть её начало, а разговор под ней — по нажатию. */}
       <button
         aria-expanded={open}
-        className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-center text-xs transition-colors duration-150"
+        className="text-muted-foreground hover:text-foreground flex max-w-full min-w-0 items-center gap-1.5 self-center text-xs transition-colors duration-150"
         onClick={() => setOpen((o) => !o)}
         type="button"
       >
-        Задачу настроили здесь {task.created}
-        <ChevronDown className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")} />
+        <span className="shrink-0">Создана {task.created} —</span>
+        <span className="min-w-0 truncate">«{task.asked}»</span>
+        <ChevronDown className={cn("size-3.5 shrink-0 transition-transform duration-200", open && "rotate-180")} />
       </button>
       {open && (
         <div className={cn("flex flex-col gap-3", ENTER)}>
@@ -288,7 +290,7 @@ const Since = ({ run }: { run: Run }) => (
   <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-2 rounded-lg px-3 py-2 text-sm", run.outcome === "failed" ? "bg-amber-500/10" : "bg-muted/50 text-muted-foreground")}>
     <Mark color="" outcome={run.outcome} />
     <span className="tabular-nums">{run.day}</span>
-    <span className={cn("min-w-0 flex-1", run.outcome === "failed" && "font-medium")}>{run.summary}</span>
+    <span className={cn("min-w-48 flex-1", run.outcome === "failed" && "font-medium")}>{run.summary}</span>
     {run.fix && <Fix label={run.fix} />}
   </div>
 );
