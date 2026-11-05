@@ -253,6 +253,13 @@
       "when": 1793696021241,
       "tag": "0035_compact_purpose",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793879028543,
+      "tag": "0036_tasks",
+      "breakpoints": true
     }
   ]
 }

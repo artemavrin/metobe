@@ -157,7 +157,8 @@ export type ChatRole = (typeof chatRoles)[number];
 export const chatVisibilities = ["private", "team"] as const;
 export type ChatVisibility = (typeof chatVisibilities)[number];
 
-export const chatKinds = ["chat", "agent_run"] as const;
+/** `task_run` — a periodic task's run (ARCH §16): an ordinary chat, the journal of its work; it stays out of the chat list. */
+export const chatKinds = ["chat", "task_run"] as const;
 export type ChatKind = (typeof chatKinds)[number];
 
 /** A new chat is named by its first line until real titles arrive (M3.3); the sidebar shows it before the server. */

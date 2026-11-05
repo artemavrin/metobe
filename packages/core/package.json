@@ -22,6 +22,8 @@
     "@metobe/i18n": "workspace:*",
     "ai": "7.0.113",
     "better-auth": "^1.7.5",
+    "bullmq": "6.3.19",
+    "cron-parser": "5.10.2",
     "defuddle": "^0.19.4",
     "drizzle-orm": "^0.45.3",
     "fflate": "0.8.3",
