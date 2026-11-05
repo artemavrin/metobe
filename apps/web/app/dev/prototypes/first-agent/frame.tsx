@@ -28,7 +28,7 @@ export const usePhone = () => useProto().screen === "phone";
 // ── Приложение вокруг ────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Задача в боковой панели: открыта ли сейчас и есть ли итог, который ещё не видели. */
-export interface SideTask { name: string; color: string; active?: boolean; unread?: boolean }
+export interface SideTask { name: string; color: string; active?: boolean; unread?: boolean; onSelect?: () => void }
 
 /** `chat` — открытый сейчас чат: стоит первым в «Чатах», пока не стал задачей. `area` — какой пункт выбран. `tasks` —
  *  готовый список задач вместо только что созданной. */
@@ -47,11 +47,18 @@ const Sidebar = ({ chat, area = "agents", tasks }: { chat?: string; area?: "agen
         </span>
         {tasks?.map((t) => (
           // Новый итог — точка цвета задачи справа: увидел, открыл — точка гаснет.
-          <span className={cn("ml-6 flex items-center gap-2 rounded-md px-2 py-1.5", t.active && "bg-sidebar-accent font-medium")} key={t.name}>
+          <button
+            aria-current={t.active ? "page" : undefined}
+            className={cn("ml-6 flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-150", t.active ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/60")}
+            disabled={!t.onSelect}
+            key={t.name}
+            onClick={t.onSelect}
+            type="button"
+          >
             <span className="size-2 shrink-0 rounded-full" style={{ background: t.color }} />
             <span className={cn("min-w-0 flex-1 truncate", t.unread && "font-medium")}>{t.name}</span>
             {t.unread && <span aria-label="новый итог" className="bg-foreground size-1.5 shrink-0 rounded-full" />}
-          </span>
+          </button>
         ))}
         {!tasks && created && (
           // Новая задача встаёт под «Задачами»: вот где она теперь живёт. Подсветка гаснет за секунду.

@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 
 import { Picker } from "../_shared/picker";
 import { ProtoProvider } from "../first-agent/state";
-import { LastProvider, Log, Messages, OnlyNew, Params } from "./variants";
+import { Feed, Log, Params, TaskProvider } from "./variants";
 
-// P12 · итоги задачи: что приходит в чат задачи после запуска. Задача из /first-agent, «Цены конкурентов». Варианты —
-// как выглядит запуск: «Сообщения», «Журнал», «Только новое». «Параметры»: телефон и чем кончился последний запуск —
-// первый (сравнивать не с чем), изменения, нового нет, сбой. В адресе: `?v=1&last=quiet&sz=phone`.
+// P12 · итоги задачи, раунд 2: что приходит в чат задачи после запусков. Свежий запуск сверху, история ниже. Три задачи
+// с разными итогами — таблица цен, список писем, сводка продаж с виджетом показателей — переключаются в боковой панели:
+// итог — это обычный ответ модели. Варианты — «Лента» и «Журнал». «Параметры»: телефон и задача.
+// В адресе: `?v=1&task=sales&sz=phone`.
 
 const Mounted = ({ children }: { children: React.ReactNode }) => {
   const [mounted, setMounted] = useState(false);
@@ -18,16 +19,15 @@ const Mounted = ({ children }: { children: React.ReactNode }) => {
 
 const TaskResultsPrototypePage = () => (
   <ProtoProvider>
-    <LastProvider>
+    <TaskProvider>
       <Picker
         params={<Params />}
         variants={[
-          { Component: () => <Mounted><Messages /></Mounted>, name: "Сообщения", pickerTop: true },
+          { Component: () => <Mounted><Feed /></Mounted>, name: "Лента", pickerTop: true },
           { Component: () => <Mounted><Log /></Mounted>, name: "Журнал", pickerTop: true },
-          { Component: () => <Mounted><OnlyNew /></Mounted>, name: "Только новое", pickerTop: true },
         ]}
       />
-    </LastProvider>
+    </TaskProvider>
   </ProtoProvider>
 );
 
