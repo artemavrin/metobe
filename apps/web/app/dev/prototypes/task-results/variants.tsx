@@ -19,6 +19,8 @@ import type { Outcome, Run, Task } from "./data";
 // настроили, свёрнутый в строку. Итог запуска — обычный ответ модели, как в чате (текст, таблица, список, виджет
 // показателей); у него только своя строка: когда, чем кончился, сколько шёл. Задачи переключаются в боковой панели.
 // «Лента» — каждый итог целиком, пустые запуски подряд — одной строкой. «Журнал» — запуски строками, раскрыт свежий.
+// «Последний итог» — последний ответ, где есть что читать, целиком; сбой или «нового нет» после него — строкой над ним;
+// прошлые запуски — под спойлером, строками журнала.
 
 // ── Какая задача открыта ────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -275,6 +277,75 @@ export const Log = () => {
           <LogRow color={task.color} key={r.id} onToggle={() => setOpen((o) => (o === r.id ? null : r.id))} open={open === r.id} run={r} />
         ))}
       </div>
+    </TaskPage>
+  );
+};
+
+// ── «Последний итог» ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Запуск после последнего итога, в котором нечего читать: сбой или «нового нет» — строкой над итогом. */
+const Since = ({ run }: { run: Run }) => (
+  <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-2 rounded-lg px-3 py-2 text-sm", run.outcome === "failed" ? "bg-amber-500/10" : "bg-muted/50 text-muted-foreground")}>
+    <Mark color="" outcome={run.outcome} />
+    <span className="tabular-nums">{run.day}</span>
+    <span className={cn("min-w-0 flex-1", run.outcome === "failed" && "font-medium")}>{run.summary}</span>
+    {run.fix && <Fix label={run.fix} />}
+  </div>
+);
+
+export const Latest = () => {
+  const { task } = use(Open);
+  const at = task.runs.findIndex((r) => r.outcome === "news" || r.outcome === "baseline");
+  const result = task.runs[at];
+  const since = task.runs.slice(0, Math.max(at, 0));
+  const past = task.runs.slice(at + 1);
+  const [history, setHistory] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => {
+    setHistory(false);
+    setOpen(null);
+  }, [task.id]);
+  return (
+    <TaskPage>
+      {since.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {since.map((r) => (
+            <Since key={r.id} run={r} />
+          ))}
+        </div>
+      )}
+      {result && (
+        <section className="flex flex-col gap-2">
+          <header className="text-muted-foreground flex items-center gap-2 text-xs">
+            <Mark color={task.color} outcome={result.outcome} />
+            <span className="text-foreground font-medium">Последний итог · {result.at}</span>
+            <span className="ml-auto tabular-nums">{result.took}</span>
+          </header>
+          <div className="[&_[data-slot=message-footer]]:hidden">
+            <AssistantMessage label={MODEL} live={false} message={asMessage(result)} />
+          </div>
+        </section>
+      )}
+      {past.length > 0 && (
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <button
+            aria-expanded={history}
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start text-sm transition-colors duration-150"
+            onClick={() => setHistory((h) => !h)}
+            type="button"
+          >
+            <ChevronDown className={cn("size-4 transition-transform duration-200", history && "rotate-180")} />
+            Прошлые запуски · {past.length}
+          </button>
+          {history && (
+            <div className={cn("bg-card overflow-hidden rounded-xl border", ENTER)}>
+              {past.map((r) => (
+                <LogRow color={task.color} key={r.id} onToggle={() => setOpen((o) => (o === r.id ? null : r.id))} open={open === r.id} run={r} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </TaskPage>
   );
 };
