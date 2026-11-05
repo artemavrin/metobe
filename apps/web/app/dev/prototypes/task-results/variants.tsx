@@ -24,7 +24,7 @@ import type { Outcome, Run, Task } from "./data";
 
 // ── Какая задача открыта ────────────────────────────────────────────────────────────────────────────────────────────
 
-const Open = createContext<{ task: Task; open: (id: string) => void; seen: Set<string> }>(null as never);
+export const Open = createContext<{ task: Task; open: (id: string) => void; seen: Set<string> }>(null as never);
 
 export const TaskProvider = ({ children }: { children: React.ReactNode }) => {
   const [id, setId] = useState(TASKS[0]?.id ?? "");
@@ -82,7 +82,7 @@ export const Params = () => {
 
 // ── Общее ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const Fix = ({ label }: { label: string }) => {
+export const Fix = ({ label }: { label: string }) => {
   const { say } = useProto();
   const login = label.startsWith("Войти");
   return (
@@ -93,7 +93,7 @@ const Fix = ({ label }: { label: string }) => {
   );
 };
 
-const Mark = ({ outcome, color }: { outcome: Outcome; color: string }) =>
+export const Mark = ({ outcome, color }: { outcome: Outcome; color: string }) =>
   outcome === "failed" ? (
     <TriangleAlert className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
   ) : outcome === "quiet" ? (
@@ -132,10 +132,15 @@ const Setup = ({ task }: { task: Task }) => {
   );
 };
 
-const TaskPage = ({ children }: { children: React.ReactNode }) => {
+/** `onSend` — что делает поле «Что поменять в задаче…» (без него — подсказка про D28); `draft` — что уже написано в
+ *  поле; `schedule` и `next` — расписание и следующий запуск в шапке, если их поменяли; `busy` — модель отвечает, поле ждёт. */
+export const TaskPage = ({ children, onSend, draft = "", schedule, next, busy = false }: { children: React.ReactNode; onSend?: (text: string) => void; draft?: string; schedule?: string; next?: string; busy?: boolean }) => {
   const { say } = useProto();
   const { task, open, seen } = use(Open);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(draft);
+  useEffect(() => {
+    setText(draft);
+  }, [draft]);
   const top = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // Свежий запуск — наверху: открыть задачу значит оказаться в начале ленты, под шапкой, а не за ней.
@@ -148,7 +153,7 @@ const TaskPage = ({ children }: { children: React.ReactNode }) => {
         <span className="size-2 shrink-0 rounded-full" style={{ background: task.color }} />
         <span className="truncate font-medium">{task.name}</span>
         <span className="text-muted-foreground truncate">
-          · {task.schedule.toLowerCase()} · следующий {task.next}
+          · {(schedule ?? task.schedule).toLowerCase()} · следующий {next ?? task.next}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-2">
           <Button className={PRESS} onClick={() => say("Запуск начат")} size="sm" variant="ghost">
@@ -165,11 +170,12 @@ const TaskPage = ({ children }: { children: React.ReactNode }) => {
       <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 pt-2 pb-3 backdrop-blur">
         <div className="mx-auto w-full max-w-3xl px-4">
           <SlotComposer
-            busy={false}
+            busy={busy}
             onChange={setText}
-            onSend={() => {
+            onSend={(t) => {
               setText("");
-              say("Модель покажет правку карточкой «было → стало» (D28)");
+              if (onSend) onSend(t);
+              else say("Модель покажет правку карточкой «было → стало» (D28)");
             }}
             placeholder="Что поменять в задаче…"
             value={text}
@@ -295,7 +301,8 @@ const Since = ({ run }: { run: Run }) => (
   </div>
 );
 
-export const Latest = () => {
+/** Последний итог целиком, сбой или «нового нет» после него — строкой над ним, прошлые запуски — под спойлером. */
+export const LatestBody = () => {
   const { task } = use(Open);
   const at = task.runs.findIndex((r) => r.outcome === "news" || r.outcome === "baseline");
   const result = task.runs[at];
@@ -308,7 +315,7 @@ export const Latest = () => {
     setOpen(null);
   }, [task.id]);
   return (
-    <TaskPage>
+    <>
       {since.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {since.map((r) => (
@@ -348,6 +355,12 @@ export const Latest = () => {
           )}
         </div>
       )}
-    </TaskPage>
+    </>
   );
 };
+
+export const Latest = () => (
+  <TaskPage>
+    <LatestBody />
+  </TaskPage>
+);
