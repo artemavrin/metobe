@@ -12,6 +12,11 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
@@ -22,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { SquarePen } from "lucide-react";
+import { CalendarClock, SquarePen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -133,6 +138,79 @@ const History = ({ chats, ops }: { chats: ChatItem[]; ops: ChatOps }) => {
   ));
 };
 
+/** A task in the sidebar: the ones that wait for the person (a result not seen, a question, an action), and the open one. */
+const NO_TASKS: SidebarTask[] = [];
+
+export interface SidebarTask {
+  id: string;
+  name: string;
+  color: string;
+  waiting: boolean;
+}
+
+/**
+ * «Задачи» and under it only the tasks that wait for the person, each with a dot, plus the one open now (D24). Seen
+ * to, a task leaves the list; all of them are on the «Задачи» page.
+ */
+const Tasks = ({ tasks }: { tasks: SidebarTask[] }) => {
+  const t = useTranslations("tasks");
+  const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const close = () => isMobile && setOpenMobile(false);
+  const shown = tasks.filter(
+    (task) => task.waiting || pathname === `/tasks/${task.id}`
+  );
+  return (
+    <SidebarGroup className="py-1">
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname === "/tasks"}
+              onClick={close}
+              render={<Link href="/tasks" />}
+            >
+              <CalendarClock />
+              <span>{t("nav")}</span>
+            </SidebarMenuButton>
+            {shown.length > 0 && (
+              <SidebarMenuSub>
+                {shown.map((task) => (
+                  <SidebarMenuSubItem key={task.id}>
+                    <SidebarMenuSubButton
+                      isActive={pathname === `/tasks/${task.id}`}
+                      onClick={close}
+                      render={<Link href={`/tasks/${task.id}`} />}
+                    >
+                      <span
+                        aria-hidden
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ background: task.color }}
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        {task.name}
+                      </span>
+                      {task.waiting && (
+                        <>
+                          <span
+                            aria-hidden
+                            className="bg-foreground size-1.5 shrink-0 rounded-full"
+                          />
+                          <span className="sr-only">, {t("waiting")}</span>
+                        </>
+                      )}
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                ))}
+              </SidebarMenuSub>
+            )}
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+};
+
 /** «Новый чат» as an icon beside the brand: the header stays one line, the search right under it. */
 const NewChat = () => {
   const t = useTranslations("chat");
@@ -172,6 +250,7 @@ const NewChat = () => {
  */
 export const ChatShell = ({
   chats: initialChats,
+  tasks = NO_TASKS,
   admin,
   user,
   sendKey,
@@ -180,6 +259,8 @@ export const ChatShell = ({
 }: {
   /** The user's chats, latest first, each in its day group by the user's calendar. */
   chats: ChatItem[];
+  /** The user's periodic tasks; the sidebar shows the ones that wait for them. */
+  tasks?: SidebarTask[];
   /** The search offers the service's settings sections to admins. */
   admin: boolean;
   user: Person;
@@ -276,6 +357,7 @@ export const ChatShell = ({
                 </div>
               </SidebarHeader>
               <SidebarContent>
+                <Tasks tasks={tasks} />
                 <SidebarSearch admin={admin} chats={chats}>
                   <History chats={chats} ops={ops} />
                 </SidebarSearch>

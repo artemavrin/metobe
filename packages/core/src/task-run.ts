@@ -193,11 +193,17 @@ interface Pass {
 
 /** The work: the model with the tools until `report` or the step limit; the answer as the chat stores it. */
 const work = async (p: Pass, ask: string, tools: ToolSet, maxSteps: number) => {
+  // A stream's error goes to `onError`, and the result then rejects with «No output generated»: the run is to say
+  // the first one — the provider's own reason.
+  let failure: unknown;
   const result = streamText({
     abortSignal: p.signal,
     instructions: p.instructions,
     messages: [{ content: ask, role: "user" }],
     model: p.languageModel,
+    onError: ({ error }) => {
+      failure ??= error;
+    },
     stopWhen: [stepCountIs(maxSteps), hasToolCall(REPORT)],
     tools,
   });
@@ -212,12 +218,16 @@ const work = async (p: Pass, ask: string, tools: ToolSet, maxSteps: number) => {
     sendReasoning: true,
     stream: result.stream,
   });
-  for await (const message of readUIMessageStream<ChatMessage>({ stream })) {
-    answer = message;
+  try {
+    for await (const message of readUIMessageStream<ChatMessage>({ stream })) {
+      answer = message;
+    }
+    const steps: Steps = [...(await result.steps)];
+    const response = await result.response;
+    return { answer, response, steps };
+  } catch (error) {
+    throw failure ?? error;
   }
-  const steps: Steps = [...(await result.steps)];
-  const response = await result.response;
-  return { answer, response, steps };
 };
 
 /**

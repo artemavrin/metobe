@@ -2456,5 +2456,53 @@
       "current": "installed here",
       "empty": "Nothing yet."
     }
+  },
+  "tasks": {
+    "nav": "Tasks",
+    "title": "Tasks",
+    "waiting": "waiting for you",
+    "next": "next {when}",
+    "off": "off",
+    "runNow": "Run now",
+    "enabled": "Task is on",
+    "offNote": "The task is off: no scheduled runs.",
+    "pausedNote": "The task stopped: {reason}",
+    "turnOn": "Turn on",
+    "about": "About the task",
+    "fields": {
+      "does": "What it does",
+      "schedule": "Schedule",
+      "sources": "Sources",
+      "report": "Result",
+      "created": "Created",
+      "mail": "By email"
+    },
+    "reportWhen": {
+      "changes": "Only when something changed",
+      "always": "After every run"
+    },
+    "allSources": "All connections",
+    "mailOn": "New results, questions and failures",
+    "mailOff": "Don't send",
+    "latest": "Latest result · {at}",
+    "running": "Running…",
+    "queued": "Queued…",
+    "quietSince": "{at} — nothing new",
+    "failedSince": "{at} — failed: {error}",
+    "past": "Past runs · {count}",
+    "noRuns": "No runs yet. The first — {when}.",
+    "noResult": "No results yet: the runs found nothing new.",
+    "retry": "Run again",
+    "cancelled": "Run cancelled",
+    "failed": "Failed: {error}",
+    "mailLabel": "Emails about this task",
+    "mailNote": "“Nothing new” never goes by email",
+    "actionFailed": "That did not work. Try again.",
+    "answerFailed": "Could not load the run's answer.",
+    "notFound": "Task not found",
+    "list": {
+      "empty": "No tasks yet.",
+      "new": "New task"
+    }
   }
 }

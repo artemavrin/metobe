@@ -6,6 +6,7 @@ import {
   nextRuns,
   planDue,
   runJobId,
+  scheduleWords,
 } from "./task-schedule";
 
 const at = (iso: string) => new Date(iso);
@@ -85,5 +86,31 @@ describe("a due task", () => {
     expect(id).not.toBe(
       runJobId("6f9c2b1e-0000-4000-8000-000000000001", due, "manual")
     );
+  });
+});
+
+describe("the schedule in words", () => {
+  it("says the usual shapes as people do", () => {
+    expect(scheduleWords("0 9 * * 1-5", "ru")).toBe("По будням в 9:00");
+    expect(scheduleWords("0 10 * * 1", "ru")).toBe("По понедельникам в 10:00");
+    expect(scheduleWords("30 8 * * 1,3", "ru")).toBe(
+      "По понедельникам и средам в 8:30"
+    );
+    expect(scheduleWords("0 18 * * *", "ru")).toBe("Каждый день в 18:00");
+    expect(scheduleWords("0 9,15 * * 1-5", "ru")).toBe(
+      "По будням в 9:00 и 15:00"
+    );
+    expect(scheduleWords("0 10 * * 6,0", "ru")).toBe("По выходным в 10:00");
+    expect(scheduleWords("0 9 1 * *", "ru")).toBe(
+      "Каждый месяц 1-го числа в 9:00"
+    );
+    expect(scheduleWords("0 9 * * 1-5", "en")).toBe("On weekdays at 9:00");
+    expect(scheduleWords("0 10 * * 7", "en")).toBe("On Sundays at 10:00");
+  });
+
+  it("shows any other cron as it is, never a wrong sentence", () => {
+    expect(scheduleWords("*/15 * * * *", "ru")).toBe("*/15 * * * *");
+    expect(scheduleWords("0 9 * 1 *", "ru")).toBe("0 9 * 1 *");
+    expect(scheduleWords("0 9 L * *", "ru")).toBe("0 9 L * *");
   });
 });

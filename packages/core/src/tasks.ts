@@ -7,8 +7,9 @@ import type {
   TaskTrigger,
 } from "@metobe/contracts/tasks";
 import { taskRuns, taskVersions, tasks } from "@metobe/db/schema/tasks";
-import { and, desc, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 
+import { listMessages } from "./chat";
 import { getDb } from "./db";
 import { nextRun, planDue } from "./task-schedule";
 
@@ -295,4 +296,165 @@ export const finishRun = async (
       }
     }
   });
+};
+
+// ── What the pages read and do (ARCH §16.4) ───────────────────────────────────────────────────────────────────────
+
+export type TaskRow = typeof tasks.$inferSelect;
+export type TaskRunRow = typeof taskRuns.$inferSelect;
+
+/** Whether a finished run waits for the person: a result not seen yet, a question or an action not closed. */
+export const waitsFor = (
+  run:
+    | Pick<TaskRunRow, "outcome" | "seenAt" | "resolvedAt" | "status">
+    | null
+    | undefined
+) => {
+  if (
+    !run ||
+    run.status !== "done" ||
+    !run.outcome ||
+    run.outcome === "quiet"
+  ) {
+    return false;
+  }
+  return run.outcome === "news" ? run.seenAt === null : run.resolvedAt === null;
+};
+
+/** The latest finished run of each task given. */
+const latestRuns = async (taskIds: string[]) => {
+  if (taskIds.length === 0) {
+    return new Map<string, TaskRunRow>();
+  }
+  const { db } = getDb();
+  const rows = await db
+    .selectDistinctOn([taskRuns.taskId])
+    .from(taskRuns)
+    .where(
+      and(
+        inArray(taskRuns.taskId, taskIds),
+        inArray(taskRuns.status, ["done", "failed"])
+      )
+    )
+    .orderBy(taskRuns.taskId, desc(taskRuns.finishedAt));
+  return new Map(rows.map((r) => [r.taskId, r]));
+};
+
+/** The owner's tasks with each one's latest finished run, the newest task first. */
+export const listTasks = async (ownerId: string) => {
+  const { db } = getDb();
+  const list = await db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.ownerId, ownerId))
+    .orderBy(desc(tasks.createdAt));
+  const last = await latestRuns(list.map((t) => t.id));
+  return list.map((task) => ({ last: last.get(task.id) ?? null, task }));
+};
+
+/** One of the owner's tasks; null for anyone else's. */
+export const getTask = async (ownerId: string, id: string) => {
+  const { db } = getDb();
+  const [task] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId)))
+    .limit(1);
+  return task ?? null;
+};
+
+/** A task's runs, the newest first; a run still going is among them. */
+export const listTaskRuns = async (taskId: string, limit = 30) => {
+  const { db } = getDb();
+  return await db
+    .select()
+    .from(taskRuns)
+    .where(eq(taskRuns.taskId, taskId))
+    .orderBy(desc(taskRuns.scheduledFor))
+    .limit(limit);
+};
+
+/** Turns a task on or off. On again: the next run is counted from now, and a stop after failures is lifted. */
+export const setTaskEnabled = async (
+  ownerId: string,
+  id: string,
+  enabled: boolean,
+  now = new Date()
+) => {
+  const task = await getTask(ownerId, id);
+  if (!task) {
+    return false;
+  }
+  const { db } = getDb();
+  await db
+    .update(tasks)
+    .set(
+      enabled
+        ? {
+            consecutiveFailures: 0,
+            enabled,
+            nextRunAt: nextRun(task.cron, task.timezone, now),
+            pausedReason: null,
+            updatedAt: now,
+          }
+        : { enabled, updatedAt: now }
+    )
+    .where(eq(tasks.id, id));
+  return true;
+};
+
+/** The person opened the task: its results are seen, the dot goes out. Questions and actions stay until closed. */
+export const markTaskSeen = async (
+  ownerId: string,
+  id: string,
+  now = new Date()
+) => {
+  if (!(await getTask(ownerId, id))) {
+    return;
+  }
+  const { db } = getDb();
+  await db
+    .update(taskRuns)
+    .set({ seenAt: now })
+    .where(
+      and(
+        eq(taskRuns.taskId, id),
+        isNull(taskRuns.seenAt),
+        eq(taskRuns.status, "done")
+      )
+    );
+};
+
+/** A run's answer — the result as the chat stores it — for the owner of its task only; null for anyone else's. */
+export const getRunAnswer = async (ownerId: string, runId: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ chatId: taskRuns.chatId })
+    .from(taskRuns)
+    .innerJoin(tasks, eq(tasks.id, taskRuns.taskId))
+    .where(and(eq(taskRuns.id, runId), eq(tasks.ownerId, ownerId)))
+    .limit(1);
+  if (!row?.chatId) {
+    return null;
+  }
+  const messages = await listMessages(row.chatId);
+  // The run's last answer: the one after `report`'s write-up, when there was one.
+  const answers = messages.filter((m) => m.role === "assistant");
+  return answers.at(-1) ?? null;
+};
+
+/** Letters about the task on or off (P14); false — not the owner's task. */
+export const setTaskNotify = async (
+  ownerId: string,
+  id: string,
+  notifyEmail: boolean,
+  now = new Date()
+) => {
+  const { db } = getDb();
+  const changed = await db
+    .update(tasks)
+    .set({ notifyEmail, updatedAt: now })
+    .where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId)))
+    .returning({ id: tasks.id });
+  return changed.length > 0;
 };

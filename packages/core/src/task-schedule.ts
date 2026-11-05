@@ -48,3 +48,112 @@ export const planDue = (
 /** The queue job's id: one per task and due time, so a tick that comes twice does not run it twice. No «:» — BullMQ refuses it in a custom id. */
 export const runJobId = (taskId: string, scheduledFor: Date, trigger: string) =>
   `${taskId}-${trigger}-${scheduledFor.getTime()}`;
+
+// ── The schedule in words ──────────────────────────────────────────────────────────────────────────────────────────
+
+const DAYS = {
+  en: [
+    "Sundays",
+    "Mondays",
+    "Tuesdays",
+    "Wednesdays",
+    "Thursdays",
+    "Fridays",
+    "Saturdays",
+  ],
+  ru: [
+    "воскресеньям",
+    "понедельникам",
+    "вторникам",
+    "средам",
+    "четвергам",
+    "пятницам",
+    "субботам",
+  ],
+};
+
+const join = (items: string[], locale: "ru" | "en") => {
+  const and = locale === "ru" ? " и " : " and ";
+  return items.length < 2
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")}${and}${items.at(-1)}`;
+};
+
+/** «9:00», «9:00 и 15:00» from a cron's minute and hour fields; null when they are not plain numbers. */
+const timesOf = (minute: string, hour: string, locale: "ru" | "en") => {
+  if (!/^\d{1,2}$/u.test(minute) || !/^\d{1,2}(?:,\d{1,2})*$/u.test(hour)) {
+    return null;
+  }
+  return join(
+    hour.split(",").map((h) => `${Number(h)}:${minute.padStart(2, "0")}`),
+    locale
+  );
+};
+
+/** The week from Monday, as people count it. */
+const WEEK = [1, 2, 3, 4, 5, 6, 0];
+
+/** Day-of-week field → the day numbers 0–6 from Monday; null for anything but a list or a range of plain numbers. */
+const daysOf = (field: string) => {
+  const out = new Set<number>();
+  for (const part of field.split(",")) {
+    const range = /^(?<from>\d)-(?<to>\d)$/u.exec(part)?.groups;
+    if (range) {
+      for (let d = Number(range.from); d <= Number(range.to); d += 1) {
+        out.add(d % 7);
+      }
+    } else if (/^\d$/u.test(part)) {
+      out.add(Number(part) % 7);
+    } else {
+      return null;
+    }
+  }
+  return WEEK.filter((d) => out.has(d));
+};
+
+/** «По будням в 9:00», «По понедельникам и средам в 8:30» — or null for a day field that is not plain. */
+const weeklyWords = (dow: string, at: string, locale: "ru" | "en") => {
+  const days = daysOf(dow);
+  if (!days) {
+    return null;
+  }
+  const ru = locale === "ru";
+  const key = days.join(",");
+  if (key === "1,2,3,4,5") {
+    return ru ? `По будням в ${at}` : `On weekdays at ${at}`;
+  }
+  if (key === "6,0") {
+    return ru ? `По выходным в ${at}` : `On weekends at ${at}`;
+  }
+  const names = join(
+    days.map((d) => DAYS[locale][d] ?? ""),
+    locale
+  );
+  return ru ? `По ${names} в ${at}` : `On ${names} at ${at}`;
+};
+
+/**
+ * A cron as people say it: «По будням в 9:00», «По понедельникам в 10:00», «Каждый день в 18:00», «Каждый месяц
+ * 1-го числа в 9:00». A cron outside these shapes is shown as it is — never a wrong sentence.
+ */
+export const scheduleWords = (cron: string, locale: "ru" | "en") => {
+  const fields = cron.trim().split(/\s+/u);
+  const [minute = "", hour = "", dom = "", month = "", dow = ""] = fields;
+  const at = timesOf(minute, hour, locale);
+  if (!at || month !== "*" || fields.length !== 5) {
+    return cron;
+  }
+  const ru = locale === "ru";
+  if (dom === "*" && dow === "*") {
+    return ru ? `Каждый день в ${at}` : `Every day at ${at}`;
+  }
+  if (dom === "*") {
+    return weeklyWords(dow, at, locale) ?? cron;
+  }
+  if (dow === "*" && /^\d{1,2}$/u.test(dom)) {
+    return ru
+      ? `Каждый месяц ${Number(dom)}-го числа в ${at}`
+      : `Monthly on day ${Number(dom)} at ${at}`;
+  }
+  return cron;
+};
