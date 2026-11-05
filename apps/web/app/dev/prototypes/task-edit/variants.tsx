@@ -18,7 +18,7 @@ import type { Change, Edit } from "./data";
 // «Сверху» — над последним итогом, там, куда смотрят первым; применённое — строкой «Изменена … · Вернуть как было».
 // «Панель» — сбоку (на телефоне снизу), страница под ней не меняется, пока не применили.
 // «Карточка задачи» — у задачи наверху своя карточка (что делает, когда, откуда, итог), свёрнутая в строку; изменение
-// раскрывает её и показывается в тех же строках.
+// раскрывает её и показывается в тех же строках. Выбрана (P15): строки «Создана … — «просьба»» внизу у неё нет.
 
 type Stage = "idle" | "thinking" | "proposed" | "applied";
 
@@ -180,12 +180,13 @@ export const Card = () => {
   const editing = e.stage === "thinking" || e.stage === "proposed";
   const shown = open || editing;
   const changed = new Map(e.edit.changes.map((c) => [c.label, c]));
-  const fields = (FIELDS[task.id] ?? []).map((f) => {
+  // Последняя строка — когда задачу создали: строки «Создана … — «просьба»» внизу страницы больше нет.
+  const fields = [...(FIELDS[task.id] ?? []), { label: "Создана", value: task.created }].map((f) => {
     const c = changed.get(f.label);
     return { ...f, change: c, value: c && e.stage === "applied" ? c.after : f.value };
   });
   return (
-    <TaskPage busy={e.stage === "thinking"} draft={e.stage === "idle" ? e.edit.ask : ""} onSend={e.send} next={e.stage === "applied" ? e.edit.next : undefined} schedule={e.stage === "applied" ? e.edit.schedule : undefined}>
+    <TaskPage busy={e.stage === "thinking"} draft={e.stage === "idle" ? e.edit.ask : ""} onSend={e.send} next={e.stage === "applied" ? e.edit.next : undefined} schedule={e.stage === "applied" ? e.edit.schedule : undefined} setup={false}>
       <section className={cn("bg-card rounded-xl border", editing && "ring-foreground/10 ring-2")}>
         <button
           aria-expanded={shown}

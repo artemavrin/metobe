@@ -133,8 +133,9 @@ const Setup = ({ task }: { task: Task }) => {
 };
 
 /** `onSend` — что делает поле «Что поменять в задаче…» (без него — подсказка про D28); `draft` — что уже написано в
- *  поле; `schedule` и `next` — расписание и следующий запуск в шапке, если их поменяли; `busy` — модель отвечает, поле ждёт. */
-export const TaskPage = ({ children, onSend, draft = "", schedule, next, busy = false }: { children: React.ReactNode; onSend?: (text: string) => void; draft?: string; schedule?: string; next?: string; busy?: boolean }) => {
+ *  поле; `schedule` и `next` — расписание и следующий запуск в шапке, если их поменяли; `busy` — модель отвечает, поле ждёт; `setup` — строка «Создана … — «просьба»» внизу (у страницы с
+ *  карточкой задачи её нет: карточка говорит то же). */
+export const TaskPage = ({ children, onSend, draft = "", schedule, next, busy = false, setup = true }: { children: React.ReactNode; onSend?: (text: string) => void; draft?: string; schedule?: string; next?: string; busy?: boolean; setup?: boolean }) => {
   const { say } = useProto();
   const { task, open, seen } = use(Open);
   const [text, setText] = useState(draft);
@@ -165,7 +166,7 @@ export const TaskPage = ({ children, onSend, draft = "", schedule, next, busy = 
       </header>
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 pt-6 pb-6" key={task.id} ref={top}>
         {children}
-        <Setup task={task} />
+        {setup && <Setup task={task} />}
       </div>
       <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 pt-2 pb-3 backdrop-blur">
         <div className="mx-auto w-full max-w-3xl px-4">
