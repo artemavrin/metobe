@@ -357,8 +357,9 @@ export const ChatShell = ({
                 </div>
               </SidebarHeader>
               <SidebarContent>
-                <Tasks tasks={tasks} />
+                {/* The search on top, as everywhere; while it is searching its results take the place of tasks and chats. */}
                 <SidebarSearch admin={admin} chats={chats}>
+                  <Tasks tasks={tasks} />
                   <History chats={chats} ops={ops} />
                 </SidebarSearch>
               </SidebarContent>
