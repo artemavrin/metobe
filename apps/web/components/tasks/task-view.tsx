@@ -396,20 +396,34 @@ const Past = ({ runs }: { runs: TaskRunRow[] }) => {
   );
 };
 
-/** The run on its way: in the queue or going. */
-const Going = ({ run }: { run: TaskRunRow }) => {
+/** The run on its way: in the queue, or going — with its steps as far as it got, filling in while the page looks again. */
+const Going = ({
+  run,
+  answer,
+}: {
+  run: TaskRunRow;
+  answer: ChatMessage | null;
+}) => {
   const t = useTranslations("tasks");
+  const { servers } = use(Ctx);
   return (
-    <div
-      aria-live="polite"
-      className={cn(
-        "text-muted-foreground flex items-center gap-2 text-sm",
-        ENTER
+    <section className={cn("flex flex-col gap-2", ENTER)}>
+      {/* Once its steps come, the answer's own status line («Работает») says it goes. */}
+      {!answer && (
+        <p
+          aria-live="polite"
+          className="text-muted-foreground flex items-center gap-2 text-sm"
+        >
+          <Spinner className="size-3.5" />
+          {run.status === "running" ? t("running") : t("queued")}
+        </p>
       )}
-    >
-      <Spinner className="size-3.5" />
-      {run.status === "running" ? t("running") : t("queued")}
-    </div>
+      {answer && (
+        <div className="[&_[data-slot=message-footer]]:hidden">
+          <AssistantMessage live message={answer} servers={servers} />
+        </div>
+      )}
+    </section>
   );
 };
 
@@ -472,11 +486,14 @@ const Result = ({
 const Runs = ({
   runs,
   answer,
+  going,
   busy,
   onRetry,
 }: {
   runs: TaskRuns;
   answer: ChatMessage | null;
+  /** The run on its way, as far as it got. */
+  going: ChatMessage | null;
   busy: boolean;
   onRetry: () => void;
 }) => {
@@ -487,7 +504,7 @@ const Runs = ({
   const nothing = !(result || quiet || failures.length > 0 || active);
   return (
     <>
-      {active && <Going run={active} />}
+      {active && <Going answer={going} run={active} />}
       {failures.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {failures.map((r) => (
@@ -563,6 +580,7 @@ export const TaskView = ({
   task,
   runs,
   answer,
+  going,
   schedule,
   sources,
   servers,
@@ -571,6 +589,8 @@ export const TaskView = ({
   runs: TaskRuns;
   /** The last result's answer. */
   answer: ChatMessage | null;
+  /** The run on its way, as far as it got. */
+  going: ChatMessage | null;
   /** The schedule in words. */
   schedule: string;
   /** The sources' titles; null — every connection. */
@@ -666,7 +686,13 @@ export const TaskView = ({
             schedule={schedule}
             sources={sources}
           />
-          <Runs answer={answer} busy={busy} onRetry={runNow} runs={runs} />
+          <Runs
+            answer={answer}
+            busy={busy}
+            going={going}
+            onRetry={runNow}
+            runs={runs}
+          />
         </div>
       </div>
     </Ctx>

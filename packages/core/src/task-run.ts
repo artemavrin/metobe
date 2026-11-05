@@ -192,7 +192,45 @@ interface Pass {
 }
 
 /** The work: the model with the tools until `report` or the step limit; the answer as the chat stores it. */
-const work = async (p: Pass, ask: string, tools: ToolSet, maxSteps: number) => {
+/** How often the answer on its way is written down, at most: the task's page shows it while the run goes. */
+const PROGRESS_MS = 1500;
+
+/**
+ * Writes the answer on its way, now and then: a write is skipped while one is in flight or one was made a moment ago —
+ * the next comes with a later state. `done` waits for the last one, so it never lands over the final answer.
+ */
+const progressWriter = (save: (answer: ChatMessage) => Promise<void>) => {
+  let busy: Promise<void> | null = null;
+  let last = 0;
+  return {
+    done: async () => {
+      await busy;
+    },
+    push: (answer: ChatMessage) => {
+      if (busy || Date.now() - last < PROGRESS_MS) {
+        return;
+      }
+      last = Date.now();
+      busy = (async () => {
+        try {
+          await save(answer);
+        } catch (error) {
+          console.error("tasks: progress", error);
+        } finally {
+          busy = null;
+        }
+      })();
+    },
+  };
+};
+
+const work = async (
+  p: Pass,
+  ask: string,
+  tools: ToolSet,
+  maxSteps: number,
+  onProgress: (answer: ChatMessage) => Promise<void>
+) => {
   // A stream's error goes to `onError`, and the result then rejects with «No output generated»: the run is to say
   // the first one — the provider's own reason.
   let failure: unknown;
@@ -219,9 +257,12 @@ const work = async (p: Pass, ask: string, tools: ToolSet, maxSteps: number) => {
     stream: result.stream,
   });
   try {
+    const progress = progressWriter(onProgress);
     for await (const message of readUIMessageStream<ChatMessage>({ stream })) {
       answer = message;
+      progress.push(message);
     }
+    await progress.done();
     const steps: Steps = [...(await result.steps)];
     const response = await result.response;
     return { answer, response, steps };
@@ -349,7 +390,17 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     };
     const ask = `Запуск задачи: ${dateIn(at, snapshot.timezone)}.`;
-    const done = await work(pass, ask, tools, task.maxSteps);
+    const question: ChatMessage = {
+      id: randomUUID(),
+      metadata: { createdAt: new Date(started).toISOString() },
+      parts: [{ text: ask, type: "text" }],
+      role: "user",
+    };
+    // The run's chat fills as it goes: the page shows its steps while it runs (ARCH §16.4).
+    await saveMessages(chatId, [question]);
+    const done = await work(pass, ask, tools, task.maxSteps, (going) =>
+      saveMessages(chatId, [question, going])
+    );
     let { answer } = done;
     const steps = [...done.steps];
     const report = reported.value;
@@ -367,12 +418,6 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
         };
       }
     }
-    const question: ChatMessage = {
-      id: randomUUID(),
-      metadata: { createdAt: new Date(started).toISOString() },
-      parts: [{ text: ask, type: "text" }],
-      role: "user",
-    };
     await saveMessages(chatId, answer ? [question, answer] : [question]);
     await record("ok", steps);
     await finishRun(runId, endOf(answer, report));

@@ -27,9 +27,11 @@ const TaskPage = async ({ params }: { params: Promise<{ id: string }> }) => {
     getTaskRuns(task.id),
     listChatServers(user.id),
   ]);
-  const answer = runs.result
-    ? await getRunAnswer(user.id, runs.result.id)
-    : null;
+  // The result whole, and the run on its way as far as it got: its steps fill in while the page looks again.
+  const [answer, going] = await Promise.all([
+    runs.result ? getRunAnswer(user.id, runs.result.id) : null,
+    runs.active?.chatId ? getRunAnswer(user.id, runs.active.id) : null,
+  ]);
   const sources =
     task.catalogIds?.flatMap(
       (c) => servers.find((s) => s.id === c)?.title ?? []
@@ -37,6 +39,7 @@ const TaskPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   return (
     <TaskView
       answer={answer}
+      going={going}
       key={task.id}
       runs={runs}
       schedule={scheduleWords(task.cron, locale === "en" ? "en" : "ru")}
