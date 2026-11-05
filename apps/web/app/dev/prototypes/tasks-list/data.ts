@@ -14,6 +14,8 @@ export interface Item {
   next?: string;
   /** Последний запуск: итог одной строкой, ответ целиком (`parts`) и что сделать после сбоя (`fix`). */
   last: { day: string; outcome: Outcome; summary: string; parts?: Run["parts"]; fix?: string; id?: string };
+  /** Итог запуска, который пройдёт после исправления сбоя. */
+  fixed?: string;
   /** Итог, который ещё не открывали. */
   unread?: boolean;
   enabled: boolean;
@@ -35,6 +37,7 @@ const fromTask = (id: string, unread = false): Item => {
     next: t.next,
     schedule: t.schedule,
     unread,
+    ...(id === "mail" && { fixed: "Ответа ждут 2 письма" }),
   };
 };
 
@@ -104,3 +107,6 @@ export const sorted = (items: Item[]) => [...items].sort((a, b) => ORDER.indexOf
 /** Следующий запуск словами — от «сейчас» прототипа (пн, 30 ноя): «сегодня в 18:00», «завтра в 8:30», «пн, 7 дек в 8:00». */
 export const when = (next: string) =>
   next.replace(/^сегодня, /u, "сегодня в ").replace(/^вт, 1 дек, /u, "завтра в ").replace(/, (\d{1,2}:\d{2})$/u, " в $1");
+
+/** Номер дня итога («30 ноя» → 30): новые итоги идут от свежего к старому. Все даты прототипа — в ноябре. */
+export const dayOf = (day: string) => Number.parseInt(day, 10) || 0;
