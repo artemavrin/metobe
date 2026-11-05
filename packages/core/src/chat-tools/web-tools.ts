@@ -10,9 +10,10 @@ import type {
   WebSearchInput,
   WebSearchOutput,
 } from "@metobe/contracts/web";
-import { fetchPage, searchWeb } from "@metobe/core/web";
 import { tool } from "ai";
 import type { Tool } from "ai";
+
+import { fetchPage, searchWeb } from "../web";
 
 /** The tools' names — the answer's work draws their parts (`tool-web_search`, `tool-web_fetch`) as steps. */
 export const WEB_SEARCH = "web_search";

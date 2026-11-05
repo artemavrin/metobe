@@ -12,8 +12,8 @@ import type {
   MetricsOutput,
 } from "@metobe/contracts/metrics";
 
-import { toNumber } from "./chart-data";
 import { bucketOf, need } from "./source-widgets";
+import { toNumber } from "./to-number";
 import { SourceError } from "./tool-sources";
 import type { Cell, SourceTable } from "./tool-table";
 

@@ -18,8 +18,25 @@ import { getLanguageModel } from "./ai";
 import { createChat, getChatModel, listMessages, saveMessages } from "./chat";
 import type { ChatModel } from "./chat";
 import { recordRun, sumUsage } from "./chat-run";
+import { STYLE_NOTE } from "./chat-tools/answer-style";
+import { CHART_TOOL, chartTool } from "./chat-tools/chart-tool";
+import { emailTools } from "./chat-tools/email-tools";
+import { METRICS_TOOL, metricsTool } from "./chat-tools/metrics-tool";
+import { TABLE_TOOL, tableTool } from "./chat-tools/table-tool";
+import { TIME_NOTE, TIME_TOOL, timeTool } from "./chat-tools/time-tool";
+import { lendTools, servicesNote } from "./chat-tools/tool-search";
+import { createSources, shareResults } from "./chat-tools/tool-sources";
+import {
+  WEB_FETCH,
+  WEB_SEARCH,
+  webFetchTool,
+  webSearchTool,
+} from "./chat-tools/web-tools";
+import { listMailboxes } from "./mailboxes";
 import { listChatServers, toolsForUser } from "./mcp";
+import { getPersonalPolicy } from "./personal";
 import { finishRun, getRunContext, lastResultChat, markRunning } from "./tasks";
+import { webToolsOn } from "./web-settings";
 
 // One run of a periodic task (ARCH §16.2): an ordinary chat of kind `task_run` with the owner's tools, which must end
 // with `report({ outcome, summary })`. The run uses the version it was queued with, the model of that version, and
@@ -27,8 +44,11 @@ import { finishRun, getRunContext, lastResultChat, markRunning } from "./tasks";
 // instructions, so «only when something changed» can be judged. Errors end the run as failed with a reason a person
 // can read; a missing model or connection is an action for the person, not a failure.
 //
-// Stage 1 of the tasks (PLAN v2): the run gets the MCP tools; the chat's own tools (widgets, the web, mail, the time)
-// come when their assembly moves out of the chat route into core.
+// The run gets the tools the chat has (chat-tools, shared with the chat route): the owner's servers — a big one's
+// tools on demand — the table, metrics and chart widgets, the time, the web as the admin left it, and the owner's
+// mail. Not the ones that need the person at hand: asking a question (that is `report` with outcome question),
+// reading a thread's files, «connect X» (that is outcome action). A tool that waits for the person's yes (mail, a
+// server tool set to «ask») ends the run as an action for now; going on after the yes comes with editing (stage 3).
 
 const REPORT = "report";
 
@@ -71,9 +91,11 @@ const instructionsFor = (
   task: Task,
   snapshot: TaskSnapshot,
   at: Date,
-  previous: string | null
+  previous: string | null,
+  note: string
 ) =>
   [
+    note,
     `Ты выполняешь периодическую задачу «${task.name}». Это не разговор: человека рядом нет, отвечай итогом для него.`,
     `Инструкция задачи:\n${snapshot.instructions}`,
     `Сейчас: ${dateIn(at, snapshot.timezone)} (${snapshot.timezone}).`,
@@ -87,13 +109,16 @@ const instructionsFor = (
     `Сначала напиши итог текстом — это то, что человек прочитает на странице задачи и в письме; таблицы и списки — в markdown. Потом, последним шагом, вызови ${REPORT}: outcome и summary — итог одной строкой. При outcome quiet текст не нужен. Если нужен ответ человека — outcome question; если человек должен что-то сделать (войти, подключить, дать доступ) — outcome action.`,
   ].join("\n\n");
 
-/** The owner's tools for the run — the task's catalog items, or all the owner can use — and `report`. */
+/** A model with a smaller window gets no widget tools: their schemas take about 3,000 tokens (as in the chat). */
+const WIDGETS_MIN_WINDOW = 16_000;
+
+/** The run's tools — the chat's own and the owner's servers (the task's catalog items, or all, D22) — `report`, and the notes that go with them. */
 const toolsFor = async (
   task: Task,
   snapshot: TaskSnapshot,
   model: ChatModel,
   reported: { value: TaskReport | null }
-): Promise<ToolSet> => {
+) => {
   const report = tool({
     description:
       "Ends the run: what it came to and the result in one line. Call it once, last.",
@@ -104,19 +129,60 @@ const toolsFor = async (
     inputSchema: taskReportSchema,
   });
   if (model.capabilities.tools === false) {
-    return { [REPORT]: report };
+    return { note: STYLE_NOTE, tools: { [REPORT]: report } as ToolSet };
   }
-  const servers = await listChatServers(task.ownerId);
-  const usable = servers.map((s) => s.id);
+  const [chatServers, ownBoxes, personal, web] = await Promise.all([
+    listChatServers(task.ownerId),
+    listMailboxes(task.ownerId),
+    getPersonalPolicy(),
+    webToolsOn(),
+  ]);
+  const usable = chatServers.map((s) => s.id);
   const catalogIds = snapshot.catalogIds
     ? usable.filter((id) => snapshot.catalogIds?.includes(id))
     : usable;
-  const sets = await toolsForUser(task.ownerId, catalogIds);
-  return {
-    ...Object.assign({}, ...sets.map((s) => s.tools)),
+  const servers = await toolsForUser(task.ownerId, catalogIds);
+  // What the servers' tools return, kept whole for the widgets: a table `from` a result takes its rows from here.
+  const sources = createSources([]);
+  const room =
+    model.contextWindow === null || model.contextWindow >= WIDGETS_MIN_WINDOW;
+  const boxes = personal.mode === "off" ? [] : ownBoxes;
+  const tools: ToolSet = {
+    ...lendTools(
+      servers.map((server) => ({
+        ...server,
+        tools: shareResults(server.tools, sources),
+      })),
+      new Set()
+    ),
+    ...(room
+      ? {
+          [CHART_TOOL]: chartTool(sources),
+          [METRICS_TOOL]: metricsTool(sources),
+          [TABLE_TOOL]: tableTool(sources),
+        }
+      : {}),
+    [TIME_TOOL]: timeTool(snapshot.timezone),
+    ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
+    ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
+    ...(boxes.length > 0
+      ? emailTools(task.ownerId, boxes, personal.approvals)
+      : {}),
     [REPORT]: report,
   };
+  return {
+    note: [TIME_NOTE, STYLE_NOTE, servicesNote(servers)]
+      .filter(Boolean)
+      .join("\n\n"),
+    tools,
+  };
 };
+
+/** A tool call in the answer that waits for the person's yes: the run cannot go on without them. */
+const waitingCall = (answer: ChatMessage | undefined) =>
+  (answer?.parts ?? []).find(
+    (p) => "state" in p && p.state === "approval-requested"
+  );
 
 interface Pass {
   languageModel: LanguageModel;
@@ -180,6 +246,34 @@ const writeUp = async (
   return { steps, text: text.trim() };
 };
 
+/**
+ * How a finished run ends: waiting for the person's yes on a call (the task waits for them), what `report` said, or
+ * — when the model forgot it — a result summed up by its first sentence.
+ */
+const endOf = (answer: ChatMessage | undefined, report: TaskReport | null) => {
+  const waiting = waitingCall(answer);
+  if (waiting) {
+    const name =
+      waiting.type === "dynamic-tool"
+        ? waiting.toolName
+        : waiting.type.replace(/^tool-/u, "");
+    return {
+      outcome: "action" as const,
+      status: "done" as const,
+      summary: `Ждёт подтверждения: ${name}`,
+    };
+  }
+  const end = report ?? {
+    outcome: "news" as const,
+    summary: firstLine(answer) || "Запуск завершён без итога",
+  };
+  return {
+    outcome: end.outcome,
+    status: "done" as const,
+    summary: end.summary,
+  };
+};
+
 /** Why a run did not end, in words a person can read. */
 const reasonOf = (error: unknown, aborted: boolean, timeoutS: number) => {
   if (aborted) {
@@ -237,9 +331,9 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
     const last = await lastResultChat(task.id, runId);
     const previous = await lastAnswer(last?.chatId ?? null);
     const reported: { value: TaskReport | null } = { value: null };
-    const tools = await toolsFor(task, snapshot, model, reported);
+    const { note, tools } = await toolsFor(task, snapshot, model, reported);
     const pass: Pass = {
-      instructions: instructionsFor(task, snapshot, at, previous),
+      instructions: instructionsFor(task, snapshot, at, previous, note),
       languageModel: await getLanguageModel(model.sourceId, model.modelId),
       modelId: model.id,
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -271,16 +365,7 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
     };
     await saveMessages(chatId, answer ? [question, answer] : [question]);
     await record("ok", steps);
-    // A run that forgot `report` still has its answer: a result, summed up by its first sentence.
-    const end = report ?? {
-      outcome: "news" as const,
-      summary: firstLine(answer) || "Запуск завершён без итога",
-    };
-    await finishRun(runId, {
-      outcome: end.outcome,
-      status: "done",
-      summary: end.summary,
-    });
+    await finishRun(runId, endOf(answer, report));
   } catch (error) {
     const aborted = signal?.aborted ?? false;
     await record(aborted ? "aborted" : "error").catch((recordError: unknown) =>

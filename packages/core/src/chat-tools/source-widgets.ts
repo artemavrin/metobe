@@ -4,7 +4,7 @@ import type { SourceBucket } from "@metobe/contracts/source";
 import { TABLE_MAX_ROWS } from "@metobe/contracts/table";
 import type { TableInput, TableOutput } from "@metobe/contracts/table";
 
-import { toNumber } from "./chart-data";
+import { toNumber } from "./to-number";
 import { SourceError } from "./tool-sources";
 import { columnOf } from "./tool-table";
 import type { Cell, SourceTable } from "./tool-table";

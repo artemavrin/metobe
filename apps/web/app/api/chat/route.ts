@@ -22,6 +22,35 @@ import {
 import { checkChatLimit } from "@metobe/core/chat-limits";
 import { recordRun, sumUsage, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
+import { STYLE_NOTE } from "@metobe/core/chat-tools/answer-style";
+import { CHART_TOOL, chartTool } from "@metobe/core/chat-tools/chart-tool";
+import { emailTools } from "@metobe/core/chat-tools/email-tools";
+import {
+  METRICS_TOOL,
+  metricsTool,
+} from "@metobe/core/chat-tools/metrics-tool";
+import { TABLE_TOOL, tableTool } from "@metobe/core/chat-tools/table-tool";
+import {
+  TIME_NOTE,
+  TIME_TOOL,
+  timeTool,
+} from "@metobe/core/chat-tools/time-tool";
+import {
+  FIND_TOOLS,
+  lendTools,
+  servicesNote,
+} from "@metobe/core/chat-tools/tool-search";
+import {
+  SourceError,
+  createSources,
+  shareResults,
+} from "@metobe/core/chat-tools/tool-sources";
+import {
+  WEB_FETCH,
+  WEB_SEARCH,
+  webFetchTool,
+  webSearchTool,
+} from "@metobe/core/chat-tools/web-tools";
 import { attachFiles, pruneChatFiles } from "@metobe/core/files";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
@@ -43,7 +72,6 @@ import {
 import type { TextStreamPart, ToolSet, UIMessageChunk } from "ai";
 import { headers } from "next/headers";
 
-import { STYLE_NOTE } from "@/lib/answer-style";
 import {
   applyApprovals,
   applyConnections,
@@ -58,7 +86,6 @@ import {
 } from "@/lib/attachment-tool";
 import { fileIdsOf, forModel, ownFiles, readsPdf } from "@/lib/attachments";
 import { getAuth } from "@/lib/auth";
-import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
 import { fromCompaction } from "@/lib/compaction";
 import {
   MAIL_KEY,
@@ -70,26 +97,14 @@ import {
   clearPastTurns,
   isContextOverflow,
 } from "@/lib/context-budget";
-import { emailTools } from "@/lib/email-tools";
 import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
-import { METRICS_TOOL, metricsTool } from "@/lib/metrics-tool";
 import { getPrefs } from "@/lib/prefs";
 import { recordStream } from "@/lib/resume-stream";
 import { skillsOfChat } from "@/lib/skill-tools";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { saidNothing, streamAnswer, sumUpPrompt } from "@/lib/sum-up";
-import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
-import { TIME_NOTE, TIME_TOOL, timeTool } from "@/lib/time-tool";
-import { FIND_TOOLS, lendTools, servicesNote } from "@/lib/tool-search";
-import { SourceError, createSources, shareResults } from "@/lib/tool-sources";
 import { withNotes } from "@/lib/user-notes";
-import {
-  WEB_FETCH,
-  WEB_SEARCH,
-  webFetchTool,
-  webSearchTool,
-} from "@/lib/web-tools";
 
 // POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
 // the last answer's approvals — and the history comes from the database. The user's message is saved before the model is called, the answer when the stream ends —

@@ -1,6 +1,7 @@
-import type { ServerTools } from "@metobe/core/mcp";
 import { toolSearch } from "ai";
 import type { ToolSet } from "ai";
+
+import type { ServerTools } from "../mcp";
 
 // A big MCP server lends its tools on demand (AI SDK's tool search): a hundred tool schemas would take tens of
 // thousands of tokens from every question, most of them never used. The model sees one tool to find them with; what

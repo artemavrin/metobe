@@ -5,10 +5,11 @@ import {
   policyOf,
 } from "@metobe/contracts/email";
 import type { MailDefaults, MailTool } from "@metobe/contracts/email";
-import { readEmail, searchEmail, sendEmail } from "@metobe/core/mailboxes";
-import type { Mailbox } from "@metobe/core/mailboxes";
 import { dynamicTool } from "ai";
 import type { ToolSet } from "ai";
+
+import { readEmail, searchEmail, sendEmail } from "../mailboxes";
+import type { Mailbox } from "../mailboxes";
 
 // The user's own mail as tools (ARCH §17.7): send — each letter asked first, in the feed, as an MCP call that asks
 // is — search and read the inbox. Dynamic tools, so the answer's work draws them and their «ask first?» as it
