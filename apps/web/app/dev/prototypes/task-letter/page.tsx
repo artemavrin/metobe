@@ -1,3 +1,4 @@
+import { letterBlocks } from "@metobe/core/letter-blocks";
 import { getServiceMail } from "@metobe/core/mail";
 import { taskLetter } from "@metobe/emails/task-letter";
 import type { TaskLetterProps } from "@metobe/emails/task-letter";
@@ -5,6 +6,7 @@ import type { TaskLetterProps } from "@metobe/emails/task-letter";
 import { getSettingsViewer } from "@/lib/settings-access";
 
 import { inboxOf } from "../sign-in-letter/inbox";
+import { TASKS } from "../task-results/data";
 import { Prototype } from "../sign-in-letter/prototype";
 import type { Rendered } from "../sign-in-letter/prototype";
 
@@ -12,9 +14,14 @@ import type { Rendered } from "../sign-in-letter/prototype";
 // итог, вопрос, действие после сбоя; «нового нет» не приходит никогда. Включается в карточке задачи, для каждой
 // своё. Пять писем — три итога разной формы (таблица, список, ключевые цифры вместо виджета), вопрос и сбой — в том же
 // почтовом клиенте, что письмо со входом. «Параметры»: компьютер или телефон, светлый или тёмный клиент, письмо или
-// его текстовая часть. Задачи и числа — те же, что в /task-results.
+// его текстовая часть. Итоги собраны конвертером (@metobe/core/letter-blocks) из тех же частей ответа, что видны на
+// странице задачи (/task-results): markdown и виджет показателей; вопрос написан вручную — у запусков его пока нет.
 
 const BASE = "http://macbook.local:3000/dev/prototypes/task-edit?v=3&task=";
+
+/** A run's answer, as the task page shows it, turned into the letter's blocks. */
+const blocksOf = (task: string, run: string) =>
+  letterBlocks(TASKS.find((t) => t.id === task)?.runs.find((r) => r.id === run)?.parts ?? [], { locale: "ru" });
 const why = (name: string) => `Письмо пришло, потому что для задачи «${name}» включены уведомления на почту.`;
 const off = (id: string) => ({ href: `${BASE}${id}&notify=off`, label: "Отключить для этой задачи" });
 
@@ -27,19 +34,7 @@ const LETTERS: { id: string; name: string; subject: string; props: TaskLetterPro
     id: "table",
     name: "Итог: таблица",
     props: {
-      blocks: [
-        { text: "Изменились цены у двух товаров:", type: "p" },
-        {
-          head: ["Товар", "Сайт", "Было", "Стало"],
-          right: [2, 3],
-          rows: [
-            ["Кофемашина капсульная", "shop-one.ru", "24 990 ₽", "22 490 ₽ (−10 %)"],
-            ["Фильтр-кувшин", "shop-two.ru", "1 290 ₽", "1 390 ₽ (+8 %)"],
-          ],
-          type: "table",
-        },
-        { text: "Остальные 14 — без изменений.", type: "p" },
-      ],
+      blocks: blocksOf("prices", "p4"),
       button: { href: `${BASE}prices`, label: "Открыть задачу" },
       heading: "Цены изменились у 2 товаров из 16",
       kind: "result",
@@ -56,17 +51,7 @@ const LETTERS: { id: string; name: string; subject: string; props: TaskLetterPro
     id: "list",
     name: "Итог: список",
     props: {
-      blocks: [
-        {
-          items: [
-            { strong: "Поставщик упаковки", text: "«Счёт за октябрь»: просит подтвердить сумму до пятницы." },
-            { strong: "Клиент с сайта", text: "спрашивает, успеете ли доставить в Казань к 5 декабря." },
-            { strong: "Бухгалтерия", text: "нужен подписанный акт сверки за квартал." },
-          ],
-          type: "list",
-        },
-        { text: "Ещё 11 писем — рассылки и уведомления, ответа не требуют.", type: "p" },
-      ],
+      blocks: blocksOf("mail", "m4"),
       button: { href: `${BASE}mail`, label: "Открыть задачу" },
       heading: "Ответа ждут 3 письма",
       kind: "result",
@@ -83,23 +68,12 @@ const LETTERS: { id: string; name: string; subject: string; props: TaskLetterPro
     id: "figures",
     name: "Итог: показатели",
     props: {
-      blocks: [
-        { text: "Неделя 23–29 ноября: выручка выросла, больше половины — опт.", type: "p" },
-        {
-          items: [
-            { change: "+6,7 % к прошлой неделе", label: "Выручка", value: "4,8 млн ₽" },
-            { label: "Закрытых сделок", value: "34" },
-            { change: "55 % выручки", label: "Опт", value: "2,64 млн ₽" },
-          ],
-          type: "figures",
-        },
-      ],
+      blocks: blocksOf("sales", "s3"),
       button: { href: `${BASE}sales`, label: "Открыть задачу" },
       heading: "Выручка 4,8 млн ₽, +6,7 % к прошлой неделе",
       kind: "result",
       label: "Новый итог",
       locale: "ru",
-      more: "График выручки и разбивка по направлениям — в Metobe.",
       off: off("sales"),
       preview: "34 сделки, больше половины выручки — опт.",
       task: SALES,
@@ -133,7 +107,7 @@ const LETTERS: { id: string; name: string; subject: string; props: TaskLetterPro
     id: "action",
     name: "Нужно действие",
     props: {
-      blocks: [{ text: "Письма за 28–30 ноября не проверены. После входа запуск повторится.", type: "p" }],
+      blocks: blocksOf("mail", "m5"),
       button: { href: `${BASE}mail`, label: "Войти в почту" },
       heading: "Нет доступа к почте: срок входа истёк",
       kind: "action",

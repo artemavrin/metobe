@@ -29,6 +29,9 @@
     "linkedom": "^0.18.13",
     "mailparser": "^3.9.30",
     "marked": "^17.0.6",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-gfm": "3.1.0",
+    "micromark-extension-gfm": "3.0.0",
     "nodemailer": "^10.0.10",
     "redis": "^6.2.1",
     "server-only": "^0.0.1",
@@ -40,6 +43,7 @@
   "devDependencies": {
     "@metobe/tsconfig": "workspace:*",
     "@types/mailparser": "^3.4.6",
+    "@types/mdast": "^4.0.4",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.2",
     "typescript": "^5"
