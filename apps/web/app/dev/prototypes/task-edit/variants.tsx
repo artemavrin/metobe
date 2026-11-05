@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@metobe/ui/components/button";
+import { Switch } from "@metobe/ui/components/switch";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@metobe/ui/components/sheet";
 import { cn } from "@metobe/ui/lib/utils";
 import { ChevronDown, Play, Undo2 } from "lucide-react";
@@ -173,7 +174,12 @@ export const Panel = () => {
 export const Card = () => {
   const e = useEdit();
   const { task } = use(Open);
+  const { say } = useProto();
   const [open, setOpen] = useState(false);
+  // Письма по задаче: у каждой своя настройка. В прототипе у «Продаж» выключены, у остальных включены.
+  const [mailOn, setMailOn] = useState<Record<string, boolean>>({ mail: true, prices: true, sales: false });
+  const mail = mailOn[task.id] ?? false;
+  const setMail = (v: boolean) => setMailOn((m) => ({ ...m, [task.id]: v }));
   useEffect(() => {
     setOpen(false);
   }, [task.id]);
@@ -224,6 +230,24 @@ export const Card = () => {
                   </div>
                 )
               )}
+              {/* Письма — для каждой задачи свои: только когда задача ждёт человека; «нового нет» не приходит. */}
+              <div className="grid grid-cols-[7rem_1fr] items-center gap-3 py-2.5 text-sm @max-md:grid-cols-[1fr_auto]">
+                <span className="text-muted-foreground @max-md:col-span-2">На почту</span>
+                <label className="flex cursor-pointer items-center justify-between gap-3 @max-md:col-span-2">
+                  <span className={cn(!mail && "text-muted-foreground")}>
+                    {mail ? "Новые итоги, вопросы и сбои" : "Не присылать"}
+                    <span className="text-muted-foreground block text-xs">«Нового нет» на почту не приходит никогда</span>
+                  </span>
+                  <Switch
+                    aria-label="Письма по этой задаче"
+                    checked={mail}
+                    onCheckedChange={(v) => {
+                      setMail(v);
+                      say(v ? `Письма по задаче «${task.name}» включены` : `Письма по задаче «${task.name}» выключены`);
+                    }}
+                  />
+                </label>
+              </div>
             </div>
             {e.stage === "thinking" && <Thinking>Готовлю изменение…</Thinking>}
             {e.stage === "proposed" && (
