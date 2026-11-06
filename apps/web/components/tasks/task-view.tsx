@@ -4,10 +4,24 @@ import type { ChatMessage } from "@metobe/contracts/chat";
 import type { ChatServer } from "@metobe/core/mcp";
 import type { TaskRow, TaskRunRow, TaskRuns } from "@metobe/core/tasks";
 import { Button } from "@metobe/ui/components/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@metobe/ui/components/dialog";
 import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
-import { Check, ChevronDown, Minus, Play, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Minus,
+  Play,
+  TriangleAlert,
+} from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
@@ -26,7 +40,9 @@ import {
   setTaskEnabledAction,
   setTaskNotifyAction,
 } from "@/app/(app)/(chat)/tasks/actions";
+import { ActivityBlock } from "@/components/chat/activity";
 import { AssistantMessage } from "@/components/chat/messages";
+import { answerWork } from "@/lib/answer-work";
 import { hasAnswer } from "@/lib/task-runs";
 
 // A task's page (ARCH §16.4): the header with its schedule, «Прогнать сейчас» and the switch; «О задаче» folded into a
@@ -396,34 +412,128 @@ const Past = ({ runs }: { runs: TaskRunRow[] }) => {
   );
 };
 
-/** The run on its way: in the queue, or going — with its steps as far as it got, filling in while the page looks again. */
+/** «1 мин 10 с» since `from`, ticking every second; nothing until the page is in the browser (the server's clock is not its). */
+const useElapsed = (from: Date | null) => {
+  const format = useFormatter();
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- the browser's clock: the server's render must not show its own
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  if (!from || now === null) {
+    return "";
+  }
+  const s = Math.max(0, Math.round((now - from.getTime()) / 1000));
+  const unit = (n: number, u: "minute" | "second") =>
+    format.number(n, { style: "unit", unit: u, unitDisplay: "short" });
+  return s < 60
+    ? unit(s, "second")
+    : `${unit(Math.floor(s / 60), "minute")} ${unit(s % 60, "second")}`;
+};
+
+/**
+ * The run on its way, as a bar: in the queue, or going — for how long and how many steps so far. A going run opens
+ * its steps in a panel; the page itself stays as it is.
+ */
 const Going = ({
   run,
   answer,
+  onOpen,
 }: {
   run: TaskRunRow;
   answer: ChatMessage | null;
+  onOpen: () => void;
 }) => {
   const t = useTranslations("tasks");
-  const { servers } = use(Ctx);
+  const elapsed = useElapsed(run.startedAt);
+  const steps = answer ? answerWork(answer.parts).steps.length : 0;
+  const going = run.status === "running";
+  const line = (
+    <>
+      <Spinner className="size-3.5 shrink-0" />
+      <span className="font-medium">
+        {going ? t("goingTitle") : t("queued")}
+      </span>
+      {going && (
+        <span className="text-muted-foreground min-w-0 flex-1 truncate tabular-nums">
+          {[elapsed, steps > 0 && t("goingSteps", { count: steps })]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      )}
+    </>
+  );
+  const bar =
+    "flex w-full items-center gap-2.5 rounded-xl border bg-card px-4 py-3 text-left text-sm";
+  if (!going) {
+    return (
+      <p aria-live="polite" className={cn(bar, ENTER)}>
+        {line}
+      </p>
+    );
+  }
   return (
-    <section className={cn("flex flex-col gap-2", ENTER)}>
-      {/* Once its steps come, the answer's own status line («Работает») says it goes. */}
-      {!answer && (
-        <p
-          aria-live="polite"
-          className="text-muted-foreground flex items-center gap-2 text-sm"
-        >
-          <Spinner className="size-3.5" />
-          {run.status === "running" ? t("running") : t("queued")}
-        </p>
+    <button
+      aria-live="polite"
+      className={cn(
+        bar,
+        "hover:bg-muted/40 transition-colors duration-150",
+        ENTER
       )}
-      {answer && (
-        <div className="[&_[data-slot=message-footer]]:hidden">
-          <AssistantMessage live message={answer} servers={servers} />
+      onClick={onOpen}
+      type="button"
+    >
+      {line}
+      <span className="text-muted-foreground ml-auto flex shrink-0 items-center gap-1 text-xs">
+        {t("details")}
+        <ChevronRight className="size-3.5" />
+      </span>
+    </button>
+  );
+};
+
+/** The run's steps in a window over the page: live while it goes, all of them once it ends — the result is on the page. */
+const RunWindow = ({
+  open,
+  onClose,
+  answer,
+  done,
+}: {
+  open: boolean;
+  onClose: () => void;
+  answer: ChatMessage | null;
+  done: boolean;
+}) => {
+  const t = useTranslations("tasks");
+  const { servers, task } = use(Ctx);
+  const steps = answer ? answerWork(answer.parts).steps : [];
+  return (
+    <Dialog onOpenChange={(o) => !o && onClose()} open={open}>
+      <DialogContent className="flex max-h-[min(85dvh,44rem)] flex-col gap-0 p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b p-4">
+          <DialogTitle>{done ? t("windowDone") : t("goingTitle")}</DialogTitle>
+          <DialogDescription>{task.name}</DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm">
+          {steps.length > 0 ? (
+            <ActivityBlock
+              keepOpen
+              metadata={answer?.metadata}
+              servers={servers}
+              steps={steps}
+              working={!done}
+            />
+          ) : (
+            <p className="text-muted-foreground flex items-center gap-2">
+              <Spinner className="size-3.5" />
+              {t("running")}
+            </p>
+          )}
         </div>
-      )}
-    </section>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -482,6 +592,64 @@ const Result = ({
   );
 };
 
+/**
+ * The run whose steps are open in the window. It stays open when the run ends, whatever the end: with a result the
+ * window shows the result's steps; with nothing new or a failure — the run's own final steps, read once, since the
+ * last poll may have missed the end.
+ */
+const useWatched = ({
+  active,
+  result,
+  going,
+  answer,
+}: {
+  active: TaskRuns["active"];
+  result: TaskRuns["result"];
+  going: ChatMessage | null;
+  answer: ChatMessage | null;
+}) => {
+  const [watching, setWatching] = useState<string | null>(null);
+  const [kept, setKept] = useState<ChatMessage | null>(null);
+  const live = watching !== null && active?.id === watching;
+  const ended = watching !== null && result?.id === watching;
+  if (live && going && going !== kept) {
+    setKept(going);
+  }
+  const gone = watching !== null && !live && !ended ? watching : null;
+  useEffect(() => {
+    if (!gone) {
+      return;
+    }
+    let current = true;
+    const read = async () => {
+      const a = await runAnswerAction(gone);
+      if (current && a) {
+        setKept(a);
+      }
+    };
+    void read();
+    return () => {
+      current = false;
+    };
+  }, [gone]);
+  let shown = kept;
+  if (live) {
+    shown = going;
+  } else if (ended) {
+    shown = answer;
+  }
+  return {
+    answer: shown,
+    done: !live,
+    handleClose: () => setWatching(null),
+    open: watching !== null,
+    watch: (runId: string) => {
+      setKept(going);
+      setWatching(runId);
+    },
+  };
+};
+
 /** The runs: the one on its way, the failures after the last result, the result with the quiet ones counted, the past. */
 const Runs = ({
   runs,
@@ -502,9 +670,22 @@ const Runs = ({
   const when = useWhen();
   const { active, failures, result, past, quiet } = runs;
   const nothing = !(result || quiet || failures.length > 0 || active);
+  const watched = useWatched({ active, answer, going, result });
   return (
     <>
-      {active && <Going answer={going} run={active} />}
+      {active && (
+        <Going
+          answer={going}
+          onOpen={() => watched.watch(active.id)}
+          run={active}
+        />
+      )}
+      <RunWindow
+        answer={watched.answer}
+        done={watched.done}
+        onClose={watched.handleClose}
+        open={watched.open}
+      />
       {failures.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {failures.map((r) => (
