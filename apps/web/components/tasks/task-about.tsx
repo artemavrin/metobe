@@ -406,8 +406,9 @@ export const TaskComposer = ({
     }
   };
   return (
-    <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 mt-auto pt-2 pb-3 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 px-4 md:px-6">
+    <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 mt-auto w-full px-4 pt-2 pb-4 backdrop-blur md:px-6">
+      {/* As in the chat: the margins stand outside the column, the composer takes all of max-w-4xl. */}
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-2">
         {notice && (
           <output className="text-muted-foreground px-1 text-sm">
             {notice}
