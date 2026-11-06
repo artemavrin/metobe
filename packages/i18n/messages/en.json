@@ -2512,6 +2512,14 @@
     "none": "None",
     "changePlaceholderShort": "What to change…",
     "waitingTitle": "Waiting for your approval",
+    "fix": {
+      "running": "Access is back, the run is going…",
+      "server": "Sign in to {server}",
+      "mail": "Sign in to mail",
+      "mailTitle": "Sign in to {address}",
+      "mailText": "The password no longer works. Once you sign in, the task runs again.",
+      "failed": "The task could not be started"
+    },
     "runNow": "Run now",
     "enabled": "Task is on",
     "offNote": "The task is off: no scheduled runs.",

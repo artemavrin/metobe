@@ -32,7 +32,7 @@ import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import {
@@ -40,6 +40,7 @@ import {
   pinChatAction,
   renameChatAction,
 } from "@/app/(app)/(chat)/actions";
+import { sidebarTasksAction } from "@/app/(app)/(chat)/tasks/actions";
 import { AccountMenu } from "@/components/chat/account-menu";
 import type { Person } from "@/components/chat/account-menu";
 import { ChatHeader } from "@/components/chat/chat-header";
@@ -147,6 +148,8 @@ export interface SidebarTask {
   name: string;
   color: string;
   waiting: boolean;
+  /** A run is going now: the shell looks again sooner. */
+  going?: boolean;
 }
 
 /**
@@ -183,22 +186,27 @@ const Tasks = ({ tasks }: { tasks: SidebarTask[] }) => {
                       onClick={close}
                       render={<Link href={`/tasks/${task.id}`} />}
                     >
+                      {/* The task's own dot; while it waits for the person it rings (Tailwind «ping») until seen, still with reduced motion. */}
                       <span
                         aria-hidden
-                        className="size-2 shrink-0 rounded-full"
-                        style={{ background: task.color }}
-                      />
+                        className="relative flex size-2 shrink-0"
+                      >
+                        {task.waiting && (
+                          <span
+                            className="absolute inline-flex h-full w-full rounded-full opacity-75 motion-safe:animate-ping"
+                            style={{ background: task.color }}
+                          />
+                        )}
+                        <span
+                          className="relative size-2 rounded-full"
+                          style={{ background: task.color }}
+                        />
+                      </span>
                       <span className="min-w-0 flex-1 truncate">
                         {task.name}
                       </span>
                       {task.waiting && (
-                        <>
-                          <span
-                            aria-hidden
-                            className="bg-foreground size-1.5 shrink-0 rounded-full"
-                          />
-                          <span className="sr-only">, {t("waiting")}</span>
-                        </>
+                        <span className="sr-only">, {t("waiting")}</span>
                       )}
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
@@ -306,6 +314,34 @@ export const ChatShell = ({
     []
   );
   const pathname = usePathname();
+  // The tasks the same way as the chats; on a page that does not look at tasks the shell asks for them itself.
+  const [taskRows, setTaskRows] = useState(tasks);
+  const [seenTasks, setSeenTasks] = useState(tasks);
+  if (seenTasks !== tasks) {
+    setSeenTasks(tasks);
+    setTaskRows(tasks);
+  }
+  const looksAtTasks = pathname.startsWith("/tasks");
+  const going = taskRows.some((task) => task.going);
+  const watchTasks = taskRows.length > 0 && !looksAtTasks;
+  useEffect(() => {
+    if (!watchTasks) {
+      return;
+    }
+    const timer = setInterval(
+      async () => {
+        if (document.visibilityState !== "visible") {
+          return;
+        }
+        const next = await sidebarTasksAction();
+        if (next) {
+          setTaskRows(next);
+        }
+      },
+      going ? 3000 : 15_000
+    );
+    return () => clearInterval(timer);
+  }, [watchTasks, going]);
   // «Поделиться чатом» — from the chat's menu in the sidebar or from the header of the chat on screen.
   const [sharingId, setSharingId] = useState<string | null>(null);
   const sharing = chats.find((c) => c.id === sharingId) ?? null;
@@ -362,7 +398,7 @@ export const ChatShell = ({
               <SidebarContent>
                 {/* The search on top, as everywhere; while it is searching its results take the place of tasks and chats. */}
                 <SidebarSearch admin={admin} chats={chats}>
-                  <Tasks tasks={tasks} />
+                  <Tasks tasks={taskRows} />
                   <History chats={chats} ops={ops} />
                 </SidebarSearch>
               </SidebarContent>

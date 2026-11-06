@@ -73,6 +73,8 @@ import type {
   TaskComposerData,
   TaskFields,
 } from "@/components/tasks/task-about";
+import { FixButton } from "@/components/tasks/task-fix";
+import type { FixMailbox } from "@/components/tasks/task-fix";
 import { answerWork } from "@/lib/answer-work";
 import { clock, hasAnswer } from "@/lib/task-runs";
 
@@ -95,6 +97,8 @@ const Ctx = createContext<{
   task: TaskRow;
   servers: ChatServer[];
   versions: TaskVersionLine[];
+  /** The owner's mailboxes, for «Войти в почту» on a run that stopped for want of access. */
+  mailboxes: FixMailbox[];
 }>(null as never);
 
 export type { TaskFields } from "@/components/tasks/task-about";
@@ -626,6 +630,17 @@ const QuietLine = ({
   );
 };
 
+/** «Тестовый запуск», «Нужно действие» for a run that stopped for want of access, else «Последний итог». */
+const resultTitle = (
+  t: ReturnType<typeof useTranslations<"tasks">>,
+  run: TaskRunRow
+) => {
+  if (run.trigger === "test") {
+    return t("testTitle");
+  }
+  return run.outcome === "action" ? t("list.actionGroup") : t("latestTitle");
+};
+
 const Result = ({
   run,
   answer,
@@ -638,14 +653,13 @@ const Result = ({
   const t = useTranslations("tasks");
   const when = useWhen();
   const took = useTook();
+  const { task, servers, mailboxes } = use(Ctx);
   const length = took(run);
   return (
     <section className="flex flex-col gap-3">
       <header className="flex flex-col gap-1">
         <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-          <span className="font-medium">
-            {run.trigger === "test" ? t("testTitle") : t("latestTitle")}
-          </span>
+          <span className="font-medium">{resultTitle(t, run)}</span>
           <span className="text-muted-foreground tabular-nums">
             {when(run.scheduledFor)}
             {length && ` · ${length}`}
@@ -657,6 +671,16 @@ const Result = ({
         <Answer message={answer} />
       ) : (
         <p className="text-sm leading-6">{run.summary}</p>
+      )}
+      {run.fix && run.outcome === "action" && (
+        <div className="flex flex-wrap items-center gap-3">
+          <FixButton
+            fix={run.fix}
+            mailboxes={mailboxes}
+            servers={servers}
+            taskId={task.id}
+          />
+        </div>
       )}
     </section>
   );
@@ -961,6 +985,7 @@ export const TaskView = ({
   change,
   versions,
   servers,
+  mailboxes,
   picker,
   skills,
 }: {
@@ -979,6 +1004,7 @@ export const TaskView = ({
   /** The applied versions, the first first. */
   versions: TaskVersionLine[];
   servers: ChatServer[];
+  mailboxes: FixMailbox[];
   picker: TaskComposerData["picker"];
   skills: TaskComposerData["skills"];
 }) => {
@@ -1023,8 +1049,8 @@ export const TaskView = ({
   };
   const busy = pending || active !== null;
   const ctx = useMemo(
-    () => ({ servers, task, versions }),
-    [servers, task, versions]
+    () => ({ mailboxes, servers, task, versions }),
+    [mailboxes, servers, task, versions]
   );
   const editing = useChange({ act, busy: pending, task, versions });
   const nextWords = useRunTime(task.timezone);

@@ -14,6 +14,7 @@ import {
   deleteTask,
   getRunAnswer,
   getTask,
+  listSidebarTasks,
   markRunsUnseen,
   markTaskSeen,
   setTaskEnabled,
@@ -313,4 +314,10 @@ export const createTaskAction = async (input: z.input<typeof draftInput>) => {
   return result.id
     ? { id: result.id, ok: true as const }
     : { ok: false as const };
+};
+
+/** The tasks for the sidebar, read again: the shell asks for them while the person is on a page that does not look at tasks. */
+export const sidebarTasksAction = async () => {
+  const userId = await owner();
+  return userId ? await listSidebarTasks(userId) : null;
 };

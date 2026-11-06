@@ -437,6 +437,61 @@ const askOf = async (
 type Context = NonNullable<Awaited<ReturnType<typeof getRunContext>>>;
 
 /**
+ * Before the work (ARCH §16.2, step 2): a service the task names that waits for the owner's own sign-in, or that only
+ * the admin can sign in to. The run ends there as an action for the person — with the way to put it right — instead
+ * of failing on the way. A task with every service (no list) is not checked: it may not need the missing one.
+ */
+const accessGap = async (ctx: Context) => {
+  const named = ctx.snapshot.catalogIds;
+  if (!named || named.length === 0) {
+    return null;
+  }
+  const servers = await listChatServers(ctx.task.ownerId);
+  // A named service the owner may not use any more: turned off, or closed to them by the admin.
+  if (!named.some((id) => servers.some((s) => s.id === id))) {
+    return {
+      fix: null,
+      summary:
+        "Нет доступа к источникам задачи: они отключены или закрыты администратором",
+    };
+  }
+  const gap = servers.find((s) => named.includes(s.id) && s.signIn !== "ready");
+  if (!gap) {
+    return null;
+  }
+  return gap.signIn === "self"
+    ? {
+        fix: { id: gap.id, kind: "server" as const },
+        summary: `Нет доступа к ${gap.title}: нужен вход`,
+      }
+    : {
+        fix: null,
+        summary: `Нет доступа к ${gap.title}: вход настраивает администратор`,
+      };
+};
+
+/** After the work: a mail tool that failed on a mailbox's password — the box waits to be connected again. */
+const mailGap = async (ownerId: string, answer: ChatMessage | undefined) => {
+  const failed = (answer?.parts ?? []).some(
+    (p) =>
+      p.type === "dynamic-tool" &&
+      p.toolName.startsWith("email_") &&
+      p.state === "output-error"
+  );
+  if (!failed) {
+    return null;
+  }
+  const boxes = await listMailboxes(ownerId);
+  const box = boxes.find((b) => b.status === "needs_reauth");
+  return box
+    ? {
+        fix: { id: box.id, kind: "mailbox" as const },
+        summary: `Нет доступа к почте ${box.address}: нужен вход`,
+      }
+    : null;
+};
+
+/**
  * The run's work to its end, or to a tool that waits for the person's yes — then it stops (pauseRun) and goes on
  * later from the same answer (resumeRun). Never throws: whatever happens, the run row says how it ended.
  */
@@ -516,9 +571,14 @@ const carry = async (c: {
     await saveMessages(chatId, answer ? [question, answer] : [question]);
     await record("ok", steps);
     const waiting = waitingSummary(answer);
-    await (waiting
-      ? pauseRun(runId, waiting)
-      : finishRun(runId, endOf(answer, report)));
+    const gap = waiting ? null : await mailGap(task.ownerId, answer);
+    if (waiting) {
+      await pauseRun(runId, waiting);
+    } else if (gap) {
+      await finishRun(runId, { ...gap, outcome: "action", status: "done" });
+    } else {
+      await finishRun(runId, endOf(answer, report));
+    }
     await sendRunLetter(runId);
   } catch (error) {
     const aborted = c.signal?.aborted ?? false;
@@ -555,6 +615,12 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
   }
   const model = await modelOrEnd(ctx);
   if (!model) {
+    return;
+  }
+  const gap = await accessGap(ctx);
+  if (gap) {
+    await finishRun(runId, { ...gap, outcome: "action", status: "done" });
+    await sendRunLetter(runId);
     return;
   }
   const { run, task, snapshot } = ctx;

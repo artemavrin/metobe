@@ -52,6 +52,8 @@ import {
 import { AssistantMessage } from "@/components/chat/messages";
 import { TopBar } from "@/components/chat/top-bar";
 import { ENTER, PRESS } from "@/components/tasks/task-about";
+import { FixButton } from "@/components/tasks/task-fix";
+import type { FixMailbox } from "@/components/tasks/task-fix";
 import { usePoll, useRunTime } from "@/components/tasks/task-view";
 
 // The owner's tasks «по вниманию» (ARCH §16.4, P13): what needs the person first — a failure or a stop with the way
@@ -88,30 +90,29 @@ const ROW =
 const TEXT_TAP =
   "text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors duration-150 @max-md:min-h-11";
 
-/** The name with its colour; «новый итог» as a dot, and in words for a screen reader. */
+/** The name with its colour; «новый итог» as the colour dot ringing (Tailwind «ping»), and in words for a screen reader. */
 const Name = ({ row, unread }: { row: TaskListRow; unread: boolean }) => {
   const t = useTranslations("tasks.list");
   return (
     <span className="flex min-w-0 items-center gap-2" title={row.task.name}>
-      <span
-        aria-hidden
-        className="size-2 shrink-0 rounded-full"
-        style={{ background: row.task.color }}
-      />
+      <span aria-hidden className="relative flex size-2 shrink-0">
+        {unread && (
+          <span
+            className="absolute inline-flex h-full w-full rounded-full opacity-75 motion-safe:animate-ping"
+            style={{ background: row.task.color }}
+          />
+        )}
+        <span
+          className="relative size-2 rounded-full"
+          style={{ background: row.task.color }}
+        />
+      </span>
       <span
         className={cn("truncate", unread ? "font-semibold" : "font-medium")}
       >
         {row.task.name}
       </span>
-      {unread && (
-        <>
-          <span
-            aria-hidden
-            className="bg-foreground size-1.5 shrink-0 rounded-full"
-          />
-          <span className="sr-only">, {t("newResult")}</span>
-        </>
-      )}
+      {unread && <span className="sr-only">, {t("newResult")}</span>}
     </span>
   );
 };
@@ -197,7 +198,15 @@ const useWhy = () => {
 };
 
 /** A failure or a stop, and the way out in the row: «Прогнать ещё раз», «Включить», or the task's page. */
-const ActionRow = ({ row }: { row: TaskListRow }) => {
+const ActionRow = ({
+  row,
+  servers,
+  mailboxes,
+}: {
+  row: TaskListRow;
+  servers: ChatServer[];
+  mailboxes: FixMailbox[];
+}) => {
   const t = useTranslations("tasks");
   const why = useWhy();
   const [pending, start] = useTransition();
@@ -228,6 +237,15 @@ const ActionRow = ({ row }: { row: TaskListRow }) => {
         {t("list.open")}
         <ArrowRight className="size-3.5" />
       </Link>
+    );
+  } else if (row.result?.fix && row.result.outcome === "action") {
+    way = (
+      <FixButton
+        fix={row.result.fix}
+        mailboxes={mailboxes}
+        servers={servers}
+        taskId={row.task.id}
+      />
     );
   } else if (row.task.pausedReason) {
     way = (
@@ -784,9 +802,12 @@ const ListBar = ({
 export const TaskList = ({
   rows,
   servers,
+  mailboxes,
 }: {
   rows: TaskListRow[];
   servers: ChatServer[];
+  /** The owner's mailboxes, for «Войти в почту» in a row that needs it. */
+  mailboxes: FixMailbox[];
 }) => {
   const t = useTranslations("tasks");
   // The groups as the page came: what a row was when the page opened.
@@ -821,7 +842,7 @@ export const TaskList = ({
             >
               {action.map((r) => (
                 <Pickable key={r.task.id} row={r}>
-                  <ActionRow row={r} />
+                  <ActionRow mailboxes={mailboxes} row={r} servers={servers} />
                 </Pickable>
               ))}
             </Section>

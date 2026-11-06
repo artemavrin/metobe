@@ -3,6 +3,7 @@ import type { ChatMessage } from "@metobe/contracts/chat";
 import type {
   TaskOutcome,
   TaskReportWhen,
+  TaskRunFix,
   TaskRunStatus,
   TaskSnapshot,
   TaskTrigger,
@@ -300,6 +301,8 @@ export const finishRun = async (
     outcome?: TaskOutcome | null;
     summary?: string | null;
     error?: string | null;
+    /** What the person does to put it right: sign in to a service, connect a mailbox again. */
+    fix?: TaskRunFix | null;
   }
 ) => {
   const { db } = getDb();
@@ -309,6 +312,7 @@ export const finishRun = async (
       .set({
         error: end.error ?? null,
         finishedAt: new Date(),
+        fix: end.fix ?? null,
         outcome: end.outcome ?? null,
         status: end.status,
         summary: end.summary ?? null,
@@ -352,14 +356,14 @@ export const finishRun = async (
 export type TaskRow = typeof tasks.$inferSelect;
 export type TaskRunRow = typeof taskRuns.$inferSelect;
 
-/** Whether a finished run waits for the person: a result not seen yet, a question or an action not closed. */
+/** Whether a finished run waits for the person: a result not seen yet, a question or an action not closed, a failure. */
 export const waitsFor = (
   run:
     | Pick<TaskRunRow, "outcome" | "seenAt" | "resolvedAt" | "status">
     | null
     | undefined
 ) => {
-  if (run?.status === "waiting_approval") {
+  if (run?.status === "waiting_approval" || run?.status === "failed") {
     return true;
   }
   if (
@@ -455,6 +459,18 @@ export const listTasks = async (ownerId: string) => {
   }));
 };
 export type TaskListItem = Awaited<ReturnType<typeof listTasks>>[number];
+
+/** What the sidebar needs of each task: the name, the colour, whether it waits for the person, whether a run goes. */
+export const listSidebarTasks = async (ownerId: string) => {
+  const list = await listTasks(ownerId);
+  return list.map(({ task, last, going }) => ({
+    color: task.color,
+    going,
+    id: task.id,
+    name: task.name,
+    waiting: task.enabled && waitsFor(last),
+  }));
+};
 
 /** One of the owner's tasks; null for anyone else's. */
 export const getTask = async (ownerId: string, id: string) => {

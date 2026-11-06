@@ -1,5 +1,6 @@
 import type { TaskSnapshot } from "@metobe/contracts/tasks";
 import { filesOf } from "@metobe/core/files";
+import { listMailboxes } from "@metobe/core/mailboxes";
 import type { ChatServer } from "@metobe/core/mcp";
 import { listChatServers } from "@metobe/core/mcp";
 import { skillsForChat } from "@metobe/core/skills";
@@ -14,6 +15,7 @@ import { TaskView } from "@/components/tasks/task-view";
 import type { TaskFields } from "@/components/tasks/task-view";
 import { getPickerData } from "@/lib/chat-data";
 import { getSettingsViewer } from "@/lib/settings-access";
+import { fixMailboxOf } from "@/lib/task-runs";
 
 interface Names {
   servers: ChatServer[];
@@ -57,12 +59,13 @@ const TaskPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   if (!user || !task) {
     notFound();
   }
-  const [runs, servers, versions, skills, picker] = await Promise.all([
+  const [runs, servers, versions, skills, picker, boxes] = await Promise.all([
     getTaskRuns(task.id),
     listChatServers(user.id),
     getTaskVersions(task.id),
     skillsForChat(user.id),
     getPickerData(user.id),
+    listMailboxes(user.id),
   ]);
   const lang = locale === "en" ? "en" : "ru";
   const own = versions.find((v) => v.version === task.version)?.snapshot;
@@ -116,6 +119,7 @@ const TaskPage = async ({ params }: { params: Promise<{ id: string }> }) => {
       current={current}
       going={going}
       key={task.id}
+      mailboxes={boxes.map(fixMailboxOf)}
       picker={picker}
       runs={runs}
       servers={servers}

@@ -1,6 +1,7 @@
 import type {
   TaskOutcome,
   TaskReportWhen,
+  TaskRunFix,
   TaskRunStatus,
   TaskSnapshot,
   TaskTrigger,
@@ -116,6 +117,8 @@ export const taskRuns = pgTable(
       .defaultNow(),
     error: text("error"),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /** What the person does to put a run right that stopped for want of access: sign in to a service, a mailbox. */
+    fix: jsonb("fix").$type<TaskRunFix>(),
     id: uuid("id").primaryKey().defaultRandom(),
     outcome: text("outcome").$type<TaskOutcome>(),
     /** A question or an action closed by the person. */

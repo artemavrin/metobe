@@ -175,6 +175,14 @@ export const taskChangeSchema = z.object({
 });
 export type TaskChange = z.infer<typeof taskChangeSchema>;
 
+/**
+ * How a run that stopped for want of access is put right (P13): sign in to a service, or connect a mailbox again. The
+ * task's page and list show it as a button; once done, the task runs again.
+ */
+export type TaskRunFix =
+  | { kind: "server"; id: string }
+  | { kind: "mailbox"; id: string };
+
 /** The colours a task may take: the chart palette, so they read in both themes. */
 export const TASK_COLORS = [1, 2, 3, 4, 5, 6, 7, 8].map(
   (n) => `var(--chart-${n})`
