@@ -2503,15 +2503,15 @@
       "sources": "Sources",
       "report": "Result",
       "created": "Created",
-      "mail": "By email"
+      "mail": "Email notifications"
     },
     "reportWhen": {
       "changes": "Only when something changed",
       "always": "After every run"
     },
     "allSources": "All connections",
-    "mailOn": "New results, questions and failures",
-    "mailOff": "Don't send",
+    "mailOn": "On",
+    "mailOff": "Off",
     "running": "Running…",
     "goingTitle": "Running",
     "windowDone": "Done",
@@ -2525,8 +2525,7 @@
     "retry": "Run again",
     "cancelled": "Run cancelled",
     "failed": "Failed: {error}",
-    "mailLabel": "Emails about this task",
-    "mailNote": "“Nothing new” never goes by email",
+    "mailLabel": "Email notifications for this task",
     "actionFailed": "That did not work. Try again.",
     "answerFailed": "Could not load the run's answer.",
     "notFound": "Task not found",

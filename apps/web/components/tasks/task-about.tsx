@@ -111,7 +111,7 @@ const Diff = ({
   </div>
 );
 
-/** «На почту» — each task its own: only when the task waits for the person; «нового нет» never goes. */
+/** «Уведомления на почту»: on or off, said plainly — each task its own (what goes by mail: ARCH §16.5). */
 const Mail = ({ task, onError }: { task: TaskRow; onError: () => void }) => {
   const t = useTranslations("tasks");
   const [mail, setMail] = useState(task.notifyEmail);
@@ -132,9 +132,6 @@ const Mail = ({ task, onError }: { task: TaskRow; onError: () => void }) => {
       <label className="flex cursor-pointer items-center justify-between gap-3">
         <span className={cn(!mail && "text-muted-foreground")}>
           {mail ? t("mailOn") : t("mailOff")}
-          <span className="text-muted-foreground block text-xs">
-            {t("mailNote")}
-          </span>
         </span>
         <Switch
           aria-label={t("mailLabel")}
