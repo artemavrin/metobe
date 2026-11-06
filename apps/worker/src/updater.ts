@@ -63,6 +63,11 @@ const exec = promisify(execFile);
 const DIR = process.env.METOBE_DIR ?? "";
 const BACKUPS = "/backups";
 const KEEP_BACKUPS = 3;
+/**
+ * How long a new version may take to come up, seconds: its migrations run first, and an update over several releases
+ * runs all of theirs. Past the app's own start period (10 min in compose.yml), so the health check decides first.
+ */
+const UP_TIMEOUT = "900";
 const APP = "http://app:3000";
 const SERVICES = ["app", "worker", "searxng"];
 const BACKUP_NAME = /^metobe-\d+\.\d+\.\d+-[\dTZ-]+\.dump$/u;
@@ -223,7 +228,14 @@ const rollback = async (
       await compose(["stop", "app", "worker"]);
       await restoreBase(run.backup.file);
     }
-    await compose(["up", "-d", "--wait", "--wait-timeout", "300", ...SERVICES]);
+    await compose([
+      "up",
+      "-d",
+      "--wait",
+      "--wait-timeout",
+      UP_TIMEOUT,
+      ...SERVICES,
+    ]);
     return (migrated || restoreDatabase) && run.backup ? "image+db" : "image";
   } catch (error) {
     console.error("updater: rollback failed", error);
@@ -432,7 +444,7 @@ const update = async (ask: UpdateRequest) => {
         "-d",
         "--wait",
         "--wait-timeout",
-        "300",
+        UP_TIMEOUT,
         ...SERVICES,
       ]);
       const after = await countMigrations();

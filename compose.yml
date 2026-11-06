@@ -32,7 +32,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 20s
+      # The web server starts after `metobe migrate`: an update over several releases may migrate for minutes, and
+      # checks failing meanwhile must not call the app unhealthy (and roll the update back). It turns healthy at its
+      # first good answer, so a quick start waits for nothing.
+      start_period: 10m
 
   worker:
     image: ${METOBE_IMAGE:-ghcr.io/artemavrin/metobe:latest}
