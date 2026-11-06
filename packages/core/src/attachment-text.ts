@@ -1,16 +1,17 @@
 import "server-only";
 import type { FileKind } from "@metobe/contracts/files";
-import { readFile } from "@metobe/core/files";
-import type { FileRow } from "@metobe/core/files";
 import mammoth from "mammoth";
 import readExcel from "read-excel-file/node";
 import { extractText, getDocumentProxy } from "unpdf";
+
+import { readFile } from "./files";
+import type { FileRow } from "./files";
 
 // Text out of an attachment for read_attachment (D33, level 2): a PDF by its own pages, a document, a sheet or a long
 // text file in parts of about the same size — the model asks for one part at a time, so a big file does not swell the
 // history. Parsers are pure JS (D34): nothing extra to install.
 
-/** The name of the tool that reads an attachment (lib/attachment-tool.ts). */
+/** The name of the tool that reads an attachment (chat-tools/attachment-tool.ts). */
 export const READ_ATTACHMENT = "read_attachment";
 
 /** A file's bytes from storage; null — gone. */

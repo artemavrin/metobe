@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@metobe/core/files", () => ({ readFile: vi.fn() }));
+vi.mock("./files", () => ({ readFile: vi.fn() }));
 
 const { PART_SIZE, cleanText, extractParts, splitParts } =
   await import("./attachment-text");

@@ -102,9 +102,6 @@ importers:
       lucide-react:
         specifier: ^1.47.0
         version: 1.47.0(react@19.2.8)
-      mammoth:
-        specifier: ^1.13.0
-        version: 1.13.0
       motion:
         specifier: ^13.4.2
         version: 13.4.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -129,18 +126,12 @@ importers:
       react-email:
         specifier: ^6.11.0
         version: 6.11.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      read-excel-file:
-        specifier: ^9.3.10
-        version: 9.3.10
       recharts:
         specifier: 3.8.0
         version: 3.8.0(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react-is@19.3.0)(react@19.2.8)(redux@5.0.1)
       streamdown:
         specifier: ^2.6.0
         version: 2.6.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      unpdf:
-        specifier: ^1.8.1
-        version: 1.8.1
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -276,6 +267,9 @@ importers:
       mailparser:
         specifier: ^3.9.30
         version: 3.9.30
+      mammoth:
+        specifier: ^1.13.0
+        version: 1.13.0
       marked:
         specifier: ^17.0.6
         version: 17.0.6
@@ -291,6 +285,9 @@ importers:
       nodemailer:
         specifier: ^10.0.10
         version: 10.0.10
+      read-excel-file:
+        specifier: ^9.3.10
+        version: 9.3.10
       redis:
         specifier: ^6.2.1
         version: 6.2.1
@@ -303,6 +300,9 @@ importers:
       undici:
         specifier: ^8.11.2
         version: 8.11.2
+      unpdf:
+        specifier: ^1.8.1
+        version: 1.8.1
       yaml:
         specifier: 2.9.1
         version: 2.9.1

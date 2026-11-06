@@ -4,6 +4,7 @@ import type { ChatMessage } from "@metobe/contracts/chat";
 import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
+import { splitSkills } from "@metobe/core/skill-mentions";
 import { Bubble, BubbleContent } from "@metobe/ui/components/bubble";
 import { Button } from "@metobe/ui/components/button";
 import {
@@ -76,7 +77,7 @@ import { TaskDraftCard } from "@/components/tasks/task-draft-card";
 import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
 import type { AnswerBlock, ToolPart, WorkStep } from "@/lib/answer-work";
-import { splitMentions, splitSkills } from "@/lib/mentions";
+import { splitMentions } from "@/lib/mentions";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 import "gridora/styles.css";

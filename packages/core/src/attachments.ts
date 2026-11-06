@@ -1,10 +1,10 @@
 import "server-only";
 import type { ChatMessage } from "@metobe/contracts/chat";
 import { fileIdOf, fileUrl } from "@metobe/contracts/files";
-import { filesOf } from "@metobe/core/files";
-import type { FileRow } from "@metobe/core/files";
 
 import { READ_ATTACHMENT, bytesOf, extractParts } from "./attachment-text";
+import { filesOf } from "./files";
+import type { FileRow } from "./files";
 
 // Attachments on the way to the model (D33). A message keeps a file part with our URL (`/api/files/<id>`); the model
 // gets what it can read: a picture or a PDF as the file itself when it reads them, a short text file as text, anything
@@ -170,5 +170,37 @@ export const forModel = async (
           }
         : m
     )
+  );
+};
+
+/**
+ * The parts the model gets for these files of the user, as the chat gives them for a message's file parts (forModel):
+ * a file the user does not own, or that is gone, becomes a note that it is no longer available. In the order of the ids.
+ */
+export const filePartsFor = async (
+  userId: string,
+  fileIds: string[],
+  reader: Reader
+): Promise<Part[]> => {
+  const ids = [...new Set(fileIds)];
+  if (ids.length === 0) {
+    return [];
+  }
+  const found = await filesOf(userId, ids);
+  const rows = new Map(found.map((r) => [r.id, r]));
+  return await Promise.all(
+    ids.map((id) => {
+      const row = rows.get(id);
+      return asModelPart(
+        row,
+        {
+          filename: row?.name,
+          mediaType: row?.mediaType ?? "application/octet-stream",
+          type: "file",
+          url: fileUrl(id),
+        },
+        reader
+      );
+    })
   );
 };

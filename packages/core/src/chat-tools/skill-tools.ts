@@ -3,19 +3,19 @@ import {
   SKILL_DESCRIPTION_MAX,
   skillNameSchema,
 } from "@metobe/contracts/skills";
+import { dynamicTool, tool } from "ai";
+import type { Tool, ToolSet } from "ai";
+import { z } from "zod";
+
+import { skillsIn } from "../skill-mentions";
 import {
   createSkill,
   keepSkillFileDescription,
   loadSkill,
   readSkillFile,
-} from "@metobe/core/skills";
-import { isScript } from "@metobe/core/skills-parse";
-import { describeImage } from "@metobe/core/vision";
-import { dynamicTool, tool } from "ai";
-import type { Tool, ToolSet } from "ai";
-import { z } from "zod";
-
-import { skillsIn } from "./mentions";
+} from "../skills";
+import { isScript } from "../skills-parse";
+import { describeImage } from "../vision";
 
 // Skills in the chat (ARCH §8.3, Agent Skills): the model sees every skill's name and description, and loads a
 // skill's instructions only when a question needs it — the body stays out of the prompt until then. A file beside

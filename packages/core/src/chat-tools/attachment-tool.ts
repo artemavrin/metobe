@@ -1,13 +1,13 @@
 import "server-only";
-import { getFile } from "@metobe/core/files";
-import { describeImage } from "@metobe/core/vision";
 import { tool } from "ai";
 import type { Tool } from "ai";
 import { z } from "zod";
 
-import { READ_ATTACHMENT, bytesOf, extractParts } from "./attachment-text";
+import { READ_ATTACHMENT, bytesOf, extractParts } from "../attachment-text";
+import { getFile } from "../files";
+import { describeImage } from "../vision";
 
-export { READ_ATTACHMENT } from "./attachment-text";
+export { READ_ATTACHMENT } from "../attachment-text";
 
 /** Told to the model, with the tool, when the chat has files. */
 export const ATTACHMENT_NOTE = `Files the user attached that you cannot see yourself stand in the messages as «[Attached file … id …]». Read such a file with ${READ_ATTACHMENT} (its id, then page 1, 2, … as the answer says there are more) and answer from what it returns; read only the pages the question needs. Never ask the user to paste a file's text.`;

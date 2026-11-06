@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 
-import type { FileRow } from "@metobe/core/files";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { FileRow } from "../files";
 
 vi.mock("server-only", () => ({}));
 
@@ -10,7 +11,7 @@ const store = vi.hoisted(() => ({
   rows: [] as FileRow[],
 }));
 
-vi.mock("@metobe/core/files", () => ({
+vi.mock("../files", () => ({
   getFile: (userId: string, id: string) =>
     Promise.resolve(
       store.rows.find((r) => r.userId === userId && r.id === id) ?? null
@@ -24,7 +25,7 @@ vi.mock("@metobe/core/files", () => ({
 }));
 
 const vision = vi.hoisted(() => ({ describeImage: vi.fn() }));
-vi.mock("@metobe/core/vision", () => vision);
+vi.mock("../vision", () => vision);
 
 const { readAttachmentTool } = await import("./attachment-tool");
 
@@ -55,6 +56,7 @@ const put = (
     name,
     size: bytes.length,
     storageKey: `files/${id}`,
+    taskId: null,
     userId: ME,
   });
   store.bytes.set(`files/${id}`, bytes);
@@ -62,7 +64,7 @@ const put = (
 };
 
 const fixture = (name: string) =>
-  new Uint8Array(readFileSync(new URL(`fixtures/${name}`, import.meta.url)));
+  new Uint8Array(readFileSync(new URL(`../fixtures/${name}`, import.meta.url)));
 
 beforeEach(() => {
   vision.describeImage.mockReset();

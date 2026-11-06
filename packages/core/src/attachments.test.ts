@@ -1,7 +1,8 @@
 import type { ChatMessage } from "@metobe/contracts/chat";
 import { fileUrl } from "@metobe/contracts/files";
-import type { FileRow } from "@metobe/core/files";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { FileRow } from "./files";
 
 vi.mock("server-only", () => ({}));
 
@@ -10,7 +11,7 @@ const store = vi.hoisted(() => ({
   rows: [] as FileRow[],
 }));
 
-vi.mock("@metobe/core/files", () => ({
+vi.mock("./files", () => ({
   filesOf: (userId: string, ids: string[]) =>
     Promise.resolve(
       store.rows.filter((r) => r.userId === userId && ids.includes(r.id))
@@ -23,7 +24,8 @@ vi.mock("@metobe/core/files", () => ({
   },
 }));
 
-const { forModel, ownFiles, readsPdf } = await import("./attachments");
+const { filePartsFor, forModel, ownFiles, readsPdf } =
+  await import("./attachments");
 
 const ME = "user-me";
 
@@ -37,6 +39,7 @@ const row = (over: Partial<FileRow> & Pick<FileRow, "kind" | "name">) => {
     mediaType: "application/octet-stream",
     size: 1,
     storageKey: `files/${id}`,
+    taskId: null,
     userId: ME,
     ...over,
   };
@@ -99,7 +102,11 @@ describe("forModel", () => {
   it("sends a picture to a model that sees, as the file itself", async () => {
     const r = row({ kind: "image", mediaType: "image/png", name: "скрин.png" });
     store.bytes.set(r.storageKey, new Uint8Array([1, 2, 3]));
-    const [m] = await forModel(ME, [message([filePart(r)])], SEES);
+    const [m = message([])] = await forModel(
+      ME,
+      [message([filePart(r)])],
+      SEES
+    );
     expect(m.parts[0]).toMatchObject({
       filename: "скрин.png",
       type: "file",
@@ -118,7 +125,7 @@ describe("forModel", () => {
       mediaType: "application/pdf",
       name: "счёт.pdf",
     });
-    const [m] = await forModel(
+    const [m = message([])] = await forModel(
       ME,
       [message([filePart(image), filePart(pdf)])],
       { pdf: false, tools: true, vision: false }
@@ -133,7 +140,7 @@ describe("forModel", () => {
   it("points every model at read_attachment for a document or a sheet", async () => {
     const doc = row({ kind: "doc", name: "договор.docx" });
     const sheet = row({ kind: "sheet", name: "продажи.xlsx" });
-    const [m] = await forModel(
+    const [m = message([])] = await forModel(
       ME,
       [message([filePart(doc), filePart(sheet)])],
       SEES
@@ -146,12 +153,12 @@ describe("forModel", () => {
   it("gives a picture to a model whose sight is unknown", async () => {
     const r = row({ kind: "image", mediaType: "image/png", name: "скрин.png" });
     store.bytes.set(r.storageKey, new Uint8Array([1]));
-    const [m] = await forModel(ME, [message([filePart(r)])], {
+    const [m = message([])] = await forModel(ME, [message([filePart(r)])], {
       pdf: false,
       tools: true,
       vision: null,
     });
-    expect(m.parts[0].type).toBe("file");
+    expect(m.parts[0]?.type).toBe("file");
   });
 
   it("inlines a short text file and leaves a long one to the tool", async () => {
@@ -166,7 +173,7 @@ describe("forModel", () => {
       big.storageKey,
       new TextEncoder().encode("x".repeat(70_000))
     );
-    const [m] = await forModel(
+    const [m = message([])] = await forModel(
       ME,
       [message([filePart(small), filePart(big)])],
       SEES
@@ -183,11 +190,12 @@ describe("forModel", () => {
       big.storageKey,
       new TextEncoder().encode("x".repeat(70_000))
     );
-    const [m] = await forModel(ME, [message([filePart(big)])], {
+    const [m = message([])] = await forModel(ME, [message([filePart(big)])], {
       ...SEES,
       tools: false,
     });
-    const text = m.parts[0].type === "text" ? m.parts[0].text : "";
+    const [first] = m.parts;
+    const text = first?.type === "text" ? first.text : "";
     expect(text).toMatch(/Only the first 60000 of \d+/u);
     expect(text.length).toBeLessThan(61_000);
   });
@@ -202,10 +210,35 @@ describe("forModel", () => {
       { ...lost, id: crypto.randomUUID() },
       "старый.png"
     );
-    const [m] = await forModel(ME, [message([filePart(lost), deleted])], SEES);
+    const [m = message([])] = await forModel(
+      ME,
+      [message([filePart(lost), deleted])],
+      SEES
+    );
     const texts = m.parts.map((p) => (p.type === "text" ? p.text : ""));
     expect(texts[0]).toContain("could not be read");
     expect(texts[1]).toContain("«старый.png» is no longer available");
+  });
+});
+
+describe("filePartsFor", () => {
+  it("gives the user's files as forModel gives a message's, in the order of the ids", async () => {
+    const r = row({ kind: "image", mediaType: "image/png", name: "скрин.png" });
+    store.bytes.set(r.storageKey, new Uint8Array([1, 2, 3]));
+    const doc = row({ kind: "doc", name: "договор.docx" });
+    const parts = await filePartsFor(ME, [doc.id, r.id, doc.id], SEES);
+    // The chat's message as it is stored: its file parts checked by ownFiles.
+    const stored = await ownFiles(ME, message([filePart(doc), filePart(r)]));
+    const [m = message([])] = await forModel(ME, stored ? [stored] : [], SEES);
+    expect(parts).toEqual(m.parts);
+  });
+
+  it("says a file someone else owns is no longer available", async () => {
+    const theirs = row({ kind: "image", name: "чужой.png", userId: "other" });
+    const [part] = await filePartsFor(ME, [theirs.id], SEES);
+    expect(part?.type === "text" ? part.text : "").toContain(
+      "is no longer available"
+    );
   });
 });
 

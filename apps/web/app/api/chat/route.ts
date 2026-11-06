@@ -12,6 +12,12 @@ import type {
 import { getInstructions } from "@metobe/core/account";
 import { getLanguageModel } from "@metobe/core/ai";
 import {
+  fileIdsOf,
+  forModel,
+  ownFiles,
+  readsPdf,
+} from "@metobe/core/attachments";
+import {
   createChat,
   deleteMessagesFrom,
   getChat,
@@ -23,12 +29,18 @@ import { checkChatLimit } from "@metobe/core/chat-limits";
 import { recordRun, sumUsage, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
 import { STYLE_NOTE } from "@metobe/core/chat-tools/answer-style";
+import {
+  ATTACHMENT_NOTE,
+  READ_ATTACHMENT,
+  readAttachmentTool,
+} from "@metobe/core/chat-tools/attachment-tool";
 import { CHART_TOOL, chartTool } from "@metobe/core/chat-tools/chart-tool";
 import { emailTools } from "@metobe/core/chat-tools/email-tools";
 import {
   METRICS_TOOL,
   metricsTool,
 } from "@metobe/core/chat-tools/metrics-tool";
+import { skillsOfChat } from "@metobe/core/chat-tools/skill-tools";
 import { TABLE_TOOL, tableTool } from "@metobe/core/chat-tools/table-tool";
 import { taskDraftFor } from "@metobe/core/chat-tools/task-draft-tool";
 import {
@@ -81,12 +93,6 @@ import {
   settleAsks,
 } from "@/lib/approvals";
 import { ASK_USER, askUserTool } from "@/lib/ask-user";
-import {
-  ATTACHMENT_NOTE,
-  READ_ATTACHMENT,
-  readAttachmentTool,
-} from "@/lib/attachment-tool";
-import { fileIdsOf, forModel, ownFiles, readsPdf } from "@/lib/attachments";
 import { getAuth } from "@/lib/auth";
 import { fromCompaction } from "@/lib/compaction";
 import {
@@ -103,7 +109,6 @@ import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
 import { getPrefs } from "@/lib/prefs";
 import { recordStream } from "@/lib/resume-stream";
-import { skillsOfChat } from "@/lib/skill-tools";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { saidNothing, streamAnswer, sumUpPrompt } from "@/lib/sum-up";
 import { withNotes } from "@/lib/user-notes";

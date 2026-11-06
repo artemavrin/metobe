@@ -25,7 +25,7 @@ const files: Record<string, unknown> = {
 const kept: string[] = [];
 const created: unknown[][] = [];
 let createResult: unknown = { id: "n", ok: true, replaced: false };
-vi.mock("@metobe/core/skills", () => ({
+vi.mock("../skills", () => ({
   createSkill: (...args: unknown[]) => {
     created.push(args);
     return Promise.resolve(createResult);
@@ -38,7 +38,7 @@ vi.mock("@metobe/core/skills", () => ({
   readSkillFile: (_u: string, _n: string, path: string) =>
     Promise.resolve(files[path] ?? null),
 }));
-vi.mock("@metobe/core/vision", () => ({
+vi.mock("../vision", () => ({
   describeImage: () => Promise.resolve({ text: "Код склада: K-4217" }),
 }));
 
@@ -57,6 +57,12 @@ const usage = {
 
 /** Reads one file of the skill through a whole answer and returns what the model was then sent of it. */
 const told = async (path: string, vision: boolean) => {
+  const stop = {
+    content: [{ text: "ok", type: "text" as const }],
+    finishReason: { raw: undefined, unified: "stop" as const },
+    usage,
+    warnings: [],
+  };
   const queue = [
     {
       content: [
@@ -71,15 +77,10 @@ const told = async (path: string, vision: boolean) => {
       usage,
       warnings: [],
     },
-    {
-      content: [{ text: "ok", type: "text" as const }],
-      finishReason: { raw: undefined, unified: "stop" as const },
-      usage,
-      warnings: [],
-    },
+    stop,
   ];
   const model = new MockLanguageModelV4({
-    doGenerate: () => Promise.resolve(queue.shift() ?? queue[0]),
+    doGenerate: () => Promise.resolve(queue.shift() ?? stop),
   });
   const answer = await generateText({
     messages: [{ content: "?", role: "user" }],
