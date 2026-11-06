@@ -13,6 +13,7 @@ import {
   WEB_SOURCE,
   colorForTask,
 } from "@metobe/contracts/tasks";
+import { chats } from "@metobe/db/schema/chat";
 import { taskRuns, taskVersions, tasks } from "@metobe/db/schema/tasks";
 import {
   and,
@@ -21,6 +22,7 @@ import {
   eq,
   gt,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -498,6 +500,28 @@ export const setTaskEnabled = async (
         : { enabled, updatedAt: now }
     )
     .where(eq(tasks.id, id));
+  return true;
+};
+
+/**
+ * Deletes a task for good: its runs and versions go with it (cascade), and so do the runs' chats — they exist for the
+ * runs only. The chat the task was set up in stays. A job already queued finds no run and does nothing.
+ */
+export const deleteTask = async (ownerId: string, id: string) => {
+  if (!(await getTask(ownerId, id))) {
+    return false;
+  }
+  await getDb().db.transaction(async (tx) => {
+    const runChats = await tx
+      .select({ chatId: taskRuns.chatId })
+      .from(taskRuns)
+      .where(and(eq(taskRuns.taskId, id), isNotNull(taskRuns.chatId)));
+    await tx.delete(tasks).where(eq(tasks.id, id));
+    const ids = runChats.flatMap((r) => (r.chatId ? [r.chatId] : []));
+    if (ids.length > 0) {
+      await tx.delete(chats).where(inArray(chats.id, ids));
+    }
+  });
   return true;
 };
 

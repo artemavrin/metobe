@@ -6,11 +6,19 @@ import type { TaskRow, TaskRunRow, TaskRuns } from "@metobe/core/tasks";
 import { Button } from "@metobe/ui/components/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@metobe/ui/components/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@metobe/ui/components/dropdown-menu";
 import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
@@ -18,8 +26,10 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Ellipsis,
   Minus,
   Play,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -34,6 +44,7 @@ import {
 } from "react";
 
 import {
+  deleteTaskAction,
   markTaskSeenAction,
   runAnswerAction,
   runTaskNowAction,
@@ -707,18 +718,61 @@ const Runs = ({
 
 // ── The page ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** «Удалить задачу?»: a task cannot be brought back, so the menu asks once. */
+const ConfirmDelete = ({
+  name,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  name: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) => {
+  const t = useTranslations("tasks");
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("deleteTitle")}</DialogTitle>
+          <DialogDescription>{t("deleteText", { name })}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose render={<Button variant="ghost" />}>
+            {t("cancel")}
+          </DialogClose>
+          <Button
+            onClick={() => {
+              onOpenChange(false);
+              onConfirm();
+            }}
+            variant="destructive"
+          >
+            {t("deleteConfirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const Controls = ({
   on,
   busy,
   onRun,
   onSwitch,
+  onDelete,
 }: {
   on: boolean;
   busy: boolean;
   onRun: () => void;
   onSwitch: (on: boolean) => void;
+  onDelete: () => void;
 }) => {
   const t = useTranslations("tasks");
+  const { task } = use(Ctx);
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="flex shrink-0 items-center gap-3">
       <Button
@@ -736,6 +790,29 @@ const Controls = ({
         aria-label={t("enabled")}
         checked={on}
         onCheckedChange={onSwitch}
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button aria-label={t("actions")} size="icon-sm" variant="ghost" />
+          }
+        >
+          <Ellipsis />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem
+            onClick={() => setConfirming(true)}
+            variant="destructive"
+          >
+            <Trash2 /> {t("delete")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ConfirmDelete
+        name={task.name}
+        onConfirm={onDelete}
+        onOpenChange={setConfirming}
+        open={confirming}
       />
     </div>
   );
@@ -800,6 +877,15 @@ export const TaskView = ({
       }
     });
   const runNow = () => act(() => runTaskNowAction(task.id));
+  const router = useRouter();
+  const remove = () =>
+    act(async () => {
+      const res = await deleteTaskAction(task.id);
+      if (res.ok) {
+        router.replace("/tasks");
+      }
+      return res;
+    });
   const toggle = (next: boolean) => {
     setOn(next);
     act(
@@ -832,7 +918,13 @@ export const TaskView = ({
                 {schedule} · {state}
               </p>
             </div>
-            <Controls busy={busy} on={on} onRun={runNow} onSwitch={toggle} />
+            <Controls
+              busy={busy}
+              on={on}
+              onDelete={remove}
+              onRun={runNow}
+              onSwitch={toggle}
+            />
           </header>
           {failed && (
             <p className="text-destructive text-sm" role="alert">

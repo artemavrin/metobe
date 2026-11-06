@@ -3,6 +3,7 @@
 import {
   createRun,
   createTaskFromDraft,
+  deleteTask,
   getRunAnswer,
   getTask,
   markTaskSeen,
@@ -15,7 +16,7 @@ import { z } from "zod";
 
 import { getSettingsViewer } from "@/lib/settings-access";
 
-// What the task page does (ARCH §16.4): on and off, letters on and off, «Прогнать сейчас», the answer of a past run,
+// What the task page does (ARCH §16.4): on and off, letters on and off, «Прогнать сейчас», delete, the answer of a past run,
 // «seen». Every action is the owner's own task only — someone else's is as missing as one that never was.
 
 const id = z.uuid();
@@ -68,6 +69,17 @@ export const runTaskNowAction = async (taskId: string) => {
   await createRun(taskId, now, "manual");
   revalidatePath(`/tasks/${taskId}`);
   return { ok: true };
+};
+
+/** «Удалить задачу»: for good, after the person confirmed it; the sidebar loses it. */
+export const deleteTaskAction = async (taskId: string) => {
+  const userId = await owner();
+  if (!userId || !id.safeParse(taskId).success) {
+    return { ok: false };
+  }
+  const ok = await deleteTask(userId, taskId);
+  revalidatePath("/", "layout");
+  return { ok };
 };
 
 /** A past run's answer, opened from the list under the spoiler. */
