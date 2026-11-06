@@ -32,7 +32,7 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
   Fragment,
@@ -65,7 +65,7 @@ import type {
   TaskFields,
 } from "@/components/tasks/task-about";
 import { answerWork } from "@/lib/answer-work";
-import { hasAnswer } from "@/lib/task-runs";
+import { clock, hasAnswer } from "@/lib/task-runs";
 
 // A task's page (ARCH §16.4): the header with its schedule, «Прогнать сейчас» and the switch; «О задаче» folded into a
 // line (P15); the last result whole, what came after it in rows, earlier runs under the spoiler (P12). While a run is
@@ -94,14 +94,11 @@ export type { TaskFields } from "@/components/tasks/task-about";
 const useRunTime = (zone: string) => {
   const t = useTranslations("tasks");
   const format = useFormatter();
+  const locale = useLocale();
   const day = (d: Date) =>
     new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(d);
   return (d: Date) => {
-    const time = format.dateTime(d, {
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: zone,
-    });
+    const time = clock(d, zone, locale);
     const now = new Date();
     if (day(d) === day(now)) {
       return t("todayAt", { time });
@@ -112,14 +109,13 @@ const useRunTime = (zone: string) => {
     if (day(d) === day(new Date(now.getTime() - 86_400_000))) {
       return t("yesterdayAt", { time });
     }
-    return format.dateTime(d, {
+    const date = format.dateTime(d, {
       day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
       month: "short",
       timeZone: zone,
       weekday: "short",
     });
+    return `${date}, ${clock(d, zone, locale)}`;
   };
 };
 

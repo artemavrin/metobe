@@ -6,13 +6,14 @@ import { Button } from "@metobe/ui/components/button";
 import { Spinner } from "@metobe/ui/components/spinner";
 import { cn } from "@metobe/ui/lib/utils";
 import { ArrowRight, Check, Pencil } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { createContext, use, useMemo, useState, useTransition } from "react";
 
 import { createTaskAction } from "@/app/(app)/(chat)/tasks/actions";
 import { TaskFigure } from "@/components/tasks/task-figure";
 import type { TaskDraftPart } from "@/lib/answer-work";
+import { clock } from "@/lib/task-runs";
 
 // A task drafted in the chat (ARCH §16.1, P11): what the model understood in four rows — what, when, from where, where
 // the results go — with the conveyor beside them. What is not known yet stays a dash, the one being asked says so. Once
@@ -70,17 +71,19 @@ const Row = ({
 
 const useFirst = (out: Ok | null) => {
   const format = useFormatter();
+  const locale = useLocale();
   const first = out?.next[0];
-  return first
-    ? format.dateTime(new Date(first), {
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        month: "short",
-        timeZone: out.timeZone,
-        weekday: "short",
-      })
-    : null;
+  if (!first) {
+    return null;
+  }
+  const at = new Date(first);
+  const date = format.dateTime(at, {
+    day: "numeric",
+    month: "short",
+    timeZone: out.timeZone,
+    weekday: "short",
+  });
+  return `${date}, ${clock(at, out.timeZone, locale)}`;
 };
 
 const When = ({ out }: { out: Ok | null }) => {
