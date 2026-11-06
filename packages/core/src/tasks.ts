@@ -35,6 +35,7 @@ import {
 import { getChat, listMessages, saveMessages } from "./chat";
 import { getDb } from "./db";
 import { deleteTaskObjects } from "./files";
+import { announceTasks } from "./task-events";
 import {
   isTooFrequent,
   isValidSchedule,
@@ -186,6 +187,33 @@ export const claimDueTasks = async (now = new Date()) => {
   });
 };
 
+/** Tells the owner's open pages that a task of theirs moved (task-events): they read again. */
+const announceTask = async (taskId: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ ownerId: tasks.ownerId })
+    .from(tasks)
+    .where(eq(tasks.id, taskId))
+    .limit(1);
+  if (row) {
+    await announceTasks(row.ownerId);
+  }
+};
+
+/** The same, by a run of the task. */
+export const announceRun = async (runId: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ ownerId: tasks.ownerId })
+    .from(taskRuns)
+    .innerJoin(tasks, eq(tasks.id, taskRuns.taskId))
+    .where(eq(taskRuns.id, runId))
+    .limit(1);
+  if (row) {
+    await announceTasks(row.ownerId);
+  }
+};
+
 /** A run row for a task at its due time; the same task, time and trigger twice — the existing one. */
 export const createRun = async (
   taskId: string,
@@ -216,6 +244,7 @@ export const createRun = async (
     .onConflictDoNothing()
     .returning({ id: taskRuns.id });
   if (run) {
+    await announceTask(taskId);
     return run.id;
   }
   const [existing] = await db
@@ -276,6 +305,7 @@ export const markRunning = async (runId: string, chatId: string) => {
     .update(taskRuns)
     .set({ chatId, startedAt: new Date(), status: "running" })
     .where(eq(taskRuns.id, runId));
+  await announceRun(runId);
 };
 
 /**
@@ -288,6 +318,7 @@ export const pauseRun = async (runId: string, summary: string) => {
     .update(taskRuns)
     .set({ outcome: "action", status: "waiting_approval", summary })
     .where(eq(taskRuns.id, runId));
+  await announceRun(runId);
 };
 
 /**
@@ -349,6 +380,7 @@ export const finishRun = async (
       }
     }
   });
+  await announceRun(runId);
 };
 
 // ── What the pages read and do (ARCH §16.4) ───────────────────────────────────────────────────────────────────────
@@ -460,12 +492,11 @@ export const listTasks = async (ownerId: string) => {
 };
 export type TaskListItem = Awaited<ReturnType<typeof listTasks>>[number];
 
-/** What the sidebar needs of each task: the name, the colour, whether it waits for the person, whether a run goes. */
+/** What the sidebar needs of each task: the name, the colour, whether it waits for the person. */
 export const listSidebarTasks = async (ownerId: string) => {
   const list = await listTasks(ownerId);
-  return list.map(({ task, last, going }) => ({
+  return list.map(({ task, last }) => ({
     color: task.color,
-    going,
     id: task.id,
     name: task.name,
     waiting: task.enabled && waitsFor(last),
@@ -601,6 +632,7 @@ export const setTaskEnabled = async (
         : { enabled, updatedAt: now }
     )
     .where(eq(tasks.id, id));
+  await announceTasks(ownerId);
   return true;
 };
 
@@ -624,6 +656,7 @@ export const deleteTask = async (ownerId: string, id: string) => {
       await tx.delete(chats).where(inArray(chats.id, ids));
     }
   });
+  await announceTasks(ownerId);
   return true;
 };
 
@@ -647,6 +680,7 @@ export const markTaskSeen = async (
         eq(taskRuns.status, "done")
       )
     );
+  await announceTasks(ownerId);
 };
 
 /** «Вернуть непрочитанными» right after «Отметить прочитанными»: these runs of the owner's tasks are new again. */
@@ -663,6 +697,7 @@ export const markRunsUnseen = async (ownerId: string, runIds: string[]) => {
     .update(taskRuns)
     .set({ seenAt: null })
     .where(and(inArray(taskRuns.id, runIds), inArray(taskRuns.taskId, own)));
+  await announceTasks(ownerId);
 };
 
 /**
@@ -832,5 +867,6 @@ export const createTaskFromDraft = async (input: {
     request: firstAsk(messages) ?? undefined,
     timezone,
   });
+  await announceTasks(input.ownerId);
   return { id: task.id };
 };

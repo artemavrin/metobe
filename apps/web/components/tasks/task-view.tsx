@@ -75,6 +75,7 @@ import type {
 } from "@/components/tasks/task-about";
 import { FixButton } from "@/components/tasks/task-fix";
 import type { FixMailbox } from "@/components/tasks/task-fix";
+import { useTaskEvents } from "@/components/tasks/use-task-events";
 import { answerWork } from "@/lib/answer-work";
 import { clock, hasAnswer } from "@/lib/task-runs";
 
@@ -82,9 +83,8 @@ import { clock, hasAnswer } from "@/lib/task-runs";
 // line (P15); the last result whole, what came after it in rows, earlier runs under the spoiler (P12). While a run is
 // on its way the page looks again every few seconds.
 
-/** How often the page looks again: often while a run is queued or going, now and then otherwise — a run comes on its
- *  schedule, and the page shows it without a reload. */
-const POLL_MS = { active: 3000, idle: 15_000 };
+/** How often the page looks again besides the server's word: sooner while a run is queued or going. */
+const POLL_MS = { active: 10_000, idle: 60_000 };
 
 /** An applied version, for the line «Изменена 12 ноя: …» among the past runs. */
 export interface TaskVersionLine {
@@ -910,9 +910,13 @@ const Controls = ({
   );
 };
 
-/** Looks again while the tab is in view: every few seconds while a run goes, else now and then. */
+/**
+ * Looks again while the tab is in view: at once when the server says the tasks moved (task-events), and now and then
+ * besides — every few seconds while a run goes, else once a minute — in case a word was lost.
+ */
 export const usePoll = (active: boolean) => {
   const router = useRouter();
+  useTaskEvents(() => router.refresh());
   useEffect(() => {
     const timer = setInterval(
       () => {

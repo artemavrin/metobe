@@ -32,7 +32,14 @@ import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 
 import {
@@ -54,6 +61,7 @@ import { ShareDialog } from "@/components/chat/share-dialog";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
 import { TopBarSlot } from "@/components/chat/top-bar";
 import { TaskDot } from "@/components/tasks/task-dot";
+import { useTaskEvents } from "@/components/tasks/use-task-events";
 import { groupChats } from "@/lib/chat-history";
 
 const NO_NEWS: WhatsNew = { latest: null, show: null };
@@ -149,8 +157,6 @@ export interface SidebarTask {
   name: string;
   color: string;
   waiting: boolean;
-  /** A run is going now: the shell looks again sooner. */
-  going?: boolean;
 }
 
 /**
@@ -308,26 +314,30 @@ export const ChatShell = ({
     setTaskRows(tasks);
   }
   const looksAtTasks = pathname.startsWith("/tasks");
-  const going = taskRows.some((task) => task.going);
-  const watchTasks = taskRows.length > 0 && !looksAtTasks;
+  const readTasks = useCallback(async () => {
+    const next = await sidebarTasksAction();
+    if (next) {
+      setTaskRows(next);
+    }
+  }, []);
+  // The server says when tasks move (task-events); the pages of tasks read the layout again by themselves. Besides, once
+  // a minute, in case a word was lost.
+  useTaskEvents(() => {
+    if (!looksAtTasks) {
+      readTasks();
+    }
+  });
   useEffect(() => {
-    if (!watchTasks) {
+    if (looksAtTasks) {
       return;
     }
-    const timer = setInterval(
-      async () => {
-        if (document.visibilityState !== "visible") {
-          return;
-        }
-        const next = await sidebarTasksAction();
-        if (next) {
-          setTaskRows(next);
-        }
-      },
-      going ? 3000 : 15_000
-    );
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        readTasks();
+      }
+    }, 60_000);
     return () => clearInterval(timer);
-  }, [watchTasks, going]);
+  }, [looksAtTasks, readTasks]);
   // «Поделиться чатом» — from the chat's menu in the sidebar or from the header of the chat on screen.
   const [sharingId, setSharingId] = useState<string | null>(null);
   const sharing = chats.find((c) => c.id === sharingId) ?? null;
