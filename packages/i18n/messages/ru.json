@@ -2572,7 +2572,6 @@
       }
     },
     "list": {
-      "pickHint": "Отметьте задачи",
       "andMore": "и ещё {count}",
       "selectAll": "Выбрать все",
       "select": "Выбрать",

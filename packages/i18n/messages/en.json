@@ -2578,7 +2578,6 @@
       }
     },
     "list": {
-      "pickHint": "Pick tasks",
       "andMore": "and {count} more",
       "selectAll": "Select all",
       "select": "Select",

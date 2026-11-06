@@ -20,7 +20,6 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
-  ListChecks,
   Pause,
   Play,
   Plus,
@@ -631,8 +630,8 @@ const usePick = (rows: TaskListRow[]) => {
 const MAX_NAMED = 6;
 
 /**
- * The bar of what is picked, floating under the list (Linear, Notion): the checkbox for all, how many, what to do
- * with them, ✕. Nothing stands over the list until something is picked; Esc lets the picked go.
+ * The list's own bar, over its rows: the checkbox for all of them stands in the column of the rows' checkboxes; with
+ * something picked — how many, and what to do with them (Gmail, Linear). Stays on top while the list scrolls.
  */
 const ListBar = ({
   pick,
@@ -660,31 +659,8 @@ const ListBar = ({
         pick.clear();
       }
     });
-  // Esc lets the picked go, as in a mail client.
-  useEffect(() => {
-    if (!pick.active) {
-      return;
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !confirming) {
-        pick.clear();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [pick, confirming]);
-  if (!pick.active) {
-    return null;
-  }
   return (
-    <div
-      className={cn(
-        "bg-popover text-popover-foreground sticky bottom-4 z-10 flex min-h-12 flex-wrap items-center gap-x-1 gap-y-1 self-center rounded-xl border py-1.5 pr-1.5 pl-3 shadow-lg",
-        ENTER
-      )}
-      role="toolbar"
-      aria-label={t("selected", { count })}
-    >
+    <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 -mb-2 flex min-h-11 flex-wrap items-center gap-x-1 gap-y-1 py-1.5 pl-[13px] backdrop-blur">
       <Checkbox
         aria-label={t("selectAll")}
         checked={pick.all}
@@ -692,9 +668,14 @@ const ListBar = ({
         onCheckedChange={pick.handleAll}
       />
       {count === 0 ? (
-        <span className="text-muted-foreground ml-2.5 text-sm">
-          {t("pickHint")}
-        </span>
+        <Button
+          className={cn(PRESS, "text-muted-foreground ml-1.5")}
+          onClick={pick.active ? pick.handleClear : pick.handleStart}
+          size="xs"
+          variant="ghost"
+        >
+          {pick.active ? t("clearSelection") : t("select")}
+        </Button>
       ) : (
         <>
           <span
@@ -829,17 +810,6 @@ export const TaskList = ({
             {rows.length}
           </span>
         </h1>
-        {!pick.active && (
-          <Button
-            className={PRESS}
-            onClick={pick.handleStart}
-            size="sm"
-            variant="ghost"
-          >
-            <ListChecks />
-            <span className="max-sm:sr-only">{t("list.select")}</span>
-          </Button>
-        )}
         <Button
           className={PRESS}
           nativeButton={false}
@@ -852,7 +822,8 @@ export const TaskList = ({
         </Button>
       </TopBar>
       <div className="@container min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 pt-6 pb-6 md:px-6">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 pt-2 pb-24 md:px-6">
+          <ListBar pick={pick} rows={rows} />
           {action.length > 0 && (
             <Section
               count={action.length}
@@ -884,7 +855,6 @@ export const TaskList = ({
               rows={off}
             />
           )}
-          <ListBar pick={pick} rows={rows} />
         </div>
       </div>
     </Picked>
