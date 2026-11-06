@@ -13,6 +13,7 @@ import {
   deleteTask,
   getRunAnswer,
   getTask,
+  markRunsUnseen,
   markTaskSeen,
   setTaskEnabled,
   setTaskNotify,
@@ -207,6 +208,63 @@ export const markTaskSeenAction = async (taskId: string) => {
   }
   await markTaskSeen(userId, taskId);
   revalidatePath("/", "layout");
+};
+
+/** «Отметить прочитанными» on the list: every new result of these tasks is seen. */
+export const markTasksSeenAction = async (taskIds: string[]) => {
+  const userId = await owner();
+  const ids = z.array(id).max(200).safeParse(taskIds);
+  if (!userId || !ids.success) {
+    return { ok: false };
+  }
+  await Promise.all(ids.data.map((t) => markTaskSeen(userId, t)));
+  revalidatePath("/", "layout");
+  return { ok: true };
+};
+
+/** «Вернуть непрочитанными»: the results just marked seen are new again. */
+export const markRunsUnseenAction = async (runIds: string[]) => {
+  const userId = await owner();
+  const ids = z.array(id).max(200).safeParse(runIds);
+  if (!userId || !ids.success) {
+    return { ok: false };
+  }
+  await markRunsUnseen(userId, ids.data);
+  revalidatePath("/", "layout");
+  return { ok: true };
+};
+
+// ── Several at once, from the list ───────────────────────────────────────────────────────────────────────────────
+
+const many = z.array(id).min(1).max(200);
+
+/** «Включить» / «Выключить» for the tasks picked in the list; someone else's task is skipped as missing. */
+export const setTasksEnabledAction = async (
+  taskIds: string[],
+  enabled: boolean
+) => {
+  const userId = await owner();
+  const ids = many.safeParse(taskIds);
+  if (!userId || !ids.success) {
+    return { ok: false };
+  }
+  const done = await Promise.all(
+    ids.data.map((t) => setTaskEnabled(userId, t, enabled))
+  );
+  revalidatePath("/", "layout");
+  return { ok: done.every(Boolean) };
+};
+
+/** «Удалить» for the tasks picked in the list, after the person confirmed it. */
+export const deleteTasksAction = async (taskIds: string[]) => {
+  const userId = await owner();
+  const ids = many.safeParse(taskIds);
+  if (!userId || !ids.success) {
+    return { ok: false };
+  }
+  const done = await Promise.all(ids.data.map((t) => deleteTask(userId, t)));
+  revalidatePath("/", "layout");
+  return { ok: done.every(Boolean) };
 };
 
 const draftInput = z.object({

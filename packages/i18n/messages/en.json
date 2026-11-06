@@ -2578,6 +2578,29 @@
       }
     },
     "list": {
+      "select": "Select",
+      "selectTask": "Select «{name}»",
+      "selected": "Selected: {count}",
+      "turnOnMany": "Turn on",
+      "turnOffMany": "Turn off",
+      "deleteMany": "Delete",
+      "clearSelection": "Clear selection",
+      "deleteManyTitle": "{count, plural, one {Delete # task?} other {Delete # tasks?}}",
+      "deleteManyText": "The tasks and the history of their runs will be deleted for good. They cannot be brought back.",
+      "cancel": "Cancel",
+      "actionGroup": "Needs action",
+      "freshGroup": "New results",
+      "restGroup": "Others",
+      "offGroup": "Off · {count}",
+      "markRead": "Mark as read",
+      "markUnread": "Mark as unread",
+      "openTask": "Open the task",
+      "open": "Open",
+      "resultAt": "result {when}",
+      "nextAt": "next {when}",
+      "turnedOn": "On · next {when}",
+      "newResult": "new result",
+      "done": "The run went through",
       "new": "New task"
     }
   }

@@ -98,7 +98,7 @@ const Ctx = createContext<{
 export type { TaskFields } from "@/components/tasks/task-about";
 
 /** A run's time as people say it: today, tomorrow, yesterday, else the date — in the task's own time zone. */
-const useRunTime = (zone: string) => {
+export const useRunTime = (zone: string) => {
   const t = useTranslations("tasks");
   const format = useFormatter();
   const locale = useLocale();
@@ -820,7 +820,7 @@ const Controls = ({
 };
 
 /** Looks again while the tab is in view: every few seconds while a run goes, else now and then. */
-const usePoll = (active: boolean) => {
+export const usePoll = (active: boolean) => {
   const router = useRouter();
   useEffect(() => {
     const timer = setInterval(

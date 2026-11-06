@@ -2572,6 +2572,29 @@
       }
     },
     "list": {
+      "select": "Выбрать",
+      "selectTask": "Выбрать «{name}»",
+      "selected": "Выбрано: {count}",
+      "turnOnMany": "Включить",
+      "turnOffMany": "Выключить",
+      "deleteMany": "Удалить",
+      "clearSelection": "Снять выбор",
+      "deleteManyTitle": "{count, plural, one {Удалить # задачу?} few {Удалить # задачи?} many {Удалить # задач?} other {Удалить # задачи?}}",
+      "deleteManyText": "Задачи и история их запусков удалятся насовсем. Вернуть их будет нельзя.",
+      "cancel": "Отмена",
+      "actionGroup": "Нужно действие",
+      "freshGroup": "Новые итоги",
+      "restGroup": "Остальные",
+      "offGroup": "Выключены · {count}",
+      "markRead": "Отметить прочитанными",
+      "markUnread": "Вернуть непрочитанными",
+      "openTask": "Открыть задачу",
+      "open": "Открыть",
+      "resultAt": "итог {when}",
+      "nextAt": "след. {when}",
+      "turnedOn": "Включена · след. {when}",
+      "newResult": "новый итог",
+      "done": "Запуск прошёл",
       "new": "Новая задача"
     }
   }

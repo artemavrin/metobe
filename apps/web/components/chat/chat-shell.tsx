@@ -51,6 +51,7 @@ import {
 } from "@/components/chat/compact-bridge";
 import { ShareDialog } from "@/components/chat/share-dialog";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
+import { TopBarSlot } from "@/components/chat/top-bar";
 import { groupChats } from "@/lib/chat-history";
 
 const NO_NEWS: WhatsNew = { latest: null, show: null };
@@ -309,6 +310,8 @@ export const ChatShell = ({
   const [sharingId, setSharingId] = useState<string | null>(null);
   const sharing = chats.find((c) => c.id === sharingId) ?? null;
   const current = chats.find((c) => pathname === `/chat/${c.id}`);
+  // Where a page that is not a chat puts its title and main button (TopBar).
+  const [topBar, setTopBar] = useState<HTMLElement | null>(null);
   // Rename and delete show at once and tell the server; pinning waits for the server's list, which knows the
   // day a chat goes back to. A refused change is put right by reading the list again.
   const compactBridge = useCompactBridgeValue();
@@ -381,12 +384,20 @@ export const ChatShell = ({
             <SidebarInset className="h-dvh min-h-0 overflow-hidden">
               <header className="flex h-12 shrink-0 items-center gap-2 px-3">
                 <SidebarTrigger aria-label={t("openSidebar")} />
-                {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share. */}
-                {current && (
+                {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share.
+                    Any other page fills the bar itself, through <TopBar>. */}
+                {current ? (
                   <ChatHeader chat={current} key={current.id} ops={ops} />
+                ) : (
+                  <div
+                    className="flex min-w-0 flex-1 items-center gap-2"
+                    ref={setTopBar}
+                  />
                 )}
               </header>
-              <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+              <TopBarSlot value={current ? null : topBar}>
+                <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+              </TopBarSlot>
             </SidebarInset>
             {notes && whatsNewOpen && (
               <WhatsNewDialog

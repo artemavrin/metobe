@@ -377,7 +377,48 @@ const latestRuns = async (taskIds: string[]) => {
   return new Map(rows.map((r) => [r.taskId, r]));
 };
 
-/** The owner's tasks with each one's latest finished run, the newest task first. */
+/** A run with something to read: a result, a question, an action for the person. */
+const isResult = and(
+  eq(taskRuns.status, "done"),
+  sql`${taskRuns.outcome} in ('news', 'question', 'action')`
+);
+
+/** The latest result of each task given: a run that had something to say (news, a question, an action). */
+const latestResults = async (taskIds: string[]) => {
+  if (taskIds.length === 0) {
+    return new Map<string, TaskRunRow>();
+  }
+  const { db } = getDb();
+  const rows = await db
+    .selectDistinctOn([taskRuns.taskId])
+    .from(taskRuns)
+    .where(and(inArray(taskRuns.taskId, taskIds), isResult))
+    .orderBy(taskRuns.taskId, desc(taskRuns.finishedAt));
+  return new Map(rows.map((r) => [r.taskId, r]));
+};
+
+/** The tasks given that have a run queued or going. */
+const goingTasks = async (taskIds: string[]) => {
+  if (taskIds.length === 0) {
+    return new Set<string>();
+  }
+  const { db } = getDb();
+  const rows = await db
+    .selectDistinct({ taskId: taskRuns.taskId })
+    .from(taskRuns)
+    .where(
+      and(
+        inArray(taskRuns.taskId, taskIds),
+        inArray(taskRuns.status, ["queued", "running"])
+      )
+    );
+  return new Set(rows.map((r) => r.taskId));
+};
+
+/**
+ * The owner's tasks, the newest first, each with its latest finished run, its latest result (a quiet run after it does
+ * not hide it) and whether a run is on its way — what the list «по вниманию» sorts by (P13).
+ */
 export const listTasks = async (ownerId: string) => {
   const { db } = getDb();
   const list = await db
@@ -385,9 +426,20 @@ export const listTasks = async (ownerId: string) => {
     .from(tasks)
     .where(eq(tasks.ownerId, ownerId))
     .orderBy(desc(tasks.createdAt));
-  const last = await latestRuns(list.map((t) => t.id));
-  return list.map((task) => ({ last: last.get(task.id) ?? null, task }));
+  const ids = list.map((t) => t.id);
+  const [last, results, going] = await Promise.all([
+    latestRuns(ids),
+    latestResults(ids),
+    goingTasks(ids),
+  ]);
+  return list.map((task) => ({
+    going: going.has(task.id),
+    last: last.get(task.id) ?? null,
+    result: results.get(task.id) ?? null,
+    task,
+  }));
 };
+export type TaskListItem = Awaited<ReturnType<typeof listTasks>>[number];
 
 /** One of the owner's tasks; null for anyone else's. */
 export const getTask = async (ownerId: string, id: string) => {
@@ -401,11 +453,6 @@ export const getTask = async (ownerId: string, id: string) => {
 };
 
 /** A task's runs, the newest first; a run still going is among them. */
-/** A run with something to read: a result, a question, an action for the person. */
-const isResult = and(
-  eq(taskRuns.status, "done"),
-  sql`${taskRuns.outcome} in ('news', 'question', 'action')`
-);
 
 /** How many failures after the last result stand as rows above it. */
 const FAILURE_ROWS = 3;
@@ -561,6 +608,22 @@ export const markTaskSeen = async (
         eq(taskRuns.status, "done")
       )
     );
+};
+
+/** «Вернуть непрочитанными» right after «Отметить прочитанными»: these runs of the owner's tasks are new again. */
+export const markRunsUnseen = async (ownerId: string, runIds: string[]) => {
+  if (runIds.length === 0) {
+    return;
+  }
+  const { db } = getDb();
+  const own = db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(eq(tasks.ownerId, ownerId));
+  await db
+    .update(taskRuns)
+    .set({ seenAt: null })
+    .where(and(inArray(taskRuns.id, runIds), inArray(taskRuns.taskId, own)));
 };
 
 /** A run's answer — the result as the chat stores it — for the owner of its task only; null for anyone else's. */
