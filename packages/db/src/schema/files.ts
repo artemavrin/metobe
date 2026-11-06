@@ -12,10 +12,11 @@ import {
 
 import { user } from "./auth";
 import { chats } from "./chat";
+import { tasks } from "./tasks";
 
 // Attachments (D33): the bytes live in S3 under `storage_key`, this row says whose they are and what they are. A file
 // is uploaded before its message goes (no chat yet), and joins the chat when the message is saved. Deleting a chat or
-// a user removes the rows; core deletes the objects first.
+// a user removes the rows; core deletes the objects first. A file can also belong to a periodic task.
 
 export const files = pgTable(
   "files",
@@ -33,6 +34,8 @@ export const files = pgTable(
     name: text("name").notNull(),
     size: integer("size").notNull(),
     storageKey: text("storage_key").notNull(),
+    /** A periodic task's own file (ARCH §16.1a): every run gets it. Such a file has no chat and is not a draft. */
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -40,6 +43,7 @@ export const files = pgTable(
   (table) => [
     index("files_user").on(table.userId, table.createdAt),
     index("files_chat").on(table.chatId),
+    index("files_task").on(table.taskId),
     check(
       "files_kind",
       sql`${table.kind} in ('image', 'pdf', 'text', 'doc', 'sheet')`

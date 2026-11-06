@@ -265,6 +265,27 @@ export const skillsForChat = async (userId: string) => {
   }));
 };
 
+/**
+ * The skills of these ids the owner may use, as their chat offers them (skillsForChat): an id that is disabled, someone
+ * else's or stood in for by the owner's own skill of the same name is left out. In the order of the ids.
+ */
+export const skillsByIds = async (
+  ownerId: string,
+  ids: string[]
+): Promise<{ id: string; name: string; description: string }[]> => {
+  if (ids.length === 0) {
+    return [];
+  }
+  const usable = await skillsForChat(ownerId);
+  const offered = new Map(usable.map((s) => [s.id, s]));
+  return [...new Set(ids)].flatMap((id) => {
+    const skill = offered.get(id);
+    return skill
+      ? [{ description: skill.description, id: skill.id, name: skill.name }]
+      : [];
+  });
+};
+
 /** A skill's instructions and the list of its files, by name, for the chat of this user; null if there is none. */
 export const loadSkill = async (userId: string, name: string) => {
   const offered = await skillsForChat(userId);

@@ -11,11 +11,16 @@ import type { Locale } from "./letters/kit";
 // reading pane with the letter in a frame, as a client shows it. «Параметры»: a computer or a phone, a light or a
 // dark client, the language, the letter or its plain-text part.
 
-export type VariantId = "code" | "button" | "note" | "context";
+/** A letter variant's id: the sign-in letter has `code`, `button`, `note`, `context`; other letters bring their own. */
+export type VariantId = string;
 export type Rendered = Record<VariantId, Record<Locale, { html: string; text: string; subject: string; preview: string }>>;
 export type Inbox = { at: string; from: string; subject: string; snippet: string }[];
 
 interface Data {
+  /** The variants in the picker, in order. */
+  variants: { id: VariantId; name: string }[];
+  /** The languages the letters come in; one — no language switch. */
+  locales?: Locale[];
   letters: Rendered;
   inbox: Inbox;
   sender: { name: string; address: string };
@@ -79,9 +84,10 @@ const Frame = ({ html, dark }: { html: string; dark: boolean }) => {
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(600);
   const fit = () => {
-    const doc = ref.current?.contentDocument;
-    if (doc) {
-      setHeight(doc.documentElement.scrollHeight);
+    // Until the frame has loaded, its document has no root yet: measure on load.
+    const root = ref.current?.contentDocument?.documentElement;
+    if (root) {
+      setHeight(root.scrollHeight);
     }
   };
   useEffect(fit, [html, dark]);
@@ -252,7 +258,9 @@ const ProtoParams = () => {
     <>
       <Choice label="экран" onChange={(phone) => set({ phone })} options={[[false, "компьютер"], [true, "телефон"]]} value={params.phone} />
       <Choice label="клиент" onChange={(dark) => set({ dark })} options={[[false, "светлый"], [true, "тёмный"]]} value={params.dark} />
-      <Choice label="язык" onChange={(locale) => set({ locale })} options={[["ru" as Locale, "русский"], ["en" as Locale, "english"]]} value={params.locale} />
+      {(useData().locales ?? ["ru", "en"]).length > 1 && (
+        <Choice label="язык" onChange={(locale) => set({ locale })} options={[["ru" as Locale, "русский"], ["en" as Locale, "english"]]} value={params.locale} />
+      )}
       <Choice label="вид" onChange={(text) => set({ text })} options={[[false, "письмо"], [true, "текст"]]} value={params.text} />
     </>
   );
@@ -267,12 +275,7 @@ export const Prototype = (data: Data) => {
       <ParamsContext value={{ params, set: (p) => setParams((prev) => ({ ...prev, ...p })) }}>
         <Picker
           params={<ProtoParams />}
-          variants={[
-            { Component: of("code"), name: "Код" },
-            { Component: of("button"), name: "Кнопка" },
-            { Component: of("note"), name: "Записка" },
-            { Component: of("context"), name: "Контекст" },
-          ]}
+          variants={data.variants.map((v) => ({ Component: of(v.id), name: v.name }))}
         />
       </ParamsContext>
     </DataContext>

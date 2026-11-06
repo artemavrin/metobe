@@ -1,5 +1,9 @@
 import "server-only";
-import type { ChatMessage, ChatVisibility } from "@metobe/contracts/chat";
+import type {
+  ChatKind,
+  ChatMessage,
+  ChatVisibility,
+} from "@metobe/contracts/chat";
 import { user } from "@metobe/db/schema/auth";
 import { chats, messages, votes } from "@metobe/db/schema/chat";
 import {
@@ -27,12 +31,14 @@ export const createChat = async (chat: {
   id: string;
   userId: string;
   title: string;
+  /** `task_run` — a periodic task's run (ARCH §16); a chat by default. */
+  kind?: ChatKind;
 }) => {
   const { db } = getDb();
   await db.insert(chats).values(chat).onConflictDoNothing();
 };
 
-/** A user's chats for the sidebar, the latest first. Agent runs live in their own place (v2). */
+/** A user's chats for the sidebar, the latest first. Task runs live on their task's page (ARCH §16). */
 export const listChats = (userId: string, limit = 200) => {
   const { db } = getDb();
   return db

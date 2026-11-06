@@ -8,6 +8,7 @@ import {
 } from "@metobe/core/chat";
 import { listChatServers } from "@metobe/core/mcp";
 import { skillsForChat } from "@metobe/core/skills";
+import { getTaskByChat } from "@metobe/core/tasks";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -64,12 +65,13 @@ const ChatPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   if (chat.userId !== user.id) {
     return await sharedPage(id);
   }
-  const [messages, picker, servers, votes, skills] = await Promise.all([
+  const [messages, picker, servers, votes, skills, task] = await Promise.all([
     listMessages(id),
     getPickerData(user.id),
     listChatServers(user.id),
     listVotes(id),
     skillsForChat(user.id),
+    getTaskByChat(user.id, id),
   ]);
   const { models } = picker;
   const answeredBy = messages.flatMap((m) =>
@@ -96,6 +98,7 @@ const ChatPage = async ({ params }: { params: Promise<{ id: string }> }) => {
       favorites={picker.favorites}
       labels={labels}
       model={model}
+      task={{ created: task }}
       models={models}
       recent={picker.recent}
       servers={servers}

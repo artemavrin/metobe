@@ -129,5 +129,11 @@ export const modelSlots = ["titles", "vision", "summaries"] as const;
 export type ModelSlot = (typeof modelSlots)[number];
 
 /** What a run was for: a chat's answer, or a service job. */
-export const runPurposes = ["chat", "describe", "title", "compact"] as const;
+export const runPurposes = [
+  "chat",
+  "describe",
+  "title",
+  "compact",
+  "task",
+] as const;
 export type RunPurpose = (typeof runPurposes)[number];

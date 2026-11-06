@@ -4,6 +4,7 @@ import type { ChatMessage } from "@metobe/contracts/chat";
 import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
+import { splitSkills } from "@metobe/core/skill-mentions";
 import { Bubble, BubbleContent } from "@metobe/ui/components/bubble";
 import { Button } from "@metobe/ui/components/button";
 import {
@@ -72,10 +73,11 @@ import { SecretNote } from "@/components/chat/secret-note";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { WebSources } from "@/components/chat/web-step";
+import { TaskDraftCard } from "@/components/tasks/task-draft-card";
 import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
 import type { AnswerBlock, ToolPart, WorkStep } from "@/lib/answer-work";
-import { splitMentions, splitSkills } from "@/lib/mentions";
+import { splitMentions } from "@/lib/mentions";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 import "gridora/styles.css";
@@ -841,6 +843,9 @@ const AnswerPiece = ({
   }
   if (block.kind === "metrics") {
     return <AnswerMetrics part={block.part} />;
+  }
+  if (block.kind === "task") {
+    return <TaskDraftCard part={block.part} />;
   }
   if (block.kind === "ask") {
     // Still open, the questions stand in the composer's place; answered, what the user said is their message here.

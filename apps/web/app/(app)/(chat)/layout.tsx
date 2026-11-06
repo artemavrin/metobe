@@ -1,5 +1,6 @@
 import { getAccount } from "@metobe/core/account";
 import { listChats } from "@metobe/core/chat";
+import { listSidebarTasks } from "@metobe/core/tasks";
 import { availableUpdate } from "@metobe/core/updates";
 import { getWhatsNew } from "@metobe/core/whats-new";
 import { getTranslations } from "next-intl/server";
@@ -34,11 +35,12 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
   }
   // Days by the user's calendar, counted here once; the sidebar only keeps the order.
   const now = new Date();
-  const [list, account, update, whatsNew] = await Promise.all([
+  const [list, account, update, whatsNew, tasks] = await Promise.all([
     listChats(user.id),
     getAccount(user.id),
     admin ? availableUpdate() : null,
     getWhatsNew(user.id),
+    listSidebarTasks(user.id),
   ]);
   // The pinned first, the latest pinned on top of them; the rest keep the order of their last message.
   // toSorted is past the ES2022 target; the filter gives a fresh array to sort.
@@ -63,6 +65,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
     <ChatShell
       admin={admin}
       chats={chats}
+      tasks={tasks}
       sendKey={account?.sendKey === "mod-enter" ? "mod-enter" : "enter"}
       whatsNew={whatsNew}
       user={{
