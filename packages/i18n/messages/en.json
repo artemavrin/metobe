@@ -2630,6 +2630,7 @@
     "failed": "Could not turn off: the link is not valid.",
     "doneTitle": "Letters turned off",
     "doneText": "Letters about the task «{task}» no longer come. You can turn them on again in the task's card, in the «Email» row.",
+    "open": "Open the task",
     "badTitle": "The link is not valid",
     "badText": "The task was deleted or the link is broken. Notifications can be turned off in the task's card in Metobe."
   }

@@ -1,5 +1,7 @@
 import { getMailOffTask } from "@metobe/core/task-mail";
+import { Button } from "@metobe/ui/components/button";
 import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 import { z } from "zod";
 
 import { MailOffForm } from "./mail-off-form";
@@ -40,6 +42,15 @@ const MailOffPage = async ({
         <p className="text-muted-foreground text-sm">
           {t("doneText", { task: task.name })}
         </p>
+        <Button
+          className="mt-2 self-start"
+          nativeButton={false}
+          render={<Link href={`/tasks/${task.id}`} />}
+          size="sm"
+          variant="outline"
+        >
+          {t("open")}
+        </Button>
       </div>
     );
   }
