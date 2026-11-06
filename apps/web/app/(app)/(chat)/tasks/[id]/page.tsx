@@ -103,9 +103,11 @@ const TaskPage = async ({ params }: { params: Promise<{ id: string }> }) => {
       }
     : null;
   // The result whole, and the run on its way as far as it got: its steps fill in while the page looks again.
-  const [answer, going] = await Promise.all([
+  // A run stopped at a tool that waits for the person's yes: its answer, with the calls to approve.
+  const [answer, going, waiting] = await Promise.all([
     runs.result ? getRunAnswer(user.id, runs.result.id) : null,
     runs.active?.chatId ? getRunAnswer(user.id, runs.active.id) : null,
+    runs.waiting ? getRunAnswer(user.id, runs.waiting.id) : null,
   ]);
   return (
     <TaskView
@@ -124,6 +126,7 @@ const TaskPage = async ({ params }: { params: Promise<{ id: string }> }) => {
         shared: s.ownerId === null,
       }))}
       task={task}
+      waiting={waiting}
       versions={versions
         .filter((v) => v.version <= task.version)
         .map((v) => ({

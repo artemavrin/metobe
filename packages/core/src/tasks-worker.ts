@@ -1,7 +1,7 @@
 import "server-only";
 import { Worker } from "bullmq";
 
-import { executeRun } from "./task-run";
+import { executeRun, resumeRun } from "./task-run";
 import { claimDueTasks, createRun } from "./tasks";
 import {
   TASKS_QUEUE,
@@ -30,6 +30,10 @@ const process = async (
       due.map((d) => enqueueRun(d.taskId, d.scheduledFor, "schedule"))
     );
     return { queued: due.length };
+  }
+  if (job.data.kind === "resume") {
+    await resumeRun(job.data.runId, signal);
+    return { runId: job.data.runId };
   }
   const runId = await createRun(
     job.data.taskId,

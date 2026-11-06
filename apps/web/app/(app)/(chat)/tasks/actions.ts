@@ -8,6 +8,7 @@ import {
   setTaskModel,
 } from "@metobe/core/task-change";
 import {
+  answerRun,
   createRun,
   createTaskFromDraft,
   deleteTask,
@@ -18,7 +19,7 @@ import {
   setTaskEnabled,
   setTaskNotify,
 } from "@metobe/core/tasks";
-import { enqueueRun } from "@metobe/core/tasks-queue";
+import { enqueueResume, enqueueRun } from "@metobe/core/tasks-queue";
 import { getLocale, getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -188,6 +189,32 @@ export const testTaskChangeAction = async (taskId: string) => {
   }
   await createRun(taskId, now, "test");
   revalidatePath(`/tasks/${taskId}`);
+  return { ok: true };
+};
+
+/**
+ * «Разрешить» / «Отклонить» on a call a stopped run waits on (ARCH §16.2): the decision is written into the run's
+ * answer; once nothing waits any more, the run goes on in the worker from where it stopped.
+ */
+export const answerRunAction = async (
+  runId: string,
+  approvalId: string,
+  approved: boolean
+) => {
+  const userId = await owner();
+  if (!userId || !id.safeParse(runId).success || !approvalId) {
+    return { ok: false };
+  }
+  const resume = await answerRun(userId, runId, approvalId, approved);
+  if (resume) {
+    try {
+      await enqueueResume(runId, approvalId);
+    } catch (error) {
+      console.error("tasks: resume run", error);
+      return { ok: false };
+    }
+  }
+  revalidatePath("/", "layout");
   return { ok: true };
 };
 

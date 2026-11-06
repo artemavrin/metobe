@@ -23,7 +23,12 @@ export interface RunJob {
   scheduledFor: string;
   trigger: TaskTrigger;
 }
-export type TaskJob = DispatchJob | RunJob;
+/** A run stopped at a tool that waits for the person's yes, going on after their answer. */
+export interface ResumeJob {
+  kind: "resume";
+  runId: string;
+}
+export type TaskJob = DispatchJob | RunJob | ResumeJob;
 
 /**
  * The queue's Redis: `REDIS_URL`, through node-redis — the client the rest of core uses. BullMQ 6 takes a client
@@ -58,6 +63,14 @@ export const enqueueRun = (
     "run",
     { kind: "run", scheduledFor: scheduledFor.toISOString(), taskId, trigger },
     { jobId: runJobId(taskId, scheduledFor, trigger) }
+  );
+
+/** A stopped run goes on: one job per answer, so a second click does not run it twice. No «:» in the id. */
+export const enqueueResume = (runId: string, answerId: string) =>
+  getTasksQueue().add(
+    "resume",
+    { kind: "resume", runId },
+    { jobId: `${runId}-resume-${answerId}` }
   );
 
 /** The minute tick, one for the whole installation: upserting it again changes nothing. */

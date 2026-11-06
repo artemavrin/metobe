@@ -31,7 +31,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import { getChat, listMessages } from "./chat";
+import { getChat, listMessages, saveMessages } from "./chat";
 import { getDb } from "./db";
 import { deleteTaskObjects } from "./files";
 import {
@@ -278,6 +278,18 @@ export const markRunning = async (runId: string, chatId: string) => {
 };
 
 /**
+ * A run stops at a tool that waits for the person's yes (ARCH §16.2): it is not over — the answer keeps its place, the
+ * person answers on the task's page, and the run goes on from there. It waits for them as an action does.
+ */
+export const pauseRun = async (runId: string, summary: string) => {
+  const { db } = getDb();
+  await db
+    .update(taskRuns)
+    .set({ outcome: "action", status: "waiting_approval", summary })
+    .where(eq(taskRuns.id, runId));
+};
+
+/**
  * A run ends: done with what `report` said, or failed with why. A failure counts towards the five that stop the
  * task; a test run's does not, and anything done resets the count.
  */
@@ -347,6 +359,9 @@ export const waitsFor = (
     | null
     | undefined
 ) => {
+  if (run?.status === "waiting_approval") {
+    return true;
+  }
   if (
     !run ||
     run.status !== "done" ||
@@ -370,10 +385,10 @@ const latestRuns = async (taskIds: string[]) => {
     .where(
       and(
         inArray(taskRuns.taskId, taskIds),
-        inArray(taskRuns.status, ["done", "failed"])
+        inArray(taskRuns.status, ["done", "failed", "waiting_approval"])
       )
     )
-    .orderBy(taskRuns.taskId, desc(taskRuns.finishedAt));
+    .orderBy(taskRuns.taskId, desc(taskRuns.createdAt));
   return new Map(rows.map((r) => [r.taskId, r]));
 };
 
@@ -468,7 +483,7 @@ const PAST_ROWS = 30;
 export const getTaskRuns = async (taskId: string) => {
   const { db } = getDb();
   const ofTask = eq(taskRuns.taskId, taskId);
-  const [[active], [result]] = await Promise.all([
+  const [[active], [result], [waiting]] = await Promise.all([
     db
       .select()
       .from(taskRuns)
@@ -480,6 +495,13 @@ export const getTaskRuns = async (taskId: string) => {
       .from(taskRuns)
       .where(and(ofTask, isResult))
       .orderBy(desc(taskRuns.scheduledFor))
+      .limit(1),
+    // A run stopped at a tool that waits for the person's yes.
+    db
+      .select()
+      .from(taskRuns)
+      .where(and(ofTask, eq(taskRuns.status, "waiting_approval")))
+      .orderBy(desc(taskRuns.createdAt))
       .limit(1),
   ]);
   const after = result
@@ -532,6 +554,7 @@ export const getTaskRuns = async (taskId: string) => {
         ? { count: quiet.count, last: quiet.last }
         : null,
     result: result ?? null,
+    waiting: waiting ?? null,
   };
 };
 export type TaskRuns = Awaited<ReturnType<typeof getTaskRuns>>;
@@ -624,6 +647,56 @@ export const markRunsUnseen = async (ownerId: string, runIds: string[]) => {
     .update(taskRuns)
     .set({ seenAt: null })
     .where(and(inArray(taskRuns.id, runIds), inArray(taskRuns.taskId, own)));
+};
+
+/**
+ * The person's yes or no on a call a stopped run waits on: written into the run's answer as the chat writes it. True
+ * once no call waits any more — the run can go on (enqueueResume); false while others still wait, or nothing matched.
+ */
+export const answerRun = async (
+  ownerId: string,
+  runId: string,
+  approvalId: string,
+  approved: boolean
+) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ chatId: taskRuns.chatId, status: taskRuns.status })
+    .from(taskRuns)
+    .innerJoin(tasks, eq(tasks.id, taskRuns.taskId))
+    .where(and(eq(taskRuns.id, runId), eq(tasks.ownerId, ownerId)))
+    .limit(1);
+  if (row?.status !== "waiting_approval" || !row.chatId) {
+    return false;
+  }
+  const history = await listMessages(row.chatId);
+  // The web app's lib has no findLast: the answers, then the last of them.
+  const answers = history.filter((m) => m.role === "assistant");
+  const answer = answers.at(-1);
+  if (!answer) {
+    return false;
+  }
+  let matched = false;
+  const parts = answer.parts.map((p) => {
+    if (
+      "state" in p &&
+      p.state === "approval-requested" &&
+      p.approval.id === approvalId
+    ) {
+      matched = true;
+      return {
+        ...p,
+        approval: { approved, id: approvalId },
+        state: "approval-responded" as const,
+      };
+    }
+    return p;
+  }) as ChatMessage["parts"];
+  if (!matched) {
+    return false;
+  }
+  await saveMessages(row.chatId, [{ ...answer, parts }]);
+  return !parts.some((p) => "state" in p && p.state === "approval-requested");
 };
 
 /** A run's answer — the result as the chat stores it — for the owner of its task only; null for anyone else's. */

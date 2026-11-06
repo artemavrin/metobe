@@ -47,7 +47,13 @@ import { listChatServers, toolsForUser } from "./mcp";
 import { getPersonalPolicy } from "./personal";
 import { skillsByIds, skillsForChat } from "./skills";
 import { sendRunLetter } from "./task-mail";
-import { finishRun, getRunContext, lastResultChat, markRunning } from "./tasks";
+import {
+  finishRun,
+  getRunContext,
+  lastResultChat,
+  markRunning,
+  pauseRun,
+} from "./tasks";
 import { webToolsOn } from "./web-settings";
 
 // One run of a periodic task (ARCH §16.2): an ordinary chat of kind `task_run` with the owner's tools, which must end
@@ -267,7 +273,9 @@ const work = async (
   messages: ModelMessage[],
   tools: ToolSet,
   maxSteps: number,
-  onProgress: (answer: ChatMessage) => Promise<void>
+  onProgress: (answer: ChatMessage) => Promise<void>,
+  /** Going on after the person's answer: the run's chat so far, and its answer to carry on. */
+  from?: { history: ChatMessage[]; answer: ChatMessage }
 ) => {
   // A stream's error goes to `onError`, and the result then rejects with «No output generated»: the run is to say
   // the first one — the provider's own reason.
@@ -287,6 +295,8 @@ const work = async (
   const stream = toUIMessageStream<ToolSet, ChatMessage>({
     // The messages table keys by uuid: the answer gets one of its own.
     generateMessageId: () => randomUUID(),
+    // Going on: the stream carries on the same answer, so the approved call gets its result where it was asked.
+    ...(from ? { originalMessages: from.history } : {}),
     messageMetadata: ({ part }) =>
       part.type === "start"
         ? { createdAt: new Date().toISOString(), modelId: p.modelId }
@@ -296,7 +306,10 @@ const work = async (
   });
   try {
     const progress = progressWriter(onProgress);
-    for await (const message of readUIMessageStream<ChatMessage>({ stream })) {
+    for await (const message of readUIMessageStream<ChatMessage>({
+      message: from?.answer,
+      stream,
+    })) {
       answer = message;
       progress.push(message);
     }
@@ -339,19 +352,20 @@ const writeUp = async (
  * How a finished run ends: waiting for the person's yes on a call (the task waits for them), what `report` said, or
  * — when the model forgot it — a result summed up by its first sentence.
  */
-const endOf = (answer: ChatMessage | undefined, report: TaskReport | null) => {
+/** «Ждёт подтверждения: email_send» — the run stops there, not over (pauseRun). */
+const waitingSummary = (answer: ChatMessage | undefined) => {
   const waiting = waitingCall(answer);
-  if (waiting) {
-    const name =
-      waiting.type === "dynamic-tool"
-        ? waiting.toolName
-        : waiting.type.replace(/^tool-/u, "");
-    return {
-      outcome: "action" as const,
-      status: "done" as const,
-      summary: `Ждёт подтверждения: ${name}`,
-    };
+  if (!waiting) {
+    return null;
   }
+  const name =
+    waiting.type === "dynamic-tool"
+      ? waiting.toolName
+      : waiting.type.replace(/^tool-/u, "");
+  return `Ждёт подтверждения: ${name}`;
+};
+
+const endOf = (answer: ChatMessage | undefined, report: TaskReport | null) => {
   const end = report ?? {
     outcome: "news" as const,
     summary: firstLine(answer) || "Запуск завершён без итога",
@@ -419,34 +433,24 @@ const askOf = async (
   return { messages, question };
 };
 
-/** Runs a queued run to its end. Never throws: whatever happens, the run row says how it ended. */
-export const executeRun = async (runId: string, signal?: AbortSignal) => {
-  const ctx = await getRunContext(runId);
-  if (!ctx || ctx.run.status !== "queued") {
-    return;
-  }
-  const { run, task, snapshot } = ctx;
-  const model = await getChatModel(snapshot.modelId);
-  if (!model) {
-    await finishRun(runId, {
-      outcome: "action",
-      status: "done",
-      summary: "Модель задачи недоступна: выбрана другая или источник выключен",
-    });
-    await sendRunLetter(runId);
-    return;
-  }
+type Context = NonNullable<Awaited<ReturnType<typeof getRunContext>>>;
 
-  const chatId = randomUUID();
-  const at = run.scheduledFor;
-  await createChat({
-    id: chatId,
-    kind: "task_run",
-    title: `${task.name} · ${dateIn(at, snapshot.timezone)}`,
-    userId: task.ownerId,
-  });
-  await markRunning(runId, chatId);
-
+/**
+ * The run's work to its end, or to a tool that waits for the person's yes — then it stops (pauseRun) and goes on
+ * later from the same answer (resumeRun). Never throws: whatever happens, the run row says how it ended.
+ */
+const carry = async (c: {
+  ctx: Context;
+  model: ChatModel;
+  chatId: string;
+  question: ChatMessage;
+  messages: ModelMessage[];
+  from?: { history: ChatMessage[]; answer: ChatMessage };
+  signal?: AbortSignal;
+}) => {
+  const { run, task, snapshot } = c.ctx;
+  const runId = run.id;
+  const { chatId, model, question } = c;
   const started = Date.now();
   const timeout = AbortSignal.timeout(task.timeoutS * 1000);
   const record = (status: "ok" | "error" | "aborted", steps: Steps = []) =>
@@ -472,20 +476,24 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
       reported
     );
     const pass: Pass = {
-      instructions: instructionsFor(task, snapshot, at, previous, note),
+      instructions: instructionsFor(
+        task,
+        snapshot,
+        run.scheduledFor,
+        previous,
+        note
+      ),
       languageModel: await getLanguageModel(model.sourceId, model.modelId),
       modelId: model.id,
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      signal: c.signal ? AbortSignal.any([c.signal, timeout]) : timeout,
     };
-    const ask = `Запуск задачи: ${dateIn(at, snapshot.timezone)}.`;
-    const { question, messages } = await askOf(task, snapshot, model, {
-      ask,
-      at: new Date(started),
-    });
-    // The run's chat fills as it goes: the page shows its steps while it runs (ARCH §16.4).
-    await saveMessages(chatId, [question]);
-    const done = await work(pass, messages, tools, task.maxSteps, (going) =>
-      saveMessages(chatId, [question, going])
+    const done = await work(
+      pass,
+      c.messages,
+      tools,
+      task.maxSteps,
+      (going) => saveMessages(chatId, [question, going]),
+      c.from
     );
     let { answer } = done;
     const steps = [...done.steps];
@@ -506,10 +514,13 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
     }
     await saveMessages(chatId, answer ? [question, answer] : [question]);
     await record("ok", steps);
-    await finishRun(runId, endOf(answer, report));
+    const waiting = waitingSummary(answer);
+    await (waiting
+      ? pauseRun(runId, waiting)
+      : finishRun(runId, endOf(answer, report)));
     await sendRunLetter(runId);
   } catch (error) {
-    const aborted = signal?.aborted ?? false;
+    const aborted = c.signal?.aborted ?? false;
     await record(aborted ? "aborted" : "error").catch((recordError: unknown) =>
       console.error("tasks: record run", recordError)
     );
@@ -519,4 +530,89 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
     });
     await sendRunLetter(runId);
   }
+};
+
+/** A run's model, or the run ends as an action for the person: the model is gone. */
+const modelOrEnd = async (ctx: Context) => {
+  const model = await getChatModel(ctx.snapshot.modelId);
+  if (!model) {
+    await finishRun(ctx.run.id, {
+      outcome: "action",
+      status: "done",
+      summary: "Модель задачи недоступна: выбрана другая или источник выключен",
+    });
+    await sendRunLetter(ctx.run.id);
+  }
+  return model;
+};
+
+/** Runs a queued run to its end, or to a tool that waits for the person's yes. */
+export const executeRun = async (runId: string, signal?: AbortSignal) => {
+  const ctx = await getRunContext(runId);
+  if (!ctx || ctx.run.status !== "queued") {
+    return;
+  }
+  const model = await modelOrEnd(ctx);
+  if (!model) {
+    return;
+  }
+  const { run, task, snapshot } = ctx;
+  const chatId = randomUUID();
+  const at = run.scheduledFor;
+  await createChat({
+    id: chatId,
+    kind: "task_run",
+    title: `${task.name} · ${dateIn(at, snapshot.timezone)}`,
+    userId: task.ownerId,
+  });
+  await markRunning(runId, chatId);
+  const { question, messages } = await askOf(task, snapshot, model, {
+    ask: `Запуск задачи: ${dateIn(at, snapshot.timezone)}.`,
+    at: new Date(),
+  });
+  // The run's chat fills as it goes: the page shows its steps while it runs (ARCH §16.4).
+  await saveMessages(chatId, [question]);
+  await carry({ chatId, ctx, messages, model, question, signal });
+};
+
+/**
+ * A run stopped at a tool that waited for the person's yes goes on, once every such call has its answer: the same
+ * chat, the same answer — an approved call runs first, a refused one tells the model so — on to the end.
+ */
+export const resumeRun = async (runId: string, signal?: AbortSignal) => {
+  const ctx = await getRunContext(runId);
+  const chatId = ctx?.run.chatId;
+  if (!ctx || ctx.run.status !== "waiting_approval" || !chatId) {
+    return;
+  }
+  const history = await listMessages(chatId);
+  const question = history.find((m) => m.role === "user");
+  // The latest answer: the chat holds the question and the one answer that stopped.
+  const answer = history.findLast((m) => m.role === "assistant");
+  if (!(question && answer) || waitingCall(answer)) {
+    return;
+  }
+  const model = await modelOrEnd(ctx);
+  if (!model) {
+    return;
+  }
+  await markRunning(runId, chatId);
+  // The first message as the model reads it (the task's files too), then the answer with the person's decisions.
+  const first = await askOf(ctx.task, ctx.snapshot, model, {
+    ask: textOf(question),
+    at: new Date(),
+  });
+  const messages = [
+    ...first.messages,
+    ...(await convertToModelMessages([answer])),
+  ];
+  await carry({
+    chatId,
+    ctx,
+    from: { answer, history: [question, answer] },
+    messages,
+    model,
+    question,
+    signal,
+  });
 };

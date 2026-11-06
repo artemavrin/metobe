@@ -45,6 +45,7 @@ import {
 } from "react";
 
 import {
+  answerRunAction,
   applyTaskChangeAction,
   cancelTaskChangeAction,
   deleteTaskAction,
@@ -192,12 +193,73 @@ const useLine = () => {
   };
 };
 
-const Answer = ({ message }: { message: ChatMessage }) => {
+const Answer = ({
+  message,
+  onApprove,
+}: {
+  message: ChatMessage;
+  /** A stopped run's calls: «Разрешить» / «Отклонить», as in a chat. */
+  onApprove?: (approvalId: string, approved: boolean) => void;
+}) => {
   const { servers } = use(Ctx);
   return (
     <div className="[&_[data-slot=message-footer]]:hidden">
-      <AssistantMessage live={false} message={message} servers={servers} />
+      <AssistantMessage
+        live={false}
+        message={message}
+        onApprove={onApprove}
+        servers={servers}
+      />
     </div>
+  );
+};
+
+/**
+ * A run stopped at a tool that waits for the person's yes (ARCH §16.2): on top of the runs, its answer with the calls
+ * to approve, as a chat shows them. Once every call has its answer, the run goes on in the worker.
+ */
+const Waiting = ({
+  run,
+  answer,
+}: {
+  run: TaskRunRow;
+  answer: ChatMessage | null;
+}) => {
+  const t = useTranslations("tasks");
+  const when = useWhen();
+  const [pending, start] = useTransition();
+  const [failed, setFailed] = useState(false);
+  const approve = (approvalId: string, approved: boolean) =>
+    start(async () => {
+      setFailed(false);
+      const { ok } = await answerRunAction(run.id, approvalId, approved);
+      setFailed(!ok);
+    });
+  return (
+    <section
+      className={cn(
+        "flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4",
+        ENTER
+      )}
+    >
+      <header className="flex flex-wrap items-baseline gap-x-2 text-sm">
+        <span className="font-medium">{t("waitingTitle")}</span>
+        <span className="text-muted-foreground tabular-nums">
+          {when(run.scheduledFor)}
+        </span>
+        {pending && <Spinner className="size-3.5 self-center" />}
+      </header>
+      {answer ? (
+        <Answer message={answer} onApprove={pending ? undefined : approve} />
+      ) : (
+        <p className="text-sm">{run.summary}</p>
+      )}
+      {failed && (
+        <p className="text-destructive text-sm" role="alert">
+          {t("actionFailed")}
+        </p>
+      )}
+    </section>
   );
 };
 
@@ -667,11 +729,14 @@ const Runs = ({
   runs,
   answer,
   going,
+  waiting,
   busy,
   onRetry,
 }: {
   runs: TaskRuns;
   answer: ChatMessage | null;
+  /** A run stopped at a tool that waits for the person's yes, its answer. */
+  waiting: ChatMessage | null;
   /** The run on its way, as far as it got. */
   going: ChatMessage | null;
   busy: boolean;
@@ -685,6 +750,7 @@ const Runs = ({
   const watched = useWatched({ answer, going, runs });
   return (
     <>
+      {runs.waiting && <Waiting answer={waiting} run={runs.waiting} />}
       {active && (
         <Going
           answer={going}
@@ -890,6 +956,7 @@ export const TaskView = ({
   runs,
   answer,
   going,
+  waiting,
   current,
   change,
   versions,
@@ -901,6 +968,8 @@ export const TaskView = ({
   runs: TaskRuns;
   /** The last result's answer. */
   answer: ChatMessage | null;
+  /** A run stopped at a tool that waits for the person's yes, its answer. */
+  waiting: ChatMessage | null;
   /** The run on its way, as far as it got. */
   going: ChatMessage | null;
   /** The task as the card shows it. */
@@ -918,7 +987,8 @@ export const TaskView = ({
   const [failed, setFailed] = useState(false);
   const [pending, start] = useTransition();
   const { active, result } = runs;
-  usePoll(active !== null);
+  // A run going, or one that waits for the person — after their answer it goes on soon.
+  usePoll(active !== null || runs.waiting !== null);
   const unseen = result?.outcome === "news" && !result.seenAt;
   useEffect(() => {
     if (unseen) {
@@ -1034,6 +1104,7 @@ export const TaskView = ({
             going={going}
             onRetry={runNow}
             runs={runs}
+            waiting={waiting}
           />
         </div>
         <TaskComposer

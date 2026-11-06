@@ -66,6 +66,7 @@ type Group = "action" | "fresh" | "rest" | "off";
 const needsAction = ({ task, last, result }: TaskListRow) =>
   task.pausedReason !== null ||
   last?.status === "failed" ||
+  last?.status === "waiting_approval" ||
   ((result?.outcome === "question" || result?.outcome === "action") &&
     result.resolvedAt === null);
 
@@ -187,6 +188,9 @@ const useWhy = () => {
     }
     if (last?.status === "failed") {
       return last.summary ?? t("failed", { error: last.error ?? "—" });
+    }
+    if (last?.status === "waiting_approval") {
+      return last.summary ?? t("waitingTitle");
     }
     return result?.summary ?? "";
   };
