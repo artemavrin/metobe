@@ -505,43 +505,81 @@ const Going = ({
   );
 };
 
-/** The run's steps in a window over the page: live while it goes, all of them once it ends — the result is on the page. */
+/** The title of the run's window: going, done, failed or cancelled. */
+const windowTitle = (
+  t: ReturnType<typeof useTranslations<"tasks">>,
+  done: boolean,
+  ending: TaskRunRow | null
+) => {
+  if (!done) {
+    return t("goingTitle");
+  }
+  if (ending?.status === "failed") {
+    return t("windowFailed");
+  }
+  if (ending?.status === "cancelled") {
+    return t("windowCancelled");
+  }
+  return t("windowDone");
+};
+
+/**
+ * The run in a window over the page: its steps live while it goes; once it ends — the whole answer, the steps folded
+ * above the result, and a failure's reason on top.
+ */
 const RunWindow = ({
   open,
   onClose,
   answer,
   done,
+  ending,
 }: {
   open: boolean;
   onClose: () => void;
   answer: ChatMessage | null;
   done: boolean;
+  /** The ended run's row, when the page lists it. */
+  ending: TaskRunRow | null;
 }) => {
   const t = useTranslations("tasks");
+  const line = useLine();
   const { servers, task } = use(Ctx);
   const steps = answer ? answerWork(answer.parts).steps : [];
+  const failed = ending?.status === "failed" || ending?.status === "cancelled";
+  let body: React.ReactNode = (
+    <p className="text-muted-foreground flex items-center gap-2">
+      <Spinner className="size-3.5" />
+      {t("running")}
+    </p>
+  );
+  if (done && answer) {
+    body = <Answer message={answer} />;
+  } else if (steps.length > 0) {
+    body = (
+      <ActivityBlock
+        keepOpen
+        metadata={answer?.metadata}
+        servers={servers}
+        steps={steps}
+        working
+      />
+    );
+  }
   return (
     <Dialog onOpenChange={(o) => !o && onClose()} open={open}>
       <DialogContent className="flex max-h-[min(85dvh,44rem)] flex-col gap-0 p-0 sm:max-w-2xl">
         <DialogHeader className="border-b p-4">
-          <DialogTitle>{done ? t("windowDone") : t("goingTitle")}</DialogTitle>
+          <DialogTitle>{windowTitle(t, done, ending)}</DialogTitle>
           <DialogDescription>{task.name}</DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm">
-          {steps.length > 0 ? (
-            <ActivityBlock
-              keepOpen
-              metadata={answer?.metadata}
-              servers={servers}
-              steps={steps}
-              working={!done}
-            />
-          ) : (
-            <p className="text-muted-foreground flex items-center gap-2">
-              <Spinner className="size-3.5" />
-              {t("running")}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 text-sm">
+          {failed && ending && (
+            <p className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2">
+              <Mark run={ending} />
+              {line(ending)}
             </p>
           )}
+          {(answer || !done) && body}
         </div>
       </DialogContent>
     </Dialog>
@@ -609,16 +647,15 @@ const Result = ({
  * last poll may have missed the end.
  */
 const useWatched = ({
-  active,
-  result,
+  runs,
   going,
   answer,
 }: {
-  active: TaskRuns["active"];
-  result: TaskRuns["result"];
+  runs: TaskRuns;
   going: ChatMessage | null;
   answer: ChatMessage | null;
 }) => {
+  const { active, result, failures } = runs;
   const [watching, setWatching] = useState<string | null>(null);
   const [kept, setKept] = useState<ChatMessage | null>(null);
   const live = watching !== null && active?.id === watching;
@@ -649,9 +686,14 @@ const useWatched = ({
   } else if (ended) {
     shown = answer;
   }
+  // How it ended, when the page lists it: a result or a failure. A run with nothing new is only counted.
+  const ending = live
+    ? null
+    : ([result, ...failures].find((r) => r?.id === watching) ?? null);
   return {
     answer: shown,
     done: !live,
+    ending,
     handleClose: () => setWatching(null),
     open: watching !== null,
     watch: (runId: string) => {
@@ -681,7 +723,7 @@ const Runs = ({
   const when = useWhen();
   const { active, failures, result, past, quiet } = runs;
   const nothing = !(result || quiet || failures.length > 0 || active);
-  const watched = useWatched({ active, answer, going, result });
+  const watched = useWatched({ answer, going, runs });
   return (
     <>
       {active && (
@@ -694,6 +736,7 @@ const Runs = ({
       <RunWindow
         answer={watched.answer}
         done={watched.done}
+        ending={watched.ending}
         onClose={watched.handleClose}
         open={watched.open}
       />

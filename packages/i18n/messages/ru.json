@@ -2493,6 +2493,8 @@
     "running": "Выполняется…",
     "goingTitle": "Выполняется",
     "windowDone": "Выполнено",
+    "windowFailed": "Сбой",
+    "windowCancelled": "Запуск отменён",
     "goingSteps": "{count, plural, one {# шаг} few {# шага} many {# шагов} other {# шага}}",
     "details": "Подробнее",
     "queued": "В очереди",

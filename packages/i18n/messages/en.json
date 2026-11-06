@@ -2499,6 +2499,8 @@
     "running": "Running…",
     "goingTitle": "Running",
     "windowDone": "Done",
+    "windowFailed": "Failed",
+    "windowCancelled": "Run cancelled",
     "goingSteps": "{count, plural, one {# step} other {# steps}}",
     "details": "Details",
     "queued": "Queued",
