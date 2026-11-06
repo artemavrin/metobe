@@ -665,6 +665,22 @@
     "now": "now {date}, {time}"
   },
   "email": {
+    "task": {
+      "subject": "{task}: {heading}",
+      "label": {
+        "result": "New result",
+        "question": "Question",
+        "action": "Action needed"
+      },
+      "button": {
+        "open": "Open the task",
+        "answer": "Answer"
+      },
+      "meta": "{schedule} · run {when}",
+      "why": "This letter came because email notifications are on for the task «{task}».",
+      "off": "Turn off for this task",
+      "failed": "Failure: {error}"
+    },
     "signIn": {
       "subject": "{code} — your Metobe sign-in code",
       "heading": "Your sign-in code",
@@ -2605,5 +2621,15 @@
       "done": "The run went through",
       "new": "New task"
     }
+  },
+  "mailOff": {
+    "title": "Turn off letters for this task?",
+    "text": "Letters about the task «{task}» will stop. Other tasks are not affected.",
+    "button": "Turn off",
+    "failed": "Could not turn off: the link is not valid.",
+    "doneTitle": "Letters turned off",
+    "doneText": "Letters about the task «{task}» no longer come. You can turn them on again in the task's card, in the «Email» row.",
+    "badTitle": "The link is not valid",
+    "badText": "The task was deleted or the link is broken. Notifications can be turned off in the task's card in Metobe."
   }
 }

@@ -168,6 +168,8 @@ interface Letter {
   html: string;
   subject: string;
   text: string;
+  /** Extra headers: `List-Unsubscribe` on a task's letter. */
+  headers?: Record<string, string>;
   to: string;
 }
 

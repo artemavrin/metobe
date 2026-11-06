@@ -46,6 +46,7 @@ import { listMailboxes } from "./mailboxes";
 import { listChatServers, toolsForUser } from "./mcp";
 import { getPersonalPolicy } from "./personal";
 import { skillsByIds, skillsForChat } from "./skills";
+import { sendRunLetter } from "./task-mail";
 import { finishRun, getRunContext, lastResultChat, markRunning } from "./tasks";
 import { webToolsOn } from "./web-settings";
 
@@ -432,6 +433,7 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
       status: "done",
       summary: "Модель задачи недоступна: выбрана другая или источник выключен",
     });
+    await sendRunLetter(runId);
     return;
   }
 
@@ -505,6 +507,7 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
     await saveMessages(chatId, answer ? [question, answer] : [question]);
     await record("ok", steps);
     await finishRun(runId, endOf(answer, report));
+    await sendRunLetter(runId);
   } catch (error) {
     const aborted = signal?.aborted ?? false;
     await record(aborted ? "aborted" : "error").catch((recordError: unknown) =>
@@ -514,5 +517,6 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
       error: reasonOf(error, aborted, task.timeoutS),
       status: aborted ? "cancelled" : "failed",
     });
+    await sendRunLetter(runId);
   }
 };
