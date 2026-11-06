@@ -48,6 +48,7 @@ import { getPersonalPolicy } from "./personal";
 import { skillsByIds, skillsForChat } from "./skills";
 import { sendRunLetter } from "./task-mail";
 import {
+  announceRun,
   finishRun,
   getRunContext,
   lastResultChat,
@@ -548,7 +549,10 @@ const carry = async (c: {
       c.messages,
       tools,
       task.maxSteps,
-      (going) => saveMessages(chatId, [question, going]),
+      async (going) => {
+        await saveMessages(chatId, [question, going]);
+        await announceRun(runId);
+      },
       c.from
     );
     let { answer } = done;
