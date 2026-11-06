@@ -98,7 +98,8 @@ export const sumUsage = (usages: LanguageModelUsage[]): LanguageModelUsage => {
 };
 
 export const recordRun = async (run: {
-  chatId: string;
+  /** Null for a service job outside a chat (a task's change proposed on its page without a chat). */
+  chatId: string | null;
   userId: string;
   model: ChatModel;
   status: RunStatus;

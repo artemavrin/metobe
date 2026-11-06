@@ -42,7 +42,8 @@ export const MIN_GAP_MINUTES = 5;
  */
 export const isTooFrequent = (cron: string) => {
   const { minute, hour } = CronExpressionParser.parse(cron).fields;
-  const minutes = [...minute.values].map(Number).toSorted((a, b) => a - b);
+  // cron-parser gives a field's values in ascending order.
+  const minutes = minute.values.map(Number);
   const hours = new Set(hour.values.map(Number));
   const close = minutes.some(
     (m, i) => i > 0 && m - (minutes[i - 1] ?? m) < MIN_GAP_MINUTES

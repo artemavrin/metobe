@@ -58,7 +58,7 @@ const BUILT_IN = [
   },
 ];
 
-const sourcesOf = (
+export const sourcesOf = (
   names: string[] | null,
   servers: DraftServer[],
   locale: "ru" | "en"

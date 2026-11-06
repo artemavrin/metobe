@@ -35,6 +35,7 @@ import {
 import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
+  Fragment,
   createContext,
   use,
   useEffect,
@@ -44,15 +45,25 @@ import {
 } from "react";
 
 import {
+  applyTaskChangeAction,
+  cancelTaskChangeAction,
   deleteTaskAction,
   markTaskSeenAction,
+  proposeTaskChangeAction,
+  revertTaskChangeAction,
   runAnswerAction,
   runTaskNowAction,
   setTaskEnabledAction,
-  setTaskNotifyAction,
+  testTaskChangeAction,
 } from "@/app/(app)/(chat)/tasks/actions";
 import { ActivityBlock } from "@/components/chat/activity";
 import { AssistantMessage } from "@/components/chat/messages";
+import { About, ChangeBox, ENTER, PRESS } from "@/components/tasks/task-about";
+import type {
+  ChangeOps,
+  TaskChangeView,
+  TaskFields,
+} from "@/components/tasks/task-about";
 import { answerWork } from "@/lib/answer-work";
 import { hasAnswer } from "@/lib/task-runs";
 
@@ -60,18 +71,24 @@ import { hasAnswer } from "@/lib/task-runs";
 // line (P15); the last result whole, what came after it in rows, earlier runs under the spoiler (P12). While a run is
 // on its way the page looks again every few seconds.
 
-const ENTER =
-  "animate-in fade-in slide-in-from-bottom-1 duration-200 ease-out motion-reduce:slide-in-from-bottom-0";
-const PRESS =
-  "transition-transform duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100";
-
 /** How often the page looks again: often while a run is queued or going, now and then otherwise — a run comes on its
  *  schedule, and the page shows it without a reload. */
 const POLL_MS = { active: 3000, idle: 15_000 };
 
-const Ctx = createContext<{ task: TaskRow; servers: ChatServer[] }>(
-  null as never
-);
+/** An applied version, for the line «Изменена 12 ноя: …» among the past runs. */
+export interface TaskVersionLine {
+  version: number;
+  createdAt: Date;
+  changeSummary: string | null;
+}
+
+const Ctx = createContext<{
+  task: TaskRow;
+  servers: ChatServer[];
+  versions: TaskVersionLine[];
+}>(null as never);
+
+export type { TaskFields } from "@/components/tasks/task-about";
 
 /** A run's time as people say it: today, tomorrow, yesterday, else the date — in the task's own time zone. */
 const useRunTime = (zone: string) => {
@@ -177,104 +194,6 @@ const Answer = ({ message }: { message: ChatMessage }) => {
     <div className="[&_[data-slot=message-footer]]:hidden">
       <AssistantMessage live={false} message={message} servers={servers} />
     </div>
-  );
-};
-
-// ── The card «О задаче» ────────────────────────────────────────────────────────────────────────────────────────────
-
-const Field = ({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) => (
-  <div className="grid grid-cols-[7rem_1fr] gap-3 py-2.5 text-sm @max-md:grid-cols-1 @max-md:gap-1">
-    <span className="text-muted-foreground">{label}</span>
-    <span className="min-w-0 break-words whitespace-pre-line">{children}</span>
-  </div>
-);
-
-const About = ({
-  schedule,
-  sources,
-  onError,
-}: {
-  schedule: string;
-  sources: string[] | null;
-  onError: () => void;
-}) => {
-  const t = useTranslations("tasks");
-  const format = useFormatter();
-  const { task } = use(Ctx);
-  const [open, setOpen] = useState(false);
-  const [mail, setMail] = useState(task.notifyEmail);
-  const [, start] = useTransition();
-  const toggleMail = (on: boolean) => {
-    setMail(on);
-    start(async () => {
-      const { ok } = await setTaskNotifyAction(task.id, on);
-      if (!ok) {
-        setMail(!on);
-        onError();
-      }
-    });
-  };
-  return (
-    <section className="bg-card rounded-xl border">
-      <button
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm"
-        onClick={() => setOpen((o) => !o)}
-        type="button"
-      >
-        <span className="text-muted-foreground shrink-0">{t("about")}</span>
-        <span className="min-w-0 flex-1 truncate">{task.instructions}</span>
-        <ChevronDown
-          className={cn(
-            "text-muted-foreground size-4 shrink-0 transition-transform duration-200",
-            open && "rotate-180"
-          )}
-        />
-      </button>
-      {open && (
-        <div
-          className={cn(
-            "flex flex-col divide-y border-t px-4 pt-1 pb-2",
-            ENTER
-          )}
-        >
-          <Field label={t("fields.does")}>{task.instructions}</Field>
-          <Field label={t("fields.schedule")}>{schedule}</Field>
-          <Field label={t("fields.sources")}>
-            {sources ? sources.join(", ") : t("allSources")}
-          </Field>
-          <Field label={t("fields.report")}>
-            {t(`reportWhen.${task.reportWhen}`)}
-          </Field>
-          <Field label={t("fields.created")}>
-            {format.dateTime(task.createdAt, { dateStyle: "medium" })}
-          </Field>
-          {/* Letters — each task its own: only when the task waits for the person; «нового нет» never goes. */}
-          <div className="grid grid-cols-[7rem_1fr] items-center gap-3 py-2.5 text-sm @max-md:grid-cols-1 @max-md:gap-1">
-            <span className="text-muted-foreground">{t("fields.mail")}</span>
-            <label className="flex cursor-pointer items-center justify-between gap-3">
-              <span className={cn(!mail && "text-muted-foreground")}>
-                {mail ? t("mailOn") : t("mailOff")}
-                <span className="text-muted-foreground block text-xs">
-                  {t("mailNote")}
-                </span>
-              </span>
-              <Switch
-                aria-label={t("mailLabel")}
-                checked={mail}
-                onCheckedChange={toggleMail}
-              />
-            </label>
-          </div>
-        </div>
-      )}
-    </section>
   );
 };
 
@@ -393,6 +312,37 @@ const PastRow = ({ run }: { run: TaskRunRow }) => {
   );
 };
 
+/** «Изменена 12 ноя: …» under the first run of a new version, among the past runs. */
+const ChangedLine = ({
+  newer,
+  older,
+}: {
+  newer: TaskRunRow;
+  older: TaskRunRow | undefined;
+}) => {
+  const t = useTranslations("tasks");
+  const format = useFormatter();
+  const { versions } = use(Ctx);
+  const changed =
+    older && newer.taskVersion > older.taskVersion
+      ? versions.find((v) => v.version === newer.taskVersion)
+      : undefined;
+  if (!changed?.changeSummary) {
+    return null;
+  }
+  return (
+    <p className="text-muted-foreground bg-muted/40 border-b px-3 py-1.5 text-xs last:border-b-0">
+      {t("changeLine", {
+        date: format.dateTime(changed.createdAt, {
+          day: "numeric",
+          month: "short",
+        }),
+        summary: changed.changeSummary,
+      })}
+    </p>
+  );
+};
+
 const Past = ({ runs }: { runs: TaskRunRow[] }) => {
   const t = useTranslations("tasks");
   const [open, setOpen] = useState(false);
@@ -414,8 +364,11 @@ const Past = ({ runs }: { runs: TaskRunRow[] }) => {
       </button>
       {open && (
         <div className={cn("bg-card overflow-hidden rounded-xl border", ENTER)}>
-          {runs.map((r) => (
-            <PastRow key={r.id} run={r} />
+          {runs.map((r, i) => (
+            <Fragment key={r.id}>
+              <PastRow run={r} />
+              <ChangedLine newer={r} older={runs[i + 1]} />
+            </Fragment>
           ))}
         </div>
       )}
@@ -624,7 +577,9 @@ const Result = ({
     <section className="flex flex-col gap-3">
       <header className="flex flex-col gap-1">
         <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-          <span className="font-medium">{t("latestTitle")}</span>
+          <span className="font-medium">
+            {run.trigger === "test" ? t("testTitle") : t("latestTitle")}
+          </span>
           <span className="text-muted-foreground tabular-nums">
             {when(run.scheduledFor)}
             {length && ` · ${length}`}
@@ -877,13 +832,61 @@ const usePoll = (active: boolean) => {
   }, [active, router]);
 };
 
+/**
+ * A change in words (P15): the request goes to the model, the change comes back with the page as a version not
+ * applied; «Применить», «Тестовый запуск», «Отменить», «Вернуть как было» go through the page's own `act`.
+ */
+const useChange = ({
+  task,
+  versions,
+  act,
+  busy,
+}: {
+  task: TaskRow;
+  versions: TaskVersionLine[];
+  act: (fn: () => Promise<{ ok: boolean }>) => void;
+  busy: boolean;
+}) => {
+  const t = useTranslations("tasks");
+  const [asked, setAsked] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const NOTICE = {
+    failed: t("changeFailed"),
+    "no-change": t("changeNone"),
+    "no-model": t("changeNoModel"),
+    "not-found": t("changeFailed"),
+  } as const;
+  const send = async (text: string) => {
+    setNotice(null);
+    setAsked(text);
+    const result = await proposeTaskChangeAction(task.id, text);
+    setAsked(null);
+    if (!result.ok) {
+      setNotice(("reply" in result && result.reply) || NOTICE[result.error]);
+    }
+    return result.ok;
+  };
+  const last = versions.at(-1);
+  const ops: ChangeOps = {
+    asked,
+    busy,
+    changedAt: task.version > 1 && last ? last.createdAt : null,
+    handleApply: () => act(() => applyTaskChangeAction(task.id)),
+    handleCancel: () => act(() => cancelTaskChangeAction(task.id)),
+    handleRevert: () => act(() => revertTaskChangeAction(task.id)),
+    handleTest: () => act(() => testTaskChangeAction(task.id)),
+  };
+  return { handleSend: send, notice, ops };
+};
+
 export const TaskView = ({
   task,
   runs,
   answer,
   going,
-  schedule,
-  sources,
+  current,
+  change,
+  versions,
   servers,
 }: {
   task: TaskRow;
@@ -892,10 +895,12 @@ export const TaskView = ({
   answer: ChatMessage | null;
   /** The run on its way, as far as it got. */
   going: ChatMessage | null;
-  /** The schedule in words. */
-  schedule: string;
-  /** The sources' titles; null — every connection. */
-  sources: string[] | null;
+  /** The task as the card shows it. */
+  current: TaskFields;
+  /** A change not applied yet. */
+  change: TaskChangeView | null;
+  /** The applied versions, the first first. */
+  versions: TaskVersionLine[];
   servers: ChatServer[];
 }) => {
   const t = useTranslations("tasks");
@@ -937,16 +942,21 @@ export const TaskView = ({
     );
   };
   const busy = pending || active !== null;
-  const ctx = useMemo(() => ({ servers, task }), [servers, task]);
+  const ctx = useMemo(
+    () => ({ servers, task, versions }),
+    [servers, task, versions]
+  );
+  const editing = useChange({ act, busy: pending, task, versions });
   const nextWords = useRunTime(task.timezone);
   const state =
     on && task.nextRunAt
       ? t("next", { when: nextWords(task.nextRunAt) })
       : t("off");
+  const { schedule } = current;
   return (
     <Ctx value={ctx}>
-      <div className="@container min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-4 pb-24 md:pt-6">
+      <div className="@container flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-4 pb-6 md:pt-6">
           <header className="flex items-start gap-4">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
@@ -998,9 +1008,12 @@ export const TaskView = ({
             </output>
           )}
           <About
+            change={change}
+            current={current}
             onError={() => setFailed(true)}
-            schedule={schedule}
-            sources={sources}
+            ops={editing.ops}
+            task={task}
+            when={nextWords}
           />
           <Runs
             answer={answer}
@@ -1010,6 +1023,11 @@ export const TaskView = ({
             runs={runs}
           />
         </div>
+        <ChangeBox
+          busy={editing.ops.asked !== null}
+          notice={editing.notice}
+          onSend={editing.handleSend}
+        />
       </div>
     </Ctx>
   );

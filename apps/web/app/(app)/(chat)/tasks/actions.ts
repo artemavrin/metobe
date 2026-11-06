@@ -1,6 +1,12 @@
 "use server";
 
 import {
+  applyTaskChange,
+  cancelTaskChange,
+  proposeTaskChange,
+  revertTaskChange,
+} from "@metobe/core/task-change";
+import {
   createRun,
   createTaskFromDraft,
   deleteTask,
@@ -11,6 +17,7 @@ import {
   setTaskNotify,
 } from "@metobe/core/tasks";
 import { enqueueRun } from "@metobe/core/tasks-queue";
+import { getLocale, getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -80,6 +87,72 @@ export const deleteTaskAction = async (taskId: string) => {
   const ok = await deleteTask(userId, taskId);
   revalidatePath("/", "layout");
   return { ok };
+};
+
+// ── A change in words (ARCH §16.1a, P15) ─────────────────────────────────────────────────────────────────────────
+
+const request = z.string().trim().min(1).max(2000);
+
+/** «Что поменять в задаче…»: the model's change, kept as a version not applied; the page shows «было → стало». */
+export const proposeTaskChangeAction = async (taskId: string, text: string) => {
+  const userId = await owner();
+  const asked = request.safeParse(text);
+  if (!userId || !id.safeParse(taskId).success || !asked.success) {
+    return { error: "failed" as const, ok: false as const };
+  }
+  const locale = await getLocale();
+  const result = await proposeTaskChange({
+    locale: locale === "en" ? "en" : "ru",
+    ownerId: userId,
+    request: asked.data,
+    taskId,
+  });
+  revalidatePath(`/tasks/${taskId}`);
+  return result;
+};
+
+const changeAction =
+  (fn: (userId: string, taskId: string) => Promise<boolean>) =>
+  async (taskId: string) => {
+    const userId = await owner();
+    if (!userId || !id.safeParse(taskId).success) {
+      return { ok: false };
+    }
+    const ok = await fn(userId, taskId);
+    revalidatePath("/", "layout");
+    return { ok };
+  };
+
+export const applyTaskChangeAction = changeAction((userId, taskId) =>
+  applyTaskChange(userId, taskId)
+);
+
+export const cancelTaskChangeAction = changeAction(cancelTaskChange);
+
+export const revertTaskChangeAction = changeAction(async (userId, taskId) => {
+  const t = await getTranslations("tasks");
+  return revertTaskChange(userId, taskId, t("revertedSummary"));
+});
+
+/** «Тестовый запуск»: a run on the change not applied yet — no letters, not counted among failures. */
+export const testTaskChangeAction = async (taskId: string) => {
+  const userId = await owner();
+  if (!userId || !id.safeParse(taskId).success) {
+    return { ok: false };
+  }
+  if (!(await getTask(userId, taskId))) {
+    return { ok: false };
+  }
+  const now = new Date();
+  try {
+    await enqueueRun(taskId, now, "test");
+  } catch (error) {
+    console.error("tasks: test run", error);
+    return { ok: false };
+  }
+  await createRun(taskId, now, "test");
+  revalidatePath(`/tasks/${taskId}`);
+  return { ok: true };
 };
 
 /** A past run's answer, opened from the list under the spoiler. */

@@ -199,9 +199,18 @@ export const createRun = async (
   if (!task) {
     return null;
   }
+  // A test run goes on the change not applied yet — the latest version — when there is one (ARCH §16.1a).
+  let taskVersion = task.version;
+  if (trigger === "test") {
+    const [latest] = await db
+      .select({ version: max(taskVersions.version) })
+      .from(taskVersions)
+      .where(eq(taskVersions.taskId, taskId));
+    taskVersion = latest?.version ?? task.version;
+  }
   const [run] = await db
     .insert(taskRuns)
-    .values({ scheduledFor, taskId, taskVersion: task.version, trigger })
+    .values({ scheduledFor, taskId, taskVersion, trigger })
     .onConflictDoNothing()
     .returning({ id: taskRuns.id });
   if (run) {

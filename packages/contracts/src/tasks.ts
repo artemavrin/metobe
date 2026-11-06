@@ -119,6 +119,46 @@ export type TaskDraftOutput =
     }
   | { ok: false; error: string };
 
+/**
+ * A change of a task asked in words (P15, D28): only what changes, the rest stays null. The model proposes it; the
+ * person sees «было → стало» and applies it.
+ */
+export const taskChangeSchema = z.object({
+  cron: z
+    .string()
+    .nullable()
+    .describe(
+      "The new schedule as a cron of five fields (minute hour day month weekday) in the task's time zone; null — the schedule stays."
+    ),
+  instructions: z
+    .string()
+    .max(4000)
+    .nullable()
+    .describe(
+      "The new instructions whole, self-contained, in the person's language — the current ones with the change made, everything else kept word for word; null — they stay. Plain words, no tool names."
+    ),
+  reportWhen: z
+    .enum(taskReportWhen)
+    .nullable()
+    .describe(
+      "changes — a result only when something changed; always — after every run; null — stays."
+    ),
+  sources: z
+    .array(z.string())
+    .nullable()
+    .describe(
+      "The new list of sources whole: services by their names or titles, «mail», «web»; null — the sources stay."
+    ),
+  summary: z
+    .string()
+    .min(1)
+    .max(120)
+    .describe(
+      "What changes, a few words in the person's language, lowercase, no final period: «второй запуск в 15:00», «добавлен shop-three.ru»."
+    ),
+});
+export type TaskChange = z.infer<typeof taskChangeSchema>;
+
 /** The colours a task may take: the chart palette, so they read in both themes. */
 export const TASK_COLORS = [1, 2, 3, 4, 5, 6, 7, 8].map(
   (n) => `var(--chart-${n})`
