@@ -46,6 +46,11 @@ export const sources = pgTable(
     health: jsonb("health").$type<SourceHealth>(),
     id: uuid("id").primaryKey().defaultRandom(),
     kind: text("kind").$type<SourceKind>().notNull(),
+    /**
+     * Runs on the organization's own hardware (llama.cpp, Ollama on a server of its own): the data does not leave.
+     * Set at creation by the address — localhost or a private network — and the admin's to change.
+     */
+    local: boolean("local").notNull().default(false),
     /** Admin's logo; null — the kind's own (or guessed from the base URL for openai-compatible). */
     logo: text("logo"),
     options: jsonb("options").$type<SourceOptions>().notNull(),
@@ -180,7 +185,7 @@ export const modelRuns = pgTable(
     ),
     check(
       "model_runs_purpose",
-      sql`${table.purpose} in ('chat', 'describe', 'title')`
+      sql`${table.purpose} in ('chat', 'describe', 'title', 'compact', 'task')`
     ),
   ]
 );

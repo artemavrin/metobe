@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -119,6 +120,18 @@ export const getObject = async (key: string): Promise<StoredObject | null> => {
     }
     throw error;
   }
+};
+
+/** Copies an object inside the bucket, server-side: the bytes never pass through the app. */
+export const copyObject = async (from: string, to: string) => {
+  const { bucket, client } = need();
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: bucket,
+      CopySource: `${bucket}/${encodeURIComponent(from)}`,
+      Key: to,
+    })
+  );
 };
 
 export const deleteObject = async (key: string) => {

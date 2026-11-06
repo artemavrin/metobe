@@ -12,6 +12,12 @@ import type {
 import { getInstructions } from "@metobe/core/account";
 import { getLanguageModel } from "@metobe/core/ai";
 import {
+  fileIdsOf,
+  forModel,
+  ownFiles,
+  readsPdf,
+} from "@metobe/core/attachments";
+import {
   createChat,
   deleteMessagesFrom,
   getChat,
@@ -22,12 +28,49 @@ import {
 import { checkChatLimit } from "@metobe/core/chat-limits";
 import { recordRun, sumUsage, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
+import { STYLE_NOTE } from "@metobe/core/chat-tools/answer-style";
+import {
+  ATTACHMENT_NOTE,
+  READ_ATTACHMENT,
+  readAttachmentTool,
+} from "@metobe/core/chat-tools/attachment-tool";
+import { CHART_TOOL, chartTool } from "@metobe/core/chat-tools/chart-tool";
+import { emailTools } from "@metobe/core/chat-tools/email-tools";
+import {
+  METRICS_TOOL,
+  metricsTool,
+} from "@metobe/core/chat-tools/metrics-tool";
+import { skillsOfChat } from "@metobe/core/chat-tools/skill-tools";
+import { TABLE_TOOL, tableTool } from "@metobe/core/chat-tools/table-tool";
+import { taskDraftFor } from "@metobe/core/chat-tools/task-draft-tool";
+import {
+  TIME_NOTE,
+  TIME_TOOL,
+  timeTool,
+} from "@metobe/core/chat-tools/time-tool";
+import {
+  FIND_TOOLS,
+  lendTools,
+  servicesNote,
+} from "@metobe/core/chat-tools/tool-search";
+import {
+  SourceError,
+  createSources,
+  shareResults,
+} from "@metobe/core/chat-tools/tool-sources";
+import {
+  WEB_FETCH,
+  WEB_SEARCH,
+  webFetchTool,
+  webSearchTool,
+} from "@metobe/core/chat-tools/web-tools";
 import { attachFiles, pruneChatFiles } from "@metobe/core/files";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
+import { getTaskByChat } from "@metobe/core/tasks";
 import { isDraining } from "@metobe/core/updater-bus";
 import { webToolsOn } from "@metobe/core/web-settings";
 import {
@@ -40,43 +83,35 @@ import {
   toUIMessageStream,
   validateUIMessages,
 } from "ai";
-import type { ToolSet, UIMessageChunk } from "ai";
+import type { TextStreamPart, ToolSet, UIMessageChunk } from "ai";
 import { headers } from "next/headers";
 
-import { applyApprovals, applyConnections, settleAsks } from "@/lib/approvals";
 import {
-  ATTACHMENT_NOTE,
-  READ_ATTACHMENT,
-  readAttachmentTool,
-} from "@/lib/attachment-tool";
-import { fileIdsOf, forModel, ownFiles, readsPdf } from "@/lib/attachments";
+  applyApprovals,
+  applyConnections,
+  applyQuestions,
+  settleAsks,
+} from "@/lib/approvals";
+import { ASK_USER, askUserTool } from "@/lib/ask-user";
 import { getAuth } from "@/lib/auth";
-import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
+import { fromCompaction } from "@/lib/compaction";
 import {
   MAIL_KEY,
   REQUEST_CONNECTION,
   requestConnectionTool,
 } from "@/lib/connect-tool";
-import { budgetMessages, isContextOverflow } from "@/lib/context-budget";
-import { emailTools } from "@/lib/email-tools";
+import {
+  budgetMessages,
+  clearPastTurns,
+  isContextOverflow,
+} from "@/lib/context-budget";
 import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
-import { METRICS_TOOL, metricsTool } from "@/lib/metrics-tool";
 import { getPrefs } from "@/lib/prefs";
 import { recordStream } from "@/lib/resume-stream";
-import { skillsOfChat } from "@/lib/skill-tools";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
-import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
-import { TIME_NOTE, TIME_TOOL, timeTool } from "@/lib/time-tool";
-import { lendTools, servicesNote } from "@/lib/tool-search";
-import { SourceError, createSources, shareResults } from "@/lib/tool-sources";
+import { saidNothing, streamAnswer, sumUpPrompt } from "@/lib/sum-up";
 import { withNotes } from "@/lib/user-notes";
-import {
-  WEB_FETCH,
-  WEB_SEARCH,
-  webFetchTool,
-  webSearchTool,
-} from "@/lib/web-tools";
 
 // POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
 // the last answer's approvals — and the history comes from the database. The user's message is saved before the model is called, the answer when the stream ends —
@@ -159,7 +194,7 @@ const askAnew = (stored: ChatMessage[], message: ChatMessage): Prepared => {
 };
 
 /**
- * The user's answers to the last answer's approvals and «connect X to go on», applied to the server's copy; null
+ * The user's answers to the last answer's approvals, «connect X to go on» and questions, applied to the server's copy; null
  * when they fit nothing. Whether a server is connected is the server's to say (`connected`), not the client's.
  */
 const applyToLast = (
@@ -178,10 +213,14 @@ const applyToLast = (
   const approved = approvals.answers.length
     ? applyApprovals(last, approvals.answers)
     : last;
-  const answered =
+  const connectedTo =
     approved && approvals.connections.length
       ? applyConnections(approved, approvals.connections, connected)
       : approved;
+  const answered =
+    connectedTo && approvals.questions.length
+      ? applyQuestions(connectedTo, approvals.questions)
+      : connectedTo;
   return answered && answered !== last
     ? { messages: [...stored.slice(0, -1), answered], save: [answered] }
     : null;
@@ -270,6 +309,16 @@ const refuse = async (
     : null;
 };
 
+// The model's own error reaches the page here, not through the wrapper's: a history too long for its window
+// is said as that; a widget the source could not give is said by what it lacks (the user sees it in the
+// widget, the model read it already); any other keeps what the SDK says by itself.
+const uiError = (error: unknown) => {
+  if (isContextOverflow(error)) {
+    return "context-full";
+  }
+  return error instanceof SourceError ? error.message : "An error occurred.";
+};
+
 export const POST = async (request: Request) => {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) {
@@ -294,7 +343,7 @@ export const POST = async (request: Request) => {
   }
   // The user's own zone (their choice, else the browser's): the clock the model asks tells the time in it.
   const { locale, timeZone } = await getPrefs();
-  const [stored, chatServers, ownBoxes, notes, personal, skills] =
+  const [stored, chatServers, ownBoxes, notes, personal, skills, ownTask] =
     await Promise.all([
       chat ? listMessages(id) : [],
       listChatServers(session.user.id),
@@ -302,6 +351,8 @@ export const POST = async (request: Request) => {
       getInstructions(session.user.id),
       getPersonalPolicy(),
       skillsForChat(session.user.id),
+      // A chat a task was set up in is that task's: no second draft in it (ARCH §16.1).
+      getTaskByChat(session.user.id, id),
     ]);
   // Own connections turned off in «Доступ»: the boxes stay, the chat neither uses nor asks for them.
   const mailOn = personal.mode !== "off";
@@ -486,6 +537,18 @@ export const POST = async (request: Request) => {
       const room =
         model.contextWindow === null ||
         model.contextWindow >= WIDGETS_MIN_WINDOW;
+      const drafting = taskDraftFor(
+        {
+          locale: locale === "en" ? "en" : "ru",
+          servers: chatServers,
+          timeZone,
+        },
+        {
+          hasTask: ownTask !== null,
+          intent: body.data.intent === "task",
+          tools: model.capabilities.tools !== false,
+        }
+      );
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -505,6 +568,10 @@ export const POST = async (request: Request) => {
                   }
                 : {}),
               [TIME_TOOL]: timeTool(timeZone),
+              // A periodic task in words (P11), while the chat has none.
+              ...drafting.tools,
+              // What only the user knows: the model asks instead of guessing.
+              [ASK_USER]: askUserTool,
               ...skilled.tools,
               // The files of the thread, for a model that cannot see them itself.
               ...(hasFiles
@@ -528,28 +595,37 @@ export const POST = async (request: Request) => {
       const prompt = withPromptCache(
         model.kind,
         budgetMessages(
-          await convertToModelMessages(
-            await forModel(session.user.id, uiMessages, {
-              pdf: readsPdf(model.kind, model.modelId),
-              tools: model.capabilities.tools !== false,
-              vision: model.capabilities.vision,
-            }),
-            // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources).
-            { tools }
+          // Earlier questions' tool results go first: their data was answered; the found tools and the user's
+          // answers stay (lib/context-budget).
+          clearPastTurns(
+            await convertToModelMessages(
+              // After a compaction (D37) the model gets its summary and what follows it, not the messages before.
+              await forModel(session.user.id, fromCompaction(uiMessages), {
+                pdf: readsPdf(model.kind, model.modelId),
+                tools: model.capabilities.tools !== false,
+                vision: model.capabilities.vision,
+              }),
+              // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources).
+              { tools }
+            ),
+            { keep: [FIND_TOOLS, ASK_USER] }
           ),
           budget
         )
       );
+      const instructions = [
+        TIME_NOTE,
+        STYLE_NOTE,
+        hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
+        skilled.note,
+        drafting.note,
+        withNotes(notes, servicesNote(servers)),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       const result = streamText({
         abortSignal: generation.signal,
-        instructions: [
-          TIME_NOTE,
-          hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
-          skilled.note,
-          withNotes(notes, servicesNote(servers)),
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
+        instructions,
         messages: prompt.messages,
         model: languageModel,
         // The model's own end frees the chat for «stop» — not the client's: it may leave, the model writes on.
@@ -588,7 +664,10 @@ export const POST = async (request: Request) => {
           }
         },
         onEnd: ({ providerMetadata, steps, totalUsage }) => {
-          endGeneration(id, generation);
+          // An answer that said nothing goes on in the sum-up pass, which frees the chat when it ends.
+          if (!saidNothing(steps)) {
+            endGeneration(id, generation);
+          }
           return record({
             latencyMs: firstChunk,
             providerMetadata,
@@ -611,69 +690,131 @@ export const POST = async (request: Request) => {
           const trimmed = budgetMessages(options.messages, budget);
           return {
             ...(trimmed === options.messages ? {} : { messages: trimmed }),
-            ...lastStepAnswers(options),
+            // The last step adds its own turn to the trimmed history.
+            ...lastStepAnswers({ ...options, messages: trimmed }),
           };
         },
         providerOptions: prompt.providerOptions,
         stopWhen: isStepCount(MAX_STEPS),
         tools,
       });
-      // Runs the generation to its end on the server, so the answer is saved even when the client has left.
-      void result.consumeStream();
-      writer.merge(
+      // The end of the answer says how long it reasoned and worked, and each step's time.
+      // What the answer sent the model, over its steps: its weight a step, for the offer to compact (D37).
+      const weight = { input: 0, steps: 0 };
+      const finishMetadata = () => ({
+        ...(reasoningFrom === null
+          ? {}
+          : { reasoningMs: (reasoningTo ?? Date.now()) - reasoningFrom }),
+        ...(workTo === null ? {} : { workMs: workTo - started }),
+        ...(Object.keys(stepMs).length === 0 ? {} : { stepMs }),
+      });
+      // The answer names its model, so the thread can show who wrote it after the chat switches models, and at
+      // the end how long it reasoned.
+      const messageMetadata = ({ part }: { part: TextStreamPart<ToolSet> }) => {
+        if (part.type === "start") {
+          return { createdAt: new Date().toISOString(), modelId: model.id };
+        }
+        // Each step's start and, when it ends, its time go to the page as they happen — so a step still going is
+        // counted from the server's clock (also on a page reloaded in the middle of it), and a finished one shows
+        // its time at once rather than at the end of the answer. A tool call is keyed by its id, a thought or a
+        // note by its place among the answer's own.
+        const { begun, ended } = stepEvent(part);
+        if (begun !== undefined && !stepStarts.has(begun)) {
+          const at = Date.now();
+          stepStarts.set(begun, at);
+          return { stepStartedAt: { [begun]: at } };
+        }
+        if (ended !== undefined) {
+          const from = stepStarts.get(ended);
+          if (from === undefined) {
+            return;
+          }
+          const ms = Date.now() - from;
+          stepMs[ended] = ms;
+          return { stepMs: { [ended]: ms } };
+        }
+        if (part.type === "start-step") {
+          weight.steps += 1;
+        }
+        if (part.type !== "finish") {
+          return;
+        }
+        // The work's and the sum-up's passes each end with their own total: the answer's weight is both.
+        weight.input += part.totalUsage.inputTokens ?? 0;
+        return {
+          ...finishMetadata(),
+          ...(weight.steps > 0
+            ? { stepTokens: Math.round(weight.input / weight.steps) }
+            : {}),
+        };
+      };
+      const toUI = (
+        uiStream: ReadableStream<TextStreamPart<ToolSet>>,
+        options: { sendStart?: boolean; sendFinish?: boolean }
+      ) =>
         toUIMessageStream<ToolSet, ChatMessage>({
-          // The answer names its model, so the thread can show who wrote it after the chat switches models, and at
-          // the end how long it reasoned.
-          messageMetadata: ({ part }) => {
-            if (part.type === "start") {
-              return { createdAt: new Date().toISOString(), modelId: model.id };
-            }
-            // Each step's start and, when it ends, its time go to the page as they happen — so a step still going is
-            // counted from the server's clock (also on a page reloaded in the middle of it), and a finished one shows
-            // its time at once rather than at the end of the answer. A tool call is keyed by its id, a thought or a
-            // note by its place among the answer's own.
-            const { begun, ended } = stepEvent(part);
-            if (begun !== undefined && !stepStarts.has(begun)) {
-              const at = Date.now();
-              stepStarts.set(begun, at);
-              return { stepStartedAt: { [begun]: at } };
-            }
-            if (ended !== undefined) {
-              const from = stepStarts.get(ended);
-              if (from === undefined) {
-                return;
-              }
-              const ms = Date.now() - from;
-              stepMs[ended] = ms;
-              return { stepMs: { [ended]: ms } };
-            }
-            if (part.type !== "finish") {
-              return;
-            }
-            return {
-              ...(reasoningFrom === null
-                ? {}
-                : { reasoningMs: (reasoningTo ?? Date.now()) - reasoningFrom }),
-              ...(workTo === null ? {} : { workMs: workTo - started }),
-              ...(Object.keys(stepMs).length === 0 ? {} : { stepMs }),
-            };
-          },
-          // The model's own error reaches the page here, not through the wrapper's: a history too long for its window
-          // is said as that; a widget the source could not give is said by what it lacks (the user sees it in the
-          // widget, the model read it already); any other keeps what the SDK says by itself.
-          onError: (error) => {
-            if (isContextOverflow(error)) {
-              return "context-full";
-            }
-            return error instanceof SourceError
-              ? error.message
-              : "An error occurred.";
-          },
+          messageMetadata,
+          onError: uiError,
           originalMessages,
           sendReasoning: true,
-          stream: result.stream,
-        })
-      );
+          stream: uiStream,
+          ...options,
+        });
+      // Runs the generation to its end on the server, so the answer is saved even when the client has left.
+      void result.consumeStream();
+      // The work, then — if it ended without a word — the sum-up pass in the same answer (lib/sum-up).
+      await streamAnswer({
+        finish: () => ({
+          messageMetadata: finishMetadata(),
+          type: "finish" as const,
+        }),
+        first: result,
+        stopped: () => generation.signal.aborted,
+        sumUp: (work) => {
+          const pass = streamText({
+            abortSignal: generation.signal,
+            ...sumUpPrompt(
+              instructions,
+              budgetMessages([...prompt.messages, ...work], budget)
+            ),
+            model: languageModel,
+            onAbort: ({ steps }) => {
+              endGeneration(id, generation);
+              return record({
+                latencyMs: firstChunk,
+                status: "aborted",
+                stepsMetadata: steps.map((step) => step.providerMetadata),
+                usage:
+                  steps.length > 0
+                    ? sumUsage(steps.map((st) => st.usage))
+                    : undefined,
+              });
+            },
+            onEnd: ({ providerMetadata, steps, totalUsage }) => {
+              endGeneration(id, generation);
+              return record({
+                latencyMs: firstChunk,
+                providerMetadata,
+                status: "ok",
+                stepsMetadata: steps.map((step) => step.providerMetadata),
+                usage: totalUsage,
+              });
+            },
+            onError: ({ error }) => {
+              endGeneration(id, generation);
+              console.error("chat: the sum-up failed", model.id, causes(error));
+              return record({ latencyMs: firstChunk, status: "error" });
+            },
+            providerOptions: prompt.providerOptions,
+          });
+          void pass.consumeStream();
+          return pass;
+        },
+        toUI,
+        write: (chunk) => writer.write(chunk),
+      });
+      // Whatever way the answer ended, the chat is free again.
+      endGeneration(id, generation);
       await naming;
     },
     generateId: () => crypto.randomUUID(),

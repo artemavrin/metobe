@@ -1,11 +1,12 @@
-import { deleteDraftFile, getFile, readFile } from "@metobe/core/files";
+import { deleteDraftFile, getReadableFile, readFile } from "@metobe/core/files";
 import { headers } from "next/headers";
 import { z } from "zod";
 
 import { getAuth } from "@/lib/auth";
 
-// GET /api/files/[id]: a file of the user, streamed from S3 — a picture or a PDF opens in the browser, anything else
-// downloads under its own name. DELETE: a file taken back from the composer before its message went.
+// GET /api/files/[id]: a file of the user, or of a chat shared with the team (read the way the chat is), streamed
+// from S3 — a picture or a PDF opens in the browser, anything else downloads under its own name. DELETE: a file
+// taken back from the composer before its message went.
 
 const user = async () => {
   const session = await getAuth().api.getSession({ headers: await headers() });
@@ -29,7 +30,7 @@ export const GET = async (
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   const id = await idOf(params);
-  const file = id ? await getFile(userId, id) : null;
+  const file = id ? await getReadableFile(userId, id) : null;
   if (!file) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }

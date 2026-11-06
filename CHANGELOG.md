@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.8.1](https://github.com/artemavrin/metobe/compare/v0.8.0...v0.8.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* «What's new» keeps its closing page when a version has no «И ещё» — the last change shows its own description ([#105](https://github.com/artemavrin/metobe/issues/105)) ([3669e31](https://github.com/artemavrin/metobe/commit/3669e31754e04e54b1021328d4ec569bcb8a0a5a))
+
+## [0.8.0](https://github.com/artemavrin/metobe/compare/v0.7.1...v0.8.0) (2026-11-06)
+
+
+### Features
+
+* periodic tasks — run a prompt on a schedule, get the result in the sidebar and by mail ([#103](https://github.com/artemavrin/metobe/issues/103)) ([03792c3](https://github.com/artemavrin/metobe/commit/03792c3fa49068ef643081b06f494468c7a910fe))
+
+## [0.7.1](https://github.com/artemavrin/metobe/compare/v0.7.0...v0.7.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* a request whose connection dropped before any answer is sent once more ([#99](https://github.com/artemavrin/metobe/issues/99)) ([4e33e7b](https://github.com/artemavrin/metobe/commit/4e33e7bebdc80fa45042834fb6a542eafc903bff))
+
+## [0.7.0](https://github.com/artemavrin/metobe/compare/v0.6.0...v0.7.0) (2026-11-03)
+
+
+### Features
+
+* compact a long chat into a summary by a service model ([8645e55](https://github.com/artemavrin/metobe/commit/8645e556041975a7e4b15f6ab6b32cd84846430b))
+* what's new for 0.7.0, and every version on a page of its own ([22f85f8](https://github.com/artemavrin/metobe/commit/22f85f87285b210eb190fb70398979589785b80b))
+
+
+### Bug Fixes
+
+* earlier answers' reasoning is not sent again either ([7b5e59a](https://github.com/artemavrin/metobe/commit/7b5e59a23114397fd9f2644fb831c5970ff3664b))
+* earlier questions' tool results are not sent again with every step ([2a9d032](https://github.com/artemavrin/metobe/commit/2a9d0321c66e2413aa68f9a4aa46d14efa463ef6))
+
+## [0.6.0](https://github.com/artemavrin/metobe/compare/v0.5.1...v0.6.0) (2026-11-03)
+
+
+### Features
+
+* a map of a long chat at its left edge ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* a new chat greets you by the hour, under a night sky ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* instructions for the model on an MCP server, seen by the model only ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* share a chat with the team by link — read-only, continued in your own copy ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* sources on your own hardware are marked local ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* the chat's header renames the chat in place and shares it ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* the model asks what only you know before it answers ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* the sidebar's new chat is a pencil by the logo, and the logo leads home ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* what's new after an update — a tour of the version with live demos ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+
+
+### Bug Fixes
+
+* a chat's title does not wait on a source that is down ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* a file with NUL characters no longer breaks its message ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* an answer always ends in words, even when the model runs out of steps ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+* long chat titles fade at the edge from the first frame ([183598c](https://github.com/artemavrin/metobe/commit/183598c5a212de3404974fd730d8741d54e59992))
+
 ## [0.5.1](https://github.com/artemavrin/metobe/compare/v0.5.0...v0.5.1) (2026-10-30)
 
 

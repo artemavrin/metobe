@@ -6,6 +6,8 @@ export type TablePart = Extract<Part, { type: "tool-show_table" }>;
 export type ChartPart = Extract<Part, { type: "tool-show_chart" }>;
 export type MetricsPart = Extract<Part, { type: "tool-show_metrics" }>;
 export type ConnectPart = Extract<Part, { type: "tool-request_connection" }>;
+export type AskPart = Extract<Part, { type: "tool-ask_user" }>;
+export type TaskDraftPart = Extract<Part, { type: "tool-draft_task" }>;
 export type SearchPart = Extract<Part, { type: "tool-find_tools" }>;
 export type ReadPart = Extract<Part, { type: "tool-read_attachment" }>;
 export type SkillPart = Extract<
@@ -38,7 +40,11 @@ export type AnswerBlock =
   | { kind: "chart"; key: string; part: ChartPart }
   | { kind: "metrics"; key: string; part: MetricsPart }
   /** «Connect X to go on»: the answer waits on the user there. */
-  | { kind: "connect"; key: string; part: ConnectPart };
+  | { kind: "connect"; key: string; part: ConnectPart }
+  /** The model's questions: answered, what the user said stands there as their own message. */
+  | { kind: "ask"; key: string; part: AskPart }
+  /** A periodic task drafted from the person's words: its card, created from there (P11). */
+  | { kind: "task"; key: string; part: TaskDraftPart };
 
 /** Reasoning or words between tool calls: one step, or more of the step before it when it is of the same kind. */
 const addWords = (
@@ -116,7 +122,7 @@ const singleStep = (part: Part): WorkStep | null => {
   }
 };
 
-/** A part that is a block of the answer of its own: a table, a chart, an ask to connect; null for anything else. */
+/** A part that is a block of the answer of its own: a table, a chart, an ask to connect, questions; null for anything else. */
 const blockOf = (part: Part): AnswerBlock | null => {
   switch (part.type) {
     case "tool-show_table": {
@@ -130,6 +136,12 @@ const blockOf = (part: Part): AnswerBlock | null => {
     }
     case "tool-request_connection": {
       return { key: part.toolCallId, kind: "connect", part };
+    }
+    case "tool-ask_user": {
+      return { key: part.toolCallId, kind: "ask", part };
+    }
+    case "tool-draft_task": {
+      return { key: part.toolCallId, kind: "task", part };
     }
     default: {
       return null;

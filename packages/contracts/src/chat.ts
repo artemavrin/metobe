@@ -5,6 +5,7 @@ import type { ChartInput, ChartOutput } from "./chart";
 import { FILES_PER_MESSAGE } from "./files";
 import type { MetricsInput, MetricsOutput } from "./metrics";
 import type { TableInput, TableOutput } from "./table";
+import type { TaskDraft, TaskDraftOutput } from "./tasks";
 import type {
   WebFetchInput,
   WebFetchOutput,
@@ -30,19 +31,39 @@ export const chatMessageMetadataSchema = z.object({
   stepStartedAt: z
     .record(z.string(), z.number().int().nonnegative())
     .optional(),
+  /** What the answer sent the model a step, on average — its input tokens (cached ones too) by its steps. A heavy one
+   * offers to compact the chat (D37). */
+  stepTokens: z.number().int().nonnegative().optional(),
   /** How long the work with tools took, to its last tool result, as the server measured it. */
   workMs: z.number().int().nonnegative().optional(),
 });
 export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;
 
 /**
+ * A chat compacted (D37): the summary a service model wrote of everything before it, which the chat's model goes on
+ * from; how many messages it covers, and the model that wrote it. Stored — the one data part that is.
+ */
+// oxlint-disable-next-line typescript/consistent-type-definitions -- a Record for AI SDK, as below
+export type CompactionData = {
+  summary: string;
+  messages: number;
+  modelId?: string;
+};
+
+/**
  * Data the stream sends besides the answer; `title` — a new chat's name from the titles model, `naming` — that the
  * request for it has begun, so the sidebar shows the chat being named, `clock` — the server's time now, so the page can
- * count a running step from the server's clock (none of them is stored).
+ * count a running step from the server's clock (none of them is stored); `compaction` — a stored compaction message's
+ * own part (above).
  */
 // A type alias, not an interface: AI SDK wants a Record, and an interface is not assignable to one.
 // oxlint-disable-next-line typescript/consistent-type-definitions -- see above
-export type ChatDataParts = { title: string; naming: boolean; clock: number };
+export type ChatDataParts = {
+  title: string;
+  naming: boolean;
+  clock: number;
+  compaction: CompactionData;
+};
 
 /**
  * Our own tools (MCP tools arrive as dynamic tools): the table and the chart drawn in the answer, searching the web
@@ -59,6 +80,10 @@ export type ChatTools = {
     input: RequestConnectionInput;
     output: RequestConnectionOutput;
   };
+  /** A periodic task drafted in the chat (P11): drawn as its card, created by the person. */
+  draft_task: { input: TaskDraft; output: TaskDraftOutput };
+  /** The model asks the user what only they know; the user's answer comes back as output, drawn as their message. */
+  ask_user: { input: AskUserInput; output: AskUserOutput };
   /** The clock: the model has none of its own. Not drawn in the answer. */
   current_time: {
     input: { timeZone?: string };
@@ -131,10 +156,12 @@ export type ChatErrorCode = (typeof chatErrorCodes)[number];
 export const chatRoles = ["user", "assistant", "system"] as const;
 export type ChatRole = (typeof chatRoles)[number];
 
-export const chatVisibilities = ["private", "public"] as const;
+/** Who may open a chat: its owner only, or anyone signed in to this Metobe by the link — to read, not to write. */
+export const chatVisibilities = ["private", "team"] as const;
 export type ChatVisibility = (typeof chatVisibilities)[number];
 
-export const chatKinds = ["chat", "agent_run"] as const;
+/** `task_run` — a periodic task's run (ARCH §16): an ordinary chat, the journal of its work; it stays out of the chat list. */
+export const chatKinds = ["chat", "task_run"] as const;
 export type ChatKind = (typeof chatKinds)[number];
 
 /** A new chat is named by its first line until real titles arrive (M3.3); the sidebar shows it before the server. */
@@ -159,6 +186,65 @@ export const requestConnectionOutputSchema = z.object({
 export type RequestConnectionOutput = z.infer<
   typeof requestConnectionOutputSchema
 >;
+
+/**
+ * The model asks the user what only they know (a period, whom to write to): 1–4 questions, each with 2–4 choices.
+ * A written answer is always welcome — the interface adds the field, the model does not list «other».
+ */
+export const askUserInputSchema = z.object({
+  questions: z
+    .array(
+      z.object({
+        header: z
+          .string()
+          .min(1)
+          .max(24)
+          .describe(
+            "The question's short name over the choices, a word or two of at most 12 characters: «Период», «Кому»."
+          ),
+        multiSelect: z
+          .boolean()
+          .optional()
+          .describe("True when several choices may be picked together."),
+        options: z
+          .array(
+            z.object({
+              description: z
+                .string()
+                .max(200)
+                .optional()
+                .describe(
+                  "What this choice means or leads to, in a few words."
+                ),
+              label: z
+                .string()
+                .min(1)
+                .max(80)
+                .describe("The choice itself, one to five words."),
+            })
+          )
+          .min(2)
+          .max(4),
+        question: z
+          .string()
+          .min(1)
+          .max(300)
+          .describe(
+            "The full question in the user's language, ending with a question mark."
+          ),
+      })
+    )
+    .min(1)
+    .max(4),
+});
+export type AskUserInput = z.infer<typeof askUserInputSchema>;
+
+/** What the user said, by the question's text: picked labels and their own words. `skipped` — they let the model decide. */
+export const askUserOutputSchema = z.object({
+  answers: z.record(z.string(), z.array(z.string())),
+  skipped: z.boolean(),
+});
+export type AskUserOutput = z.infer<typeof askUserOutputSchema>;
 
 /** A generous bound for one message: long pastes are normal, a runaway client is not. */
 const MAX_TEXT = 100_000;
@@ -217,10 +303,27 @@ export const approvalsSchema = z
       .max(10)
       .default([]),
     messageId: z.uuid(),
+    /** The user's answers to the model's questions, by tool call; the server keeps only answers to questions it asked. */
+    questions: z
+      .array(
+        z.object({
+          answers: z
+            .record(
+              z.string().max(300),
+              z.array(z.string().trim().min(1).max(500)).max(5)
+            )
+            .default({}),
+          id: z.string().min(1).max(200),
+          skipped: z.boolean().default(false),
+        })
+      )
+      .max(5)
+      .default([]),
   })
-  .refine((a) => a.answers.length + a.connections.length > 0, {
-    message: "an approval or a connection",
-  });
+  .refine(
+    (a) => a.answers.length + a.connections.length + a.questions.length > 0,
+    { message: "an approval, a connection or an answer" }
+  );
 export type Approvals = z.infer<typeof approvalsSchema>;
 
 /**
@@ -231,6 +334,8 @@ export const chatRequestSchema = z
   .object({
     approvals: approvalsSchema.optional(),
     id: z.uuid(),
+    /** «Что поручить?»: the person sets up a periodic task (P11). */
+    intent: z.literal("task").optional(),
     message: userMessageSchema.optional(),
     modelId: z.uuid().optional(),
   })

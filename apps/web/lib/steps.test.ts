@@ -61,15 +61,23 @@ describe("the last step of an answer", () => {
     expect(last?.tools ?? []).toEqual([]);
     expect(JSON.stringify(last?.prompt)).toContain("No more tool calls");
     expect(JSON.stringify(last?.prompt)).toContain("Сервисы чата");
+    // The last turn asks for the answer itself: a reasoning model heeds it more than its instructions.
+    const turn = last?.prompt.at(-1);
+    expect(turn?.role).toBe("user");
+    expect(JSON.stringify(turn)).toContain("Write your final answer");
     expect(result.text).toBe("Вот что удалось найти.");
   });
 
   it("leaves the steps before it alone", () => {
     expect(
-      lastStepAnswers({ instructions: undefined, stepNumber: 0 })
+      lastStepAnswers({ instructions: undefined, messages: [], stepNumber: 0 })
     ).toBeUndefined();
     expect(
-      lastStepAnswers({ instructions: undefined, stepNumber: MAX_STEPS - 2 })
+      lastStepAnswers({
+        instructions: undefined,
+        messages: [],
+        stepNumber: MAX_STEPS - 2,
+      })
     ).toBeUndefined();
   });
 });

@@ -23,6 +23,8 @@ export interface PickerModel {
   logo: string | undefined;
   /** The source the model comes through. */
   source: string;
+  /** The source runs on the organization's own hardware: the data stays inside. */
+  local: boolean;
   context: number | null;
   caps: PickerCaps;
   /** Per 1M tokens. */

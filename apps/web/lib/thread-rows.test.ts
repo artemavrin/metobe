@@ -131,3 +131,23 @@ describe("where the model changes", () => {
     expect(rows.some((r) => r.role === "switch")).toBe(false);
   });
 });
+
+describe("a compacted chat", () => {
+  it("draws its summary as a row of its own, not as an answer", () => {
+    const compaction: ChatMessage = {
+      id: "s1",
+      parts: [
+        { data: { messages: 2, summary: "итог" }, type: "data-compaction" },
+      ],
+      role: "system",
+    };
+    const next: ChatMessage = { ...question, id: "q2" };
+    const rows = threadRows([question, answer, compaction, next], "ready");
+    expect(rows.map((r) => `${r.role}:${r.key}`)).toEqual([
+      "user:q1",
+      "assistant:answer:q1",
+      "compaction:s1",
+      "user:q2",
+    ]);
+  });
+});

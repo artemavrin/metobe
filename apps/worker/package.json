@@ -5,8 +5,8 @@
   "scripts": {
     "build": "tsup",
     "check-types": "tsc --noEmit",
-    "dev": "tsx watch --conditions=react-server --env-file=../../.env src/index.ts",
-    "start": "node --conditions=react-server dist/index.js"
+    "dev": "tsx watch --import ./no-server-only.mjs --env-file=../../.env src/index.ts",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@metobe/contracts": "workspace:*",

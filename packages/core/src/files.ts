@@ -12,11 +12,18 @@ import {
   isNull,
   lt,
   notInArray,
+  or,
   sum,
 } from "drizzle-orm";
 
 import { getDb } from "./db";
-import { deleteObject, getObject, getStorage, putObject } from "./storage";
+import {
+  copyObject,
+  deleteObject,
+  getObject,
+  getStorage,
+  putObject,
+} from "./storage";
 
 // Attachments (D33): a file goes to S3 as soon as it is picked, its row says whose it is; it joins a chat when its
 // message is saved. The browser never talks to S3 — it reads a file back through GET /api/files/[id].
@@ -42,6 +49,7 @@ export const pruneDrafts = async (userId: string, now = new Date()) => {
       and(
         eq(files.userId, userId),
         isNull(files.chatId),
+        isNull(files.taskId),
         lt(files.createdAt, new Date(now.getTime() - DRAFT_TTL_MS))
       )
     );
@@ -124,6 +132,77 @@ export const getFile = async (userId: string, id: string) => {
     .from(files)
     .where(and(eq(files.id, id), eq(files.userId, userId)));
   return row ?? null;
+};
+
+/**
+ * A file this user may read: their own, or one in a chat its owner opened to the team (it is read the way the chat
+ * is — by anyone signed in). A draft in someone's composer belongs to no chat and stays theirs alone.
+ */
+export const getReadableFile = async (userId: string, id: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ file: files })
+    .from(files)
+    .leftJoin(chats, eq(chats.id, files.chatId))
+    .where(
+      and(
+        eq(files.id, id),
+        or(
+          eq(files.userId, userId),
+          and(eq(chats.visibility, "team"), eq(chats.kind, "chat"))
+        )
+      )
+    );
+  return row?.file ?? null;
+};
+
+/**
+ * Copies a chat's files into another user's new chat — when they continue a chat shared with them: each object is
+ * copied in S3 under a new id, so either chat may be deleted without the other losing its pictures. Answers the new
+ * id of every file copied; a file that could not be copied keeps its old link (readable while the chat stays shared).
+ */
+export const copyChatFiles = async (
+  fromChatId: string,
+  toChatId: string,
+  userId: string
+) => {
+  const copied = new Map<string, string>();
+  if (!getStorage()) {
+    return copied;
+  }
+  const { db } = getDb();
+  const rows = await db
+    .select()
+    .from(files)
+    .where(eq(files.chatId, fromChatId));
+  await Promise.all(
+    rows.map(async (row) => {
+      const id = crypto.randomUUID();
+      try {
+        await copyObject(row.storageKey, keyOf(id));
+      } catch (error) {
+        console.error(
+          "files: could not copy the object",
+          row.storageKey,
+          error
+        );
+        return;
+      }
+      await db.insert(files).values({
+        chatId: toChatId,
+        description: row.description,
+        id,
+        kind: row.kind,
+        mediaType: row.mediaType,
+        name: row.name,
+        size: row.size,
+        storageKey: keyOf(id),
+        userId,
+      });
+      copied.set(row.id, id);
+    })
+  );
+  return copied;
 };
 
 /** The bytes of a file, streamed from S3. */
@@ -237,6 +316,25 @@ export const deleteChatObjects = async (chatId: string) => {
     .select({ key: files.storageKey })
     .from(files)
     .where(eq(files.chatId, chatId));
+  await Promise.all(
+    rows.map((r) =>
+      deleteObject(r.key).catch((error) =>
+        console.error("files: could not delete the object", r.key, error)
+      )
+    )
+  );
+};
+
+/** Before a task is deleted: its own files' objects (the rows go with the task). Best effort, as for a chat. */
+export const deleteTaskObjects = async (taskId: string) => {
+  if (!getStorage()) {
+    return;
+  }
+  const { db } = getDb();
+  const rows = await db
+    .select({ key: files.storageKey })
+    .from(files)
+    .where(eq(files.taskId, taskId));
   await Promise.all(
     rows.map((r) =>
       deleteObject(r.key).catch((error) =>

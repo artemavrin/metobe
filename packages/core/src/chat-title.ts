@@ -30,6 +30,8 @@ const instructionsFor = (locale: string) =>
   `2–6 words in ${languageOf(locale)}, about what the user wants, starting with a capital letter, no quotes, no final punctuation. ` +
   `Answer with the title only — never describe the message itself.`;
 
+const TITLE_TIMEOUT_MS = 15_000;
+
 /**
  * A title wants no thinking: it is faster and a thinking model would spend the few output tokens on it. A provider
  * that does not take `none` (older OpenAI reasoning models) refuses with 400 — then once more with its default.
@@ -40,8 +42,12 @@ const titleText = async (
   locale: string
 ) => {
   const call = {
+    // A title is not worth a wait: one retry and fifteen seconds in all. A source that is down (a local server
+    // switched off) took three tries of a ten-second connect timeout — forty seconds of «naming» in the sidebar.
+    abortSignal: AbortSignal.timeout(TITLE_TIMEOUT_MS),
     instructions: instructionsFor(locale),
     maxOutputTokens: 40,
+    maxRetries: 1,
     model,
     prompt: `<message>\n${text.slice(0, 4000)}\n</message>`,
   };

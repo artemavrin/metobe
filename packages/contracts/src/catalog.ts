@@ -30,6 +30,9 @@ export type CredentialMode = (typeof credentialModes)[number];
 export const catalogAccessModes = ["all", "selected"] as const;
 export type CatalogAccessMode = (typeof catalogAccessModes)[number];
 
+/** How long the admin's instructions to the model for a server may be: a paragraph or a short list, not a manual. */
+export const CATALOG_INSTRUCTIONS_MAX = 2000;
+
 /** A server's picture: a small image as a data URL, resized in the browser (there is no file storage yet). */
 export const catalogLogoSchema = z
   .string()

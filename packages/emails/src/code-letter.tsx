@@ -1,3 +1,4 @@
+// @jsxRuntime automatic — tsx does not give workspace packages their tsconfig; this keeps the worker rendering letters.
 import {
   Body,
   Container,

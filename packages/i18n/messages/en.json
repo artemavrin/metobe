@@ -11,11 +11,24 @@
     },
     "welcome": {
       "start": "Start with",
-      "resume": "Continue",
       "mail": "Unread mail",
       "mailAsk": "What is unread in my mail?",
       "file": "Go through a file",
-      "fileHint": "PDF, Word, Excel, images"
+      "fileHint": "PDF, Word, Excel, images",
+      "phrases": [
+        "The hardest part is the first question.",
+        "A precise question saves an hour of searching.",
+        "A big task is easier step by step.",
+        "Don't keep it all in your head — ask.",
+        "Numbers make more sense when you can see them.",
+        "A good answer starts with a good question.",
+        "A small fix today saves a week tomorrow.",
+        "Decisions hold up better on data than on guesses.",
+        "Get one important thing done today.",
+        "A break is part of the work, too.",
+        "You don't need the answer — just the question.",
+        "A long document doesn't have to be read end to end."
+      ]
     },
     "placeholder": "Ask anything…",
     "send": "Send",
@@ -102,7 +115,8 @@
       "caps": {
         "vision": "Images",
         "tools": "Tools",
-        "reasoning": "Reasoning"
+        "reasoning": "Reasoning",
+        "local": "Local"
       },
       "capState": {
         "yes": "{cap}: yes",
@@ -345,7 +359,8 @@
       "delete": "Delete",
       "deleteTitle": "Delete the chat?",
       "deleteText": "The chat “{title}” and all its messages will be deleted for good. It cannot be brought back.",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "share": "Share"
     },
     "activity": {
       "working": "Working",
@@ -436,7 +451,7 @@
     "voteDown": "Not helpful",
     "search": {
       "label": "Search chats and settings",
-      "placeholder": "Find a chat or a setting",
+      "placeholder": "Search",
       "nothing": "Nothing found in chats or settings",
       "chats": "Chats",
       "sections": "Settings",
@@ -459,6 +474,111 @@
       "menu": "Skills",
       "shared": "organization's",
       "save": "Saving a skill"
+    },
+    "share": {
+      "button": "Share",
+      "shared": "Shared by link",
+      "title": "Share chat",
+      "text": "Anyone signed in to Metobe can open the chat by its link. Only you can write in it — others continue in a copy of their own.",
+      "toggle": "Link access",
+      "on": "Open to anyone with the link",
+      "off": "Only you can see this chat now",
+      "link": "Link to the chat",
+      "copy": "Copy",
+      "copied": "Copied",
+      "note": "Everything in the chat is visible, including what you write next, answers from your connections and files.",
+      "failed": "Could not save — try again",
+      "author": "By {name} · read only",
+      "readOnly": "Only the author can write here. In your own copy, answers come from your models and connections.",
+      "continue": "Continue in my copy",
+      "continuing": "Copying…",
+      "continueFailed": "Could not copy the chat — try again"
+    },
+    "map": {
+      "jump": "Go to question: {question}",
+      "previous": "Previous question",
+      "next": "Next question",
+      "noText": "Question without text"
+    },
+    "beyond": {
+      "back": "New chat",
+      "eyebrow": "Beyond the event horizon",
+      "rest": [
+        {
+          "head": ["You can't get it all done.", "And you don't have to."],
+          "lines": [
+            "The to-do list will never end, but this evening will.",
+            "Even stars don't rush — they burn for billions of years.",
+            "Take a break. What matters will wait for you."
+          ]
+        },
+        {
+          "head": ["Even Earth", "needs the night."],
+          "lines": [
+            "Every day, half the planet is in the dark.",
+            "And every morning still comes on time.",
+            "Close the laptop. Tomorrow brings a new sunrise."
+          ]
+        },
+        {
+          "head": [
+            "The universe isn't in a hurry.",
+            "You don't have to be either."
+          ],
+          "lines": [
+            "It's 13.8 billion years old and still a work in progress.",
+            "The best of it came together slowly.",
+            "Rest — your tasks won't fly away."
+          ]
+        },
+        {
+          "head": [
+            "Stars shine for ages",
+            "because they don't burn out in a day."
+          ],
+          "lines": [
+            "Pace beats a sprint.",
+            "Breathe out, make some tea, look out the window.",
+            "Come back — and it'll all go faster."
+          ]
+        }
+      ]
+    },
+    "ask": {
+      "label": "The model's question",
+      "several": "Pick any.",
+      "own": "Something else…",
+      "send": "Send",
+      "next": "Next",
+      "answer": "Answer",
+      "review": "Check your answers",
+      "noAnswer": "no answer",
+      "skip": "Skip",
+      "skipped": "You decide",
+      "answered": "answered",
+      "keys": {
+        "pick": "↑↓ choose",
+        "answer": "Enter to answer",
+        "send": "Enter to send",
+        "next": "Tab for next question",
+        "skip": "Esc to skip"
+      }
+    },
+    "compact": {
+      "menu": "Compact chat",
+      "heavyTitle": "This chat has grown long",
+      "heavyText": "The last answer sent the model about {tokens} tokens at every step. Without compacting, answers will be slower and cost more, and the model remembers the start of the conversation less well. A service model will compact the chat into a summary — you keep the whole chat.",
+      "compact": "Compact chat",
+      "later": "Not now",
+      "writing": "Writing the summary…",
+      "summaryTitle": "Conversation summary",
+      "summaryCount": "{count, plural, one {# message} other {# messages}} compacted",
+      "kept": "From here on the model works from this summary. You keep the whole chat.",
+      "showAll": "Show all",
+      "collapse": "Collapse",
+      "failed": "Couldn’t compact the chat — try again",
+      "busy": "You can compact once the answer is done",
+      "short": "The chat is still short — nothing to compact"
     }
   },
   "login": {
@@ -545,6 +665,22 @@
     "now": "now {date}, {time}"
   },
   "email": {
+    "task": {
+      "subject": "{task}: {heading}",
+      "label": {
+        "result": "New result",
+        "question": "Question",
+        "action": "Action needed"
+      },
+      "button": {
+        "open": "Open the task",
+        "answer": "Answer"
+      },
+      "meta": "{schedule} · run {when}",
+      "why": "This letter came because email notifications are on for the task «{task}».",
+      "off": "Turn off for this task",
+      "failed": "Failure: {error}"
+    },
     "signIn": {
       "subject": "{code} — your Metobe sign-in code",
       "heading": "Your sign-in code",
@@ -961,7 +1097,9 @@
           "reasoning": "Thinks before answering",
           "structured": "Answers strictly by a JSON schema"
         }
-      }
+      },
+      "local": "Local",
+      "localHint": "Runs on the organization's own hardware: the data stays inside. The model picker can filter by it"
     }
   },
   "providers": {
@@ -1038,6 +1176,9 @@
       "description": "Description",
       "descriptionHint": "For the model: what the service is and when to turn to it. Optional",
       "descriptionPlaceholder": "E.g.: the company's CRM — deals, funnels, employees' tasks",
+      "instructions": "Instructions for the model",
+      "instructionsHint": "Only the model reads them, users never see them: how to work with the service and what to offer on its own. Optional",
+      "instructionsPlaceholder": "Where to start, what to ask the user, what to offer on its own",
       "access": "Access",
       "mode": "Credentials",
       "modes": {
@@ -1285,6 +1426,10 @@
       "vision": {
         "label": "Vision",
         "hint": "Describes pictures for models that cannot see them and writes out the text in them. Needs a model with sight. Without one, such models get no pictures."
+      },
+      "summaries": {
+        "label": "Chat compaction",
+        "hint": "Writes the summary of a long chat when it is compacted. Needs a model with a large context window. Without one, the chat’s own model writes it."
       }
     },
     "empty": "No working sources with models — connect a source",
@@ -1963,7 +2108,8 @@
     "purposes": {
       "chat": "Chat answers",
       "title": "Chat titles",
-      "describe": "Vision"
+      "describe": "Vision",
+      "compact": "Chat compaction"
     },
     "other": "Other",
     "removedModel": "Deleted model",
@@ -2178,5 +2324,333 @@
       "patches": "automatic patch",
       "nightly": "nightly"
     }
+  },
+  "whatsNew": {
+    "menu": "What's new",
+    "eyebrow": "What's new · {date}",
+    "brand": "Metobe {version}",
+    "description": "What came with the update",
+    "introTitle": "Metobe has been updated",
+    "intro": "{count, plural, =1 {One notable change} =2 {Two notable changes} =3 {Three notable changes} =4 {Four notable changes} =5 {Five notable changes} =6 {Six notable changes} other {# notable changes}}{rest, select, yes { and a few small ones at the end} other {}}.",
+    "doneTitle": "That's all",
+    "doneText": "You can read it again any time: account menu → “What's new”.",
+    "more": "Also",
+    "admin": "For admins",
+    "adminBadge": "only you see this",
+    "dontShow": "Don't show after updates",
+    "back": "Back",
+    "next": "Next",
+    "done": "Got it",
+    "close": "Close",
+    "page": "Page {n}",
+    "star": "{title} — open",
+    "tryIt": "Click to try it",
+    "takeOver": "Try it yourself",
+    "replay": "Show again",
+    "again": "Again",
+    "changes": {
+      "shareChat": {
+        "short": "Share",
+        "title": "Send a chat to a colleague",
+        "text": "Turn on link access, and your colleague sees the whole chat, along with anything you add later. The link opens only inside Metobe, and your colleague can continue the conversation in their own copy."
+      },
+      "askUser": {
+        "short": "Questions",
+        "title": "The model asks instead of guessing",
+        "text": "When the answer depends on something only you know — a period, who an email goes to, which report — the model asks first. Pick an option, write your own, or leave the choice to it."
+      },
+      "threadMap": {
+        "short": "Chat map",
+        "title": "Long chats have a map",
+        "text": "To the left of a long chat there's a strip with a tick for every question. Hover to see the question and the start of its answer; click to jump to it."
+      },
+      "greeting": {
+        "short": "Greeting",
+        "title": "A new greeting every day",
+        "text": "A new chat welcomes you for the time of day, with a line of the day. And if you hold the mouse down on an empty spot — see for yourself."
+      },
+      "answerEnds": {
+        "title": "Answers don't trail off",
+        "text": "Even after long work with data, an answer ends with a conclusion, not silence"
+      },
+      "chatHeader": {
+        "title": "Chat header",
+        "text": "Click the chat's name in the header to rename it"
+      },
+      "sidebar": {
+        "title": "Sidebar",
+        "text": "The pencil next to the logo starts a new chat, and the logo itself takes you home"
+      },
+      "serverInstructions": {
+        "title": "Instructions for the model",
+        "text": "An MCP server can have instructions that only the model sees: where to start and what to offer on its own"
+      },
+      "localSources": {
+        "title": "Local sources",
+        "text": "Sources on your own hardware (localhost, a private network, .local) are marked local automatically"
+      },
+      "compactChat": {
+        "short": "Compact",
+        "title": "A long chat can be compacted",
+        "text": "When a conversation grows long, an offer to compact it appears under the answer: the model goes on from a detailed summary, and answers are faster and cheaper again. You keep the whole chat, and you can compact it from the «⋯» menu in the header too."
+      },
+      "summariesSlot": {
+        "title": "A service model for compacting",
+        "text": "«Service models» has a new job, «Compacting chats» — pick a model with a large context window. What compacting costs is a line of its own in «Usage»."
+      },
+      "tasks": {
+        "short": "Tasks",
+        "title": "Regular work can become a task",
+        "text": "Describe in a chat what to do and how often: the task runs on a schedule and prepares a result. A new result, a question or a request to sign in to a service shows up in the sidebar — the task’s coloured dot pulses."
+      }
+    },
+    "demo": {
+      "chatTitle": "Spring newsletter plan",
+      "question": "Plan a spring newsletter for our customers",
+      "answer": "Three emails over two weeks: an announcement, a roundup and a reminder — subjects and send days below.",
+      "report": "Put together a sales report",
+      "lead": "Let me check the period so I don't count too much.",
+      "period": "What period should the report cover?",
+      "periodHeader": "Period",
+      "options": [
+        {
+          "label": "Last quarter",
+          "description": "Closed, complete data"
+        },
+        {
+          "label": "Last month",
+          "description": "The last full month"
+        },
+        {
+          "label": "Year to date",
+          "description": "January to today"
+        }
+      ],
+      "working": "Working on it — {answer}…",
+      "workingSkipped": "Working on it…",
+      "thread": [
+        [
+          "Plan a spring newsletter",
+          "Three emails over two weeks: an announcement, a roundup and a reminder."
+        ],
+        [
+          "Which subject lines will work best?",
+          "Short ones that lead with the benefit — here are five to choose from."
+        ],
+        [
+          "Cut the second email in half",
+          "Done: 90 words left, the key point in the first paragraph."
+        ],
+        [
+          "Make a version for social media",
+          "Three posts for different platforms, with captions for the images."
+        ],
+        [
+          "When should we send them?",
+          "Tuesday or Thursday morning — that's when work emails get opened most."
+        ],
+        [
+          "Put it all in one table",
+          "Table below: email, subject, send day and owner."
+        ]
+      ],
+      "threadLabel": "Conversation",
+      "greetings": {
+        "morning": "Good morning",
+        "day": "Good afternoon",
+        "evening": "Good evening",
+        "night": "Good night"
+      },
+      "line": "Do one important thing today.",
+      "placeholder": "Ask anything…",
+      "compact": {
+        "summary": "## Goal\n- A spring mailing plan for customers: three emails over two weeks.\n\n## What was found\n- Emails are opened most on Tuesday and Thursday mornings.\n- The second email is cut down to 90 words.\n\n## Agreed\n- Short subject lines, the benefit in the first words.\n\n## Open\n- Put everything in one table.",
+        "messages": 12
+      },
+      "tasks": {
+        "name": "Sales summary",
+        "schedule": "On weekdays at 9:00",
+        "hint": "The run is finished. Open the task in the sidebar.",
+        "result": "Yesterday 128 orders came in — 6% more than a week earlier. “Accessories” is growing fastest."
+      }
+    },
+    "moreBelow": "More below",
+    "historyLink": "All changes by version",
+    "history": {
+      "title": "What's new in Metobe",
+      "description": "Every change by version — what you can do now and how.",
+      "version": "Metobe {version}",
+      "current": "installed here",
+      "empty": "Nothing yet."
+    }
+  },
+  "tasks": {
+    "nav": "Tasks",
+    "title": "Tasks",
+    "waiting": "waiting for you",
+    "next": "next run {when}",
+    "todayAt": "today at {time}",
+    "tomorrowAt": "tomorrow at {time}",
+    "latestTitle": "Latest result",
+    "yesterdayAt": "yesterday at {time}",
+    "quietAfter": "{count, plural, one {# run} other {# runs}} since with nothing new, the last {when}",
+    "quietOnly": "{count, plural, one {# run} other {# runs}} with nothing new, the last {when}",
+    "off": "off",
+    "actions": "Task actions",
+    "delete": "Delete task",
+    "deleteTitle": "Delete the task?",
+    "deleteText": "The task «{name}» and the history of its runs will be deleted for good. They cannot be brought back.",
+    "deleteConfirm": "Delete",
+    "cancel": "Cancel",
+    "changePlaceholder": "What to change in the task…",
+    "changeSend": "Send",
+    "changeThinking": "Preparing the change…",
+    "changeAsked": "Change as asked: «{request}» · not applied",
+    "changeApply": "Apply",
+    "changeTest": "Test run",
+    "changeCancel": "Cancel",
+    "changeNext": "The next run on the new schedule — {when}.",
+    "changeNone": "Nothing changes in the task.",
+    "changeFailed": "The change was not prepared: model error.",
+    "changeNoModel": "The task's model is unavailable: the change was not prepared.",
+    "changedAt": "changed {date}",
+    "changeLine": "Changed {date}: {summary}",
+    "revert": "Revert",
+    "revertedSummary": "the previous version restored",
+    "testTitle": "Test run",
+    "modelSummary": "model — {name}",
+    "modelGone": "Model unavailable",
+    "none": "None",
+    "changePlaceholderShort": "What to change…",
+    "waitingTitle": "Waiting for your approval",
+    "fix": {
+      "running": "Access is back, the run is going…",
+      "server": "Sign in to {server}",
+      "mail": "Sign in to mail",
+      "mailTitle": "Sign in to {address}",
+      "mailText": "The password no longer works. Once you sign in, the task runs again.",
+      "failed": "The task could not be started"
+    },
+    "runNow": "Run now",
+    "enabled": "Task is on",
+    "offNote": "The task is off: no scheduled runs.",
+    "pausedNote": "The task stopped: {reason}",
+    "turnOn": "Turn on",
+    "about": "About the task",
+    "fields": {
+      "model": "Model",
+      "files": "Files",
+      "skills": "Skills",
+      "does": "What it does",
+      "schedule": "Schedule",
+      "sources": "Sources",
+      "report": "Result",
+      "created": "Created",
+      "mail": "Email"
+    },
+    "reportWhen": {
+      "changes": "Only when something changed",
+      "always": "After every run"
+    },
+    "allSources": "All connections",
+    "mailOn": "Notifications on",
+    "mailOff": "Notifications off",
+    "running": "Running…",
+    "goingTitle": "Running",
+    "windowDone": "Done",
+    "windowFailed": "Failed",
+    "windowCancelled": "Run cancelled",
+    "goingSteps": "{count, plural, one {# step} other {# steps}}",
+    "details": "Details",
+    "queued": "Queued",
+    "past": "Past runs · {count}",
+    "noRuns": "No runs yet. The first — {when}.",
+    "retry": "Run again",
+    "cancelled": "Run cancelled",
+    "failed": "Failed: {error}",
+    "mailLabel": "Email notifications for this task",
+    "actionFailed": "That did not work. Try again.",
+    "answerFailed": "Could not load the run's answer.",
+    "notFound": "Task not found",
+    "draft": {
+      "slots": {
+        "what": "what",
+        "when": "when",
+        "with": "from",
+        "where": "where"
+      },
+      "notSet": "not set",
+      "first": "first — {when}",
+      "whereChanges": "Only when something changes",
+      "whereAlways": "After every run",
+      "wherePage": "on the task's page",
+      "whereMail": "on the task's page and by email",
+      "nameLabel": "Task name",
+      "colorLabel": "Task colour",
+      "color": "Colour {n}",
+      "create": "Create task",
+      "creating": "Creating…",
+      "created": "created",
+      "createdNote": "First run — {when}. Run results are shown on the task's page.",
+      "open": "Open task",
+      "older": "Task draft · a newer one is below",
+      "createFailed": "The task was not created. Try again.",
+      "introEyebrow": "Tasks",
+      "introTitle": "What should be done regularly?",
+      "introText": "Describe the task in your own words.",
+      "placeholder": "Describe the task…",
+      "placeholderShort": "Task…",
+      "parts": {
+        "what": "What",
+        "when": "When",
+        "with": "From",
+        "where": "Where"
+      },
+      "hints": {
+        "what": "what to check and report",
+        "when": "weekdays and time",
+        "with": "services, mail, websites",
+        "where": "the task's page, email"
+      }
+    },
+    "list": {
+      "andMore": "and {count} more",
+      "selectAll": "Select all",
+      "select": "Select",
+      "selectTask": "Select «{name}»",
+      "selected": "Selected: {count}",
+      "turnOnMany": "Turn on",
+      "turnOffMany": "Turn off",
+      "deleteMany": "Delete",
+      "clearSelection": "Clear selection",
+      "deleteManyTitle": "{count, plural, one {Delete # task?} other {Delete # tasks?}}",
+      "deleteManyText": "The tasks and the history of their runs will be deleted for good. They cannot be brought back.",
+      "cancel": "Cancel",
+      "actionGroup": "Needs action",
+      "freshGroup": "New results",
+      "restGroup": "Others",
+      "offGroup": "Off · {count}",
+      "markRead": "Mark as read",
+      "markUnread": "Mark as unread",
+      "openTask": "Open the task",
+      "open": "Open",
+      "resultAt": "result {when}",
+      "nextAt": "next {when}",
+      "turnedOn": "On · next {when}",
+      "newResult": "new result",
+      "done": "The run went through",
+      "new": "New task"
+    }
+  },
+  "mailOff": {
+    "title": "Turn off letters for this task?",
+    "text": "Letters about the task «{task}» will stop. Other tasks are not affected.",
+    "button": "Turn off",
+    "failed": "Could not turn off: the link is not valid.",
+    "doneTitle": "Letters turned off",
+    "doneText": "Letters about the task «{task}» no longer come. You can turn them on again in the task's card, in the «Email» row.",
+    "open": "Open the task",
+    "badTitle": "The link is not valid",
+    "badText": "The task was deleted or the link is broken. Notifications can be turned off in the task's card in Metobe."
   }
 }

@@ -27,12 +27,51 @@ type Connector = buildConnector.connector;
 type Validate = (ip: string) => boolean;
 
 /** A fetch bound to one dispatcher, in the shape AI SDK providers accept. */
+/** The far end closed the connection or reset it: the request may not have reached it at all. */
+const DROPPED = new Set([
+  "ECONNRESET",
+  "EPIPE",
+  "UND_ERR_CLOSED",
+  "UND_ERR_SOCKET",
+]);
+const dropped = (error: unknown) => {
+  const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return typeof code === "string" && DROPPED.has(code);
+};
+
+/** A body that can be sent a second time: none, or one held whole in memory — never a stream. */
+const resendable = (body: unknown) =>
+  body === undefined ||
+  body === null ||
+  typeof body === "string" ||
+  body instanceof ArrayBuffer ||
+  ArrayBuffer.isView(body) ||
+  body instanceof URLSearchParams ||
+  body instanceof Blob;
+
+/**
+ * fetch through this dispatcher. A connection dropped before any answer — a kept-alive one the far end has just
+ * closed, a blip on the way — is tried once more on a fresh one: nothing of the answer has come yet, so nothing is
+ * lost or doubled. AI SDK does not repeat it itself — the Gateway's provider turns it into an error it does not
+ * retry — and the chat got «Cannot connect to API: other side closed» at its first byte. A request the caller
+ * stopped, or one whose body was a stream, is not sent again.
+ */
 export const fetchWith = (dispatcher: Dispatcher): typeof fetch =>
-  ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
-    undiciFetch(input as never, {
-      ...(init as object),
-      dispatcher,
-    })) as unknown as typeof fetch;
+  (async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1]
+  ) => {
+    const send = () =>
+      undiciFetch(input as never, { ...(init as object), dispatcher });
+    try {
+      return await send();
+    } catch (error) {
+      if (init?.signal?.aborted || !dropped(error) || !resendable(init?.body)) {
+        throw error;
+      }
+      return send();
+    }
+  }) as unknown as typeof fetch;
 
 /** «Direct» is an explicit Agent, so HTTPS_PROXY from the environment never leaks in. */
 export const directAgent = () => new Agent();

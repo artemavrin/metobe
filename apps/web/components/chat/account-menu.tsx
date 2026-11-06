@@ -119,6 +119,18 @@ const LanguagePills = () => {
   );
 };
 
+/** «Что нового»: the four-ray star of its window's cover, so the row and the window read as one. */
+const StarGlint = () => (
+  <svg aria-hidden fill="none" viewBox="0 0 24 24">
+    <path
+      d="M12 3 L13.6 10.4 L21 12 L13.6 13.6 L12 21 L10.4 13.6 L3 12 L10.4 10.4 Z"
+      stroke="currentColor"
+      strokeLinejoin="round"
+      strokeWidth="1.6"
+    />
+  </svg>
+);
+
 const rowClass =
   "hover:bg-muted focus-visible:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-hidden [&_svg]:size-4 [&_svg]:shrink-0";
 
@@ -150,9 +162,12 @@ const MenuBody = ({
   user,
   onNavigate,
   keyboard,
+  whatsNew,
 }: {
   user: Person;
   onNavigate: () => void;
+  /** «Что нового» again: its version and how to open it; none when this build has no notes. */
+  whatsNew?: { version: string; open: () => void };
   /** Whether there is a keyboard to show the shortcut for. */
   keyboard: boolean;
 }) => {
@@ -160,6 +175,7 @@ const MenuBody = ({
   const t = useTranslations("chat");
   const sections = useTranslations("settings.sections");
   const about = useTranslations("about");
+  const news = useTranslations("whatsNew");
   return (
     <>
       <div className="flex items-center gap-2.5 px-2 py-2">
@@ -198,6 +214,23 @@ const MenuBody = ({
       >
         {sections("usage.label")}
       </LinkRow>
+      {whatsNew && (
+        <button
+          className={rowClass}
+          onClick={() => {
+            onNavigate();
+            whatsNew.open();
+          }}
+          type="button"
+        >
+          <StarGlint />
+          {news("menu")}
+          {/* The version, quiet on the right — where the shortcuts stand in the other rows. */}
+          <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+            v{whatsNew.version}
+          </span>
+        </button>
+      )}
       {user.update && (
         <LinkRow
           href="/settings/about"
@@ -246,7 +279,13 @@ const TriggerFace = ({ user }: { user: Person }) => (
  * side — no submenus, each a click, the menu stays open — then the settings, the user's connections and usage, and
  * the way out. On a phone it is a sheet from the bottom.
  */
-export const AccountMenu = ({ user }: { user: Person }) => {
+export const AccountMenu = ({
+  user,
+  whatsNew,
+}: {
+  user: Person;
+  whatsNew?: { version: string; open: () => void };
+}) => {
   const { isMobile, setOpenMobile } = useSidebar();
   const [open, setOpen] = useState(false);
   const navigate = () => {
@@ -266,7 +305,12 @@ export const AccountMenu = ({ user }: { user: Person }) => {
         <SheetTrigger render={trigger} />
         <SheetContent className="gap-0 rounded-t-2xl p-3 pb-6" side="bottom">
           <SheetTitle className="sr-only">{user.name}</SheetTitle>
-          <MenuBody keyboard={false} onNavigate={navigate} user={user} />
+          <MenuBody
+            keyboard={false}
+            onNavigate={navigate}
+            whatsNew={whatsNew}
+            user={user}
+          />
         </SheetContent>
       </Sheet>
     );
@@ -280,7 +324,12 @@ export const AccountMenu = ({ user }: { user: Person }) => {
         side="top"
         sideOffset={8}
       >
-        <MenuBody keyboard onNavigate={navigate} user={user} />
+        <MenuBody
+          keyboard
+          onNavigate={navigate}
+          whatsNew={whatsNew}
+          user={user}
+        />
       </PopoverContent>
     </Popover>
   );

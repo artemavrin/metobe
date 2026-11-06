@@ -160,6 +160,84 @@ export const estimateTokens = (messages: ModelMessage[]) => {
   return tokensOf(chars);
 };
 
+const isReasoning = (part: unknown) =>
+  typeof part === "object" &&
+  part !== null &&
+  (part as { type?: string }).type === "reasoning";
+
+/**
+ * The reasoning of answers to earlier questions is not sent again (an OpenAI-compatible provider puts it in every past
+ * message's `reasoning_content`: 60k tokens a step in that chat) — as Anthropic's API drops earlier thinking and AI
+ * SDK's `pruneMessages` does with `reasoning: "before-last-message"`. The question asked now keeps its own: a reasoning
+ * model wants it back between the steps of a tool loop. A past message that was only reasoning goes.
+ */
+const withoutPastReasoning = (messages: ModelMessage[], asked: number) => {
+  let changed = false;
+  const next = messages.flatMap((message, i) => {
+    if (
+      i >= asked ||
+      message.role !== "assistant" ||
+      !Array.isArray(message.content) ||
+      !message.content.some(isReasoning)
+    ) {
+      return [message];
+    }
+    changed = true;
+    const content = message.content.filter((part) => !isReasoning(part));
+    return content.length === 0 ? [] : [{ ...message, content }];
+  });
+  return changed ? next : messages;
+};
+
+/** A past answer's result smaller than this stays: it costs little and may be the very fact asked about. */
+const PAST_MIN_TOKENS = 200;
+
+/**
+ * The answers to earlier questions keep their words and calls but not their tool results — the 1С tables, the pages,
+ * the mail — nor their reasoning (below); after Claude Code's microcompact and the `clear_tool_uses` of Anthropic's API, applied at the edge of a
+ * question rather than of the window: with a model priced per token, every step of every answer would pay again for
+ * data of a question long answered (a chat of 0.6.0 sent 170k tokens a step, almost all of it old 1С results). The
+ * model is told a result was there and how to get it again. The question asked now keeps its own results whole.
+ *
+ * Kept whatever they weigh: `keep` — the tools found by the tool search (a lent tool comes from its result) and the
+ * user's own answers — and anything too small to matter. Pure, and fixed per question: every step of an answer gets
+ * the same history before it, and a cleared answer stays cleared, so the cached prefix holds — it breaks once per
+ * question, where it was cold anyway after the pause between questions.
+ */
+export const clearPastTurns = (
+  messages: ModelMessage[],
+  { keep }: { keep: string[] }
+): ModelMessage[] => {
+  // The question asked now: the last user's message (findLastIndex is past the ES2022 target).
+  let asked = -1;
+  for (const [i, m] of messages.entries()) {
+    if (m.role === "user") {
+      asked = i;
+    }
+  }
+  if (asked <= 0) {
+    return messages;
+  }
+  const cleared = mapParts(messages, (part, at) => {
+    if (
+      at.message >= asked ||
+      !isResult(part) ||
+      keep.includes(part.toolName)
+    ) {
+      return part;
+    }
+    const text = textOfResult(part);
+    if (text === null) {
+      return part;
+    }
+    const tokens = tokensOf(text.length);
+    return tokens < PAST_MIN_TOKENS
+      ? part
+      : withText(part, clearedNote(part.toolName, tokens));
+  });
+  return withoutPastReasoning(cleared, asked);
+};
+
 /**
  * What the model is sent: every tool response cut at the cap; and, once the history passes the trigger, the results of
  * the oldest tool uses replaced with a note — keeping the newest ones up to a budget (and the last three whatever they

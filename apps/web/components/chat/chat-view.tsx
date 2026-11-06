@@ -30,7 +30,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
   memo,
   useCallback,
@@ -42,8 +42,15 @@ import {
 } from "react";
 
 import { voteAnswer } from "@/app/(app)/(chat)/actions";
+import { AskPanel } from "@/components/chat/ask-user";
 import { FileSinkContext, useAttachments } from "@/components/chat/attachments";
+import { BlackHole } from "@/components/chat/black-hole";
 import { useTouchChat } from "@/components/chat/chat-shell";
+import {
+  CompactionCard,
+  CompactOffer,
+  useCompaction,
+} from "@/components/chat/compaction";
 import { Composer } from "@/components/chat/composer";
 import type { ComposerHandle } from "@/components/chat/composer";
 import {
@@ -51,15 +58,26 @@ import {
   ModelSwitch,
   UserMessage,
 } from "@/components/chat/messages";
+import { NightSky } from "@/components/chat/night-sky";
 import { PickerDataProvider } from "@/components/chat/picker/data";
 import type { PickerModel } from "@/components/chat/picker/data";
 import { useFavorites } from "@/components/chat/picker/use-favorites";
 import { ServerClockProvider } from "@/components/chat/server-clock";
 import type { ChatSkill } from "@/components/chat/skill-menu";
+import { ThreadMap } from "@/components/chat/thread-map";
 import { Welcome } from "@/components/chat/welcome";
 import type { WelcomeData } from "@/components/chat/welcome";
+import {
+  TaskChatContext,
+  useTaskChat,
+} from "@/components/tasks/task-draft-card";
+import type { TaskChat } from "@/components/tasks/task-draft-card";
+import { TaskIntro } from "@/components/tasks/task-intro";
+import { openQuestion, questionsOf } from "@/lib/ask-user";
 import { chatProblem, retryAtOf } from "@/lib/chat-errors";
+import { compactionOf } from "@/lib/compaction";
 import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
+import { threadMapItems } from "@/lib/thread-map";
 import { threadRows } from "@/lib/thread-rows";
 import type { ThreadRow } from "@/lib/thread-rows";
 import { uuid } from "@/lib/uuid";
@@ -341,12 +359,47 @@ const ChatError = ({
   );
 };
 
+const hasCoverOf = (intro?: boolean, welcome?: WelcomeData) =>
+  Boolean(intro ?? welcome);
+
+/** What stands over an empty thread: «Что поручить?» when given, else the welcome. */
+const Cover = ({
+  intro,
+  welcome,
+  composer,
+  servers,
+}: {
+  intro?: boolean;
+  welcome?: WelcomeData;
+  composer: RefObject<ComposerHandle | null>;
+  servers: ChatServer[];
+}) => {
+  if (intro) {
+    return <TaskIntro />;
+  }
+  return welcome ? (
+    <Welcome composer={composer} data={welcome} servers={servers} />
+  ) : null;
+};
+
 /**
  * A chat: the thread and the composer in one tree. A new chat has its welcome over the empty thread and the
  * composer already at the bottom, where the thread keeps it: the first message fades the welcome out, the question
  * rises in, and the composer keeps its place and its focus.
  */
 const NO_SKILLS: ChatSkill[] = [];
+
+/** The offer to compact (or the service model at work) at the thread's end, when there is one. */
+const CompactSlot = ({
+  compaction,
+}: {
+  compaction: ReturnType<typeof useCompaction>;
+}) =>
+  compaction.shown ? (
+    <MessageScrollerItem messageId="compact">
+      <CompactOffer {...compaction.offer} />
+    </MessageScrollerItem>
+  ) : null;
 
 export const ChatView = ({
   id: givenId,
@@ -360,6 +413,8 @@ export const ChatView = ({
   servers: initialServers,
   skills = NO_SKILLS,
   votes: initialVotes = NO_VOTES,
+  task,
+  intro,
 }: {
   /** An existing chat's id; a new chat makes its own, once, in the browser. */
   id?: string;
@@ -380,6 +435,13 @@ export const ChatView = ({
   welcome?: WelcomeData;
   /** The user's votes on the answers: id → helpful or not. */
   votes?: Record<string, boolean>;
+  /**
+   * The chat's periodic task (P11): the one set up here, if any; `intent` — the chat was opened from «Что поручить?»,
+   * its questions are a task's description.
+   */
+  task?: { created: TaskChat["created"]; intent?: boolean };
+  /** «Что поручить?» over an empty thread, in the welcome's place. */
+  intro?: boolean;
 }) => {
   const t = useTranslations("chat");
   const updateT = useTranslations("chat.update");
@@ -387,6 +449,10 @@ export const ChatView = ({
   const [id] = useState(() => givenId ?? uuid());
   // The welcome's rows put a server, words or files into the draft.
   const composer = useRef<ComposerHandle>(null);
+  // Where the composer stands: the night sky's stars land on its top edge.
+  const composerBox = useRef<HTMLDivElement>(null);
+  // Reduced motion: the sky stays still and there is no egg — it is all motion.
+  const reduce = useReducedMotion();
   const touch = useTouchChat();
   // oxlint-disable-next-line react/hook-use-state -- decided once and never changed: no setter to name
   const [resume] = useState(() => initialMessages.at(-1)?.role === "user");
@@ -506,12 +572,14 @@ export const ChatView = ({
                       answers: decisionsOf(last),
                       connections: connectionsOf(last),
                       messageId: last.id,
+                      questions: questionsOf(last),
                     },
                     id: chatId,
                     modelId,
                   }
                 : {
                     id: chatId,
+                    intent: body?.intent,
                     message: last,
                     modelId,
                   },
@@ -562,7 +630,7 @@ export const ChatView = ({
     // start a second reading of an answer this page is already reading.
     resume,
     // Once every asked call of the last answer has the user's yes or no, or the user answered its ask to connect a
-    // service, the answer carries on by itself.
+    // service or its questions, the answer carries on by itself.
     sendAutomaticallyWhen: (options) =>
       lastAssistantMessageIsCompleteWithApprovalResponses(options) ||
       answeredAsk(options.messages),
@@ -586,6 +654,8 @@ export const ChatView = ({
     clearError();
   }, [clearError, enqueueDeferred, error, setMessages]);
   const busy = status === "submitted" || status === "streaming";
+  // The last answer waits on the user's answer to its questions: they stand in the composer's place.
+  const question = busy ? null : openQuestion(messages.at(-1));
   // A skill the model saved at the user's yes is in their `/` list from now on: the page's data is read again.
   const router = useRouter();
   const saved = useRef(new Set<string>());
@@ -612,6 +682,13 @@ export const ChatView = ({
     void fetch(`/api/chat/${id}/stop`, { method: "POST" });
   };
   const empty = messages.length === 0;
+  const hasCover = hasCoverOf(intro, welcome);
+  // The task set up here (P11): created from a draft's card, it stands at once — the page is not reloaded.
+  const { taskChat, taskIntent, taskPlaceholder } = useTaskChat(
+    id,
+    task,
+    messages
+  );
 
   // When an answer starts, the server has the chat: a new one gets its address without a reload, and the chat
   // goes to the top of the sidebar. A chat is named once, when it is made: its first line until the titles model
@@ -714,7 +791,9 @@ export const ChatView = ({
     pendingMessage.current = entry;
     deferredSending.current = null;
     setAsked(model.id);
-    void sendMessage(message, { body: { modelId: model.id } });
+    void sendMessage(message, {
+      body: { intent: taskIntent, modelId: model.id },
+    });
   };
   // An edited message replaces its old self and drops what followed; the server does the same with its copy. Its
   // files are the ones the edit left on it, old and new.
@@ -747,9 +826,16 @@ export const ChatView = ({
     const picked = models.find((x) => x.id === modelId);
     return picked ? asLabel(picked) : labels.find((l) => l.id === modelId);
   };
+  // «Сжать чат» (D37): the offer under a heavy answer, and the work — asked from here or from the header's menu.
+  const compaction = useCompaction({ busy, chatId: id, messages, setMessages });
+
   const rowOf = (row: ThreadRow) => {
     if (row.role === "switch") {
       return <ModelSwitch label={labelOf(row.modelId)} />;
+    }
+    if (row.role === "compaction") {
+      const data = compactionOf(row.message);
+      return data ? <CompactionCard data={data} /> : null;
     }
     if (row.role === "user") {
       return (
@@ -809,129 +895,174 @@ export const ChatView = ({
 
   return (
     <PickerDataProvider models={models} recent={recent}>
-      <FileSinkContext value={sink}>
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <style>{SCREEN_CSS}</style>
-          <DropZone shown={dragging} />
-          {/*
+      <TaskChatContext value={taskChat}>
+        <FileSinkContext value={sink}>
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <style>{SCREEN_CSS}</style>
+            {/* A new chat's night sky behind the welcome and the composer: it leaves with the welcome */}
+            <AnimatePresence>
+              {empty && welcome && (
+                <motion.div
+                  animate={{ opacity: 1 }}
+                  className="absolute inset-0"
+                  exit={{
+                    opacity: 0,
+                    transition: { duration: 0.2, ease: EASE_OUT },
+                  }}
+                  initial={{ opacity: 0 }}
+                  key="sky"
+                  transition={{ duration: 0.4, ease: EASE_OUT }}
+                >
+                  <NightSky composer={composerBox} />
+                  {!reduce && <BlackHole />}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <DropZone shown={dragging} />
+            {/*
           The thread (shadcn MessageScroller): a question that goes settles near the top with its answer growing
           under it, and once the answer runs past the view, the view follows the words — while the reader stays at
           the end; scrolling up to read stops that, the button brings the end back. A saved chat opens on its last
           question.
         */}
-          <div className="relative min-h-0 flex-1">
-            <ServerClockProvider value={clockOffset}>
-              <MessageScrollerProvider
-                autoScroll
-                defaultScrollPosition="last-anchor"
-              >
-                <MessageScroller>
-                  <MessageScrollerViewport aria-label={t("thread")}>
-                    <MessageScrollerContent
-                      className={cn(
-                        "mx-auto w-full max-w-4xl px-4 text-sm md:px-6",
-                        !empty && "py-6"
-                      )}
-                    >
-                      {rows.map((row) => (
-                        <MessageScrollerItem
-                          key={row.key}
-                          messageId={row.key}
-                          scrollAnchor={row.role === "user"}
-                        >
-                          <ThreadRowView
-                            mark={markOf(row)}
-                            render={rowOf}
-                            row={row}
-                            sig={sig}
-                          />
-                        </MessageScrollerItem>
-                      ))}
-                      {error && !busy && chatProblem(error) !== "updating" && (
-                        <MessageScrollerItem messageId="error">
-                          <ChatError error={error} onRetry={retry} />
-                        </MessageScrollerItem>
-                      )}
-                    </MessageScrollerContent>
-                  </MessageScrollerViewport>
-                  <MessageScrollerButton>
-                    <ArrowDown />
-                    <span className="sr-only">{t("toLatest")}</span>
-                  </MessageScrollerButton>
-                </MessageScroller>
-                <SeatQuestion
-                  rowKey={resume ? lastQuestionKey(rows) : undefined}
-                />
-              </MessageScrollerProvider>
-            </ServerClockProvider>
-            {/* A new chat's screen over the empty thread: the first question fades it out and rises in under it */}
-            <AnimatePresence initial={false}>
-              {empty && welcome && (
-                <motion.div
-                  className="chat-rise absolute inset-0 overflow-y-auto"
-                  exit={{
-                    opacity: 0,
-                    transition: { duration: 0.15, ease: EASE_OUT },
-                  }}
-                  key="welcome"
+            <div className="relative min-h-0 flex-1">
+              <ServerClockProvider value={clockOffset}>
+                <MessageScrollerProvider
+                  autoScroll
+                  defaultScrollPosition="last-anchor"
                 >
-                  <Welcome
-                    composer={composer}
-                    data={welcome}
-                    servers={servers}
+                  <MessageScroller>
+                    <MessageScrollerViewport aria-label={t("thread")}>
+                      <MessageScrollerContent
+                        className={cn(
+                          "mx-auto w-full max-w-4xl px-4 text-sm md:px-6",
+                          !empty && "py-6"
+                        )}
+                      >
+                        {rows.map((row) => (
+                          <MessageScrollerItem
+                            key={row.key}
+                            messageId={row.key}
+                            scrollAnchor={row.role === "user"}
+                          >
+                            <ThreadRowView
+                              mark={markOf(row)}
+                              render={rowOf}
+                              row={row}
+                              sig={sig}
+                            />
+                          </MessageScrollerItem>
+                        ))}
+                        {/* «Сжать чат» (D37): offered under a heavy answer, or asked for from the menu */}
+                        <CompactSlot compaction={compaction} />
+                        {error &&
+                          !busy &&
+                          chatProblem(error) !== "updating" && (
+                            <MessageScrollerItem messageId="error">
+                              <ChatError error={error} onRetry={retry} />
+                            </MessageScrollerItem>
+                          )}
+                      </MessageScrollerContent>
+                    </MessageScrollerViewport>
+                    <MessageScrollerButton>
+                      <ArrowDown />
+                      <span className="sr-only">{t("toLatest")}</span>
+                    </MessageScrollerButton>
+                  </MessageScroller>
+                  {/* max-w-4xl: the column of the thread below */}
+                  <ThreadMap column={896} items={threadMapItems(rows)} />
+                  <SeatQuestion
+                    rowKey={resume ? lastQuestionKey(rows) : undefined}
                   />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          {/* The composer stands where the thread keeps it from the start: the first question moves nothing */}
-          <div className="chat-rise chat-rise-next w-full px-4 pb-4 md:px-6">
-            <div className="mx-auto max-w-4xl">
-              {(draining || deferred.length > 0) && (
-                <output
-                  aria-live="polite"
-                  className="bg-muted/70 text-muted-foreground mb-2 flex flex-col gap-0.5 rounded-lg border px-3 py-2 text-xs"
-                >
-                  <span className="text-foreground font-medium">
-                    {updateT("title")}
-                  </span>
-                  <span>
-                    {draining ? updateT("paused") : updateT("resuming")}
-                    {deferred.length > 0 &&
-                      ` · ${updateT("queued", { count: deferred.length })}`}
-                  </span>
-                </output>
-              )}
-              <Composer
-                busy={busy}
-                favorites={favorites}
-                model={model}
-                onModel={setModel}
-                onEditLast={() => {
-                  const last = lastQuestion(rows);
-                  if (
-                    busy ||
-                    draining ||
-                    deferred.length > 0 ||
-                    last?.role !== "user"
-                  ) {
-                    return false;
-                  }
-                  setEditingId(last.message.id);
-                  return true;
-                }}
-                onSend={send}
-                onStop={halt}
-                attachments={attachments}
-                onServerReady={serverReady}
-                ref={composer}
-                servers={servers}
-                skills={skills}
-              />
+                </MessageScrollerProvider>
+              </ServerClockProvider>
+              {/* A new chat's screen over the empty thread: the first question fades it out and rises in under it */}
+              <AnimatePresence initial={false}>
+                {empty && hasCover && (
+                  <motion.div
+                    className="chat-rise absolute inset-0 overflow-y-auto"
+                    exit={{
+                      opacity: 0,
+                      transition: { duration: 0.15, ease: EASE_OUT },
+                    }}
+                    key="welcome"
+                  >
+                    <Cover
+                      composer={composer}
+                      intro={intro}
+                      servers={servers}
+                      welcome={welcome}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            {/* The composer stands where the thread keeps it from the start: the first question moves nothing */}
+            <div className="chat-rise chat-rise-next relative w-full px-4 pb-4 md:px-6">
+              <div className="mx-auto max-w-4xl" ref={composerBox}>
+                {(draining || deferred.length > 0) && (
+                  <output
+                    aria-live="polite"
+                    className="bg-muted/70 text-muted-foreground mb-2 flex flex-col gap-0.5 rounded-lg border px-3 py-2 text-xs"
+                  >
+                    <span className="text-foreground font-medium">
+                      {updateT("title")}
+                    </span>
+                    <span>
+                      {draining ? updateT("paused") : updateT("resuming")}
+                      {deferred.length > 0 &&
+                        ` · ${updateT("queued", { count: deferred.length })}`}
+                    </span>
+                  </output>
+                )}
+                {question && (
+                  <AskPanel
+                    key={question.toolCallId}
+                    onAnswer={(output) =>
+                      addToolOutput({
+                        output,
+                        tool: "ask_user",
+                        toolCallId: question.toolCallId,
+                      })
+                    }
+                    part={question}
+                  />
+                )}
+                {/* Hidden, not gone, while the model asks: what the user was typing stays. */}
+                <div hidden={Boolean(question)}>
+                  <Composer
+                    busy={busy}
+                    placeholder={taskPlaceholder}
+                    favorites={favorites}
+                    model={model}
+                    onModel={setModel}
+                    onEditLast={() => {
+                      const last = lastQuestion(rows);
+                      if (
+                        busy ||
+                        draining ||
+                        deferred.length > 0 ||
+                        last?.role !== "user"
+                      ) {
+                        return false;
+                      }
+                      setEditingId(last.message.id);
+                      return true;
+                    }}
+                    onSend={send}
+                    onStop={halt}
+                    attachments={attachments}
+                    onServerReady={serverReady}
+                    ref={composer}
+                    servers={servers}
+                    skills={skills}
+                  />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </FileSinkContext>
+        </FileSinkContext>
+      </TaskChatContext>
     </PickerDataProvider>
   );
 };

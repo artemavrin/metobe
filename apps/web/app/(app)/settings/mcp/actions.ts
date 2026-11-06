@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  CATALOG_INSTRUCTIONS_MAX,
   catalogAccessModes,
   catalogKeySchema,
   catalogLogoSchema,
@@ -114,6 +115,18 @@ export const setDescription = async (id: string, description: string) => {
   await requireAdmin();
   const text = z.string().trim().max(500).parse(description);
   await updateCatalogItem(idSchema.parse(id), { description: text || null });
+  refresh();
+};
+
+/** How to work with the service, for the model only — users never see it; empty clears it. */
+export const setInstructions = async (id: string, instructions: string) => {
+  await requireAdmin();
+  const text = z
+    .string()
+    .trim()
+    .max(CATALOG_INSTRUCTIONS_MAX)
+    .parse(instructions);
+  await updateCatalogItem(idSchema.parse(id), { instructions: text || null });
   refresh();
 };
 

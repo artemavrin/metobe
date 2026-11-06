@@ -4,6 +4,7 @@ import type { ChatMessage } from "@metobe/contracts/chat";
 import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
+import { splitSkills } from "@metobe/core/skill-mentions";
 import { Bubble, BubbleContent } from "@metobe/ui/components/bubble";
 import { Button } from "@metobe/ui/components/button";
 import {
@@ -58,6 +59,7 @@ import { AnswerChart } from "@/components/chat/answer-chart";
 import { AnswerMetrics } from "@/components/chat/answer-metrics";
 import { AnswerTable } from "@/components/chat/answer-table";
 import { ApprovalCard } from "@/components/chat/approval-card";
+import { AskedAnswer } from "@/components/chat/ask-user";
 import {
   ComposerShelf,
   FileChip,
@@ -71,10 +73,11 @@ import { SecretNote } from "@/components/chat/secret-note";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
 import { WebSources } from "@/components/chat/web-step";
+import { TaskDraftCard } from "@/components/tasks/task-draft-card";
 import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
-import type { ToolPart, WorkStep } from "@/lib/answer-work";
-import { splitMentions, splitSkills } from "@/lib/mentions";
+import type { AnswerBlock, ToolPart, WorkStep } from "@/lib/answer-work";
+import { splitMentions } from "@/lib/mentions";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 import "gridora/styles.css";
@@ -709,12 +712,31 @@ const AnswerFooter = ({
   );
 };
 
-/** An answer's reasoning as one text. */
-const reasoningOf = (message?: ChatMessage) =>
-  (message?.parts ?? [])
+/** Reasoning parts as one text. */
+const reasoningOf = (parts: ChatMessage["parts"]) =>
+  parts
     .flatMap((p) => (p.type === "reasoning" ? [p.text] : []))
     .join("\n\n")
     .trim();
+
+/** A block the user answered — «connect X to go on» or the model's questions: the answer carried on after it. */
+const answeredBlock = (b: AnswerBlock) =>
+  (b.kind === "connect" || b.kind === "ask") &&
+  b.part.state === "output-available";
+
+/** Where the answer carried on after the user's last answer: the index of the part after it, 0 when it never paused. */
+const resumedAt = (parts: ChatMessage["parts"]) => {
+  let at = 0;
+  for (const [i, p] of parts.entries()) {
+    if (
+      (p.type === "tool-request_connection" || p.type === "tool-ask_user") &&
+      p.state === "output-available"
+    ) {
+      at = i + 1;
+    }
+  }
+  return at;
+};
 
 type Waiting = Extract<ToolPart, { state: "approval-requested" }>;
 
@@ -752,6 +774,113 @@ const ApprovalCards = ({
   });
 };
 
+/** What an answer shows, read from its parts: the work, the pieces, whether it waits on the user. */
+const answerState = (message: ChatMessage | undefined) => {
+  const parts = message?.parts ?? [];
+  const { steps, answer, blocks } = answerWork(parts);
+  const hasWork = steps.length > 0;
+  // The blocks up to the user's last answer stand as they were; the answer goes on after them.
+  let before = 0;
+  for (const [i, b] of blocks.entries()) {
+    if (answeredBlock(b)) {
+      before = i + 1;
+    }
+  }
+  // The answer has begun (or begun again, after the user answered): its first words or a table.
+  const answering = blocks.length > before;
+  // Calls waiting for the user's yes: their cards stand in the answer, not in the work.
+  const waiting = waitingCalls(steps);
+  // Waiting on the user — to connect a service, to allow a call, or to answer: not done, so no footer yet.
+  const asking =
+    waiting.length > 0 ||
+    blocks.some(
+      (b) =>
+        (b.kind === "connect" || b.kind === "ask") &&
+        b.part.state === "input-available"
+    );
+  // Without tools the status line keeps the reasoning; with them the reasoning is a step of the work. After the user
+  // answered, the reasoning since then has its own line, under their answer.
+  const resumed = resumedAt(parts);
+  const reasoning = hasWork
+    ? ""
+    : reasoningOf(parts.slice(0, resumed || undefined));
+  const resumedReasoning =
+    hasWork || before === 0 ? "" : reasoningOf(parts.slice(resumed));
+  return {
+    answer,
+    answering,
+    asking,
+    before,
+    blocks,
+    hasWork,
+    reasoning,
+    resumedReasoning,
+    steps,
+    waiting,
+  };
+};
+
+/** One piece of an answer: a table, a chart, the metrics, «connect X to go on», the user's answer, or words as markdown. */
+const AnswerPiece = ({
+  block,
+  animating,
+  servers,
+  onAsk,
+  onServerReady,
+}: {
+  block: AnswerBlock;
+  /** The last piece while the answer streams: its new words fade in. */
+  animating: boolean;
+  servers: ChatServer[];
+  onAsk?: (toolCallId: string, connected: boolean) => void;
+  onServerReady?: (id: string) => void;
+}) => {
+  if (block.kind === "table") {
+    return <AnswerTable part={block.part} />;
+  }
+  if (block.kind === "chart") {
+    return <AnswerChart part={block.part} />;
+  }
+  if (block.kind === "metrics") {
+    return <AnswerMetrics part={block.part} />;
+  }
+  if (block.kind === "task") {
+    return <TaskDraftCard part={block.part} />;
+  }
+  if (block.kind === "ask") {
+    // Still open, the questions stand in the composer's place; answered, what the user said is their message here.
+    return <AskedAnswer part={block.part} />;
+  }
+  if (block.kind === "connect") {
+    // A shared chat's reader cannot connect the owner's service: a request still open is not theirs to answer.
+    if (!onAsk && block.part.state === "input-available") {
+      return null;
+    }
+    return (
+      <ConnectRequest
+        onAnswer={(id, connected) => onAsk?.(id, connected)}
+        onServerReady={(id) => onServerReady?.(id)}
+        part={block.part}
+        servers={servers}
+      />
+    );
+  }
+  return (
+    <Bubble className="w-full" variant="ghost">
+      <BubbleContent className="w-full overflow-visible">
+        <Streamdown
+          animated
+          components={MARKDOWN_PARTS}
+          isAnimating={animating}
+          plugins={{ code }}
+        >
+          {block.text}
+        </Streamdown>
+      </BubbleContent>
+    </Bubble>
+  );
+};
+
 /**
  * An answer: the status line (the wait, the reasoning folded), then the text as markdown — new words fade in while
  * it streams. Under it, once it is done: the model that wrote it, when, copy and regenerate.
@@ -787,27 +916,35 @@ export const AssistantMessage = ({
   /** The chat's MCP servers: their pictures and prefixes name the tools in the work. */
   servers?: ChatServer[];
 }) => {
-  const { steps, answer, blocks } = answerWork(message?.parts ?? []);
-  const hasWork = steps.length > 0;
-  // The answer has begun: its first words or a table.
-  const answering = blocks.length > 0;
-  // Calls waiting for the user's yes: their cards stand in the answer, not in the work.
-  const waiting = waitingCalls(steps);
-  // Waiting on the user — to connect a service, or to allow a call: not done, so no footer yet.
-  const asking =
-    waiting.length > 0 ||
-    blocks.some(
-      (b) => b.kind === "connect" && b.part.state === "input-available"
-    );
-  // Without tools the status line keeps the reasoning; with them the reasoning is a step of the work.
-  const reasoning = hasWork ? "" : reasoningOf(message);
+  const {
+    answer,
+    answering,
+    asking,
+    before,
+    blocks,
+    hasWork,
+    reasoning,
+    resumedReasoning,
+    steps,
+    waiting,
+  } = answerState(message);
+  const piece = (block: AnswerBlock, i: number) => (
+    <AnswerPiece
+      animating={live && i === blocks.length - 1}
+      block={block}
+      key={block.key}
+      onAsk={onAsk}
+      onServerReady={onServerReady}
+      servers={servers}
+    />
+  );
   return (
     <Message>
       <MessageContent className="gap-2">
         <Activity
           reasoning={reasoning}
-          reasoningMs={message?.metadata?.reasoningMs}
-          working={live && !hasWork && !answering}
+          reasoningMs={before > 0 ? undefined : message?.metadata?.reasoningMs}
+          working={before === 0 && live && !hasWork && !answering}
         />
         {hasWork && (
           <ActivityBlock
@@ -824,42 +961,12 @@ export const AssistantMessage = ({
             servers={servers}
           />
         )}
-        {blocks.map((block, i) => {
-          if (block.kind === "table") {
-            return <AnswerTable key={block.key} part={block.part} />;
-          }
-          if (block.kind === "chart") {
-            return <AnswerChart key={block.key} part={block.part} />;
-          }
-          if (block.kind === "metrics") {
-            return <AnswerMetrics key={block.key} part={block.part} />;
-          }
-          if (block.kind === "connect") {
-            return (
-              <ConnectRequest
-                key={block.key}
-                onAnswer={(id, connected) => onAsk?.(id, connected)}
-                onServerReady={(id) => onServerReady?.(id)}
-                part={block.part}
-                servers={servers}
-              />
-            );
-          }
-          return (
-            <Bubble className="w-full" key={block.key} variant="ghost">
-              <BubbleContent className="w-full overflow-visible">
-                <Streamdown
-                  animated
-                  components={MARKDOWN_PARTS}
-                  isAnimating={live && i === blocks.length - 1}
-                  plugins={{ code }}
-                >
-                  {block.text}
-                </Streamdown>
-              </BubbleContent>
-            </Bubble>
-          );
-        })}
+        {blocks.slice(0, before).map(piece)}
+        {/* Carried on after the user answered: the wait and the new reasoning show under their answer, not above. */}
+        {before > 0 && !hasWork && (
+          <Activity reasoning={resumedReasoning} working={live && !answering} />
+        )}
+        {blocks.slice(before).map((block, i) => piece(block, before + i))}
         {answering && (
           <WebSources
             parts={steps.flatMap((s) => (s.kind === "web" ? [s.part] : []))}

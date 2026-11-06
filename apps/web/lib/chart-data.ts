@@ -4,8 +4,11 @@ import type {
   ChartKind,
   ChartValue,
 } from "@metobe/contracts/chart";
+import { toNumber } from "@metobe/core/chat-tools/to-number";
 
 import type { ChartPart } from "@/lib/answer-work";
+
+export { toNumber } from "@metobe/core/chat-tools/to-number";
 
 export interface ChartSeries {
   /** `s0`, `s1`… — the point's value index, as the chart names its data keys. */
@@ -63,18 +66,6 @@ interface PartialInput {
 
 const KINDS = new Set<string>(chartKinds);
 const AXES = new Set<string>(["category", "date", "number"]);
-
-/** A number out of what the model wrote — 12, "12", "12,5", "1 200"; anything else is a gap. */
-export const toNumber = (value: ChartValue | undefined): number | null => {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-  const n = Number(value.replaceAll(/[\s ]/gu, "").replace(",", "."));
-  return Number.isFinite(n) ? n : null;
-};
 
 /** Composed: what the model said a series is, else the first as bars and the rest as lines. */
 const composedAs = (said: string | undefined, index: number) => {

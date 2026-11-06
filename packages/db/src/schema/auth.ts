@@ -19,6 +19,10 @@ export const user = pgTable("user", {
   dateFormat: text("date_format"),
   instructions: text("instructions"),
   sendKey: text("send_key"),
+  // «Что нового»: the last version whose window this person has seen (null — not yet set, a new account), and
+  // «Не показывать после обновлений».
+  whatsNewSeen: text("whats_new_seen"),
+  whatsNewOff: boolean("whats_new_off").default(false).notNull(),
   // When an admin turned the account off: no sign-in, no code, no sessions; null — it works.
   disabledAt: timestamp("disabled_at"),
 });

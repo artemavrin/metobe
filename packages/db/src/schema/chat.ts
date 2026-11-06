@@ -20,7 +20,7 @@ import {
 import { user } from "./auth";
 
 // ARCH §5.3, the shape of vercel/chatbot: a chat, its messages as AI SDK UI parts, the streams it had, votes.
-// Documents (artifacts) are v2; `agent_id` comes with the agents table.
+// Documents (artifacts) are v2; a task run's chat is found from `task_runs.chat_id`.
 
 export const chats = pgTable(
   "chats",
@@ -29,7 +29,7 @@ export const chats = pgTable(
       .notNull()
       .defaultNow(),
     id: uuid("id").primaryKey().defaultRandom(),
-    /** An agent run is an ordinary chat (ARCH §16). */
+    /** A periodic task's run is an ordinary chat (ARCH §16). */
     kind: text("kind").$type<ChatKind>().notNull().default("chat"),
     /** When the user pinned the chat; pinned chats stand on top, the latest pinned first. Null — not pinned. */
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
@@ -41,6 +41,7 @@ export const chats = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /** `team` — anyone signed in may read it by the link and continue in a copy of their own; only the owner writes. */
     visibility: text("visibility")
       .$type<ChatVisibility>()
       .notNull()
@@ -48,11 +49,8 @@ export const chats = pgTable(
   },
   (table) => [
     index("chats_user_updated").on(table.userId, table.updatedAt.desc()),
-    check("chats_kind", sql`${table.kind} in ('chat', 'agent_run')`),
-    check(
-      "chats_visibility",
-      sql`${table.visibility} in ('private', 'public')`
-    ),
+    check("chats_kind", sql`${table.kind} in ('chat', 'task_run')`),
+    check("chats_visibility", sql`${table.visibility} in ('private', 'team')`),
   ]
 );
 
