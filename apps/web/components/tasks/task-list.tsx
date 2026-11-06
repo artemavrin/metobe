@@ -604,10 +604,14 @@ const usePick = (rows: TaskListRow[]) => {
     setIds(new Set());
     setMode(false);
   };
+  const all = picked.length > 0 && picked.length === present.size;
   return {
     active,
+    all,
     clear,
     context: { active, has: (id: string) => ids.has(id), toggle },
+    // Every task on the list, the ones under «Выключены» too; all picked — none.
+    handleAll: () => setIds(all ? new Set() : new Set(present)),
     handleClear: clear,
     handleStart: () => setMode(true),
     picked,
@@ -627,13 +631,18 @@ const PickBar = ({ pick }: { pick: ReturnType<typeof usePick> }) => {
     });
   return (
     <TopBar>
-      <span
-        aria-live="polite"
-        className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium tabular-nums"
-      >
-        {pending && <Spinner className="size-3.5" />}
-        {t("selected", { count: pick.picked.length })}
-      </span>
+      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-sm font-medium tabular-nums">
+        <Checkbox
+          aria-label={t("selectAll")}
+          checked={pick.all}
+          indeterminate={pick.picked.length > 0 && !pick.all}
+          onCheckedChange={pick.handleAll}
+        />
+        <span aria-live="polite" className="flex items-center gap-2">
+          {t("selected", { count: pick.picked.length })}
+          {pending && <Spinner className="size-3.5" />}
+        </span>
+      </label>
       <Button
         className={PRESS}
         disabled={none}

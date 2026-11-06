@@ -2572,6 +2572,7 @@
       }
     },
     "list": {
+      "selectAll": "Выбрать все",
       "select": "Выбрать",
       "selectTask": "Выбрать «{name}»",
       "selected": "Выбрано: {count}",
