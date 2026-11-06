@@ -2578,6 +2578,7 @@
       }
     },
     "list": {
+      "andMore": "and {count} more",
       "selectAll": "Select all",
       "select": "Select",
       "selectTask": "Select «{name}»",

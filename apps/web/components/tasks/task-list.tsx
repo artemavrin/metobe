@@ -20,7 +20,6 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
-  ListChecks,
   Pause,
   Play,
   Plus,
@@ -557,13 +556,15 @@ const OffSection = ({
 }) => {
   const t = useTranslations("tasks.list");
   const [open, setOpen] = useState(alone);
+  // While picking, what is picked must be in sight: «Выбрать все» takes these rows too.
+  const shown = open || use(Picked).active;
   return (
     <section
       aria-label={t("offGroup", { count: rows.length })}
       className="flex flex-col gap-2"
     >
       <button
-        aria-expanded={open}
+        aria-expanded={shown}
         className={cn(TEXT_TAP, "self-start px-1")}
         onClick={() => setOpen((v) => !v)}
         type="button"
@@ -571,12 +572,12 @@ const OffSection = ({
         <ChevronDown
           className={cn(
             "size-3.5 transition-transform duration-200",
-            open && "rotate-180"
+            shown && "rotate-180"
           )}
         />
         {t("offGroup", { count: rows.length })}
       </button>
-      {open && (
+      {shown && (
         <div className={cn("bg-card overflow-hidden rounded-xl border", ENTER)}>
           {rows.map((r) => (
             <Pickable key={r.task.id} row={r}>
@@ -625,78 +626,133 @@ const usePick = (rows: TaskListRow[]) => {
   };
 };
 
-/** The bar over the list while tasks are picked: how many, and what to do with them. */
-const PickBar = ({ pick }: { pick: ReturnType<typeof usePick> }) => {
+/** «Удалить 2 задачи?» names the tasks: a count alone makes it easy to delete the wrong ones. */
+const MAX_NAMED = 6;
+
+/**
+ * The list's own bar, over its rows: the checkbox for all of them stands in the column of the rows' checkboxes; with
+ * something picked — how many, and what to do with them (Gmail, Linear). Stays on top while the list scrolls.
+ */
+const ListBar = ({
+  pick,
+  rows,
+}: {
+  pick: ReturnType<typeof usePick>;
+  rows: TaskListRow[];
+}) => {
   const t = useTranslations("tasks.list");
+  const tt = useTranslations("tasks");
   const [pending, start] = useTransition();
   const [confirming, setConfirming] = useState(false);
-  const none = pick.picked.length === 0 || pending;
+  const [failed, setFailed] = useState(false);
+  const count = pick.picked.length;
+  const none = count === 0 || pending;
+  const names = rows
+    .filter((r) => pick.picked.includes(r.task.id))
+    .map((r) => r.task.name);
   const run = (fn: () => Promise<{ ok: boolean }>) =>
     start(async () => {
-      await fn();
-      pick.clear();
+      setFailed(false);
+      const { ok } = await fn();
+      setFailed(!ok);
+      if (ok) {
+        pick.clear();
+      }
     });
   return (
-    <TopBar>
-      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-sm font-medium tabular-nums">
-        <Checkbox
-          aria-label={t("selectAll")}
-          checked={pick.all}
-          indeterminate={pick.picked.length > 0 && !pick.all}
-          onCheckedChange={pick.handleAll}
-        />
-        <span aria-live="polite" className="flex items-center gap-2">
-          {t("selected", { count: pick.picked.length })}
-          {pending && <Spinner className="size-3.5" />}
-        </span>
-      </label>
-      <Button
-        className={PRESS}
-        disabled={none}
-        onClick={() => run(() => setTasksEnabledAction(pick.picked, true))}
-        size="sm"
-        variant="ghost"
-      >
-        <Play />
-        <span className="max-sm:sr-only">{t("turnOnMany")}</span>
-      </Button>
-      <Button
-        className={PRESS}
-        disabled={none}
-        onClick={() => run(() => setTasksEnabledAction(pick.picked, false))}
-        size="sm"
-        variant="ghost"
-      >
-        <Pause />
-        <span className="max-sm:sr-only">{t("turnOffMany")}</span>
-      </Button>
-      <Button
-        className={PRESS}
-        disabled={none}
-        onClick={() => setConfirming(true)}
-        size="sm"
-        variant="ghost"
-      >
-        <Trash2 className="text-destructive" />
-        <span className="max-sm:sr-only">{t("deleteMany")}</span>
-      </Button>
-      <Button
-        aria-label={t("clearSelection")}
-        className={PRESS}
-        onClick={pick.handleClear}
-        size="icon-sm"
-        variant="ghost"
-      >
-        <X />
-      </Button>
+    <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 -mb-2 flex min-h-11 flex-wrap items-center gap-x-1 gap-y-1 py-1.5 pl-[13px] backdrop-blur">
+      <Checkbox
+        aria-label={t("selectAll")}
+        checked={pick.all}
+        indeterminate={count > 0 && !pick.all}
+        onCheckedChange={pick.handleAll}
+      />
+      {count === 0 ? (
+        <Button
+          className={cn(PRESS, "text-muted-foreground ml-1.5")}
+          onClick={pick.active ? pick.handleClear : pick.handleStart}
+          size="xs"
+          variant="ghost"
+        >
+          {pick.active ? t("clearSelection") : t("select")}
+        </Button>
+      ) : (
+        <>
+          <span
+            aria-live="polite"
+            className="ml-2.5 flex items-center gap-2 text-sm font-medium tabular-nums"
+          >
+            {t("selected", { count })}
+            {pending && <Spinner className="size-3.5" />}
+          </span>
+          <span className="ml-auto flex items-center gap-1">
+            <Button
+              className={PRESS}
+              disabled={none}
+              onClick={() =>
+                run(() => setTasksEnabledAction(pick.picked, true))
+              }
+              size="sm"
+              variant="ghost"
+            >
+              <Play />
+              <span className="max-sm:sr-only">{t("turnOnMany")}</span>
+            </Button>
+            <Button
+              className={PRESS}
+              disabled={none}
+              onClick={() =>
+                run(() => setTasksEnabledAction(pick.picked, false))
+              }
+              size="sm"
+              variant="ghost"
+            >
+              <Pause />
+              <span className="max-sm:sr-only">{t("turnOffMany")}</span>
+            </Button>
+            <Button
+              className={PRESS}
+              disabled={none}
+              onClick={() => setConfirming(true)}
+              size="sm"
+              variant="ghost"
+            >
+              <Trash2 className="text-destructive" />
+              <span className="max-sm:sr-only">{t("deleteMany")}</span>
+            </Button>
+            <Button
+              aria-label={t("clearSelection")}
+              className={PRESS}
+              onClick={pick.handleClear}
+              size="icon-sm"
+              variant="ghost"
+            >
+              <X />
+            </Button>
+          </span>
+        </>
+      )}
+      {failed && (
+        <p className="text-destructive basis-full text-xs" role="alert">
+          {tt("actionFailed")}
+        </p>
+      )}
       <Dialog onOpenChange={setConfirming} open={confirming}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {t("deleteManyTitle", { count: pick.picked.length })}
-            </DialogTitle>
+            <DialogTitle>{t("deleteManyTitle", { count })}</DialogTitle>
             <DialogDescription>{t("deleteManyText")}</DialogDescription>
           </DialogHeader>
+          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
+            {names.slice(0, MAX_NAMED).map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+            {names.length > MAX_NAMED && (
+              <li className="text-muted-foreground list-none">
+                {t("andMore", { count: names.length - MAX_NAMED })}
+              </li>
+            )}
+          </ul>
           <DialogFooter>
             <DialogClose render={<Button variant="ghost" />}>
               {t("cancel")}
@@ -713,7 +769,7 @@ const PickBar = ({ pick }: { pick: ReturnType<typeof usePick> }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </TopBar>
+    </div>
   );
 };
 
@@ -747,39 +803,27 @@ export const TaskList = ({
   const pick = usePick(rows);
   return (
     <Picked value={pick.context}>
-      {pick.active ? (
-        <PickBar pick={pick} />
-      ) : (
-        <TopBar>
-          <h1 className="flex min-w-0 flex-1 items-baseline gap-2 text-sm font-medium">
-            {t("title")}
-            <span className="text-muted-foreground tabular-nums">
-              {rows.length}
-            </span>
-          </h1>
-          <Button
-            className={PRESS}
-            onClick={pick.handleStart}
-            size="sm"
-            variant="ghost"
-          >
-            <ListChecks />
-            <span className="max-sm:sr-only">{t("list.select")}</span>
-          </Button>
-          <Button
-            className={PRESS}
-            nativeButton={false}
-            render={<Link href="/tasks/new" />}
-            size="sm"
-            variant="outline"
-          >
-            <Plus />
-            {t("list.new")}
-          </Button>
-        </TopBar>
-      )}
+      <TopBar>
+        <h1 className="flex min-w-0 flex-1 items-baseline gap-2 text-sm font-medium">
+          {t("title")}
+          <span className="text-muted-foreground tabular-nums">
+            {rows.length}
+          </span>
+        </h1>
+        <Button
+          className={PRESS}
+          nativeButton={false}
+          render={<Link href="/tasks/new" />}
+          size="sm"
+          variant="outline"
+        >
+          <Plus />
+          {t("list.new")}
+        </Button>
+      </TopBar>
       <div className="@container min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 pt-6 pb-24 md:px-6">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 pt-2 pb-24 md:px-6">
+          <ListBar pick={pick} rows={rows} />
           {action.length > 0 && (
             <Section
               count={action.length}
