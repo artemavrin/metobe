@@ -122,8 +122,8 @@ const Picked = createContext<{
 }>({ active: false, has: () => false, toggle: () => null });
 
 /**
- * A row with its checkbox in front: on a computer it shows on hover, on a phone after «Выбрать»; once something is
- * picked, on every row. The space is kept, so a row does not move when it shows.
+ * A row with its checkbox in front, always in sight: the checkboxes make a column under «Выбрать все» in the list's
+ * bar.
  */
 const Pickable = ({
   row,
@@ -142,13 +142,7 @@ const Pickable = ({
         on && "bg-muted/50"
       )}
     >
-      <span
-        className={cn(
-          "flex shrink-0 items-center pl-3",
-          !picked.active &&
-            "opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 has-[:focus-visible]:opacity-100 @max-md:hidden"
-        )}
-      >
+      <span className="flex shrink-0 items-center pl-3">
         <Checkbox
           aria-label={t("selectTask", { name: row.task.name })}
           checked={on}
@@ -590,14 +584,13 @@ const OffSection = ({
   );
 };
 
-/** The picked tasks: a set of ids, and «Выбрать» on a phone, where there is no hover to show the checkboxes. */
+/** The picked tasks, as a set of ids. */
 const usePick = (rows: TaskListRow[]) => {
   const [ids, setIds] = useState<Set<string>>(() => new Set());
-  const [mode, setMode] = useState(false);
   // A task deleted meanwhile is no longer picked.
   const present = new Set(rows.map((r) => r.task.id));
   const picked = [...ids].filter((id) => present.has(id));
-  const active = mode || picked.length > 0;
+  const active = picked.length > 0;
   const toggle = (id: string) =>
     setIds((s) => {
       const next = new Set(s);
@@ -610,7 +603,6 @@ const usePick = (rows: TaskListRow[]) => {
     });
   const clear = () => {
     setIds(new Set());
-    setMode(false);
   };
   const all = picked.length > 0 && picked.length === present.size;
   return {
@@ -621,7 +613,6 @@ const usePick = (rows: TaskListRow[]) => {
     // Every task on the list, the ones under «Выключены» too; all picked — none.
     handleAll: () => setIds(all ? new Set() : new Set(present)),
     handleClear: clear,
-    handleStart: () => setMode(true),
     picked,
   };
 };
@@ -661,23 +652,19 @@ const ListBar = ({
     });
   return (
     <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 -mb-2 flex min-h-11 flex-wrap items-center gap-x-1 gap-y-1 py-1.5 pl-[13px] backdrop-blur">
-      <Checkbox
-        aria-label={t("selectAll")}
-        checked={pick.all}
-        indeterminate={count > 0 && !pick.all}
-        onCheckedChange={pick.handleAll}
-      />
       {count === 0 ? (
-        <Button
-          className={cn(PRESS, "text-muted-foreground ml-1.5")}
-          onClick={pick.active ? pick.handleClear : pick.handleStart}
-          size="xs"
-          variant="ghost"
-        >
-          {pick.active ? t("clearSelection") : t("select")}
-        </Button>
+        <label className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2.5 text-sm transition-colors duration-150">
+          <Checkbox checked={false} onCheckedChange={pick.handleAll} />
+          {t("selectAll")}
+        </label>
       ) : (
         <>
+          <Checkbox
+            aria-label={t("selectAll")}
+            checked={pick.all}
+            indeterminate={!pick.all}
+            onCheckedChange={pick.handleAll}
+          />
           <span
             aria-live="polite"
             className="ml-2.5 flex items-center gap-2 text-sm font-medium tabular-nums"
