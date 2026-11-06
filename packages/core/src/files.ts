@@ -49,6 +49,7 @@ export const pruneDrafts = async (userId: string, now = new Date()) => {
       and(
         eq(files.userId, userId),
         isNull(files.chatId),
+        isNull(files.taskId),
         lt(files.createdAt, new Date(now.getTime() - DRAFT_TTL_MS))
       )
     );
@@ -315,6 +316,25 @@ export const deleteChatObjects = async (chatId: string) => {
     .select({ key: files.storageKey })
     .from(files)
     .where(eq(files.chatId, chatId));
+  await Promise.all(
+    rows.map((r) =>
+      deleteObject(r.key).catch((error) =>
+        console.error("files: could not delete the object", r.key, error)
+      )
+    )
+  );
+};
+
+/** Before a task is deleted: its own files' objects (the rows go with the task). Best effort, as for a chat. */
+export const deleteTaskObjects = async (taskId: string) => {
+  if (!getStorage()) {
+    return;
+  }
+  const { db } = getDb();
+  const rows = await db
+    .select({ key: files.storageKey })
+    .from(files)
+    .where(eq(files.taskId, taskId));
   await Promise.all(
     rows.map((r) =>
       deleteObject(r.key).catch((error) =>

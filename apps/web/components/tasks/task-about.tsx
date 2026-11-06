@@ -1,16 +1,25 @@
 "use client";
 
+import { fileIdOf } from "@metobe/contracts/files";
 import type { TaskReportWhen } from "@metobe/contracts/tasks";
+import type { ChatServer } from "@metobe/core/mcp";
 import type { TaskRow } from "@metobe/core/tasks";
 import { Button } from "@metobe/ui/components/button";
 import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
-import { ArrowUp, ChevronDown, Play, Undo2 } from "lucide-react";
+import { ChevronDown, Play, Undo2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { setTaskNotifyAction } from "@/app/(app)/(chat)/tasks/actions";
+import { useAttachments } from "@/components/chat/attachments";
+import { Composer } from "@/components/chat/composer";
+import type { ComposerHandle } from "@/components/chat/composer";
+import { PickerDataProvider } from "@/components/chat/picker/data";
+import type { PickerModel } from "@/components/chat/picker/data";
+import { useFavorites } from "@/components/chat/picker/use-favorites";
+import type { ChatSkill } from "@/components/chat/skill-menu";
 import { markAdded } from "@/lib/task-change";
 
 // «О задаче» (P15, D28): what the task does, folded into a line. A change asked in the field under the page opens it:
@@ -25,6 +34,10 @@ export const PRESS =
 /** A version of the task as the card shows it. */
 export interface TaskFields {
   instructions: string;
+  /** The task's files by name. */
+  files: string[];
+  /** The task's skills as `/name`. */
+  skills: string[];
   /** The schedule in words. */
   schedule: string;
   /** The sources by title; null — every connection. */
@@ -48,6 +61,8 @@ export interface ChangeOps {
   handleTest: () => void;
   handleCancel: () => void;
   handleRevert: () => void;
+  /** The task's model, picked in the composer: applied at once, as a version. */
+  handleModel: (modelId: string) => void;
 }
 
 const ROW =
@@ -143,15 +158,27 @@ const Mail = ({ task, onError }: { task: TaskRow; onError: () => void }) => {
   );
 };
 
-/** The four rows a change can touch, as text. */
+/** The rows a change can touch, as text; files and skills are «Нет» when there are none. */
 const useRows = () => {
   const t = useTranslations("tasks");
+  const list = (items: string[]) =>
+    items.length > 0 ? items.join(", ") : t("none");
   return (f: TaskFields) => [
     { key: "does" as const, value: f.instructions },
     { key: "schedule" as const, value: f.schedule },
     {
       key: "sources" as const,
       value: f.sources ? f.sources.join(", ") : t("allSources"),
+    },
+    {
+      empty: f.files.length === 0,
+      key: "files" as const,
+      value: list(f.files),
+    },
+    {
+      empty: f.skills.length === 0,
+      key: "skills" as const,
+      value: list(f.skills),
     },
     { key: "report" as const, value: t(`reportWhen.${f.reportWhen}`) },
   ];
@@ -198,9 +225,12 @@ export const About = ({
   change,
   ops,
   when,
+  modelTitle,
   onError,
 }: {
   task: TaskRow;
+  /** The task's model by name; it is changed in the composer's picker. */
+  modelTitle: string;
   current: TaskFields;
   change: TaskChangeView | null;
   ops: ChangeOps;
@@ -264,11 +294,15 @@ export const About = ({
           )}
           <div className="flex flex-col divide-y">
             {before.map((row, i) => {
-              const next = after?.[i]?.value;
+              const next = after?.[i];
               const label = t(`fields.${row.key}`);
-              return next !== undefined && next !== row.value ? (
+              // No files or skills before or after: the row is left out.
+              if (row.empty && (next === undefined || next.empty)) {
+                return null;
+              }
+              return next !== undefined && next.value !== row.value ? (
                 <Diff
-                  after={next}
+                  after={next.value}
                   before={row.value}
                   key={row.key}
                   label={label}
@@ -279,6 +313,9 @@ export const About = ({
                 </Field>
               );
             })}
+            <Field label={t("fields.model")} muted={change !== null}>
+              {modelTitle}
+            </Field>
             <Field label={t("fields.created")} muted={change !== null}>
               {format.dateTime(task.createdAt, { dateStyle: "medium" })}
             </Field>
@@ -320,73 +357,92 @@ export const About = ({
   );
 };
 
-/** «Что поменять в задаче…» under the page: Enter sends; the words come back when nothing was prepared. */
-export const ChangeBox = ({
+/** What the task's composer is given: the models to pick the task's from, the services and skills to name. */
+export interface TaskComposerData {
+  picker: { models: PickerModel[]; favorites: string[]; recent: string[] };
+  servers: ChatServer[];
+  skills: ChatSkill[];
+}
+
+/**
+ * «Что поменять в задаче…» under the page — the chat's own composer: the picker sets the task's model, a file attached
+ * becomes the task's, `@` names a service, `/` a skill. The words come back when nothing was prepared.
+ */
+export const TaskComposer = ({
+  task,
+  data,
   busy,
   notice,
   onSend,
+  onModel,
 }: {
+  task: TaskRow;
+  data: TaskComposerData;
+  /** A change is being prepared: a second request waits. */
   busy: boolean;
   /** Why the last request made no change. */
   notice: string | null;
-  onSend: (text: string) => Promise<boolean>;
+  onSend: (text: string, fileIds: string[]) => Promise<boolean>;
+  onModel: (modelId: string) => void;
 }) => {
   const t = useTranslations("tasks");
-  const [text, setText] = useState("");
-  const send = async () => {
-    const asked = text.trim();
-    if (!asked || busy) {
+  const composer = useRef<ComposerHandle>(null);
+  const favorites = useFavorites(data.picker.favorites);
+  const attachments = useAttachments();
+  const [servers, setServers] = useState(data.servers);
+  const model =
+    data.picker.models.find((m) => m.id === task.modelId) ??
+    data.picker.models[0];
+  if (!model) {
+    return null;
+  }
+  const send = async (text: string, files: { url: string }[]) => {
+    if (busy) {
       return;
     }
-    setText("");
-    if (!(await onSend(asked))) {
-      setText(asked);
+    const ids = files.flatMap((f) => fileIdOf(f.url) ?? []);
+    if (!(await onSend(text, ids))) {
+      composer.current?.say(text);
     }
   };
   return (
     <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 mt-auto pt-2 pb-3 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 px-4 md:px-6">
         {notice && (
           <output className="text-muted-foreground px-1 text-sm">
             {notice}
           </output>
         )}
-        <form
-          className="bg-background focus-within:ring-ring/20 flex items-end gap-1 rounded-3xl border p-1.5 pl-4 shadow-xs transition-shadow duration-150 focus-within:ring-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
+        <PickerDataProvider
+          models={data.picker.models}
+          recent={data.picker.recent}
         >
-          <textarea
-            aria-label={t("changePlaceholder")}
-            className="placeholder:text-muted-foreground block [field-sizing:content] max-h-40 min-w-0 flex-1 resize-none bg-transparent py-2 text-base leading-6 outline-none md:text-sm"
-            disabled={busy}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (
-                e.key === "Enter" &&
-                !e.shiftKey &&
-                !e.nativeEvent.isComposing
-              ) {
-                e.preventDefault();
-                void send();
-              }
+          <Composer
+            attachments={attachments}
+            busy={false}
+            favorites={favorites}
+            model={model}
+            onModel={(m) => onModel(m.id)}
+            onSend={(text, files) => {
+              void send(text, files);
             }}
-            placeholder={t("changePlaceholder")}
-            rows={1}
-            value={text}
+            onServerReady={(id) =>
+              setServers((list) =>
+                list.map((s) =>
+                  s.id === id ? { ...s, signIn: "ready" as const } : s
+                )
+              )
+            }
+            onStop={() => null}
+            placeholder={{
+              full: t("changePlaceholder"),
+              short: t("changePlaceholderShort"),
+            }}
+            ref={composer}
+            servers={servers}
+            skills={data.skills}
           />
-          <Button
-            aria-label={t("changeSend")}
-            className={cn("rounded-full", PRESS)}
-            disabled={!text.trim() || busy}
-            size="icon"
-            type="submit"
-          >
-            <ArrowUp />
-          </Button>
-        </form>
+        </PickerDataProvider>
       </div>
     </div>
   );

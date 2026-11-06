@@ -2,9 +2,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import type { ChatMessage } from "@metobe/contracts/chat";
+import { fileUrl } from "@metobe/contracts/files";
 import { taskReportSchema } from "@metobe/contracts/tasks";
 import type { TaskReport, TaskSnapshot } from "@metobe/contracts/tasks";
 import {
+  convertToModelMessages,
   hasToolCall,
   readUIMessageStream,
   stepCountIs,
@@ -12,16 +14,23 @@ import {
   toUIMessageStream,
   tool,
 } from "ai";
-import type { LanguageModel, StepResult, ToolSet } from "ai";
+import type { LanguageModel, ModelMessage, StepResult, ToolSet } from "ai";
 
 import { getLanguageModel } from "./ai";
+import { filePartsFor, readsPdf } from "./attachments";
 import { createChat, getChatModel, listMessages, saveMessages } from "./chat";
 import type { ChatModel } from "./chat";
 import { recordRun, sumUsage } from "./chat-run";
 import { STYLE_NOTE } from "./chat-tools/answer-style";
+import {
+  ATTACHMENT_NOTE,
+  READ_ATTACHMENT,
+  readAttachmentTool,
+} from "./chat-tools/attachment-tool";
 import { CHART_TOOL, chartTool } from "./chat-tools/chart-tool";
 import { emailTools } from "./chat-tools/email-tools";
 import { METRICS_TOOL, metricsTool } from "./chat-tools/metrics-tool";
+import { SAVE_SKILL, skillsOfChat } from "./chat-tools/skill-tools";
 import { TABLE_TOOL, tableTool } from "./chat-tools/table-tool";
 import { TIME_NOTE, TIME_TOOL, timeTool } from "./chat-tools/time-tool";
 import { lendTools, servicesNote } from "./chat-tools/tool-search";
@@ -32,9 +41,11 @@ import {
   webFetchTool,
   webSearchTool,
 } from "./chat-tools/web-tools";
+import { filesOf } from "./files";
 import { listMailboxes } from "./mailboxes";
 import { listChatServers, toolsForUser } from "./mcp";
 import { getPersonalPolicy } from "./personal";
+import { skillsByIds, skillsForChat } from "./skills";
 import { finishRun, getRunContext, lastResultChat, markRunning } from "./tasks";
 import { webToolsOn } from "./web-settings";
 
@@ -117,6 +128,7 @@ const toolsFor = async (
   task: Task,
   snapshot: TaskSnapshot,
   model: ChatModel,
+  chatId: string,
   reported: { value: TaskReport | null }
 ) => {
   const report = tool({
@@ -131,12 +143,27 @@ const toolsFor = async (
   if (model.capabilities.tools === false) {
     return { note: STYLE_NOTE, tools: { [REPORT]: report } as ToolSet };
   }
-  const [chatServers, ownBoxes, personal, web] = await Promise.all([
-    listChatServers(task.ownerId),
-    listMailboxes(task.ownerId),
-    getPersonalPolicy(),
-    webToolsOn(),
-  ]);
+  const [chatServers, ownBoxes, personal, web, owned, picked] =
+    await Promise.all([
+      listChatServers(task.ownerId),
+      listMailboxes(task.ownerId),
+      getPersonalPolicy(),
+      webToolsOn(),
+      skillsForChat(task.ownerId),
+      skillsByIds(task.ownerId, snapshot.skillIds ?? []),
+    ]);
+  // The task's skills are picked for every run, as `/name` picks them in a chat; the rest are offered by description.
+  // A run writes no skills of its own.
+  const skilled = skillsOfChat({
+    chatId,
+    question: picked.map((k) => `/${k.name}`).join(" "),
+    skills: owned,
+    tools: true,
+    userId: task.ownerId,
+    vision: model.capabilities.vision === true,
+  });
+  const { [SAVE_SKILL]: _save, ...skillTools } = skilled.tools;
+  const hasFiles = (snapshot.fileIds ?? []).length > 0;
   const usable = chatServers.map((s) => s.id);
   const catalogIds = snapshot.catalogIds
     ? usable.filter((id) => snapshot.catalogIds?.includes(id))
@@ -163,6 +190,10 @@ const toolsFor = async (
         }
       : {}),
     [TIME_TOOL]: timeTool(snapshot.timezone),
+    ...skillTools,
+    ...(hasFiles
+      ? { [READ_ATTACHMENT]: readAttachmentTool(task.ownerId, chatId) }
+      : {}),
     ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
     ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
     ...(boxes.length > 0
@@ -171,7 +202,13 @@ const toolsFor = async (
     [REPORT]: report,
   };
   return {
-    note: [TIME_NOTE, STYLE_NOTE, servicesNote(servers)]
+    note: [
+      TIME_NOTE,
+      STYLE_NOTE,
+      hasFiles ? ATTACHMENT_NOTE : "",
+      skilled.note,
+      servicesNote(servers),
+    ]
       .filter(Boolean)
       .join("\n\n"),
     tools,
@@ -226,7 +263,7 @@ const progressWriter = (save: (answer: ChatMessage) => Promise<void>) => {
 
 const work = async (
   p: Pass,
-  ask: string,
+  messages: ModelMessage[],
   tools: ToolSet,
   maxSteps: number,
   onProgress: (answer: ChatMessage) => Promise<void>
@@ -237,7 +274,7 @@ const work = async (
   const result = streamText({
     abortSignal: p.signal,
     instructions: p.instructions,
-    messages: [{ content: ask, role: "user" }],
+    messages,
     model: p.languageModel,
     onError: ({ error }) => {
       failure ??= error;
@@ -338,6 +375,49 @@ const reasonOf = (error: unknown, aborted: boolean, timeoutS: number) => {
     : "Неизвестная ошибка";
 };
 
+/**
+ * The run's first message: the line with the time and the task's own files (ARCH §16.1a). The chat keeps the files as
+ * links to them; the model gets what it can read of each, as a chat's model does.
+ */
+const askOf = async (
+  task: Task,
+  snapshot: TaskSnapshot,
+  model: ChatModel,
+  first: { ask: string; at: Date }
+) => {
+  const fileIds = snapshot.fileIds ?? [];
+  const [rows, readable] = await Promise.all([
+    filesOf(task.ownerId, fileIds),
+    filePartsFor(task.ownerId, fileIds, {
+      pdf: readsPdf(model.kind, model.modelId),
+      tools: model.capabilities.tools !== false,
+      vision: model.capabilities.vision,
+    }),
+  ]);
+  const text = { text: first.ask, type: "text" as const };
+  const question: ChatMessage = {
+    id: randomUUID(),
+    metadata: { createdAt: first.at.toISOString() },
+    parts: [
+      text,
+      ...rows.map((r) => ({
+        filename: r.name,
+        mediaType: r.mediaType,
+        type: "file" as const,
+        url: fileUrl(r.id),
+      })),
+    ],
+    role: "user",
+  };
+  const messages =
+    readable.length > 0
+      ? await convertToModelMessages([
+          { ...question, parts: [text, ...readable] },
+        ])
+      : [{ content: first.ask, role: "user" as const }];
+  return { messages, question };
+};
+
 /** Runs a queued run to its end. Never throws: whatever happens, the run row says how it ended. */
 export const executeRun = async (runId: string, signal?: AbortSignal) => {
   const ctx = await getRunContext(runId);
@@ -382,7 +462,13 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
     const last = await lastResultChat(task.id, runId);
     const previous = await lastAnswer(last?.chatId ?? null);
     const reported: { value: TaskReport | null } = { value: null };
-    const { note, tools } = await toolsFor(task, snapshot, model, reported);
+    const { note, tools } = await toolsFor(
+      task,
+      snapshot,
+      model,
+      chatId,
+      reported
+    );
     const pass: Pass = {
       instructions: instructionsFor(task, snapshot, at, previous, note),
       languageModel: await getLanguageModel(model.sourceId, model.modelId),
@@ -390,15 +476,13 @@ export const executeRun = async (runId: string, signal?: AbortSignal) => {
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     };
     const ask = `Запуск задачи: ${dateIn(at, snapshot.timezone)}.`;
-    const question: ChatMessage = {
-      id: randomUUID(),
-      metadata: { createdAt: new Date(started).toISOString() },
-      parts: [{ text: ask, type: "text" }],
-      role: "user",
-    };
+    const { question, messages } = await askOf(task, snapshot, model, {
+      ask,
+      at: new Date(started),
+    });
     // The run's chat fills as it goes: the page shows its steps while it runs (ARCH §16.4).
     await saveMessages(chatId, [question]);
-    const done = await work(pass, ask, tools, task.maxSteps, (going) =>
+    const done = await work(pass, messages, tools, task.maxSteps, (going) =>
       saveMessages(chatId, [question, going])
     );
     let { answer } = done;

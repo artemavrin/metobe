@@ -33,6 +33,7 @@ import {
 
 import { getChat, listMessages } from "./chat";
 import { getDb } from "./db";
+import { deleteTaskObjects } from "./files";
 import {
   isTooFrequent,
   isValidSchedule,
@@ -518,13 +519,14 @@ export const setTaskEnabled = async (
 };
 
 /**
- * Deletes a task for good: its runs and versions go with it (cascade), and so do the runs' chats — they exist for the
- * runs only. The chat the task was set up in stays. A job already queued finds no run and does nothing.
+ * Deletes a task for good: its runs, versions and files go with it (cascade; the files' objects first), and so do the
+ * runs' chats — they exist for the runs only. The chat the task was set up in stays. A job already queued finds no run and does nothing.
  */
 export const deleteTask = async (ownerId: string, id: string) => {
   if (!(await getTask(ownerId, id))) {
     return false;
   }
+  await deleteTaskObjects(id);
   await getDb().db.transaction(async (tx) => {
     const runChats = await tx
       .select({ chatId: taskRuns.chatId })

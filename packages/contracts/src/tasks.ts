@@ -54,9 +54,13 @@ export type TaskReport = z.infer<typeof taskReportSchema>;
 export const taskSnapshotSchema = z.object({
   catalogIds: z.array(z.string()).nullable(),
   cron: z.string(),
+  /** The task's own files: every run gets them (ARCH §16.1a). Missing in versions written before files. */
+  fileIds: z.array(z.string()).optional(),
   instructions: z.string(),
   modelId: z.string(),
   reportWhen: z.enum(taskReportWhen),
+  /** Skills every run loads first. Missing in versions written before skills. */
+  skillIds: z.array(z.string()).optional(),
   timezone: z.string(),
 });
 export type TaskSnapshot = z.infer<typeof taskSnapshotSchema>;
@@ -130,6 +134,12 @@ export const taskChangeSchema = z.object({
     .describe(
       "The new schedule as a cron of five fields (minute hour day month weekday) in the task's time zone; null — the schedule stays."
     ),
+  files: z
+    .array(z.string())
+    .nullable()
+    .describe(
+      "The task's files after the change, whole, by name — to take a file away; null — the files stay, with the ones attached now added."
+    ),
   instructions: z
     .string()
     .max(4000)
@@ -142,6 +152,12 @@ export const taskChangeSchema = z.object({
     .nullable()
     .describe(
       "changes — a result only when something changed; always — after every run; null — stays."
+    ),
+  skills: z
+    .array(z.string())
+    .nullable()
+    .describe(
+      "The task's skills after the change, whole, by name — to take one away or add one named in words; null — they stay, with the ones picked now added."
     ),
   sources: z
     .array(z.string())

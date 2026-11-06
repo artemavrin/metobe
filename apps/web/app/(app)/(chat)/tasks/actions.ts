@@ -5,6 +5,7 @@ import {
   cancelTaskChange,
   proposeTaskChange,
   revertTaskChange,
+  setTaskModel,
 } from "@metobe/core/task-change";
 import {
   createRun,
@@ -21,6 +22,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { getPickerData } from "@/lib/chat-data";
 import { getSettingsViewer } from "@/lib/settings-access";
 
 // What the task page does (ARCH §16.4): on and off, letters on and off, «Прогнать сейчас», delete, the answer of a past run,
@@ -94,14 +96,25 @@ export const deleteTaskAction = async (taskId: string) => {
 const request = z.string().trim().min(1).max(2000);
 
 /** «Что поменять в задаче…»: the model's change, kept as a version not applied; the page shows «было → стало». */
-export const proposeTaskChangeAction = async (taskId: string, text: string) => {
+export const proposeTaskChangeAction = async (
+  taskId: string,
+  text: string,
+  fileIds: string[] = []
+) => {
   const userId = await owner();
   const asked = request.safeParse(text);
-  if (!userId || !id.safeParse(taskId).success || !asked.success) {
+  const attached = z.array(id).max(20).safeParse(fileIds);
+  if (
+    !userId ||
+    !id.safeParse(taskId).success ||
+    !asked.success ||
+    !attached.success
+  ) {
     return { error: "failed" as const, ok: false as const };
   }
   const locale = await getLocale();
   const result = await proposeTaskChange({
+    fileIds: attached.data,
     locale: locale === "en" ? "en" : "ru",
     ownerId: userId,
     request: asked.data,
@@ -133,6 +146,28 @@ export const revertTaskChangeAction = changeAction(async (userId, taskId) => {
   const t = await getTranslations("tasks");
   return revertTaskChange(userId, taskId, t("revertedSummary"));
 });
+
+/** The task's model, picked in its composer: only a model the person may pick in a chat. */
+export const setTaskModelAction = async (taskId: string, modelId: string) => {
+  const userId = await owner();
+  if (!userId || !id.safeParse(taskId).success) {
+    return { ok: false };
+  }
+  const { models } = await getPickerData(userId);
+  const model = models.find((m) => m.id === modelId);
+  if (!model) {
+    return { ok: false };
+  }
+  const t = await getTranslations("tasks");
+  const ok = await setTaskModel(
+    userId,
+    taskId,
+    model.id,
+    t("modelSummary", { name: model.title })
+  );
+  revalidatePath(`/tasks/${taskId}`);
+  return { ok };
+};
 
 /** «Тестовый запуск»: a run on the change not applied yet — no letters, not counted among failures. */
 export const testTaskChangeAction = async (taskId: string) => {

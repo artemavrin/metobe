@@ -24,7 +24,7 @@ const TasksPage = async () => {
   }
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 pt-8 pb-24">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 pt-8 pb-24 md:px-6">
         <header className="flex items-center gap-3">
           <h1 className="flex-1 text-2xl font-semibold tracking-tight">
             {t("title")}

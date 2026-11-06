@@ -54,14 +54,21 @@ import {
   runAnswerAction,
   runTaskNowAction,
   setTaskEnabledAction,
+  setTaskModelAction,
   testTaskChangeAction,
 } from "@/app/(app)/(chat)/tasks/actions";
 import { ActivityBlock } from "@/components/chat/activity";
 import { AssistantMessage } from "@/components/chat/messages";
-import { About, ChangeBox, ENTER, PRESS } from "@/components/tasks/task-about";
+import {
+  About,
+  ENTER,
+  PRESS,
+  TaskComposer,
+} from "@/components/tasks/task-about";
 import type {
   ChangeOps,
   TaskChangeView,
+  TaskComposerData,
   TaskFields,
 } from "@/components/tasks/task-about";
 import { answerWork } from "@/lib/answer-work";
@@ -852,10 +859,10 @@ const useChange = ({
     "no-model": t("changeNoModel"),
     "not-found": t("changeFailed"),
   } as const;
-  const send = async (text: string) => {
+  const send = async (text: string, fileIds: string[]) => {
     setNotice(null);
     setAsked(text);
-    const result = await proposeTaskChangeAction(task.id, text);
+    const result = await proposeTaskChangeAction(task.id, text, fileIds);
     setAsked(null);
     if (!result.ok) {
       setNotice(("reply" in result && result.reply) || NOTICE[result.error]);
@@ -869,6 +876,8 @@ const useChange = ({
     changedAt: task.version > 1 && last ? last.createdAt : null,
     handleApply: () => act(() => applyTaskChangeAction(task.id)),
     handleCancel: () => act(() => cancelTaskChangeAction(task.id)),
+    handleModel: (modelId: string) =>
+      act(() => setTaskModelAction(task.id, modelId)),
     handleRevert: () => act(() => revertTaskChangeAction(task.id)),
     handleTest: () => act(() => testTaskChangeAction(task.id)),
   };
@@ -884,6 +893,8 @@ export const TaskView = ({
   change,
   versions,
   servers,
+  picker,
+  skills,
 }: {
   task: TaskRow;
   runs: TaskRuns;
@@ -898,6 +909,8 @@ export const TaskView = ({
   /** The applied versions, the first first. */
   versions: TaskVersionLine[];
   servers: ChatServer[];
+  picker: TaskComposerData["picker"];
+  skills: TaskComposerData["skills"];
 }) => {
   const t = useTranslations("tasks");
   const [on, setOn] = useState(task.enabled && !task.pausedReason);
@@ -952,7 +965,7 @@ export const TaskView = ({
   return (
     <Ctx value={ctx}>
       <div className="@container flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-4 pb-6 md:pt-6">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pt-4 pb-6 md:px-6 md:pt-6">
           <header className="flex items-start gap-4">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
@@ -1006,6 +1019,10 @@ export const TaskView = ({
           <About
             change={change}
             current={current}
+            modelTitle={
+              picker.models.find((m) => m.id === task.modelId)?.title ??
+              t("modelGone")
+            }
             onError={() => setFailed(true)}
             ops={editing.ops}
             task={task}
@@ -1019,10 +1036,13 @@ export const TaskView = ({
             runs={runs}
           />
         </div>
-        <ChangeBox
+        <TaskComposer
           busy={editing.ops.asked !== null}
+          data={{ picker, servers, skills }}
           notice={editing.notice}
+          onModel={editing.ops.handleModel}
           onSend={editing.handleSend}
+          task={task}
         />
       </div>
     </Ctx>
