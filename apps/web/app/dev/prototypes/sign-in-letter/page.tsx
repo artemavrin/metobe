@@ -14,8 +14,9 @@ import { code } from "./letters/code";
 import { context } from "./letters/context";
 import type { LetterData, LetterDef, Locale } from "./letters/kit";
 import { note } from "./letters/note";
+import { inboxOf } from "./inbox";
 import { Prototype } from "./prototype";
-import type { Inbox, Rendered, VariantId } from "./prototype";
+import type { Rendered, VariantId } from "./prototype";
 
 // «Письмо со входом» (React Email): the letter the sign-in code comes in. Four answers — the code first, the button
 // first, a plain note, the request in context — on the real data of this request: your name and address, the
@@ -30,27 +31,6 @@ const TEXT = {
     { options: { uppercase: false }, selector: "h1" },
     { format: "skip", selector: "hr" },
   ],
-};
-
-/** The user's last letters in the dev Mailpit, for the client's list around ours; nothing when it does not run. */
-const inboxOf = async (email: string): Promise<Inbox> => {
-  try {
-    const r = await fetch(
-      `http://127.0.0.1:8025/api/v1/search?limit=6&query=${encodeURIComponent(`to:${email}`)}`,
-      { cache: "no-store" }
-    );
-    const body = (await r.json()) as {
-      messages: { Created: string; From: { Name: string; Address: string }; Snippet: string; Subject: string }[];
-    };
-    return body.messages.map((m) => ({
-      at: m.Created,
-      from: m.From.Name || m.From.Address,
-      snippet: m.Snippet,
-      subject: m.Subject,
-    }));
-  } catch {
-    return [];
-  }
 };
 
 const SignInLetterPage = async () => {
@@ -99,6 +79,12 @@ const SignInLetterPage = async () => {
   return (
     <Prototype
       inbox={await inboxOf(user.email)}
+      variants={[
+        { id: "code", name: "Код" },
+        { id: "button", name: "Кнопка" },
+        { id: "note", name: "Записка" },
+        { id: "context", name: "Контекст" },
+      ]}
       letters={rendered}
       sender={{ address: mail?.address ?? "no-reply@metobe.local", name: mail?.name ?? "Metobe" }}
       sentAt={now.toISOString()}

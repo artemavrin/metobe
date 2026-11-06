@@ -18,6 +18,8 @@ const lanAddresses = [
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: lanAddresses,
+  // No dev badge over the page: it covers the corner of the screen.
+  devIndicators: false,
   output: "standalone",
   // Trace from the monorepo root so workspace packages end up in the standalone build.
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),

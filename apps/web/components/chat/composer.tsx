@@ -250,9 +250,12 @@ export const Composer = ({
   onServerReady,
   onEditLast,
   attachments,
+  placeholder,
   ref,
 }: {
   ref?: Ref<ComposerHandle>;
+  /** In place of «Спросите что-нибудь…»: «Опишите задачу…» on «Что поручить?»; `short` — on a phone. */
+  placeholder?: { full: string; short: string };
   /** The files waiting in the composer (the chat screen owns them: a file dropped anywhere on it lands here). */
   attachments: ReturnType<typeof useAttachments>;
   /** The model the next message goes to, and the user's favorites to pick another from. */
@@ -654,7 +657,11 @@ export const Composer = ({
                 onSubmit={submit}
                 onTrigger={onTrigger}
                 // The phone's line is short: a shorter prompt fits beside the model.
-                placeholder={isPhone ? t("placeholderShort") : t("placeholder")}
+                placeholder={
+                  isPhone
+                    ? (placeholder?.short ?? t("placeholderShort"))
+                    : (placeholder?.full ?? t("placeholder"))
+                }
                 ref={editor}
                 removeLabel={t("mcp.remove")}
               />

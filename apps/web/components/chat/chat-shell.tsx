@@ -12,6 +12,11 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
@@ -22,12 +27,12 @@ import {
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { SquarePen } from "lucide-react";
+import { CalendarClock, SquarePen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import {
@@ -35,6 +40,7 @@ import {
   pinChatAction,
   renameChatAction,
 } from "@/app/(app)/(chat)/actions";
+import { sidebarTasksAction } from "@/app/(app)/(chat)/tasks/actions";
 import { AccountMenu } from "@/components/chat/account-menu";
 import type { Person } from "@/components/chat/account-menu";
 import { ChatHeader } from "@/components/chat/chat-header";
@@ -46,6 +52,8 @@ import {
 } from "@/components/chat/compact-bridge";
 import { ShareDialog } from "@/components/chat/share-dialog";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
+import { TopBarSlot } from "@/components/chat/top-bar";
+import { TaskDot } from "@/components/tasks/task-dot";
 import { groupChats } from "@/lib/chat-history";
 
 const NO_NEWS: WhatsNew = { latest: null, show: null };
@@ -133,6 +141,71 @@ const History = ({ chats, ops }: { chats: ChatItem[]; ops: ChatOps }) => {
   ));
 };
 
+/** A task in the sidebar: the ones that wait for the person (a result not seen, a question, an action), and the open one. */
+const NO_TASKS: SidebarTask[] = [];
+
+export interface SidebarTask {
+  id: string;
+  name: string;
+  color: string;
+  waiting: boolean;
+  /** A run is going now: the shell looks again sooner. */
+  going?: boolean;
+}
+
+/**
+ * «Задачи» and under it only the tasks that wait for the person, each with a dot, plus the one open now (D24). Seen
+ * to, a task leaves the list; all of them are on the «Задачи» page.
+ */
+const Tasks = ({ tasks }: { tasks: SidebarTask[] }) => {
+  const t = useTranslations("tasks");
+  const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const close = () => isMobile && setOpenMobile(false);
+  const shown = tasks.filter(
+    (task) => task.waiting || pathname === `/tasks/${task.id}`
+  );
+  return (
+    <SidebarGroup className="py-1">
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname === "/tasks"}
+              onClick={close}
+              render={<Link href="/tasks" />}
+            >
+              <CalendarClock />
+              <span>{t("nav")}</span>
+            </SidebarMenuButton>
+            {shown.length > 0 && (
+              <SidebarMenuSub>
+                {shown.map((task) => (
+                  <SidebarMenuSubItem key={task.id}>
+                    <SidebarMenuSubButton
+                      isActive={pathname === `/tasks/${task.id}`}
+                      onClick={close}
+                      render={<Link href={`/tasks/${task.id}`} />}
+                    >
+                      <TaskDot color={task.color} ringing={task.waiting} />
+                      <span className="min-w-0 flex-1 truncate">
+                        {task.name}
+                      </span>
+                      {task.waiting && (
+                        <span className="sr-only">, {t("waiting")}</span>
+                      )}
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                ))}
+              </SidebarMenuSub>
+            )}
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+};
+
 /** «Новый чат» as an icon beside the brand: the header stays one line, the search right under it. */
 const NewChat = () => {
   const t = useTranslations("chat");
@@ -172,6 +245,7 @@ const NewChat = () => {
  */
 export const ChatShell = ({
   chats: initialChats,
+  tasks = NO_TASKS,
   admin,
   user,
   sendKey,
@@ -180,6 +254,8 @@ export const ChatShell = ({
 }: {
   /** The user's chats, latest first, each in its day group by the user's calendar. */
   chats: ChatItem[];
+  /** The user's periodic tasks; the sidebar shows the ones that wait for them. */
+  tasks?: SidebarTask[];
   /** The search offers the service's settings sections to admins. */
   admin: boolean;
   user: Person;
@@ -224,10 +300,40 @@ export const ChatShell = ({
     []
   );
   const pathname = usePathname();
+  // The tasks the same way as the chats; on a page that does not look at tasks the shell asks for them itself.
+  const [taskRows, setTaskRows] = useState(tasks);
+  const [seenTasks, setSeenTasks] = useState(tasks);
+  if (seenTasks !== tasks) {
+    setSeenTasks(tasks);
+    setTaskRows(tasks);
+  }
+  const looksAtTasks = pathname.startsWith("/tasks");
+  const going = taskRows.some((task) => task.going);
+  const watchTasks = taskRows.length > 0 && !looksAtTasks;
+  useEffect(() => {
+    if (!watchTasks) {
+      return;
+    }
+    const timer = setInterval(
+      async () => {
+        if (document.visibilityState !== "visible") {
+          return;
+        }
+        const next = await sidebarTasksAction();
+        if (next) {
+          setTaskRows(next);
+        }
+      },
+      going ? 3000 : 15_000
+    );
+    return () => clearInterval(timer);
+  }, [watchTasks, going]);
   // «Поделиться чатом» — from the chat's menu in the sidebar or from the header of the chat on screen.
   const [sharingId, setSharingId] = useState<string | null>(null);
   const sharing = chats.find((c) => c.id === sharingId) ?? null;
   const current = chats.find((c) => pathname === `/chat/${c.id}`);
+  // Where a page that is not a chat puts its title and main button (TopBar).
+  const [topBar, setTopBar] = useState<HTMLElement | null>(null);
   // Rename and delete show at once and tell the server; pinning waits for the server's list, which knows the
   // day a chat goes back to. A refused change is put right by reading the list again.
   const compactBridge = useCompactBridgeValue();
@@ -276,7 +382,9 @@ export const ChatShell = ({
                 </div>
               </SidebarHeader>
               <SidebarContent>
+                {/* The search on top, as everywhere; while it is searching its results take the place of tasks and chats. */}
                 <SidebarSearch admin={admin} chats={chats}>
+                  <Tasks tasks={taskRows} />
                   <History chats={chats} ops={ops} />
                 </SidebarSearch>
               </SidebarContent>
@@ -298,12 +406,20 @@ export const ChatShell = ({
             <SidebarInset className="h-dvh min-h-0 overflow-hidden">
               <header className="flex h-12 shrink-0 items-center gap-2 px-3">
                 <SidebarTrigger aria-label={t("openSidebar")} />
-                {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share. */}
-                {current && (
+                {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share.
+                    Any other page fills the bar itself, through <TopBar>. */}
+                {current ? (
                   <ChatHeader chat={current} key={current.id} ops={ops} />
+                ) : (
+                  <div
+                    className="flex min-w-0 flex-1 items-center gap-2"
+                    ref={setTopBar}
+                  />
                 )}
               </header>
-              <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+              <TopBarSlot value={current ? null : topBar}>
+                <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+              </TopBarSlot>
             </SidebarInset>
             {notes && whatsNewOpen && (
               <WhatsNewDialog

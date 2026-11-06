@@ -1,6 +1,5 @@
 import "@metobe/ui/globals.css";
 import { cn } from "@metobe/ui/lib/utils";
-import { Agentation } from "agentation";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getTranslations } from "next-intl/server";
@@ -50,7 +49,6 @@ const RootLayout = async ({
             />
           </RegionProvider>
         </NextIntlClientProvider>
-        {process.env.NODE_ENV === "development" && <Agentation />}
       </body>
     </html>
   );

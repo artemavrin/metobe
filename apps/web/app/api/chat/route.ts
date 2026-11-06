@@ -12,6 +12,12 @@ import type {
 import { getInstructions } from "@metobe/core/account";
 import { getLanguageModel } from "@metobe/core/ai";
 import {
+  fileIdsOf,
+  forModel,
+  ownFiles,
+  readsPdf,
+} from "@metobe/core/attachments";
+import {
   createChat,
   deleteMessagesFrom,
   getChat,
@@ -22,12 +28,49 @@ import {
 import { checkChatLimit } from "@metobe/core/chat-limits";
 import { recordRun, sumUsage, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
+import { STYLE_NOTE } from "@metobe/core/chat-tools/answer-style";
+import {
+  ATTACHMENT_NOTE,
+  READ_ATTACHMENT,
+  readAttachmentTool,
+} from "@metobe/core/chat-tools/attachment-tool";
+import { CHART_TOOL, chartTool } from "@metobe/core/chat-tools/chart-tool";
+import { emailTools } from "@metobe/core/chat-tools/email-tools";
+import {
+  METRICS_TOOL,
+  metricsTool,
+} from "@metobe/core/chat-tools/metrics-tool";
+import { skillsOfChat } from "@metobe/core/chat-tools/skill-tools";
+import { TABLE_TOOL, tableTool } from "@metobe/core/chat-tools/table-tool";
+import { taskDraftFor } from "@metobe/core/chat-tools/task-draft-tool";
+import {
+  TIME_NOTE,
+  TIME_TOOL,
+  timeTool,
+} from "@metobe/core/chat-tools/time-tool";
+import {
+  FIND_TOOLS,
+  lendTools,
+  servicesNote,
+} from "@metobe/core/chat-tools/tool-search";
+import {
+  SourceError,
+  createSources,
+  shareResults,
+} from "@metobe/core/chat-tools/tool-sources";
+import {
+  WEB_FETCH,
+  WEB_SEARCH,
+  webFetchTool,
+  webSearchTool,
+} from "@metobe/core/chat-tools/web-tools";
 import { attachFiles, pruneChatFiles } from "@metobe/core/files";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
+import { getTaskByChat } from "@metobe/core/tasks";
 import { isDraining } from "@metobe/core/updater-bus";
 import { webToolsOn } from "@metobe/core/web-settings";
 import {
@@ -43,7 +86,6 @@ import {
 import type { TextStreamPart, ToolSet, UIMessageChunk } from "ai";
 import { headers } from "next/headers";
 
-import { STYLE_NOTE } from "@/lib/answer-style";
 import {
   applyApprovals,
   applyConnections,
@@ -51,14 +93,7 @@ import {
   settleAsks,
 } from "@/lib/approvals";
 import { ASK_USER, askUserTool } from "@/lib/ask-user";
-import {
-  ATTACHMENT_NOTE,
-  READ_ATTACHMENT,
-  readAttachmentTool,
-} from "@/lib/attachment-tool";
-import { fileIdsOf, forModel, ownFiles, readsPdf } from "@/lib/attachments";
 import { getAuth } from "@/lib/auth";
-import { CHART_TOOL, chartTool } from "@/lib/chart-tool";
 import { fromCompaction } from "@/lib/compaction";
 import {
   MAIL_KEY,
@@ -70,26 +105,13 @@ import {
   clearPastTurns,
   isContextOverflow,
 } from "@/lib/context-budget";
-import { emailTools } from "@/lib/email-tools";
 import { endGeneration, startGeneration } from "@/lib/generations";
 import { mentionedIn } from "@/lib/mentions";
-import { METRICS_TOOL, metricsTool } from "@/lib/metrics-tool";
 import { getPrefs } from "@/lib/prefs";
 import { recordStream } from "@/lib/resume-stream";
-import { skillsOfChat } from "@/lib/skill-tools";
 import { MAX_STEPS, lastStepAnswers } from "@/lib/steps";
 import { saidNothing, streamAnswer, sumUpPrompt } from "@/lib/sum-up";
-import { TABLE_TOOL, tableTool } from "@/lib/table-tool";
-import { TIME_NOTE, TIME_TOOL, timeTool } from "@/lib/time-tool";
-import { FIND_TOOLS, lendTools, servicesNote } from "@/lib/tool-search";
-import { SourceError, createSources, shareResults } from "@/lib/tool-sources";
 import { withNotes } from "@/lib/user-notes";
-import {
-  WEB_FETCH,
-  WEB_SEARCH,
-  webFetchTool,
-  webSearchTool,
-} from "@/lib/web-tools";
 
 // POST /api/chat (ARCH §6), after vercel/chatbot: the client sends only its newest message — or its answers to
 // the last answer's approvals — and the history comes from the database. The user's message is saved before the model is called, the answer when the stream ends —
@@ -321,7 +343,7 @@ export const POST = async (request: Request) => {
   }
   // The user's own zone (their choice, else the browser's): the clock the model asks tells the time in it.
   const { locale, timeZone } = await getPrefs();
-  const [stored, chatServers, ownBoxes, notes, personal, skills] =
+  const [stored, chatServers, ownBoxes, notes, personal, skills, ownTask] =
     await Promise.all([
       chat ? listMessages(id) : [],
       listChatServers(session.user.id),
@@ -329,6 +351,8 @@ export const POST = async (request: Request) => {
       getInstructions(session.user.id),
       getPersonalPolicy(),
       skillsForChat(session.user.id),
+      // A chat a task was set up in is that task's: no second draft in it (ARCH §16.1).
+      getTaskByChat(session.user.id, id),
     ]);
   // Own connections turned off in «Доступ»: the boxes stay, the chat neither uses nor asks for them.
   const mailOn = personal.mode !== "off";
@@ -513,6 +537,18 @@ export const POST = async (request: Request) => {
       const room =
         model.contextWindow === null ||
         model.contextWindow >= WIDGETS_MIN_WINDOW;
+      const drafting = taskDraftFor(
+        {
+          locale: locale === "en" ? "en" : "ru",
+          servers: chatServers,
+          timeZone,
+        },
+        {
+          hasTask: ownTask !== null,
+          intent: body.data.intent === "task",
+          tools: model.capabilities.tools !== false,
+        }
+      );
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -532,6 +568,8 @@ export const POST = async (request: Request) => {
                   }
                 : {}),
               [TIME_TOOL]: timeTool(timeZone),
+              // A periodic task in words (P11), while the chat has none.
+              ...drafting.tools,
               // What only the user knows: the model asks instead of guessing.
               [ASK_USER]: askUserTool,
               ...skilled.tools,
@@ -580,6 +618,7 @@ export const POST = async (request: Request) => {
         STYLE_NOTE,
         hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
         skilled.note,
+        drafting.note,
         withNotes(notes, servicesNote(servers)),
       ]
         .filter(Boolean)

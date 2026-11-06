@@ -82,8 +82,11 @@ const Expand = ({ open, children }: { open: boolean; children: ReactNode }) => (
 );
 
 /** Opens by itself while the work goes on and folds a second after it ends; the reader's own toggle wins. */
-const useAutoOpen = (working: boolean) => {
-  const [chosen, setChosen] = useState<boolean>();
+const useAutoOpen = (working: boolean, keepOpen = false) => {
+  // `keepOpen` — open from the start and not folded when the work ends (a run's steps in their own window).
+  const [chosen, setChosen] = useState<boolean | undefined>(
+    keepOpen ? true : undefined
+  );
   const [lingering, setLingering] = useState(false);
   const [wasWorking, setWasWorking] = useState(working);
   if (wasWorking !== working) {
@@ -709,9 +712,12 @@ export const ActivityBlock = ({
   working,
   metadata,
   servers,
+  keepOpen = false,
 }: {
   steps: Parameters<typeof activityRows>[0];
   working: boolean;
+  /** Open from the start, and left open when the work ends. */
+  keepOpen?: boolean;
   /** What the server measured: the work's time and each call's time. */
   metadata?: {
     createdAt?: string;
@@ -728,7 +734,7 @@ export const ActivityBlock = ({
     stepStartedAt: metadata?.stepStartedAt,
   });
   const asking = rows.some((r) => r.state === "waiting");
-  const [open, setOpen] = useAutoOpen(working);
+  const [open, setOpen] = useAutoOpen(working, keepOpen);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const [unfolded, setUnfolded] = useState(false);
   const fold = unfolded ? 0 : foldCount(rows);

@@ -1,6 +1,7 @@
 "use client";
 
 import type { MetricResult } from "@metobe/contracts/metrics";
+import { numberFormat } from "@metobe/i18n/numbers";
 import { Badge } from "@metobe/ui/components/reui/badge";
 import {
   Tooltip,
@@ -9,7 +10,7 @@ import {
 } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useId, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent, ReactNode } from "react";
 
@@ -45,30 +46,9 @@ export const at = (i: number) => ({ "--i": i }) as CSSProperties;
 
 const NBSP = " ";
 
-const withUnit = (text: string, unit?: string) =>
-  unit ? `${text}${NBSP}${unit}` : text;
-
-const signOf = (n: number) => {
-  if (n > 0) {
-    return "+";
-  }
-  return n < 0 ? "−" : "";
-};
-
-/** The figures as people read them: big ones short («1,69 млрд»), small ones whole. */
-export const useMetricFormat = () => {
-  const format = useFormatter();
-  const exact = (n: number) => format.number(n, { maximumFractionDigits: 2 });
-  const short = (n: number) =>
-    Math.abs(n) >= 1e4
-      ? format.number(n, { maximumSignificantDigits: 3, notation: "compact" })
-      : format.number(n, { maximumFractionDigits: Math.abs(n) < 100 ? 1 : 0 });
-  const percent = (n: number, digits = 1) =>
-    `${format.number(n, { maximumFractionDigits: digits })}${NBSP}%`;
-  const signed = (n: number, digits = 1) =>
-    `${signOf(n)}${format.number(Math.abs(n), { maximumFractionDigits: digits })}`;
-  return { exact, percent, short, signed, withUnit };
-};
+/** The figures as people read them: big ones short («1,69 млрд»), small ones whole — the same formatters a task's
+ *  letter uses on the server (@metobe/i18n/numbers). */
+export const useMetricFormat = () => numberFormat(useLocale());
 
 /** The labels of a history's points: months say the month (and the year across years), days the day and month. */
 export const useBucketLabels = () => {

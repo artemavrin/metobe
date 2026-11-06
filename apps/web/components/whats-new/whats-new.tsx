@@ -226,12 +226,15 @@ const Words = ({
   page,
   last,
   featured,
+  hasRest,
   dir,
   onHistory,
 }: {
   page: number;
   last: number;
   featured: FeaturedId[];
+  /** Whether the end page lists «И ещё» or an admin's changes. */
+  hasRest: boolean;
   dir: 1 | -1;
   /** «Все изменения по версиям»: the window closes, the history page opens. */
   onHistory: () => void;
@@ -239,10 +242,9 @@ const Words = ({
   const t = useTranslations("whatsNew");
   const id = page >= 1 && page < last ? featured[page - 1] : undefined;
   let title = t("introTitle");
-  // «И ещё» is the page after the last big change, when there is one.
   let text = t("intro", {
     count: featured.length,
-    rest: last > featured.length ? "yes" : "no",
+    rest: hasRest ? "yes" : "no",
   });
   if (id) {
     title = t(`changes.${id}.title`);
@@ -292,8 +294,8 @@ const Tour = ({
   const more = note.more as ChangeId[];
   const forAdmin = admin ? (note.admin as ChangeId[]) : [];
   const hasRest = more.length + forAdmin.length > 0;
-  /** 0 — the cover, 1…n — the changes, then «И ещё» (if any). */
-  const last = featured.length + (hasRest ? 1 : 0);
+  /** 0 — the cover, 1…n — the changes, then the end: «И ещё» when there is any, else the finished chart alone. */
+  const last = featured.length + 1;
   const [page, setPage] = useState(0);
   const [dir, setDir] = useState<1 | -1>(1);
   const [off, setOff] = useState(false);
@@ -392,6 +394,7 @@ const Tour = ({
         <Words
           dir={dir}
           featured={featured}
+          hasRest={hasRest}
           last={last}
           onHistory={() => onDone(off)}
           page={page}

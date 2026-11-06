@@ -253,6 +253,27 @@
       "when": 1793696021241,
       "tag": "0035_compact_purpose",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793879028543,
+      "tag": "0036_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793948476130,
+      "tag": "0037_task_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793959170322,
+      "tag": "0038_task_run_fix",
+      "breakpoints": true
     }
   ]
 }

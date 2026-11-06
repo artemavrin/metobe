@@ -22,6 +22,13 @@ export const MAX_FEATURED = 6;
 /** Newest first. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    admin: [],
+    date: "2026-11-06",
+    featured: ["tasks"],
+    more: [],
+    version: "0.8.0",
+  },
+  {
     admin: ["summariesSlot"],
     date: "2026-11-03",
     featured: ["compactChat"],

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.1](https://github.com/artemavrin/metobe/compare/v0.8.0...v0.8.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* «What's new» keeps its closing page when a version has no «И ещё» — the last change shows its own description ([#105](https://github.com/artemavrin/metobe/issues/105)) ([3669e31](https://github.com/artemavrin/metobe/commit/3669e31754e04e54b1021328d4ec569bcb8a0a5a))
+
+## [0.8.0](https://github.com/artemavrin/metobe/compare/v0.7.1...v0.8.0) (2026-11-06)
+
+
+### Features
+
+* periodic tasks — run a prompt on a schedule, get the result in the sidebar and by mail ([#103](https://github.com/artemavrin/metobe/issues/103)) ([03792c3](https://github.com/artemavrin/metobe/commit/03792c3fa49068ef643081b06f494468c7a910fe))
+
 ## [0.7.1](https://github.com/artemavrin/metobe/compare/v0.7.0...v0.7.1) (2026-11-03)
 
 

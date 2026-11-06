@@ -8,14 +8,21 @@ import { Fragment, useEffect, useState } from "react";
 // — the old thread stayed on screen. So the address coming back to / starts the page anew: a fresh id, the welcome,
 // and the server's data (the last chats) read again.
 
-export const FreshChat = ({ children }: { children: React.ReactNode }) => {
+export const FreshChat = ({
+  children,
+  home = "/",
+}: {
+  children: React.ReactNode;
+  /** The new chat's own address: «Что поручить?» lives at /tasks/new (or /tasks with no task yet). */
+  home?: string;
+}) => {
   const pathname = usePathname();
   const router = useRouter();
   const [seen, setSeen] = useState(pathname);
   const [round, setRound] = useState(0);
   if (pathname !== seen) {
     setSeen(pathname);
-    if (pathname === "/") {
+    if (pathname === home) {
       setRound((r) => r + 1);
     }
   }
