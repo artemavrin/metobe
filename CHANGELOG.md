@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.2](https://github.com/artemavrin/metobe/compare/v0.8.1...v0.8.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* «Проверить сейчас» stays after an update, and releases are checked every hour ([#101](https://github.com/artemavrin/metobe/issues/101)) ([4bf7ca0](https://github.com/artemavrin/metobe/commit/4bf7ca0f5e7ac53c3a3fc98f0d2dda551392813c))
+* new task results and runs reach an open page at once — a server stream instead of looking every few seconds ([#107](https://github.com/artemavrin/metobe/issues/107)) ([51a7faa](https://github.com/artemavrin/metobe/commit/51a7faabda7e6a06e397a4a015051392bb0bfe03))
+
 ## [0.8.1](https://github.com/artemavrin/metobe/compare/v0.8.0...v0.8.1) (2026-11-06)
 
 
