@@ -59,6 +59,7 @@ import {
 } from "@/app/(app)/(chat)/tasks/actions";
 import { ActivityBlock } from "@/components/chat/activity";
 import { AssistantMessage } from "@/components/chat/messages";
+import { TopBar } from "@/components/chat/top-bar";
 import {
   About,
   ENTER,
@@ -785,7 +786,7 @@ const Controls = ({
         variant="outline"
       >
         <Play />
-        <span className="@max-md:hidden">{t("runNow")}</span>
+        <span className="max-sm:hidden">{t("runNow")}</span>
       </Button>
       <Switch
         aria-label={t("enabled")}
@@ -966,20 +967,16 @@ export const TaskView = ({
     <Ctx value={ctx}>
       <div className="@container flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pt-4 pb-6 md:px-6 md:pt-6">
-          <header className="flex items-start gap-4">
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
-                <span
-                  aria-hidden
-                  className="size-2.5 shrink-0 rounded-full"
-                  style={{ background: task.color }}
-                />
-                <span className="truncate">{task.name}</span>
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                {schedule} · {state}
-              </p>
-            </div>
+          {/* The name and what is done to the task stand in the bar over the page, as a chat's do. */}
+          <TopBar>
+            <h1 className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">
+              <span
+                aria-hidden
+                className="size-2 shrink-0 rounded-full"
+                style={{ background: task.color }}
+              />
+              <span className="truncate">{task.name}</span>
+            </h1>
             <Controls
               busy={busy}
               on={on}
@@ -987,7 +984,10 @@ export const TaskView = ({
               onRun={runNow}
               onSwitch={toggle}
             />
-          </header>
+          </TopBar>
+          <p className="text-muted-foreground text-sm">
+            {schedule} · {state}
+          </p>
           {failed && (
             <p className="text-destructive text-sm" role="alert">
               {t("actionFailed")}

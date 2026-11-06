@@ -547,9 +547,16 @@ const FreshSection = ({
   );
 };
 
-const OffSection = ({ rows }: { rows: TaskListRow[] }) => {
+const OffSection = ({
+  rows,
+  alone,
+}: {
+  rows: TaskListRow[];
+  /** Nothing else on the list: the spoiler starts open, or the page would be empty. */
+  alone: boolean;
+}) => {
   const t = useTranslations("tasks.list");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(alone);
   return (
     <section
       aria-label={t("offGroup", { count: rows.length })}
@@ -798,7 +805,12 @@ export const TaskList = ({
               ))}
             </Section>
           )}
-          {off.length > 0 && <OffSection rows={off} />}
+          {off.length > 0 && (
+            <OffSection
+              alone={action.length + fresh.length + rest.length === 0}
+              rows={off}
+            />
+          )}
         </div>
       </div>
     </Picked>
