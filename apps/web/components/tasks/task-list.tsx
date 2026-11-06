@@ -52,6 +52,7 @@ import {
 import { AssistantMessage } from "@/components/chat/messages";
 import { TopBar } from "@/components/chat/top-bar";
 import { ENTER, PRESS } from "@/components/tasks/task-about";
+import { TaskDot } from "@/components/tasks/task-dot";
 import { FixButton } from "@/components/tasks/task-fix";
 import type { FixMailbox } from "@/components/tasks/task-fix";
 import { usePoll, useRunTime } from "@/components/tasks/task-view";
@@ -95,18 +96,7 @@ const Name = ({ row, unread }: { row: TaskListRow; unread: boolean }) => {
   const t = useTranslations("tasks.list");
   return (
     <span className="flex min-w-0 items-center gap-2" title={row.task.name}>
-      <span aria-hidden className="relative flex size-2 shrink-0">
-        {unread && (
-          <span
-            className="absolute inline-flex h-full w-full rounded-full opacity-75 motion-safe:animate-ping"
-            style={{ background: row.task.color }}
-          />
-        )}
-        <span
-          className="relative size-2 rounded-full"
-          style={{ background: row.task.color }}
-        />
-      </span>
+      <TaskDot color={row.task.color} ringing={unread} />
       <span
         className={cn("truncate", unread ? "font-semibold" : "font-medium")}
       >

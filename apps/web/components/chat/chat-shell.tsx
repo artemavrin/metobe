@@ -53,6 +53,7 @@ import {
 import { ShareDialog } from "@/components/chat/share-dialog";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
 import { TopBarSlot } from "@/components/chat/top-bar";
+import { TaskDot } from "@/components/tasks/task-dot";
 import { groupChats } from "@/lib/chat-history";
 
 const NO_NEWS: WhatsNew = { latest: null, show: null };
@@ -186,22 +187,7 @@ const Tasks = ({ tasks }: { tasks: SidebarTask[] }) => {
                       onClick={close}
                       render={<Link href={`/tasks/${task.id}`} />}
                     >
-                      {/* The task's own dot; while it waits for the person it rings (Tailwind «ping») until seen, still with reduced motion. */}
-                      <span
-                        aria-hidden
-                        className="relative flex size-2 shrink-0"
-                      >
-                        {task.waiting && (
-                          <span
-                            className="absolute inline-flex h-full w-full rounded-full opacity-75 motion-safe:animate-ping"
-                            style={{ background: task.color }}
-                          />
-                        )}
-                        <span
-                          className="relative size-2 rounded-full"
-                          style={{ background: task.color }}
-                        />
-                      </span>
+                      <TaskDot color={task.color} ringing={task.waiting} />
                       <span className="min-w-0 flex-1 truncate">
                         {task.name}
                       </span>

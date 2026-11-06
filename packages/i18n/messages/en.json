@@ -2397,6 +2397,11 @@
       "summariesSlot": {
         "title": "A service model for compacting",
         "text": "«Service models» has a new job, «Compacting chats» — pick a model with a large context window. What compacting costs is a line of its own in «Usage»."
+      },
+      "tasks": {
+        "short": "Tasks",
+        "title": "Regular work can become a task",
+        "text": "Describe in a chat what to do and how often: the task runs on a schedule and prepares a result. A new result, a question or a request to sign in to a service shows up in the sidebar — the task’s coloured dot pulses."
       }
     },
     "demo": {
@@ -2461,6 +2466,12 @@
       "compact": {
         "summary": "## Goal\n- A spring mailing plan for customers: three emails over two weeks.\n\n## What was found\n- Emails are opened most on Tuesday and Thursday mornings.\n- The second email is cut down to 90 words.\n\n## Agreed\n- Short subject lines, the benefit in the first words.\n\n## Open\n- Put everything in one table.",
         "messages": 12
+      },
+      "tasks": {
+        "name": "Sales summary",
+        "schedule": "On weekdays at 9:00",
+        "hint": "The run is finished. Open the task in the sidebar.",
+        "result": "Yesterday 128 orders came in — 6% more than a week earlier. “Accessories” is growing fastest."
       }
     },
     "moreBelow": "More below",

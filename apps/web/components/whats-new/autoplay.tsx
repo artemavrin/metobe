@@ -23,6 +23,7 @@ const RAIL = "[data-map-rail]";
 const OPTION = '[role="option"]:nth-of-type(2)';
 const SHARE = '[data-demo="share-header"] button:has(svg.lucide-share)';
 
+const TASK_ROW = '[data-demo="task-row"]';
 const COMPACT = '[data-demo="compact-offer"] button:first-of-type';
 
 const SCRIPTS: Record<string, Step[]> = {
@@ -44,6 +45,12 @@ const SCRIPTS: Record<string, Step[]> = {
     { move: '[data-demo="share-copy"]' },
     { click: '[data-demo="share-copy"]' },
     { wait: 2200 },
+  ],
+  tasks: [
+    { wait: 1100 },
+    { move: TASK_ROW },
+    { click: TASK_ROW },
+    { wait: 3000 },
   ],
   threadMap: [
     { wait: 700 },

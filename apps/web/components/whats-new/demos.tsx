@@ -17,7 +17,14 @@ import {
 } from "@metobe/ui/components/message-scroller";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
-import { ArrowUp, Check, Copy, Plus, RotateCcw } from "lucide-react";
+import {
+  ArrowUp,
+  CalendarClock,
+  Check,
+  Copy,
+  Plus,
+  RotateCcw,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -28,6 +35,7 @@ import type { ChatItem, ChatOps } from "@/components/chat/chat-item";
 import { CompactionCard, CompactOffer } from "@/components/chat/compaction";
 import { NightSky } from "@/components/chat/night-sky";
 import { ThreadMap } from "@/components/chat/thread-map";
+import { TaskDot } from "@/components/tasks/task-dot";
 import type { AskUserPart, OpenAskPart } from "@/lib/ask-user";
 
 // The product itself on the tour's stage (docs/RELEASE.md, «Демо, а не скриншоты»): the chat's header and
@@ -379,6 +387,71 @@ const CompactDemo = () => {
   );
 };
 
+// ——— Tasks ———
+
+/** The sidebar's «Задачи» with a task that has a new result, ringing; a click opens the result and the ringing stops. */
+const TasksDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const tasks = useTranslations("tasks");
+  const [open, setOpen] = useState(false);
+  return (
+    <Contained className="bg-background flex">
+      <aside className="bg-sidebar flex w-40 shrink-0 flex-col gap-1 border-r p-3 pt-12 text-sm sm:w-52">
+        <span className="flex items-center gap-2 px-2 py-1.5 font-medium">
+          <CalendarClock className="size-4" /> {tasks("nav")}
+        </span>
+        <button
+          className={cn(
+            "hover:bg-sidebar-accent ml-4 flex items-center gap-2 rounded-md border-l-0 px-2 py-1.5 text-left transition-colors duration-150",
+            open && "bg-sidebar-accent"
+          )}
+          data-demo="task-row"
+          onClick={() => setOpen(true)}
+          type="button"
+        >
+          <TaskDot color="var(--chart-1)" ringing={!open} />
+          <span className="min-w-0 flex-1 truncate">{t("tasks.name")}</span>
+          {!open && <span className="sr-only">, {tasks("waiting")}</span>}
+        </button>
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col gap-3 px-6 pt-12 pb-5">
+        {open ? (
+          <div
+            className={cn(
+              "animate-in fade-in slide-in-from-bottom-1 flex flex-col gap-3 duration-200",
+              EASE
+            )}
+          >
+            <div className="flex flex-col gap-0.5">
+              <span className="font-medium">{t("tasks.name")}</span>
+              <span className="text-muted-foreground text-xs">
+                {t("tasks.schedule")}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2 text-sm">
+              <span className="font-medium">{tasks("latestTitle")}</span>
+              <span className="text-muted-foreground text-xs">
+                {tasks("todayAt", { time: "9:00" })}
+              </span>
+            </div>
+            <p className="text-sm leading-relaxed">{t("tasks.result")}</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-muted-foreground text-sm">{t("tasks.hint")}</p>
+            <div aria-hidden className="flex flex-col gap-2 opacity-60">
+              <span className="bg-muted h-2 w-11/12 rounded-full" />
+              <span className="bg-muted h-2 w-4/5 rounded-full" />
+              <span className="bg-muted h-2 w-2/3 rounded-full" />
+            </div>
+          </>
+        )}
+      </div>
+      {open && <Again onClick={() => setOpen(false)} />}
+    </Contained>
+  );
+};
+
 // ——— A new chat ———
 
 const greetingOf = (hour: number) => {
@@ -437,5 +510,6 @@ export const DEMOS: Record<string, () => ReactNode> = {
   compactChat: CompactDemo,
   greeting: GreetingDemo,
   shareChat: ShareDemo,
+  tasks: TasksDemo,
   threadMap: MapDemo,
 };
