@@ -2503,15 +2503,15 @@
       "sources": "Sources",
       "report": "Result",
       "created": "Created",
-      "mail": "Email notifications"
+      "mail": "Email"
     },
     "reportWhen": {
       "changes": "Only when something changed",
       "always": "After every run"
     },
     "allSources": "All connections",
-    "mailOn": "On",
-    "mailOff": "Off",
+    "mailOn": "Notifications on",
+    "mailOff": "Notifications off",
     "running": "Running…",
     "goingTitle": "Running",
     "windowDone": "Done",
