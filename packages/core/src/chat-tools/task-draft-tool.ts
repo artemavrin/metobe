@@ -7,7 +7,13 @@ import type { TaskDraft, TaskDraftOutput } from "@metobe/contracts/tasks";
 import { tool } from "ai";
 import type { Tool, ToolSet } from "ai";
 
-import { isValidSchedule, nextRuns, scheduleWords } from "../task-schedule";
+import {
+  MIN_GAP_MINUTES,
+  isTooFrequent,
+  isValidSchedule,
+  nextRuns,
+  scheduleWords,
+} from "../task-schedule";
 
 // A periodic task set up in words (ARCH §16.1, P11): the model fills a draft of what it understood, the answer draws it
 // as a card, the person creates the task from it. The model proposes the cron; the schedule in words and the next runs
@@ -88,6 +94,12 @@ export const readDraft = (
       ok: false,
     };
   }
+  if (cron && isTooFrequent(cron)) {
+    return {
+      error: `«${cron}» runs more often than every ${MIN_GAP_MINUTES} minutes, and a task runs at most every ${MIN_GAP_MINUTES} minutes. Tell the person so and offer every ${MIN_GAP_MINUTES} minutes or less often.`,
+      ok: false,
+    };
+  }
   return {
     next: cron
       ? nextRuns(cron, ctx.timeZone, now, NEXT).map((d) => d.toISOString())
@@ -105,8 +117,7 @@ export const taskDraftTool = (ctx: {
   locale: "ru" | "en";
 }): Tool<TaskDraft, TaskDraftOutput> =>
   tool({
-    description:
-      "Drafts a periodic task from what the person said: what it does, when, from where, when to report. Shown to the person as a card they create the task from. Call again with the whole draft whenever they add or change something.",
+    description: `Drafts a periodic task from what the person said: what it does, when, from where, when to report. Shown to the person as a card they create the task from. Call again with the whole draft whenever they add or change something. A task runs at most every ${MIN_GAP_MINUTES} minutes.`,
     execute: (draft) => readDraft(draft, ctx),
     inputSchema: taskDraftSchema,
   });

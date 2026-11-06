@@ -33,7 +33,12 @@ import {
 
 import { getChat, listMessages } from "./chat";
 import { getDb } from "./db";
-import { isValidSchedule, nextRun, planDue } from "./task-schedule";
+import {
+  isTooFrequent,
+  isValidSchedule,
+  nextRun,
+  planDue,
+} from "./task-schedule";
 
 // Periodic tasks in the database (ARCH §16, D23): a task and its versions, the minute tick that claims what is due,
 // and a run's life from queued to done. Postgres holds the schedule; BullMQ only executes what the tick hands it.
@@ -637,7 +642,8 @@ export const createTaskFromDraft = async (input: {
   }
   const draft = part.input;
   const { cron } = draft;
-  if (!cron) {
+  // A draft made before the limit may still hold a cron that runs too often.
+  if (!cron || isTooFrequent(cron)) {
     return { error: "incomplete" as const };
   }
   const timezone = isValidSchedule(cron, input.timeZone)

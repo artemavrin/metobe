@@ -33,6 +33,26 @@ export const isValidSchedule = (cron: string, timezone: string) => {
   }
 };
 
+/** The shortest gap between runs: the tick looks every minute, a task runs at most every five. */
+export const MIN_GAP_MINUTES = 5;
+
+/**
+ * Whether the cron runs more often than every {@link MIN_GAP_MINUTES} minutes: two of its minutes too close within an
+ * hour, or across the hour's turn when it runs in two hours in a row. Assumes a cron that parses.
+ */
+export const isTooFrequent = (cron: string) => {
+  const { minute, hour } = CronExpressionParser.parse(cron).fields;
+  const minutes = [...minute.values].map(Number).toSorted((a, b) => a - b);
+  const hours = new Set(hour.values.map(Number));
+  const close = minutes.some(
+    (m, i) => i > 0 && m - (minutes[i - 1] ?? m) < MIN_GAP_MINUTES
+  );
+  const nextHour = [...hours].some((h) => hours.has((h + 1) % 24));
+  const first = minutes[0] ?? 0;
+  const last = minutes.at(-1) ?? 0;
+  return close || (nextHour && 60 - last + first < MIN_GAP_MINUTES);
+};
+
 /**
  * What the minute tick does with a task that is due: run it once for the time it was due, and count the next run
  * from now — after a night down, one catching-up run, not twelve (ARCH §16.2).

@@ -43,6 +43,11 @@ describe("a drafted task", () => {
     expect(readDraft({ ...draft, cron: "every monday" }, ctx).ok).toBe(false);
   });
 
+  it("sends a schedule more often than every five minutes back to the model", () => {
+    expect(readDraft({ ...draft, cron: "*/2 * * * *" }, ctx).ok).toBe(false);
+    expect(readDraft({ ...draft, cron: "*/5 * * * *" }, ctx).ok).toBe(true);
+  });
+
   it("finds the sources by key or title and drops the unknown", () => {
     const out = readDraft({ ...draft, sources: ["CRM", "nowhere"] }, ctx);
     expect(out.ok && out.sources).toEqual([{ id: "c1", title: "CRM" }]);

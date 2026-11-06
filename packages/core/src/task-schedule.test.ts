@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isTooFrequent,
   isValidSchedule,
   nextRun,
   nextRuns,
@@ -50,6 +51,29 @@ describe("a task's schedule", () => {
     expect(isValidSchedule("0 10 * * 1", "Europe/Moscow")).toBe(true);
     expect(isValidSchedule("every monday", "Europe/Moscow")).toBe(false);
     expect(isValidSchedule("0 10 * * 1", "Mars/Olympus")).toBe(false);
+  });
+
+  it("refuses runs closer than five minutes apart, within an hour and across its turn", () => {
+    for (const cron of [
+      "*/5 * * * *",
+      "0 9 * * 1-5",
+      "0,30 * * * *",
+      "0 */2 * * *",
+      "58 9 * * *",
+    ]) {
+      expect(isTooFrequent(cron), cron).toBe(false);
+    }
+    for (const cron of [
+      "* * * * *",
+      "*/2 * * * *",
+      "0,3 9 * * *",
+      "0,58 9-10 * * *",
+      "0-4 9 * * *",
+    ]) {
+      expect(isTooFrequent(cron), cron).toBe(true);
+    }
+    // Two minutes close across the hour's turn count only when the next hour runs too.
+    expect(isTooFrequent("0,58 9 * * *")).toBe(false);
   });
 });
 
