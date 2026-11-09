@@ -21,7 +21,16 @@ export type MemoryRecordKind = (typeof memoryRecordKinds)[number];
 export const memoryPrecisions = ["day", "week", "month", "year"] as const;
 export type MemoryPrecision = (typeof memoryPrecisions)[number];
 
-export const memoryStatuses = ["open", "done"] as const;
+/**
+ * A commitment's state. `unconfirmed` — someone else says it is done («Андрей говорит, API готов»), the person has not
+ * seen it yet: it stays in the plan until confirmed. `cancelled` — it no longer has to be done («Андрей передумал»).
+ */
+export const memoryStatuses = [
+  "open",
+  "unconfirmed",
+  "done",
+  "cancelled",
+] as const;
 export type MemoryStatus = (typeof memoryStatuses)[number];
 
 /** How an entity takes part in a record. */

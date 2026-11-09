@@ -127,6 +127,15 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       text: "Ольга Ли пришлёт договор",
     });
     expect(commitment.status).toBe("open");
+    expect(commitment.important).toBe(false);
+    await expect(
+      memory.addRecord(ana, {
+        entities: [],
+        important: true,
+        kind: "event",
+        text: "не обязательство",
+      })
+    ).rejects.toThrow(/only a commitment/u);
     await expect(
       memory.addRecord(ana, {
         entities: [],
@@ -263,6 +272,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       };
       const closed = await state();
       expect(closed.promise?.status).toBe("done");
+      expect(closed.promise?.doneAt).not.toBeNull();
 
       // Undoing W2 opens both again; the card and the promise stay.
       expect(await memory.undoWrite(ana, w2)).toBe(true);
@@ -297,6 +307,33 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       });
       await memory.undoWrite(ana, w3);
       expect(await entityIds(ana)).not.toContain(lone.id);
+    });
+
+    it("cancels a commitment or takes «done» on someone's word, and the write's undo opens it again", async () => {
+      const promise = await memory.addRecord(ana, {
+        entities: [],
+        kind: "commitment",
+        text: "Позвонить Андрею Седову",
+      });
+      const status = async () => {
+        const all = await memory.listRecords(ana);
+        return all.find((r) => r.id === promise.id);
+      };
+
+      const said = await write();
+      await memory.setCommitmentStatus(ana, promise.id, "unconfirmed", said);
+      // Not over yet: it waits for the person, so no end date.
+      expect(await status()).toMatchObject({
+        doneAt: null,
+        status: "unconfirmed",
+      });
+
+      const cancelled = await write();
+      await memory.setCommitmentStatus(ana, promise.id, "cancelled", cancelled);
+      const over = await status();
+      expect(over?.doneAt).not.toBeNull();
+      await memory.undoWrite(ana, cancelled);
+      expect(await status()).toMatchObject({ doneAt: null, status: "open" });
     });
 
     it("puts in a whole message at once, and only once", async () => {

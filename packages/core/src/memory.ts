@@ -297,6 +297,8 @@ export interface MemoryRecordInput {
   dueAt?: Date;
   /** Commitments only; open unless said otherwise. */
   status?: MemoryStatus;
+  /** Commitments only: the person said it is important, or marked it so. */
+  important?: boolean;
   /** The write it comes from; leave out for what the person put in by hand. */
   writeId?: string;
 }
@@ -313,6 +315,7 @@ export interface MemoryRecord {
   givenAt: Date | null;
   dueAt: Date | null;
   status: MemoryStatus | null;
+  important: boolean;
   doneAt: Date | null;
   recordedAt: Date;
   supersededAt: Date | null;
@@ -331,6 +334,7 @@ const toRecord = (
   entities,
   givenAt: row.givenAt,
   id: row.id,
+  important: row.important,
   kind: row.kind,
   occurredAt: row.occurredAt,
   occurredPrecision: row.occurredPrecision,
@@ -347,6 +351,9 @@ const toRecord = (
   writeId: row.writeId,
 });
 
+/** A commitment that is over — done or no longer needed; `unconfirmed` is not over, it waits for the person. */
+const ENDED = new Set<MemoryStatus>(["done", "cancelled"]);
+
 const insertRecord = async (
   tx: Tx,
   ownerId: string,
@@ -357,7 +364,7 @@ const insertRecord = async (
   if (!text) {
     throw new Error("memory: a record needs a text");
   }
-  if (input.kind !== "commitment" && input.status) {
+  if (input.kind !== "commitment" && (input.status || input.important)) {
     throw new Error("memory: only a commitment has a status");
   }
   const links = [
@@ -388,10 +395,11 @@ const insertRecord = async (
   const [row] = await tx
     .insert(memoryRecords)
     .values({
-      doneAt: status === "done" ? new Date() : null,
+      doneAt: status && ENDED.has(status) ? new Date() : null,
       dueAt: input.dueAt,
       givenAt: input.givenAt,
       id,
+      important: input.important ?? false,
       kind: input.kind,
       occurredAt: input.occurred?.at,
       occurredPrecision: input.occurred?.precision,
@@ -464,19 +472,21 @@ export const supersedeRecord = async (
   });
 };
 
-/** Marks a commitment done or open again; `writeId` — the write that said it, so undoing the write undoes this. */
+/**
+ * Sets a commitment's status — done, cancelled, said to be done, or open again; `writeId` — the write that said it,
+ * so undoing the write opens it again.
+ */
 export const setCommitmentStatus = async (
   ownerId: string,
   id: string,
   status: MemoryStatus,
   writeId?: string
 ) => {
-  const done = status === "done";
   const rows = await getDb()
     .db.update(memoryRecords)
     .set({
-      closedByWrite: done ? (writeId ?? null) : null,
-      doneAt: done ? new Date() : null,
+      closedByWrite: status === "open" ? null : (writeId ?? null),
+      doneAt: ENDED.has(status) ? new Date() : null,
       status,
     })
     .where(

@@ -39,6 +39,7 @@ const item = (
   creditor: null,
   debtor: null,
   due: null,
+  important: false,
   interval_days: null,
   kind: "fact",
   text: "текст",
@@ -148,6 +149,27 @@ describe("planWrite", () => {
         text: "Андрей Смирнов пришлёт отчёт к 17 ноября",
       },
     ]);
+  });
+
+  it("keeps «важно» on a commitment only", () => {
+    const { records } = plan({
+      items: [
+        item({
+          creditor: "c1",
+          debtor: "user",
+          important: true,
+          kind: "commitment",
+          text: "Отправить Андрею Смирнову смету — горит",
+        }),
+        item({
+          about: ["c1"],
+          important: true,
+          text: "Андрей Смирнов в отпуске",
+        }),
+      ],
+    });
+    expect(records[0]?.important).toBe(true);
+    expect(records[1]).not.toHaveProperty("important");
   });
 
   it("dates an event with its precision, and a fact by when it became true", () => {

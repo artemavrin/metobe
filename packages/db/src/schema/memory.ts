@@ -9,6 +9,7 @@ import type {
 } from "@metobe/contracts/memory";
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   pgTable,
@@ -112,16 +113,19 @@ export const memoryEntities = pgTable(
 export const memoryRecords = pgTable(
   "memory_records",
   {
-    /** The write that closed it (a fact's `valid_to`, a commitment's «done»); undoing the write reopens it. */
+    /** The write that closed it (a fact's `valid_to`, a commitment's new status); undoing the write reopens it. */
     closedByWrite: uuid("closed_by_write").references(() => memoryWrites.id, {
       onDelete: "set null",
     }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /** When a commitment was done or cancelled. */
     doneAt: timestamp("done_at", { withTimezone: true }),
     /** A commitment: when it was given (`given_at`), and when it is due. Not the same day. */
     dueAt: timestamp("due_at", { withTimezone: true }),
     givenAt: timestamp("given_at", { withTimezone: true }),
     id: uuid("id").primaryKey(),
+    /** A commitment the person called important in so many words («горит», «главное»), or marked by hand — never guessed. */
+    important: boolean("important").notNull().default(false),
     kind: text("kind").$type<MemoryRecordKind>().notNull(),
     /** When it happened, as exactly as the person said; empty — not known. «Давно не было» counts from here. */
     occurredAt: timestamp("occurred_at", { withTimezone: true }),
@@ -154,7 +158,7 @@ export const memoryRecords = pgTable(
         .where(live),
       index("memory_records_due")
         .on(table.ownerId, table.dueAt)
-        .where(sql`${table.status} = 'open' and ${live}`),
+        .where(sql`${table.status} in ('open', 'unconfirmed') and ${live}`),
       index("memory_records_occurred").on(table.ownerId, table.occurredAt),
       index("memory_records_write").on(table.writeId),
       check(
@@ -169,7 +173,11 @@ export const memoryRecords = pgTable(
       check(
         "memory_records_status",
         sql`(${table.kind} = 'commitment') = (${table.status} is not null)
-          and (${table.status} is null or ${table.status} in ('open', 'done'))`
+          and (${table.status} is null or ${table.status} in ('open', 'unconfirmed', 'done', 'cancelled'))`
+      ),
+      check(
+        "memory_records_important",
+        sql`not ${table.important} or ${table.kind} = 'commitment'`
       ),
     ];
   }

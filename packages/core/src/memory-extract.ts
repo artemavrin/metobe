@@ -83,6 +83,11 @@ export const extractionSchema = z.object({
         "Fact or assessment: since when it is true. Event: when it happened or is scheduled. Commitment: when it was given. Null if unknown"
       ),
       due: when.describe("Commitment only: the deadline, null if none"),
+      important: z
+        .boolean()
+        .describe(
+          "Commitment only: true when the message itself calls it important or urgent («критично», «горит», «главное»); false otherwise"
+        ),
       interval_days: z
         .number()
         .nullable()
@@ -174,6 +179,7 @@ Rules:
 - In the text, turn a relative date the message gives into an absolute one («вчера» → «8 ноября», «до пятницы» → «до 13 ноября»); keep a vague time vague («на днях»), and never add a date or a deadline the message does not give.
 - Waiting for someone's reply, decision or result («ждём ответа», «обещала прислать») is that party's commitment to the user, besides any event.
 - For a commitment, \`when\` is the day it was given or said, \`due\` is the deadline; never put the deadline into \`when\`.
+- A commitment is important only when the message says so in words («критично», «горит», «это главное», «в первую очередь»). A deadline, a boss or money alone do not make it important.
 - Every person or organization mentioned gets a ref: a known card, "user", or a new_entities id — also when unnamed («поставщик упаковки»).
 - Requests to the assistant itself (count, write, plan), questions and small talk produce no items — return empty arrays.
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
@@ -351,6 +357,9 @@ const toPlanned = (
   if (item.kind === "commitment") {
     record.givenAt = at?.at;
     record.dueAt = day(item.due)?.at;
+    if (item.important) {
+      record.important = true;
+    }
   }
   return record;
 };
