@@ -33,7 +33,11 @@ export const extractionSchema = z.object({
         id: z.string().describe("new:<latin-slug>"),
         kind: z.enum(["person", "organization", "project"]),
         name: z.string(),
-        about: z.string().describe("Who it is to the user, one line"),
+        about: z
+          .string()
+          .describe(
+            "Who it is to the user (a role, a company) if the message says so; empty if it does not — not what they did in the message"
+          ),
       })
     )
     .describe(
@@ -63,7 +67,7 @@ export const extractionSchema = z.object({
       text: z
         .string()
         .describe(
-          "One short self-contained sentence in the message's language, with full names"
+          "One short self-contained sentence in the message's language, with full names. The user is «я» or left out («Позвонить Андрею Седову 10 ноября»), never «пользователь»"
         ),
       about: z
         .array(z.string())
@@ -174,6 +178,7 @@ Rules:
 - Requests to the assistant itself (count, write, plan), questions and small talk produce no items — return empty arrays.
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
+- One item per thing: never the same item twice in other words, or once for each side of an agreement.
 - Do not add judgements or guesses that the message does not state.`;
 };
 

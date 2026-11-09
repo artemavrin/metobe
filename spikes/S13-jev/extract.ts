@@ -144,8 +144,10 @@ const dateOk = (want: When, got: Item["when"]) => {
   return got.precision === "week" && got.date >= want.from && got.date <= want.to;
 };
 
+// «new» — any id from new_entities: the app takes «new_petrov» as well as «new:petrov».
+let freshIds = new Set<string>();
 const refOk = (want: string, got: string | null | undefined) =>
-  want === "new" ? !!got?.startsWith("new:") : got === want;
+  want === "new" ? !!got && (got.startsWith("new:") || freshIds.has(got)) : got === want;
 
 const matches = (e: Expect, it: Item) => {
   const kinds = Array.isArray(e.kind) ? e.kind : [e.kind];
@@ -172,6 +174,7 @@ interface Scored {
 }
 
 const score = (c: (typeof extractCases)[number], out: z.infer<typeof schema>) => {
+  freshIds = new Set(out.new_entities.map((e) => e.id));
   const used = new Set<number>();
   const misses: string[] = [];
   let found = 0;
