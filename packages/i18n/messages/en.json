@@ -579,6 +579,21 @@
       "failed": "Couldn’t compact the chat — try again",
       "busy": "You can compact once the answer is done",
       "short": "The chat is still short — nothing to compact"
+    },
+    "memory": {
+      "remembered": "Remembered: {text}",
+      "rememberedMany": "Remembered: {count, plural, one {# note} other {# notes}}",
+      "undo": "Undo",
+      "undone": "Removed from memory",
+      "restore": "Restore",
+      "skip": "Don’t remember",
+      "newPerson": "Someone new",
+      "newOrg": "A new organization",
+      "newProject": "A new project",
+      "question": "Memory question",
+      "now": "just now",
+      "show": "Show in chat",
+      "failed": "Could not save the answer"
     }
   },
   "login": {

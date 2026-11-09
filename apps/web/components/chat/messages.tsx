@@ -896,7 +896,10 @@ export const AssistantMessage = ({
   onAsk,
   onServerReady,
   servers = NO_SERVERS,
+  memory,
 }: {
+  /** What the memory took from the question this answers (ARCH §19): under the footer once the answer is done. */
+  memory?: React.ReactNode;
   /** The user's vote on it: helpful, not, or none. */
   vote?: boolean;
   onVote?: (messageId: string, up: boolean | null) => void;
@@ -973,14 +976,17 @@ export const AssistantMessage = ({
           />
         )}
         {!live && message && !asking && (
-          <AnswerFooter
-            copy={answer || undefined}
-            label={label}
-            message={message}
-            onRegenerate={onRegenerate}
-            onVote={onVote}
-            vote={vote}
-          />
+          <>
+            <AnswerFooter
+              copy={answer || undefined}
+              label={label}
+              message={message}
+              onRegenerate={onRegenerate}
+              onVote={onVote}
+              vote={vote}
+            />
+            {memory}
+          </>
         )}
       </MessageContent>
     </Message>

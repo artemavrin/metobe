@@ -1,4 +1,5 @@
 import type {
+  MemoryDraftStatus,
   MemoryEntityKind,
   MemoryPrecision,
   MemoryRecordKind,
@@ -191,6 +192,40 @@ export const memoryRecordEntities = pgTable(
     check(
       "memory_record_entities_role",
       sql`${table.role} in ('about', 'participant', 'debtor', 'creditor', 'subject')`
+    ),
+  ]
+);
+
+/**
+ * «Какой Андрей?» (P18): records of a write that wait for the person to say which card. `sealed` holds the question,
+ * the candidate cards and the records; answering puts them in under the write, so undoing the write takes them too.
+ */
+export const memoryDrafts = pgTable(
+  "memory_drafts",
+  {
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** `{ question, name, candidates, records }`, sealed. */
+    sealed: text("sealed").notNull(),
+    status: text("status").$type<MemoryDraftStatus>().notNull().default("open"),
+    writeId: uuid("write_id")
+      .notNull()
+      .references(() => memoryWrites.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("memory_drafts_open")
+      .on(table.ownerId, table.createdAt)
+      .where(sql`${table.status} = 'open'`),
+    index("memory_drafts_write").on(table.writeId),
+    check(
+      "memory_drafts_status",
+      sql`${table.status} in ('open', 'answered', 'dismissed')`
     ),
   ]
 );

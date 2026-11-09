@@ -1,43 +1,11 @@
 import { useEffect, useRef } from "react";
 
-// «Something about your tasks moved» (ARCH §16.5): one stream for the whole tab — the sidebar and the page of tasks
-// listen to it together — and a page that is in view reads again when it hears. The word has no data in it, and a
+import { subscribeOwnerStream } from "@/lib/owner-stream";
+
+// «Something about your tasks moved» (ARCH §16.5): one stream for the whole tab (lib/owner-stream) — the sidebar and
+// the page of tasks listen to it together — and a page that is in view reads again when it hears. The word has no data in it, and a
 // word nobody heard (the line was down) is no loss: on every reconnect and every return to the tab the page reads once,
 // and the pages still look now and then.
-
-type Listener = () => void;
-const listeners = new Set<Listener>();
-let source: EventSource | null = null;
-
-const emit = () => {
-  for (const listener of listeners) {
-    listener();
-  }
-};
-
-const subscribe = (listener: Listener) => {
-  listeners.add(listener);
-  if (!source && typeof EventSource !== "undefined") {
-    const stream = new EventSource("/api/notifications/stream");
-    let opened = false;
-    stream.addEventListener("tasks", emit);
-    stream.addEventListener("open", () => {
-      // The first connection has nothing to catch up on; a later one may have missed words.
-      if (opened) {
-        emit();
-      }
-      opened = true;
-    });
-    source = stream;
-  }
-  return () => {
-    listeners.delete(listener);
-    if (listeners.size === 0) {
-      source?.close();
-      source = null;
-    }
-  };
-};
 
 /** Runs `read` — soon, once for a burst — when the server says the owner's tasks moved, and when the tab comes back. */
 export const useTaskEvents = (read: () => void) => {
@@ -53,7 +21,7 @@ export const useTaskEvents = (read: () => void) => {
         latest.current();
       }
     };
-    const stop = subscribe(() => {
+    const stop = subscribeOwnerStream("tasks", () => {
       if (timer === undefined) {
         timer = setTimeout(run, 400);
       }

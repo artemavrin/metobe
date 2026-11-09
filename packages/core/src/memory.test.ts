@@ -309,6 +309,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         name: "Ольга Ли",
       });
       const plan: MemoryModule.MemoryWritePlan = {
+        drafts: [],
         entities: [
           {
             kind: "org",
@@ -347,7 +348,11 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         messageId: crypto.randomUUID(),
       });
       expect(
-        await memory.applyWrite(ana, again.id, { entities: [], records: [] })
+        await memory.applyWrite(ana, again.id, {
+          drafts: [],
+          entities: [],
+          records: [],
+        })
       ).toBe(true);
       const skipped = await memory.createWrite(ana, {
         chatId,
@@ -360,6 +365,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       const messageId = crypto.randomUUID();
       const made = await memory.createWrite(ana, { chatId, messageId });
       await memory.applyWrite(ana, made.id, {
+        drafts: [],
         entities: [],
         records: [
           { entities: [], kind: "fact", text: "Из удалённого сообщения" },
@@ -369,6 +375,128 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(await recordTexts(ana)).not.toContain("Из удалённого сообщения");
       const anew = await memory.createWrite(ana, { chatId, messageId });
       expect(anew.created).toBe(true);
+    });
+
+    /** A write with one question: «Какой Андрей?» between two new cards. */
+    const ask = async () => {
+      const made = await memory.createWrite(ana, {
+        chatId,
+        messageId: crypto.randomUUID(),
+      });
+      const one = await memory.createEntity(ana, {
+        kind: "person",
+        name: "Андрей Первый",
+      });
+      const two = await memory.createEntity(ana, {
+        kind: "person",
+        name: "Андрей Второй",
+      });
+      await memory.applyWrite(ana, made.id, {
+        drafts: [
+          {
+            candidates: [one.id, two.id],
+            name: "Андрей",
+            question: "Какой Андрей уходит в отпуск?",
+            records: [
+              {
+                entities: [{ ask: "ask:a", role: "about" }],
+                kind: "fact",
+                text: "Андрей в отпуске с 10 ноября",
+                validFrom: new Date("2026-11-09T21:00:00Z"),
+              },
+            ],
+          },
+        ],
+        entities: [],
+        records: [],
+      });
+      const questions = await memory.listQuestions(ana, { chatId });
+      const question = questions.find((q) => q.writeId === made.id);
+      return { made, one, question, two };
+    };
+
+    describe("questions (P18)", () => {
+      it("asks in its chat with the cards to pick from, and only its owner", async () => {
+        const { one, question, two } = await ask();
+        expect(question).toMatchObject({
+          candidates: [
+            { id: one.id, name: "Андрей Первый" },
+            { id: two.id, name: "Андрей Второй" },
+          ],
+          question: "Какой Андрей уходит в отпуск?",
+        });
+        expect(await memory.listQuestions(bob)).toEqual([]);
+        expect(
+          await memory.answerQuestion(bob, question?.id as string, {
+            dismiss: true,
+          })
+        ).toBeNull();
+      });
+
+      it("puts the records in under the picked card, once", async () => {
+        const { one, question } = await ask();
+        const id = question?.id as string;
+        const records = await memory.answerQuestion(ana, id, {
+          entityId: one.id,
+        });
+        expect(records?.[0]).toMatchObject({
+          entities: [{ entityId: one.id, role: "about" }],
+          text: "Андрей в отпуске с 10 ноября",
+          validFrom: new Date("2026-11-09T21:00:00Z"),
+        });
+        // Answered in another tab already.
+        expect(
+          await memory.answerQuestion(ana, id, { entityId: one.id })
+        ).toBeNull();
+        const left = await memory.listQuestions(ana);
+        expect(left.map((q) => q.id)).not.toContain(id);
+      });
+
+      it("refuses a card that is not one of the question's", async () => {
+        const { question } = await ask();
+        const other = await memory.createEntity(ana, {
+          kind: "person",
+          name: "Посторонний",
+        });
+        await expect(
+          memory.answerQuestion(ana, question?.id as string, {
+            entityId: other.id,
+          })
+        ).rejects.toThrow(/not one of the question/u);
+      });
+
+      it("makes a new card when it is none of them, and «Отменить» takes it all back", async () => {
+        const { made, question } = await ask();
+        const records = await memory.answerQuestion(
+          ana,
+          question?.id as string,
+          {
+            newCard: true,
+          }
+        );
+        const cards = await memory.listEntities(ana);
+        const fresh = cards.find(
+          (e) => e.id === records?.[0]?.entities[0]?.entityId
+        );
+        expect(fresh).toMatchObject({ kind: "person", name: "Андрей" });
+        await memory.undoWrite(ana, made.id);
+        expect(await recordIds(ana)).not.toContain(records?.[0]?.id);
+        expect(await entityIds(ana)).not.toContain(fresh?.id);
+      });
+
+      it("drops the question when it is turned away or its write undone", async () => {
+        const first = await ask();
+        expect(
+          await memory.answerQuestion(ana, first.question?.id as string, {
+            dismiss: true,
+          })
+        ).toEqual([]);
+        const second = await ask();
+        await memory.undoWrite(ana, second.made.id);
+        const open = await memory.listQuestions(ana);
+        expect(open.map((q) => q.id)).not.toContain(first.question?.id);
+        expect(open.map((q) => q.id)).not.toContain(second.question?.id);
+      });
     });
 
     it("puts back what a write's correction replaced", async () => {

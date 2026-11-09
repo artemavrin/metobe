@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "spike": "node --env-file=../../.env --import tsx run.ts",
-    "extract": "node --env-file=../../.env --import tsx extract.ts"
+    "extract": "node --env-file=../../.env --import tsx extract.ts",
+    "ask": "node --env-file=../../.env --import tsx ask.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",

@@ -24,7 +24,7 @@ import { catalogPrice, sourceKey } from "./keys.ts";
 const PROMPT = process.env.PROMPT ?? "v2";
 const MODELS = (
   process.env.MODELS ??
-  "anthropic/claude-haiku-5.5,openai/gpt-6-luna,google/gemini-3.5-flash-lite,deepseek/deepseek-v4.1-flash,alibaba/qwen3.8-flash,mistral/mistral-small,anthropic/claude-sonnet-5,yandex:qwen3-235b-a22b-fp8,yandex:gpt-oss-120b"
+  "anthropic/claude-haiku-5.5,openai/gpt-6-luna,google/gemini-3.5-flash-lite,deepseek/deepseek-v4.1-flash,alibaba/qwen3.8-flash,mistral/mistral-small,anthropic/claude-sonnet-5"
 ).split(",");
 const CONCURRENCY = Number(process.env.CONCURRENCY ?? 3);
 
@@ -227,6 +227,7 @@ const runCase = async (id: string, c: (typeof extractCases)[number]): Promise<Sc
     const { model: m } = model(id);
     const result = await generateText({
       maxRetries: 1,
+      ...(process.env.REASONING ? { reasoning: process.env.REASONING as "none" } : {}),
       model: m,
       output: Output.object({ schema: useSchema }),
       prompt: app ? `<message>\n${c.text}\n</message>` : c.text,

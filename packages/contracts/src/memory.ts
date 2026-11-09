@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 // What the memory keeps (ARCH §19, D39). Words only here: the columns the plan queries stay in the clear, the texts
 // are sealed (core/memory-crypto).
 
@@ -40,3 +42,39 @@ export const memoryWriteStatuses = [
   "undone",
 ] as const;
 export type MemoryWriteStatus = (typeof memoryWriteStatuses)[number];
+
+/** A question the writer could not settle by itself (P18): open until the person answers or turns it away. */
+export const memoryDraftStatuses = ["open", "answered", "dismissed"] as const;
+export type MemoryDraftStatus = (typeof memoryDraftStatuses)[number];
+
+/** The person's answer to a question (P18): a card of the question's, a new card, or «Не запоминать». */
+export const memoryAnswerSchema = z.union([
+  z.object({ entityId: z.uuid() }),
+  z.object({ newCard: z.literal(true) }),
+  z.object({ dismiss: z.literal(true) }),
+]);
+
+/** What the memory took from one chat, for under its answers (`GET /api/memory/chats/[id]`). */
+export interface ChatMemory {
+  /** Off — no model holds the «Память» job: the chat shows nothing of it. */
+  on: boolean;
+  /** «Запомнено: …» — per message the person sent. */
+  notes: {
+    messageId: string;
+    writeId: string;
+    records: { id: string; text: string }[];
+  }[];
+  /** Open questions, under the answer to the message they came from. */
+  questions: {
+    id: string;
+    writeId: string;
+    messageId: string;
+    question: string;
+    candidates: {
+      id: string;
+      name: string;
+      role: string | null;
+      kind: MemoryEntityKind;
+    }[];
+  }[];
+}

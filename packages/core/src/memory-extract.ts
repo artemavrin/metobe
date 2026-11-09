@@ -39,6 +39,24 @@ export const extractionSchema = z.object({
     .describe(
       "People, organizations and projects mentioned that are not among the known cards"
     ),
+  asks: z
+    .array(
+      z.object({
+        id: z.string().describe("ask:<latin-slug>"),
+        name: z.string().describe("How the message calls them: «Андрей»"),
+        candidates: z
+          .array(z.string())
+          .describe("Refs of the known cards it could be — two or more"),
+        question: z
+          .string()
+          .describe(
+            "A short question to the user in the message's language, naming what was said: «Какой Андрей уходит в отпуск 10 ноября?»"
+          ),
+      })
+    )
+    .describe(
+      "Mentions that fit two or more known cards when the message does not tell which. Items use the ask id as the ref"
+    ),
   items: z.array(
     z.object({
       kind: z.enum(["fact", "assessment", "event", "commitment", "rule"]),
@@ -50,7 +68,7 @@ export const extractionSchema = z.object({
       about: z
         .array(z.string())
         .describe(
-          "Refs: the subject of a fact, assessment or rule, the participants of an event, debtor and creditor of a commitment"
+          'Refs: the subject of a fact, assessment or rule, the participants of an event, debtor and creditor of a commitment. Each one a known card ref, "user", a new_entities id or an asks id'
         ),
       debtor: z
         .string()
@@ -126,7 +144,7 @@ ${[...cards.map(cardLine), "- user: the user themselves"].join("\n")}
 
 Rules:
 - Kinds: fact — a lasting state or attribute (role, stage, preference, birthday); assessment — the user's own opinion or judgement of someone («часто срывает сроки»), never turned into a fact; event — something that happened or is scheduled at a time; commitment — someone owes someone an action, with or without a deadline; rule — the user's standing instruction about reminders or what to highlight.
-- Refs: use a known card ref, "user", or an id from new_entities. Pick a card only when the message makes it clear; a person not in the cards goes to new_entities.
+- Refs: use a known card ref, "user", an id from new_entities or an id from asks. Pick a card only when the message makes it clear (a surname, a company, a role, the topic); a person not in the cards goes to new_entities. When a mention fits two or more known cards and nothing in the message tells which, do not guess: add it to asks with those cards as candidates, and use the ask id as the ref in the item (in about, debtor or creditor) instead of a card. The topic tells too: work on what a card is known for («API», «закупки») points at that card, and then it is not a question.
 - Dates: resolve relative dates against today and against the moment they refer to («в прошлый вторник сказал, что через две недели» — two weeks from that Tuesday). Past tense with a weekday means the latest such day before today. Set precision honestly: «на днях» is a week, «в начале октября» is a month. Never invent a date that the message does not imply.
 - In the text, turn a relative date the message gives into an absolute one («вчера» → «8 ноября», «до пятницы» → «до 13 ноября»); keep a vague time vague («на днях»), and never add a date or a deadline the message does not give.
 - Waiting for someone's reply, decision or result («ждём ответа», «обещала прислать») is that party's commitment to the user, besides any event.
@@ -212,10 +230,133 @@ const roleOf = (kind: Item["kind"]): MemoryRole => {
 const normalize = (name: string) =>
   name.trim().toLocaleLowerCase("ru").replaceAll("ё", "е");
 
+type Fresh = MemoryWritePlan["entities"][number];
+type Ask = Extraction["asks"][number] & { ids: string[] };
+type Draft = MemoryWritePlan["drafts"][number];
+
+/** New cards by the model's id; one named exactly like a known card is that card (in `asKnown`). */
+const freshCards = (
+  extraction: Extraction,
+  cards: KnownCard[],
+  known: Map<string, string>,
+  asKnown: Map<string, string>
+) => {
+  const byName = new Map<string, string>();
+  for (const c of cards) {
+    for (const name of [c.name, ...c.aliases]) {
+      byName.set(normalize(name), c.id);
+    }
+  }
+  const fresh = new Map<string, Fresh>();
+  for (const e of extraction.new_entities) {
+    const name = e.name.trim();
+    // The id is the model's: «new_pavel» instead of «new:pavel» is still that card — only a clash with a known ref is not.
+    if (!(name && e.id) || known.has(e.id) || e.id === "user") {
+      continue;
+    }
+    const same = byName.get(normalize(name));
+    if (same) {
+      asKnown.set(e.id, same);
+      continue;
+    }
+    fresh.set(e.id, {
+      kind: ENTITY_KINDS[e.kind],
+      name,
+      ref: e.id,
+      role: e.about.trim() || null,
+    });
+  }
+  return fresh;
+};
+
+/** A question with two or more known cards waits for the person; with one it is that card (in `asKnown`), with none — nothing. */
+const openAsks = (
+  extraction: Extraction,
+  known: Map<string, string>,
+  asKnown: Map<string, string>
+) => {
+  const asks = new Map<string, Ask>();
+  for (const a of extraction.asks) {
+    const ids = [...new Set(a.candidates.flatMap((r) => known.get(r) ?? []))];
+    if (ids.length > 1 && a.question.trim()) {
+      asks.set(a.id, { ...a, ids });
+    } else if (ids[0]) {
+      asKnown.set(a.id, ids[0]);
+    }
+  }
+  return asks;
+};
+
+/** An item as a record: its cards by role, and its dates where its kind keeps them. */
+const toPlanned = (
+  item: Item,
+  link: (ref: string | null, role: MemoryRole) => Link | null,
+  day: (w: Item["when"]) => { at: Date; precision: MemoryPrecision } | null
+): Planned | null => {
+  const text = item.text.trim();
+  if (!text) {
+    return null;
+  }
+  const sides = new Set([item.debtor, item.creditor]);
+  const links =
+    item.kind === "commitment"
+      ? [
+          link(item.debtor, "debtor"),
+          link(item.creditor, "creditor"),
+          ...item.about
+            .filter((r) => !sides.has(r))
+            .map((r) => link(r, "about")),
+        ]
+      : item.about.map((r) => link(r, roleOf(item.kind)));
+  const at = day(item.when);
+  const record: Planned = {
+    entities: links.filter((l): l is Link => l !== null),
+    kind: item.kind,
+    text,
+  };
+  if (item.kind === "event" && at) {
+    record.occurred = at;
+  }
+  if ((item.kind === "fact" || item.kind === "assessment") && at) {
+    record.validFrom = at.at;
+  }
+  if (item.kind === "commitment") {
+    record.givenAt = at?.at;
+    record.dueAt = day(item.due)?.at;
+  }
+  return record;
+};
+
+/** A record that points at a question waits with it — at the first, if it points at two; the rest are ready. */
+const sortOut = (records: Planned[], asks: Map<string, Ask>) => {
+  const drafts = new Map<string, Draft>();
+  const ready: Planned[] = [];
+  for (const r of records) {
+    const ask = r.entities.find((l): l is Link & { ask: string } => "ask" in l);
+    const a = ask ? asks.get(ask.ask) : undefined;
+    if (!ask) {
+      ready.push(r);
+    } else if (a) {
+      const draft = drafts.get(a.id) ?? {
+        candidates: a.ids,
+        name: a.name.trim(),
+        question: a.question.trim(),
+        records: [],
+      };
+      draft.records.push({
+        ...r,
+        entities: r.entities.filter((l) => !("ask" in l) || l.ask === a.id),
+      });
+      drafts.set(a.id, draft);
+    }
+  }
+  return { drafts: [...drafts.values()], ready };
+};
+
 /**
- * The model's answer as a plan for the store. Refs become cards: a known one, the user's own, or a new one; a new
- * card named exactly like a known one is the known one; a ref to nothing is dropped, and so is a new card no record
- * points at. Dates become instants at midnight in the person's zone.
+ * The model's answer as a plan for the store. Refs become cards: a known one, the user's own, a new one, or the one
+ * the person will pick (P18); a new card named exactly like a known one is the known one; a ref to nothing is
+ * dropped, and so is a new card no record points at. Dates become instants at midnight in the person's zone.
  */
 export const planWrite = (
   extraction: Extraction,
@@ -226,39 +367,20 @@ export const planWrite = (
   }: { cards: KnownCard[]; selfId: string | null; timeZone: string }
 ): MemoryWritePlan => {
   const known = new Map(cards.map((c) => [c.ref, c.id]));
-  const byName = new Map<string, string>();
-  for (const c of cards) {
-    for (const name of [c.name, ...c.aliases]) {
-      byName.set(normalize(name), c.id);
-    }
-  }
-  const fresh = new Map<string, MemoryWritePlan["entities"][number]>();
-  const freshAsKnown = new Map<string, string>();
-  for (const e of extraction.new_entities) {
-    const name = e.name.trim();
-    if (!(name && e.id.startsWith("new:"))) {
-      continue;
-    }
-    const same = byName.get(normalize(name));
-    if (same) {
-      freshAsKnown.set(e.id, same);
-      continue;
-    }
-    fresh.set(e.id, {
-      kind: ENTITY_KINDS[e.kind],
-      name,
-      ref: e.id,
-      role: e.about.trim() || null,
-    });
-  }
+  const asKnown = new Map<string, string>();
+  const fresh = freshCards(extraction, cards, known, asKnown);
+  const asks = openAsks(extraction, known, asKnown);
   const link = (ref: string | null, role: MemoryRole): Link | null => {
     if (!ref) {
       return null;
     }
+    if (asks.has(ref)) {
+      return { ask: ref, role };
+    }
     if (ref === "user") {
       return selfId ? { entityId: selfId, role } : null;
     }
-    const id = known.get(ref) ?? freshAsKnown.get(ref);
+    const id = known.get(ref) ?? asKnown.get(ref);
     if (id) {
       return { entityId: id, role };
     }
@@ -268,48 +390,18 @@ export const planWrite = (
     const at = w ? localMidnight(w.date, timeZone) : null;
     return at && w ? { at, precision: w.precision as MemoryPrecision } : null;
   };
-  const records: Planned[] = [];
-  for (const item of extraction.items) {
-    const text = item.text.trim();
-    if (!text) {
-      continue;
-    }
-    const sides = new Set([item.debtor, item.creditor]);
-    const links =
-      item.kind === "commitment"
-        ? [
-            link(item.debtor, "debtor"),
-            link(item.creditor, "creditor"),
-            ...item.about
-              .filter((r) => !sides.has(r))
-              .map((r) => link(r, "about")),
-          ]
-        : item.about.map((r) => link(r, roleOf(item.kind)));
-    const at = day(item.when);
-    const record: Planned = {
-      entities: links.filter((l): l is Link => l !== null),
-      kind: item.kind,
-      text,
-    };
-    if (item.kind === "event" && at) {
-      record.occurred = at;
-    }
-    if ((item.kind === "fact" || item.kind === "assessment") && at) {
-      record.validFrom = at.at;
-    }
-    if (item.kind === "commitment") {
-      record.givenAt = at?.at;
-      record.dueAt = day(item.due)?.at;
-    }
-    records.push(record);
-  }
+  const records = extraction.items.flatMap(
+    (item) => toPlanned(item, link, day) ?? []
+  );
+  const { drafts, ready } = sortOut(records, asks);
   const used = new Set(
-    records.flatMap((r) =>
+    [...ready, ...drafts.flatMap((d) => d.records)].flatMap((r) =>
       r.entities.flatMap((l) => ("newRef" in l ? [l.newRef] : []))
     )
   );
   return {
+    drafts,
     entities: [...fresh.values()].filter((e) => used.has(e.ref)),
-    records,
+    records: ready,
   };
 };

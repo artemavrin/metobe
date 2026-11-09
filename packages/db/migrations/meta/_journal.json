@@ -288,6 +288,13 @@
       "when": 1794201757133,
       "tag": "0040_memory_purpose",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794207074454,
+      "tag": "0041_memory_drafts",
+      "breakpoints": true
     }
   ]
 }

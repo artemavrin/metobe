@@ -11,6 +11,7 @@ import type { Extraction, KnownCard } from "./memory-extract";
 const ZONE = "Europe/Moscow";
 const ANDREY = "11111111-1111-4111-8111-111111111111";
 const SELF = "99999999-9999-4999-8999-999999999999";
+const KOVALEV = "22222222-2222-4222-8222-222222222222";
 const cards: KnownCard[] = [
   {
     aliases: ["Андрюша"],
@@ -19,6 +20,14 @@ const cards: KnownCard[] = [
     name: "Андрей Смирнов",
     ref: "c1",
     role: "руководитель отдела продаж",
+  },
+  {
+    aliases: [],
+    id: KOVALEV,
+    kind: "person",
+    name: "Андрей Ковалёв",
+    ref: "c2",
+    role: "закупки",
   },
 ];
 
@@ -38,7 +47,7 @@ const item = (
 
 const plan = (extraction: Partial<Extraction>, selfId: string | null = SELF) =>
   planWrite(
-    { items: [], new_entities: [], ...extraction },
+    { asks: [], items: [], new_entities: [], ...extraction },
     { cards, selfId, timeZone: ZONE }
   );
 
@@ -227,13 +236,106 @@ describe("planWrite", () => {
   });
 });
 
+describe("planWrite: questions (P18)", () => {
+  const ask = {
+    candidates: ["c1", "c2"],
+    id: "ask:andrey",
+    name: "Андрей",
+    question: "Какой Андрей уходит в отпуск 10 ноября?",
+  };
+
+  it("keeps what points at an unclear card for the person to answer", () => {
+    const result = plan({
+      asks: [ask],
+      items: [
+        item({
+          about: ["ask:andrey"],
+          kind: "fact",
+          text: "Андрей в отпуске с 10 ноября",
+        }),
+        item({ about: ["c1"], kind: "fact", text: "Андрей Смирнов любит бег" }),
+      ],
+    });
+    expect(result.records.map((r) => r.text)).toEqual([
+      "Андрей Смирнов любит бег",
+    ]);
+    expect(result.drafts).toEqual([
+      {
+        candidates: [ANDREY, KOVALEV],
+        name: "Андрей",
+        question: "Какой Андрей уходит в отпуск 10 ноября?",
+        records: [
+          {
+            entities: [{ ask: "ask:andrey", role: "about" }],
+            kind: "fact",
+            text: "Андрей в отпуске с 10 ноября",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("takes a question with one known card for that card, and drops one with none", () => {
+    const one = plan({
+      asks: [{ ...ask, candidates: ["c1", "c9"] }],
+      items: [item({ about: ["ask:andrey"], text: "Андрей в отпуске" })],
+    });
+    expect(one.drafts).toEqual([]);
+    expect(one.records[0]?.entities).toEqual([
+      { entityId: ANDREY, role: "about" },
+    ]);
+    const none = plan({
+      asks: [{ ...ask, candidates: ["c8", "c9"] }],
+      items: [item({ about: ["ask:andrey"], text: "Андрей в отпуске" })],
+    });
+    expect(none.drafts).toEqual([]);
+    expect(none.records[0]?.entities).toEqual([]);
+  });
+
+  it("makes the new cards a waiting record needs, and takes any id for a new card", () => {
+    const result = plan({
+      asks: [ask],
+      items: [
+        item({
+          about: [],
+          creditor: "new_natalya",
+          debtor: "ask:andrey",
+          kind: "commitment",
+          text: "Андрей пришлёт Наталье акт",
+        }),
+      ],
+      new_entities: [
+        {
+          about: "бухгалтерия",
+          id: "new_natalya",
+          kind: "person",
+          name: "Наталья",
+        },
+      ],
+    });
+    expect(result.entities.map((e) => e.ref)).toEqual(["new_natalya"]);
+    expect(result.drafts[0]?.records[0]?.entities).toEqual([
+      { ask: "ask:andrey", role: "debtor" },
+      { newRef: "new_natalya", role: "creditor" },
+    ]);
+  });
+});
+
 describe("mentionsUser", () => {
   it("sees the user in any ref", () => {
     expect(
-      mentionsUser({ items: [item({ about: ["c1"] })], new_entities: [] })
+      mentionsUser({
+        asks: [],
+        items: [item({ about: ["c1"] })],
+        new_entities: [],
+      })
     ).toBe(false);
     expect(
-      mentionsUser({ items: [item({ debtor: "user" })], new_entities: [] })
+      mentionsUser({
+        asks: [],
+        items: [item({ debtor: "user" })],
+        new_entities: [],
+      })
     ).toBe(true);
   });
 });

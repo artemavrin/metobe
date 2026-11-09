@@ -9,6 +9,7 @@ import type {
 } from "@metobe/contracts/memory";
 import type { Db } from "@metobe/db/client";
 import {
+  memoryDrafts,
   memoryEntities,
   memoryKeys,
   memoryRecordEntities,
@@ -82,6 +83,7 @@ const dataKey = async (
 
 const ENTITIES = "memory_entities";
 const RECORDS = "memory_records";
+const DRAFTS = "memory_drafts";
 const BODY = "body";
 
 // --- entities ----------------------------------------------------------------------------------------------------
@@ -531,6 +533,8 @@ export interface MemoryRecordFilter {
   kinds?: MemoryRecordKind[];
   /** Records the card takes part in, in any role. */
   entityId?: string;
+  /** Records these writes put in. */
+  writeIds?: string[];
   /** Corrections' old versions too. */
   includeSuperseded?: boolean;
   /** Deleted ones too (to offer taking the deletion back). */
@@ -558,6 +562,9 @@ export const listRecords = async (
           ? undefined
           : isNull(memoryRecords.supersededAt),
         filter.kinds ? inArray(memoryRecords.kind, filter.kinds) : undefined,
+        filter.writeIds
+          ? inArray(memoryRecords.writeId, filter.writeIds)
+          : undefined,
         filter.entityId
           ? inArray(
               memoryRecords.id,
@@ -642,15 +649,29 @@ export const markWrite = async (
     .where(and(eq(memoryWrites.id, id), eq(memoryWrites.ownerId, ownerId)));
 };
 
-/** What one message adds: new cards under refs, and records pointing at known cards or those refs. */
+type PlannedLink =
+  | { entityId: string; role: MemoryRole }
+  | { newRef: string; role: MemoryRole }
+  /** The card the person picks in answer to the write's question (P18). */
+  | { ask: string; role: MemoryRole };
+
+type PlannedRecord = Omit<MemoryRecordInput, "entities" | "writeId"> & {
+  entities: PlannedLink[];
+};
+
+/** What one message adds: new cards under refs, records pointing at known cards or those refs, and questions. */
 export interface MemoryWritePlan {
   entities: (Omit<EntityInput, "aliases" | "writeId"> & { ref: string })[];
-  records: (Omit<MemoryRecordInput, "entities" | "writeId"> & {
-    entities: (
-      | { entityId: string; role: MemoryRole }
-      | { newRef: string; role: MemoryRole }
-    )[];
-  })[];
+  records: PlannedRecord[];
+  /** «Какой Андрей?»: records that wait for the person to say which card — kept until they answer. */
+  drafts: {
+    /** How the message called them: «Андрей» — the name of a new card, if that is the answer. */
+    name: string;
+    question: string;
+    /** The known cards it could be. */
+    candidates: string[];
+    records: PlannedRecord[];
+  }[];
 }
 
 /**
@@ -663,7 +684,8 @@ export const applyWrite = async (
   writeId: string,
   plan: MemoryWritePlan
 ) => {
-  const key = plan.records.length > 0 ? await dataKey(ownerId, true) : null;
+  const keeps = plan.records.length > 0 || plan.drafts.length > 0;
+  const key = keeps ? await dataKey(ownerId, true) : null;
   return getDb().db.transaction(async (tx) => {
     const [write] = await tx
       .select({ status: memoryWrites.status })
@@ -688,18 +710,49 @@ export const applyWrite = async (
           })
         )
       );
+      // New cards are made now, for waiting records too: the draft keeps their ids, the answer only picks the card.
+      const settle = (links: PlannedLink[]) =>
+        links.flatMap((l): PlannedLink[] => {
+          if (!("newRef" in l)) {
+            return [l];
+          }
+          const entityId = made.get(l.newRef);
+          return entityId ? [{ entityId, role: l.role }] : [];
+        });
       await Promise.all(
         plan.records.map((r) =>
           insertRecord(tx, ownerId, key, {
             ...r,
-            entities: r.entities.flatMap((l) => {
-              const entityId =
-                "entityId" in l ? l.entityId : made.get(l.newRef);
-              return entityId ? [{ entityId, role: l.role }] : [];
-            }),
+            entities: settle(r.entities).flatMap((l) =>
+              "entityId" in l ? [{ entityId: l.entityId, role: l.role }] : []
+            ),
             writeId,
           })
         )
+      );
+      await Promise.all(
+        plan.drafts.map((d) => {
+          const id = crypto.randomUUID();
+          const body: DraftBody = {
+            candidates: d.candidates,
+            name: d.name,
+            question: d.question,
+            records: d.records.map((r) => ({
+              ...r,
+              entities: settle(r.entities),
+            })),
+          };
+          return tx.insert(memoryDrafts).values({
+            id,
+            ownerId,
+            sealed: sealField(
+              JSON.stringify(body),
+              memoryAad(ownerId, DRAFTS, id, BODY),
+              key
+            ),
+            writeId,
+          });
+        })
       );
     }
     await tx
@@ -707,10 +760,208 @@ export const applyWrite = async (
       .set({
         error: null,
         finishedAt: new Date(),
-        status: plan.records.length > 0 ? "done" : "skipped",
+        status: keeps ? "done" : "skipped",
       })
       .where(eq(memoryWrites.id, writeId));
     return true;
+  });
+};
+
+// --- questions (P18) -----------------------------------------------------------------------------------------------
+
+interface DraftBody {
+  question: string;
+  name: string;
+  candidates: string[];
+  records: PlannedRecord[];
+}
+
+const DATES = ["validFrom", "validTo", "givenAt", "dueAt"] as const;
+
+/** The body as it was sealed: dates went in as strings and come back as dates. */
+const openDraft = (
+  row: typeof memoryDrafts.$inferSelect,
+  key: SecretsKey
+): DraftBody => {
+  const body = JSON.parse(
+    openField(row.sealed, memoryAad(row.ownerId, DRAFTS, row.id, BODY), key)
+  ) as DraftBody;
+  return {
+    ...body,
+    records: body.records.map((r) => {
+      const revived: PlannedRecord = { ...r };
+      for (const field of DATES) {
+        const value = r[field] as unknown;
+        if (typeof value === "string") {
+          revived[field] = new Date(value);
+        }
+      }
+      if (r.occurred) {
+        revived.occurred = { ...r.occurred, at: new Date(r.occurred.at) };
+      }
+      return revived;
+    }),
+  };
+};
+
+export interface MemoryQuestion {
+  id: string;
+  writeId: string;
+  chatId: string | null;
+  messageId: string;
+  question: string;
+  /** The cards it could be, with who each one is — what the person picks from. */
+  candidates: {
+    id: string;
+    name: string;
+    role: string | null;
+    kind: MemoryEntityKind;
+  }[];
+  createdAt: Date;
+}
+
+/** Open questions: of one chat (under its answers), or all of them («Не записано» on the «Память» page). */
+export const listQuestions = async (
+  ownerId: string,
+  filter: { chatId?: string } = {}
+): Promise<MemoryQuestion[]> => {
+  const key = await dataKey(ownerId, false);
+  if (!key) {
+    return [];
+  }
+  const { db } = getDb();
+  const rows = await db
+    .select({
+      chatId: memoryWrites.chatId,
+      draft: memoryDrafts,
+      messageId: memoryWrites.messageId,
+    })
+    .from(memoryDrafts)
+    .innerJoin(memoryWrites, eq(memoryWrites.id, memoryDrafts.writeId))
+    .where(
+      and(
+        eq(memoryDrafts.ownerId, ownerId),
+        eq(memoryDrafts.status, "open"),
+        filter.chatId ? eq(memoryWrites.chatId, filter.chatId) : undefined
+      )
+    )
+    .orderBy(memoryDrafts.createdAt);
+  if (rows.length === 0) {
+    return [];
+  }
+  const entities = await listEntities(ownerId);
+  const cards = new Map(entities.map((e) => [e.id, e]));
+  return rows.map(({ chatId, draft, messageId }) => {
+    const body = openDraft(draft, key);
+    return {
+      candidates: body.candidates.flatMap((id) => {
+        const card = cards.get(id);
+        return card
+          ? [{ id, kind: card.kind, name: card.name, role: card.role }]
+          : [];
+      }),
+      chatId,
+      createdAt: draft.createdAt,
+      id: draft.id,
+      messageId,
+      question: body.question,
+      writeId: draft.writeId,
+    };
+  });
+};
+
+export type MemoryAnswer =
+  | { entityId: string }
+  /** None of them: a new card under the name the message used. */
+  | { newCard: true }
+  | { dismiss: true };
+
+/**
+ * The person's answer: the waiting records go in under the picked card and the write, so «Отменить» undoes them with
+ * the rest of it. Null when there is no such open question of the owner (answered in another tab, say).
+ */
+export const answerQuestion = async (
+  ownerId: string,
+  draftId: string,
+  answer: MemoryAnswer
+) => {
+  const key = await dataKey(ownerId, false);
+  if (!key) {
+    return null;
+  }
+  return getDb().db.transaction(async (tx) => {
+    const [draft] = await tx
+      .select()
+      .from(memoryDrafts)
+      .where(
+        and(
+          eq(memoryDrafts.id, draftId),
+          eq(memoryDrafts.ownerId, ownerId),
+          eq(memoryDrafts.status, "open")
+        )
+      )
+      .for("update");
+    if (!draft) {
+      return null;
+    }
+    const done = (status: "answered" | "dismissed") =>
+      tx
+        .update(memoryDrafts)
+        .set({ answeredAt: new Date(), status })
+        .where(eq(memoryDrafts.id, draftId));
+    if ("dismiss" in answer) {
+      await done("dismissed");
+      return [];
+    }
+    const body = openDraft(draft, key);
+    let entityId: string;
+    if ("entityId" in answer) {
+      if (!body.candidates.includes(answer.entityId)) {
+        throw new Error(
+          "memory: the answer is not one of the question's cards"
+        );
+      }
+      ({ entityId } = answer);
+    } else {
+      // A new card of the kind its namesakes are: two Андрея are people, two «Склада» projects.
+      const [like] = await tx
+        .select({ kind: memoryEntities.kind })
+        .from(memoryEntities)
+        .where(
+          and(
+            eq(memoryEntities.ownerId, ownerId),
+            inArray(memoryEntities.id, body.candidates)
+          )
+        )
+        .limit(1);
+      const card = await insertEntity(tx, ownerId, key, {
+        kind:
+          like?.kind === "org" || like?.kind === "project"
+            ? like.kind
+            : "person",
+        name: body.name,
+        writeId: draft.writeId,
+      });
+      entityId = card.id;
+    }
+    const records = await Promise.all(
+      body.records.map((r) =>
+        insertRecord(tx, ownerId, key, {
+          ...r,
+          entities: r.entities.flatMap((l) => {
+            if ("ask" in l) {
+              return [{ entityId, role: l.role }];
+            }
+            return "entityId" in l
+              ? [{ entityId: l.entityId, role: l.role }]
+              : [];
+          }),
+          writeId: draft.writeId,
+        })
+      )
+    );
+    await done("answered");
+    return records;
   });
 };
 
@@ -792,12 +1043,57 @@ export const undoWrite = (ownerId: string, writeId: string) =>
         )
       )
     );
+    // Its questions go too: nothing to ask about what is no longer kept.
+    await tx
+      .update(memoryDrafts)
+      .set({ answeredAt: new Date(), status: "dismissed" })
+      .where(
+        and(eq(memoryDrafts.writeId, writeId), eq(memoryDrafts.status, "open"))
+      );
     await tx
       .update(memoryWrites)
       .set({ finishedAt: new Date(), status: "undone" })
       .where(eq(memoryWrites.id, writeId));
     return true;
   });
+
+/** What the memory took from one chat: «Запомнено» per message, and the open questions (P18). */
+export const chatMemory = async (ownerId: string, chatId: string) => {
+  const writes = await getDb()
+    .db.select({ id: memoryWrites.id, messageId: memoryWrites.messageId })
+    .from(memoryWrites)
+    .where(
+      and(
+        eq(memoryWrites.ownerId, ownerId),
+        eq(memoryWrites.chatId, chatId),
+        eq(memoryWrites.status, "done")
+      )
+    );
+  const records =
+    writes.length > 0
+      ? await listRecords(ownerId, { writeIds: writes.map((w) => w.id) })
+      : [];
+  // Oldest first under one answer: in the order the message said them.
+  const byWrite = new Map<string, { id: string; text: string }[]>();
+  for (let i = records.length - 1; i >= 0; i -= 1) {
+    const r = records[i];
+    if (r?.writeId) {
+      byWrite.set(r.writeId, [
+        ...(byWrite.get(r.writeId) ?? []),
+        { id: r.id, text: r.text },
+      ]);
+    }
+  }
+  return {
+    notes: writes.flatMap((w) => {
+      const kept = byWrite.get(w.id);
+      return kept
+        ? [{ messageId: w.messageId, records: kept, writeId: w.id }]
+        : [];
+    }),
+    questions: await listQuestions(ownerId, { chatId }),
+  };
+};
 
 /**
  * Messages deleted from a chat (a retry, an edit, a regenerated answer): what they put in is undone, and their writes
