@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { CalendarClock, SquarePen } from "lucide-react";
+import { BookUser, CalendarClock, SquarePen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -212,6 +212,31 @@ const Tasks = ({ tasks }: { tasks: SidebarTask[] }) => {
   );
 };
 
+/** «Память» under «Задачи» — only while the memory is on (ARCH §19.1). */
+const Memory = () => {
+  const t = useTranslations("memory");
+  const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+  return (
+    <SidebarGroup className="py-0">
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname === "/memory"}
+              onClick={() => isMobile && setOpenMobile(false)}
+              render={<Link href="/memory" />}
+            >
+              <BookUser />
+              <span>{t("nav")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+};
+
 /** «Новый чат» as an icon beside the brand: the header stays one line, the search right under it. */
 const NewChat = () => {
   const t = useTranslations("chat");
@@ -252,6 +277,7 @@ const NewChat = () => {
 export const ChatShell = ({
   chats: initialChats,
   tasks = NO_TASKS,
+  memory = false,
   admin,
   user,
   sendKey,
@@ -262,6 +288,8 @@ export const ChatShell = ({
   chats: ChatItem[];
   /** The user's periodic tasks; the sidebar shows the ones that wait for them. */
   tasks?: SidebarTask[];
+  /** The memory is on: «Память» stands under «Задачи». */
+  memory?: boolean;
   /** The search offers the service's settings sections to admins. */
   admin: boolean;
   user: Person;
@@ -395,6 +423,7 @@ export const ChatShell = ({
                 {/* The search on top, as everywhere; while it is searching its results take the place of tasks and chats. */}
                 <SidebarSearch admin={admin} chats={chats}>
                   <Tasks tasks={taskRows} />
+                  {memory && <Memory />}
                   <History chats={chats} ops={ops} />
                 </SidebarSearch>
               </SidebarContent>

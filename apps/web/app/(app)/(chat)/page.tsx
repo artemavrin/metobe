@@ -15,7 +15,11 @@ import { getSettingsViewer } from "@/lib/settings-access";
 // A new chat: the welcome over the empty thread and the composer at the bottom. Its id is made in the browser,
 // once — a server render (a refresh after a server action) must not start another chat and wipe the draft; the
 // first message creates the chat under it and the address becomes /chat/<id> without a reload.
-const NewChatPage = async () => {
+const NewChatPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<{ say?: string | string[] }>;
+}) => {
   const [{ user }, prefs, t, format] = await Promise.all([
     getSettingsViewer(),
     getPrefs(),
@@ -40,6 +44,7 @@ const NewChatPage = async () => {
   }
   const now = new Date();
   const name = user.name.trim().split(/\s+/u)[0] ?? "";
+  const { say } = await searchParams;
   return (
     <FreshChat>
       <ChatView
@@ -63,6 +68,7 @@ const NewChatPage = async () => {
             name,
           }),
           mailboxes: boxes.map((b) => b.address),
+          say: typeof say === "string" ? say.slice(0, 4000) : undefined,
           today: format.dateTime(now, {
             day: "numeric",
             month: "long",

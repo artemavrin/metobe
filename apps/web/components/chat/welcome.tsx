@@ -3,7 +3,7 @@
 import type { ChatServer } from "@metobe/core/mcp";
 import { FileText, Mail } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
@@ -19,6 +19,8 @@ export interface WelcomeData {
   first: boolean;
   /** The user's mailboxes: their mail tools are on in every chat. */
   mailboxes: string[];
+  /** A request another page put into the address (`/?say=`, «Сверка» on the «Память» page): it waits in the composer. */
+  say?: string;
 }
 
 /** How many of the user's servers «Начать с» offers. */
@@ -86,7 +88,24 @@ export const Welcome = ({
   composer: RefObject<ComposerHandle | null>;
 }) => {
   const t = useTranslations("chat");
-  const { first } = data;
+  const { first, say } = data;
+  // Once, and the address loses it: a reload must not put it in again.
+  const said = useRef(false);
+  useEffect(() => {
+    if (!say) {
+      return;
+    }
+    // A frame later: the composer marks itself empty when it mounts, after this effect.
+    const frame = requestAnimationFrame(() => {
+      if (said.current) {
+        return;
+      }
+      said.current = true;
+      composer.current?.say(say);
+      window.history.replaceState(null, "", "/");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [composer, say]);
   const offered = servers.filter((s) => s.signIn !== "admin").slice(0, SERVERS);
   return (
     <div className="flex min-h-full items-center justify-center px-4 py-8">
