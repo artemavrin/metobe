@@ -1,0 +1,17 @@
+{
+  "name": "spike-s13-jev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "node --env-file=../../.env --import tsx run.ts",
+    "extract": "node --env-file=../../.env --import tsx extract.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "4.0.91",
+    "@ai-sdk/openai-compatible": "3.0.55",
+    "ai": "7.0.113",
+    "tsx": "^4.23.15",
+    "undici": "7",
+    "zod": "4.6.5"
+  }
+}

@@ -6,6 +6,8 @@ import { Input } from "@metobe/ui/components/input";
 import { ToggleGroup, ToggleGroupItem } from "@metobe/ui/components/toggle-group";
 import {
   Bot,
+  BookUser,
+  Sun,
   CalendarClock,
   ChartColumn,
   Inbox,
@@ -47,7 +49,7 @@ import { useState } from "react";
 // To add one: an entry below with its area, and — once picked — `chosen` naming the variant.
 
 type Status = "chosen" | "open" | "paused" | "dropped" | "reference";
-type Area = "start" | "settings" | "chat" | "tasks" | "reference";
+type Area = "start" | "settings" | "chat" | "tasks" | "memory" | "reference";
 
 interface Entry {
   href: string;
@@ -66,10 +68,13 @@ const AREAS: Record<Area, string> = {
   settings: "Настройки и аккаунт",
   chat: "Чат",
   tasks: "Задачи",
+  memory: "Память",
   reference: "Справочно",
 };
 
 const ENTRIES: Entry[] = [
+  { about: "P17 · раунд 2: главная остаётся экраном нового чата, в нём — предложения из памяти (кому напомнить, с кем давно не было встречи, свой срок); нажатие кладёт просьбу в поле, в меню «Уже сделано», «Отложить», «Убрать». «Строки», «Карточки» или «Вместо «Начать с»». Раунд 1 (отдельная страница «Сегодня») отвергнут — /today/round-1", area: "memory", href: "/dev/prototypes/today", icon: Sun, chosen: "«Строки», остальной экран — как в приложении", status: "chosen", title: "Предложения на главной" },
+  { about: "P16 · страница «Память» (D39): люди, организации, проекты, обязательства, факты с историей, события с двумя датами, правила, «Не записано»; правка и удаление на месте. Ещё пробовали «Ленту» и строку «Запомнено» под ответом в чате (третий вариант)", area: "memory", chosen: "«Карточки»", href: "/dev/prototypes/memory", icon: BookUser, status: "chosen", title: "Память" },
   { about: "Вход по коду и ссылке из письма", area: "start", chosen: "«· срез»", href: "/dev/prototypes/login", icon: LogIn, status: "chosen", title: "Страница входа" },
   { about: "Письмо с кодом и ссылкой (React Email): код крупно, кнопка, записка или запрос в контексте; клиент светлый и тёмный, ru и en, текстовая часть", area: "start", chosen: "«Код»", href: "/dev/prototypes/sign-in-letter", icon: Mail, status: "chosen", title: "Письмо со входом" },
   { about: "Первый вход: подключение источника и модели", area: "start", chosen: "«Шаги», финал «Залп»", href: "/dev/prototypes/onboarding", icon: Rocket, status: "chosen", title: "Онбординг" },
