@@ -214,11 +214,23 @@ const RowIcon = ({
 
 type Say = ReturnType<typeof useSay>;
 
+/** The memory's read tools (core/memory-read): named in words, like the mail's. */
+const MEMORY_TOOL_NAMES = [
+  "search_memory",
+  "memory_card",
+  "list_commitments",
+] as const;
+const isMemoryTool = (
+  name: string
+): name is (typeof MEMORY_TOOL_NAMES)[number] =>
+  (MEMORY_TOOL_NAMES as readonly string[]).includes(name);
+
 /** The chat's own words for a step, gathered once. */
 const useSay = () => ({
   activity: useTranslations("chat.activity"),
   chat: useTranslations("chat"),
   mail: useTranslations("mail.tools"),
+  memory: useTranslations("memory.tools"),
   read: useTranslations("chat.read"),
   skill: useTranslations("chat.skills"),
   tools: useTranslations("chat.tools"),
@@ -239,6 +251,8 @@ const toolTitle = (
     label = say.mail(first.toolName);
   } else if (first.toolName === "save_skill") {
     label = say.skill("save");
+  } else if (isMemoryTool(first.toolName)) {
+    label = say.memory(first.toolName);
   }
   const times = row.step.calls.length > 1 ? ` ×${row.step.calls.length}` : "";
   const { state } = row;

@@ -70,7 +70,8 @@ import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
 import { forgetMessages } from "@metobe/core/memory";
 import { queueMemoryWrite } from "@metobe/core/memory-queue";
-import { chatMemoryNote } from "@metobe/core/memory-write";
+import { memoryBrief, memoryTools } from "@metobe/core/memory-read";
+import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
 import { getTaskByChat } from "@metobe/core/tasks";
@@ -86,7 +87,7 @@ import {
   toUIMessageStream,
   validateUIMessages,
 } from "ai";
-import type { TextStreamPart, ToolSet, UIMessageChunk } from "ai";
+import type { ModelMessage, TextStreamPart, ToolSet, UIMessageChunk } from "ai";
 import { headers } from "next/headers";
 
 import {
@@ -155,8 +156,57 @@ const causes = (error: unknown) => {
   return chain.join(" ← ");
 };
 
+/**
+ * The memory's block goes in front of the person's last message, for this request only: the history keeps their
+ * words alone, and the cached prefix before the message stays as it was.
+ */
+const withBrief = (messages: ModelMessage[], brief: string): ModelMessage[] => {
+  if (!brief) {
+    return messages;
+  }
+  let at = messages.length - 1;
+  while (at >= 0 && messages[at]?.role !== "user") {
+    at -= 1;
+  }
+  const last = messages[at];
+  if (!last || last.role !== "user") {
+    return messages;
+  }
+  const content =
+    typeof last.content === "string"
+      ? [{ text: last.content, type: "text" as const }]
+      : last.content;
+  return [
+    ...messages.slice(0, at),
+    { ...last, content: [{ text: brief, type: "text" }, ...content] },
+    ...messages.slice(at + 1),
+  ];
+};
+
 const textOf = (message: ChatMessage) =>
   message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(" ");
+
+/**
+ * The memory, while it is on for this person (ARCH §19.5): the cards the message mentions, as a block in front of it,
+ * and three tools to read more. Read only; a broken read leaves the chat without the memory, not without an answer.
+ */
+const chatMemoryOf = async (
+  userId: string,
+  message: ChatMessage | null | undefined,
+  timeZone: string
+) => {
+  if (!(await isMemoryOnFor(userId))) {
+    return { brief: "", tools: {} };
+  }
+  const text = message ? textOf(message) : "";
+  const brief = await memoryBrief(userId, text, timeZone).catch(
+    (error: unknown) => {
+      console.error("memory: could not read for the chat", error);
+      return "";
+    }
+  );
+  return { brief, tools: memoryTools(userId, timeZone) };
+};
 
 /** A chat started with files only is named by its first file until the titles model names it. */
 const titleSource = (message: ChatMessage) =>
@@ -565,6 +615,7 @@ export const POST = async (request: Request) => {
           tools: model.capabilities.tools !== false,
         }
       );
+      const memory = await chatMemoryOf(session.user.id, message, timeZone);
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -584,6 +635,7 @@ export const POST = async (request: Request) => {
                   }
                 : {}),
               [TIME_TOOL]: timeTool(timeZone),
+              ...memory.tools,
               // A periodic task in words (P11), while the chat has none.
               ...drafting.tools,
               // What only the user knows: the model asks instead of guessing.
@@ -629,6 +681,7 @@ export const POST = async (request: Request) => {
           budget
         )
       );
+      prompt.messages = withBrief(prompt.messages, memory.brief);
       const instructions = [
         TIME_NOTE,
         STYLE_NOTE,

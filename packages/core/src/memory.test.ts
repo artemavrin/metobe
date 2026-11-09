@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type * as MemoryModule from "./memory";
 import type * as MemoryPageModule from "./memory-page";
+import type * as MemoryReadModule from "./memory-read";
 
 vi.mock("server-only", () => ({}));
 
@@ -776,6 +777,42 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect.objectContaining({ after: "done", byHand: true, field: "status" }),
     ]);
     expect(await page.recordSource(bob, late.id)).toBeNull();
+
+    // The chat reads it (Б4): the mentioned card in a block, and the tools.
+    const read: typeof MemoryReadModule = await import("./memory-read");
+    const brief = await read.memoryBrief(
+      cleo,
+      "Что с Ольгой?",
+      "Europe/Moscow"
+    );
+    expect(brief).toContain("- Ольга Ли (person; менеджер «Альфа-Логистики»)");
+    expect(brief).toContain(
+      "commitment: «Ольга Ли пришлёт акт» (Ольга Ли owes the user, due"
+    );
+    // Closed ones stay out of the block; a message about no one has none.
+    expect(brief).not.toContain("прислала счёт");
+    expect(await read.memoryBrief(cleo, "посчитай 15%", "UTC")).toBe("");
+    const tools = read.memoryTools(cleo, "Europe/Moscow");
+    const run = (name: string, input: object) => {
+      const execute = tools[name]?.execute as
+        | ((i: object, o: object) => Promise<unknown>)
+        | undefined;
+      if (!execute) {
+        throw new Error(`no ${name}`);
+      }
+      return execute(input, { messages: [], toolCallId: "t" });
+    };
+    expect(
+      await run(read.LIST_COMMITMENTS, { overdueOnly: true })
+    ).toMatchObject({ commitments: [] });
+    const all = (await run(read.LIST_COMMITMENTS, {})) as {
+      commitments: string[];
+    };
+    expect(all.commitments).toHaveLength(1);
+    expect(await run(read.MEMORY_CARD, { name: "Ольгу" })).toMatchObject({
+      found: true,
+      name: "Ольга Ли",
+    });
   });
 
   it("forgets everything, key included, and starts over with a new one", async () => {

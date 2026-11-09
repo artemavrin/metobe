@@ -2783,6 +2783,11 @@
     "forgetText": "People, promises, events, rules and the memory's questions will be deleted for good. Chats stay.",
     "forgetConfirm": "Forget everything",
     "forgetDone": "The memory is cleared.",
-    "close": "Close"
+    "close": "Close",
+    "tools": {
+      "search_memory": "Memory search",
+      "memory_card": "A memory card",
+      "list_commitments": "Commitments from memory"
+    }
   }
 }
