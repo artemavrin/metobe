@@ -5,10 +5,10 @@ import { Mounted, Params, ProtoProvider } from "../memory/frame";
 import { Accent, Plate, PlatePointer, PlateToast } from "./variants";
 
 // P18 · раунд 2: выбрана «Строка» (раунд 1 — ./round-1), теперь — как её не упустить. В адресе:
-// `?v=1&q=who|many|done&at=now|late&field=empty|typing&after=no|yes&toast=show|choices&sz=phone`.
+// `?v=1&q=who|many|done&at=now|late&field=empty|typing&after=no|yes&toast=show|choices&tone=plain|invert&sz=phone`.
 
 const MemoryAskPrototypePage = () => (
-  <ProtoProvider defaults={{ after: "no", at: "now", field: "empty", q: "who", toast: "show" }}>
+  <ProtoProvider defaults={{ after: "no", at: "now", field: "empty", q: "who", toast: "show", tone: "plain" }}>
     <Picker
       params={
         <Params
@@ -18,6 +18,7 @@ const MemoryAskPrototypePage = () => (
             ["after", "чат дальше", [["no", "нет"], ["yes", "ещё ответ"]]],
             ["field", "в поле", [["empty", "пусто"], ["typing", "пишет"]]],
             ["toast", "в тосте", [["show", "«Показать»"], ["choices", "варианты"]]],
+            ["tone", "тост", [["plain", "обычный"], ["invert", "инверсный"]]],
           ]}
         />
       }

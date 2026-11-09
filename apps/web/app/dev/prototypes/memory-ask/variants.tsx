@@ -6,6 +6,7 @@ import { Message, MessageContent, MessageFooter } from "@metobe/ui/components/me
 import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import { ArrowDown, ArrowUp, BookUser, ChevronDown, Copy, Plus, RefreshCw, ThumbsDown, ThumbsUp, Undo2, X } from "lucide-react";
+import { IconTile } from "@metobe/ui/components/reui/icon-tile";
 import { Toaster, toast } from "@metobe/ui/components/sonner";
 import { useEffect, useRef, useState } from "react";
 
@@ -514,48 +515,81 @@ export const PlatePointer = () => {
 // Тост исчезает сам, поэтому он только дополнение: вопрос остаётся в плашке и в «Не записано». Ответили в плашке —
 // тост уходит. «В тосте»: кнопка «Показать» ведёт к плашке, или варианты прямо в тосте.
 
-const ToastChoices = ({ a, id, show }: { a: AskApi; id: string | number; show: () => void }) => (
-  <div className="bg-popover text-popover-foreground flex w-[356px] max-w-[calc(100vw-32px)] flex-col gap-2 rounded-xl border p-3 text-xs shadow-lg">
-    <div className="flex items-start gap-2">
-      <BookUser className="text-primary mt-0.5 size-3.5 shrink-0" />
-      <span className="text-foreground flex-1 text-sm leading-5">{a.ask.question}</span>
+/**
+ * Тост — по образцу ReUI (`c-sonner-9`, инверсный — `c-sonner-15`): плитка со значком, заголовок со временем, вопрос,
+ * кнопки xs. «Показать» ведёт к плашке; «варианты» — ответ прямо в тосте: имена с ролями — строками, иначе — кнопками.
+ */
+const MemoryToast = ({ a, id, show, choices, invert }: { a: AskApi; id: string | number; show: () => void; choices: boolean; invert: boolean }) => {
+  const close = (then: () => void) => () => {
+    then();
+    toast.dismiss(id);
+  };
+  const muted = invert ? "text-invert-foreground/60" : "text-muted-foreground";
+  const outline = invert ? "bg-background/10 border-border/10 text-invert-foreground hover:bg-background/20 hover:text-invert-foreground" : "";
+  const withNotes = a.options.some((o) => o.note);
+  return (
+    <div
+      className={cn(
+        "flex w-[356px] max-w-[calc(100vw-32px)] items-start gap-3 rounded-md border p-4 shadow-lg",
+        invert ? "bg-invert text-invert-foreground border-transparent" : "bg-popover text-popover-foreground border-border"
+      )}
+    >
+      <IconTile className={invert ? "text-invert-foreground" : undefined} size="sm" variant="soft">
+        <BookUser />
+      </IconTile>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Вопрос памяти</p>
+          <span className={cn("text-xs", invert ? "text-invert-foreground/40" : "text-muted-foreground")}>только что</span>
+        </div>
+        <p className={cn("text-sm", muted)}>{a.ask.question}</p>
+        {choices && withNotes && (
+          <div className="-mx-2 mt-1.5 flex flex-col">
+            {a.options.map((o) => (
+              <button
+                className={cn("flex flex-col items-start rounded-md px-2 py-1.5 text-left transition-colors duration-150", invert ? "hover:bg-background/10" : "hover:bg-muted", PRESS)}
+                key={o.id}
+                onClick={close(() => a.pick(o))}
+                type="button"
+              >
+                <span className="text-sm">{o.label}</span>
+                {o.note && <span className={cn("text-xs", muted)}>{o.note}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        {choices && !withNotes && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {a.options.map((o) => (
+              <Button className={outline} key={o.id} onClick={close(() => a.pick(o))} size="xs" variant="outline">
+                {o.label}
+              </Button>
+            ))}
+          </div>
+        )}
+        {choices ? (
+          <div className={cn("mt-1 flex gap-3 text-xs", muted)}>
+            <button className={cn("transition-colors duration-150", invert ? "hover:text-invert-foreground" : "hover:text-foreground")} onClick={close(show)} type="button">
+              Показать в чате
+            </button>
+            <button className={cn("transition-colors duration-150", invert ? "hover:text-invert-foreground" : "hover:text-foreground")} onClick={close(a.skip)} type="button">
+              Не запоминать
+            </button>
+          </div>
+        ) : (
+          <div className="mt-2 flex gap-2">
+            <Button className={outline} onClick={close(a.skip)} size="xs" variant="outline">
+              Не запоминать
+            </Button>
+            <Button onClick={close(show)} size="xs">
+              Показать
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
-    <div className="flex flex-wrap gap-1.5 pl-5.5">
-      {a.options.map((o) => (
-        <AccentChip
-          key={o.id}
-          o={o}
-          onPick={(x) => {
-            a.pick(x);
-            toast.dismiss(id);
-          }}
-        />
-      ))}
-    </div>
-    <div className="text-muted-foreground flex gap-3 pl-5.5">
-      <button
-        className="hover:text-foreground transition-colors duration-150"
-        onClick={() => {
-          show();
-          toast.dismiss(id);
-        }}
-        type="button"
-      >
-        Показать в чате
-      </button>
-      <button
-        className="hover:text-foreground transition-colors duration-150"
-        onClick={() => {
-          a.skip();
-          toast.dismiss(id);
-        }}
-        type="button"
-      >
-        Не запоминать
-      </button>
-    </div>
-  </div>
-);
+  );
+};
 
 export const PlateToast = () => {
   const a = useAsk();
@@ -578,16 +612,10 @@ export const PlateToast = () => {
     if (shown.current !== null) return;
     if (where === "in" && knobs.field !== "typing") return;
     const t = setTimeout(() => {
-      shown.current =
-        knobs.toast === "choices"
-          ? toast.custom((id) => <ToastChoices a={a} id={id} show={show} />, { duration: 12_000 })
-          : toast("Вопрос памяти", {
-              action: { label: "Показать", onClick: show },
-              cancel: { label: "Не запоминать", onClick: a.skip },
-              description: a.ask.question,
-              duration: 12_000,
-              icon: <BookUser className="text-primary size-4" />,
-            });
+      shown.current = toast.custom(
+        (id) => <MemoryToast a={a} choices={knobs.toast === "choices"} id={id} invert={knobs.tone === "invert"} show={show} />,
+        { duration: 12_000 }
+      );
     }, 400);
     return () => clearTimeout(t);
   });
