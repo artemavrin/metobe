@@ -22,16 +22,14 @@ export const GET = async (
   }
   const { id: given } = await params;
   const id = z.uuid().safeParse(given);
-  const chat = id.success ? await getChat(id.data) : null;
-  if (!chat || chat.userId !== session.user.id) {
+  if (!id.success) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
-  if (!(await isMemoryOnFor(session.user.id))) {
-    return Response.json({
-      notes: [],
-      on: false,
-      questions: [],
-    } satisfies ChatMemory);
+  const on = await isMemoryOnFor(session.user.id);
+  const chat = await getChat(id.data);
+  // A new chat asks before its first answer saves it: nothing yet, not an error. Someone else's reads the same.
+  if (!(on && chat && chat.userId === session.user.id)) {
+    return Response.json({ notes: [], on, questions: [] } satisfies ChatMemory);
   }
   const memory = await chatMemory(session.user.id, chat.id);
   return Response.json({

@@ -6,6 +6,7 @@ import type {
   MemoryPrecision,
   MemoryRecordKind,
   MemoryRole,
+  MemoryRuleKind,
   MemoryStatus,
   MemoryWriteStatus,
 } from "@metobe/contracts/memory";
@@ -322,6 +323,8 @@ export interface MemoryRecordInput {
   writeId?: string;
   /** A fact about who its card is now, in a few words: the card's line follows the newest one. */
   role?: string;
+  /** Rules only: what «Не упустить» counts by it, every how many days, working ones or any (ARCH §19.6). */
+  rule?: { kind: MemoryRuleKind; days: number; workingDays: boolean };
 }
 
 export interface MemoryRecord {
@@ -339,6 +342,8 @@ export interface MemoryRecord {
   important: boolean;
   /** Set on a fact about who its card is now. */
   role: string | null;
+  /** Set on a rule «Не упустить» counts days by. */
+  rule: { kind: MemoryRuleKind; days: number; workingDays: boolean } | null;
   doneAt: Date | null;
   /** The write that closed it (a fact's end, a commitment's status). */
   closedByWrite: string | null;
@@ -372,6 +377,14 @@ const toRecord = (
     occurredPrecision: row.occurredPrecision,
     recordedAt: row.recordedAt,
     role: body.role ?? null,
+    rule:
+      row.ruleKind && row.intervalDays
+        ? {
+            days: row.intervalDays,
+            kind: row.ruleKind,
+            workingDays: row.workingDays,
+          }
+        : null,
     status: row.status,
     supersededAt: row.supersededAt,
     text: body.text,
@@ -435,12 +448,8 @@ export const listEntities = async (ownerId: string) => {
 /** A commitment that is over — done or no longer needed; `unconfirmed` is not over, it waits for the person. */
 const ENDED = new Set<MemoryStatus>(["done", "cancelled"]);
 
-const insertRecord = async (
-  tx: Tx,
-  ownerId: string,
-  key: SecretsKey,
-  input: MemoryRecordInput
-) => {
+/** The record's text, once what it says fits its kind: a status and «важно» are a commitment's, days a rule's. */
+const checkedText = (input: MemoryRecordInput) => {
   const text = input.text.trim();
   if (!text) {
     throw new Error("memory: a record needs a text");
@@ -448,6 +457,26 @@ const insertRecord = async (
   if (input.kind !== "commitment" && (input.status || input.important)) {
     throw new Error("memory: only a commitment has a status");
   }
+  if (input.rule && (input.kind !== "rule" || !(input.rule.days > 0))) {
+    throw new Error("memory: only a rule counts days, and more than none");
+  }
+  return text;
+};
+
+/** A rule's plain columns: what «Не упустить» counts by it, and every how many days. */
+const ruleColumns = (rule: MemoryRecordInput["rule"]) => ({
+  intervalDays: rule ? Math.round(rule.days) : null,
+  ruleKind: rule?.kind ?? null,
+  workingDays: rule?.workingDays ?? false,
+});
+
+const insertRecord = async (
+  tx: Tx,
+  ownerId: string,
+  key: SecretsKey,
+  input: MemoryRecordInput
+) => {
+  const text = checkedText(input);
   const links = [
     ...new Map(
       input.entities.map((e) => [`${e.entityId}:${e.role}`, e] as const)
@@ -481,10 +510,12 @@ const insertRecord = async (
       givenAt: input.givenAt,
       id,
       important: input.important ?? false,
+      ...ruleColumns(input.rule),
       kind: input.kind,
       occurredAt: input.occurred?.at,
       occurredPrecision: input.occurred?.precision,
       ownerId,
+      ruleKind: input.rule?.kind ?? null,
       sealed: sealField(
         JSON.stringify(
           input.kind === "fact" && input.role?.trim()
@@ -1547,10 +1578,43 @@ export const commitmentCounts = async (ownerId: string, now = new Date()) => {
 // --- «На сегодня» (P17) -------------------------------------------------------------------------------------------
 
 /**
- * «Убрать»: the commitment is not suggested while its deadline and status stay as they are now. False when the owner
- * has no such live commitment.
+ * «Уже было» on a rhythm row (ARCH §19.6): a contact with the card on that day — an event like any other, so the rhythm
+ * counts from it, the card shows it, and deleting it takes it back. Null when the card is not the owner's.
  */
-export const dismissSuggestion = async (ownerId: string, recordId: string) => {
+export const recordContact = async (
+  ownerId: string,
+  entityId: string,
+  day: Date,
+  text: string
+) => {
+  try {
+    return await addRecord(ownerId, {
+      entities: [{ entityId, role: "participant" }],
+      kind: "event",
+      occurred: { at: day, precision: "day" },
+      text,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("not the owner's")) {
+      return null;
+    }
+    throw error;
+  }
+};
+
+/** The row's key in `memory_dismissals`: a commitment's id, or a rule's and its card's for a rhythm row. */
+export const dismissalKey = (recordId: string, entityId?: string) =>
+  entityId ? `${recordId}:${entityId}` : recordId;
+
+/**
+ * «Убрать» in «Не упустить» (P17). A commitment stays away while its deadline and status are as they are; a rhythm row
+ * (`rhythm`) — while the last contact with its card is the one it had then (`since`): a new contact brings it back.
+ */
+export const dismissSuggestion = async (
+  ownerId: string,
+  recordId: string,
+  rhythm?: { entityId: string; since: Date | null }
+) => {
   const { db } = getDb();
   const [row] = await db
     .select({ dueAt: memoryRecords.dueAt, status: memoryRecords.status })
@@ -1559,7 +1623,7 @@ export const dismissSuggestion = async (ownerId: string, recordId: string) => {
       and(
         eq(memoryRecords.id, recordId),
         eq(memoryRecords.ownerId, ownerId),
-        eq(memoryRecords.kind, "commitment"),
+        eq(memoryRecords.kind, rhythm ? "rule" : "commitment"),
         isNull(memoryRecords.deletedAt)
       )
     )
@@ -1567,12 +1631,20 @@ export const dismissSuggestion = async (ownerId: string, recordId: string) => {
   if (!row) {
     return false;
   }
+  const snapshot = rhythm
+    ? { dueAt: rhythm.since, entityId: rhythm.entityId, status: null }
+    : { dueAt: row.dueAt, entityId: null, status: row.status };
   await db
     .insert(memoryDismissals)
-    .values({ dueAt: row.dueAt, ownerId, recordId, status: row.status })
+    .values({
+      ...snapshot,
+      key: dismissalKey(recordId, rhythm?.entityId),
+      ownerId,
+      recordId,
+    })
     .onConflictDoUpdate({
-      set: { at: new Date(), dueAt: row.dueAt, status: row.status },
-      target: memoryDismissals.recordId,
+      set: { ...snapshot, at: new Date() },
+      target: memoryDismissals.key,
     });
   return true;
 };
@@ -1580,25 +1652,26 @@ export const dismissSuggestion = async (ownerId: string, recordId: string) => {
 /** «Вернуть» after «Убрать». */
 export const undismissSuggestion = async (
   ownerId: string,
-  recordId: string
+  recordId: string,
+  entityId?: string
 ) => {
   const rows = await getDb()
     .db.delete(memoryDismissals)
     .where(
       and(
         eq(memoryDismissals.ownerId, ownerId),
-        eq(memoryDismissals.recordId, recordId)
+        eq(memoryDismissals.key, dismissalKey(recordId, entityId))
       )
     )
-    .returning({ recordId: memoryDismissals.recordId });
+    .returning({ key: memoryDismissals.key });
   return rows.length > 0;
 };
 
-/** What the person took away from «На сегодня», with the deadline and status it had then. */
+/** What the person took away from «Не упустить», by row key, with the deadline (or last contact) and status then. */
 export const listDismissals = async (ownerId: string) => {
   const rows = await getDb()
     .db.select()
     .from(memoryDismissals)
     .where(eq(memoryDismissals.ownerId, ownerId));
-  return new Map(rows.map((r) => [r.recordId, r]));
+  return new Map(rows.map((r) => [r.key, r]));
 };

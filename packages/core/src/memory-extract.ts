@@ -98,6 +98,18 @@ export const extractionSchema = z.object({
         .number()
         .nullable()
         .describe("Rule only: the period or threshold in days"),
+      rule_kind: z
+        .enum(["rhythm", "wait", "other"])
+        .nullable()
+        .describe(
+          "Rule only: rhythm — how often the user wants to be in touch with someone; wait — how long a reply or result from others may take; other — anything else"
+        ),
+      working_days: z
+        .boolean()
+        .nullable()
+        .describe(
+          "Rule only: true when the days are working days («пять рабочих дней»)"
+        ),
     })
   ),
   updates: z
@@ -214,6 +226,7 @@ ${promises.join("\n")}
 
 Rules:
 - Kinds: fact — a lasting state or attribute (role, stage, preference, birthday); assessment — the user's own opinion or judgement of someone («часто срывает сроки»), never turned into a fact; event — something that happened or is scheduled at a time; commitment — someone owes someone an action, with or without a deadline; rule — the user's standing instruction about reminders or what to highlight.
+- A rule with a period: rhythm — how often the user wants to meet or talk with someone («один на один с Андреем раз в две недели» — 14 days, the person as ref; «с каждым из моей команды» — the refs of the known cards in the team); wait — how long a reply or result from others may take before it is worth asking («ответа от контрагента ждём пять рабочих дней» — 5, working days; the party as ref if named, none if it is anyone). «Раз в неделю» is 7, «раз в месяц» 30.
 - Refs: use a known card ref, "user", an id from new_entities or an id from asks. Pick a card only when the message makes it clear (a surname, a company, a role, the topic); a person not in the cards goes to new_entities. When a mention fits two or more known cards and nothing in the message tells which, do not guess: add it to asks with those cards as candidates, and use the ask id as the ref in the item (in about, debtor or creditor) instead of a card. The topic tells too: work on what a card is known for («API», «закупки») points at that card, and then it is not a question.
 - Dates: resolve relative dates against today and against the moment they refer to («в прошлый вторник сказал, что через две недели» — two weeks from that Tuesday). Past tense with a weekday means the latest such day before today. Set precision honestly: «на днях» is a week, «в начале октября» is a month. Never invent a date that the message does not imply.
 - In the text, turn a relative date the message gives into an absolute one («вчера» → «8 ноября», «до пятницы» → «до 13 ноября»); keep a vague time vague («на днях»), and never add a date or a deadline the message does not give.
@@ -308,6 +321,27 @@ const roleOf = (kind: Item["kind"]): MemoryRole => {
 const normalize = (name: string) =>
   name.trim().toLocaleLowerCase("ru").replaceAll("ё", "е");
 
+/** A rule's period over a year is no rhythm to keep. */
+const MAX_RULE_DAYS = 366;
+
+/** A rule's period «Не упустить» can count by: rhythm or wait, a day to a year. */
+const ruleOf = (item: Item): Planned["rule"] => {
+  const days = Math.round(item.interval_days ?? 0);
+  if (
+    item.kind !== "rule" ||
+    (item.rule_kind !== "rhythm" && item.rule_kind !== "wait") ||
+    days <= 0 ||
+    days > MAX_RULE_DAYS
+  ) {
+    return undefined;
+  }
+  return {
+    days,
+    kind: item.rule_kind,
+    workingDays: item.working_days === true,
+  };
+};
+
 type Fresh = MemoryWritePlan["entities"][number];
 type Ask = Extraction["asks"][number] & { ids: string[] };
 type Draft = MemoryWritePlan["drafts"][number];
@@ -400,6 +434,10 @@ const toPlanned = (
   }
   if (item.kind === "fact" && item.role?.trim()) {
     record.role = item.role.trim();
+  }
+  const rule = ruleOf(item);
+  if (rule) {
+    record.rule = rule;
   }
   if (item.kind === "commitment") {
     record.givenAt = at?.at;

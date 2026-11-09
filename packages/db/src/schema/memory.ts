@@ -5,6 +5,7 @@ import type {
   MemoryPrecision,
   MemoryRecordKind,
   MemoryRole,
+  MemoryRuleKind,
   MemoryStatus,
   MemoryWriteStatus,
 } from "@metobe/contracts/memory";
@@ -13,6 +14,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -127,6 +129,8 @@ export const memoryRecords = pgTable(
     id: uuid("id").primaryKey(),
     /** A commitment the person called important in so many words («горит», «главное»), or marked by hand — never guessed. */
     important: boolean("important").notNull().default(false),
+    /** A rule's period or threshold in days: «раз в две недели» — 14, «ждём пять рабочих дней» — 5 (`working_days`). */
+    intervalDays: integer("interval_days"),
     kind: text("kind").$type<MemoryRecordKind>().notNull(),
     /** When it happened, as exactly as the person said; empty — not known. «Давно не было» counts from here. */
     occurredAt: timestamp("occurred_at", { withTimezone: true }),
@@ -138,6 +142,8 @@ export const memoryRecords = pgTable(
     recordedAt: timestamp("recorded_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** A rule «Не упустить» counts days by (ARCH §19.6); null — a rule it does not, or not a rule. */
+    ruleKind: text("rule_kind").$type<MemoryRuleKind>(),
     /** `{ text }`, sealed. */
     sealed: text("sealed").notNull(),
     /** Only a commitment has one. */
@@ -146,6 +152,8 @@ export const memoryRecords = pgTable(
     supersededBy: uuid("superseded_by"),
     validFrom: timestamp("valid_from", { withTimezone: true }),
     validTo: timestamp("valid_to", { withTimezone: true }),
+    /** The days of `interval_days` are working days. */
+    workingDays: boolean("working_days").notNull().default(false),
     /** Null — put in by hand on the «Память» page. */
     writeId: uuid("write_id").references(() => memoryWrites.id, {
       onDelete: "set null",
@@ -179,6 +187,11 @@ export const memoryRecords = pgTable(
       check(
         "memory_records_important",
         sql`not ${table.important} or ${table.kind} = 'commitment'`
+      ),
+      check(
+        "memory_records_rule",
+        sql`(${table.ruleKind} is null or (${table.kind} = 'rule' and ${table.ruleKind} in ('rhythm', 'wait') and ${table.intervalDays} > 0))
+          and (${table.intervalDays} is null or ${table.kind} = 'rule')`
       ),
     ];
   }
@@ -281,12 +294,19 @@ export const memoryDismissals = pgTable(
   "memory_dismissals",
   {
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** A commitment's deadline then; for a rhythm row — the day of the last contact then. */
     dueAt: timestamp("due_at", { withTimezone: true }),
+    /** The rhythm row's card: one rule may keep the rhythm with several people («с каждым из команды»). */
+    entityId: uuid("entity_id").references(() => memoryEntities.id, {
+      onDelete: "cascade",
+    }),
+    /** The row: a commitment's id, or a rule's id and the card's (`rule:card`) — portable, unlike a nullable key. */
+    key: text("key").primaryKey(),
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     recordId: uuid("record_id")
-      .primaryKey()
+      .notNull()
       .references(() => memoryRecords.id, { onDelete: "cascade" }),
     status: text("status").$type<MemoryStatus>(),
   },

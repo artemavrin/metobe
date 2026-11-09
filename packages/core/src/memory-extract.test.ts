@@ -43,8 +43,10 @@ const item = (
   interval_days: null,
   kind: "fact",
   role: null,
+  rule_kind: null,
   text: "текст",
   when: null,
+  working_days: null,
   ...over,
 });
 
@@ -347,6 +349,53 @@ describe("planWrite", () => {
     });
     expect(records[0]?.entities).toEqual([
       { entityId: ANDREY, role: "subject" },
+    ]);
+  });
+
+  it("keeps a rule's period when «Не упустить» can count by it (ARCH §19.6)", () => {
+    const { records } = plan({
+      items: [
+        item({
+          about: ["c1"],
+          interval_days: 14,
+          kind: "rule",
+          rule_kind: "rhythm",
+          text: "Один на один с Андреем Смирновым раз в две недели",
+        }),
+        item({
+          interval_days: 5,
+          kind: "rule",
+          rule_kind: "wait",
+          text: "Ответа от контрагентов ждём пять рабочих дней",
+          working_days: true,
+        }),
+        item({
+          interval_days: 7,
+          kind: "rule",
+          rule_kind: "other",
+          text: "Каждую неделю присылай сводку",
+        }),
+        item({
+          interval_days: 0,
+          kind: "rule",
+          rule_kind: "rhythm",
+          text: "Видеться почаще",
+        }),
+        // A period on what is not a rule is not kept.
+        item({
+          interval_days: 3,
+          kind: "fact",
+          rule_kind: "wait",
+          text: "факт",
+        }),
+      ],
+    });
+    expect(records.map((r) => r.rule ?? null)).toEqual([
+      { days: 14, kind: "rhythm", workingDays: false },
+      { days: 5, kind: "wait", workingDays: true },
+      null,
+      null,
+      null,
     ]);
   });
 });

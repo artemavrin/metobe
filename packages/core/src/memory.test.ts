@@ -35,6 +35,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   const cleo = `memory-test-${randomBytes(4).toString("hex")}`;
   /** «На сегодня»: a memory of its own, so the list is exact. */
   const dana = `memory-test-${randomBytes(4).toString("hex")}`;
+  /** Rules in «Не упустить»: a memory of its own. */
+  const ella = `memory-test-${randomBytes(4).toString("hex")}`;
 
   const recordIds = async (
     owner: string,
@@ -63,7 +65,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     await db.insert(user).values(
-      [ana, bob, cleo, dana].map((id) => ({
+      [ana, bob, cleo, dana, ella].map((id) => ({
         email: `${id}@example.test`,
         id,
         name: id,
@@ -72,7 +74,9 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   });
 
   afterAll(async () => {
-    await db?.delete(user).where(inArray(user.id, [ana, bob, cleo, dana]));
+    await db
+      ?.delete(user)
+      .where(inArray(user.id, [ana, bob, cleo, dana, ella]));
   });
 
   it("keeps texts and names sealed, and reads them back", async () => {
@@ -959,6 +963,133 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     await memory.dismissSuggestion(dana, late.id);
     expect(await memory.undismissSuggestion(dana, late.id)).toBe(true);
     expect(await memory.dismissSuggestion(bob, late.id)).toBe(false);
+  });
+
+  it("keeps the rules in «Не упустить»: a rhythm by the last contact, a wait in working days (ARCH §19.6)", async () => {
+    const today: typeof MemoryTodayModule = await import("./memory-today");
+    const self = await memory.ensureSelf(ella, "Элла");
+    const card = (name: string, kind: "person" | "org" = "person") =>
+      memory.createEntity(ella, { kind, name });
+    const [andrey, igor, nina, vector, alfa] = await Promise.all([
+      card("Андрей Седов"),
+      card("Игорь Белов"),
+      card("Нина Орлова"),
+      card("ООО «Вектор»", "org"),
+      card("«Альфа-Логистика»", "org"),
+    ]);
+    const rule = (
+      text: string,
+      cards: string[],
+      r: NonNullable<MemoryModule.MemoryRecordInput["rule"]>
+    ) =>
+      memory.addRecord(ella, {
+        entities: cards.map((entityId) => ({ entityId, role: "subject" })),
+        kind: "rule",
+        rule: r,
+        text,
+      });
+    const met = (who: string, at: string) =>
+      memory.addRecord(ella, {
+        entities: [
+          { entityId: who, role: "participant" },
+          { entityId: self.id, role: "participant" },
+        ],
+        kind: "event",
+        occurred: { at: new Date(at), precision: "day" },
+        text: "Встреча",
+      });
+    // Monday 23 November 2026 in Moscow.
+    const now = new Date("2026-11-23T09:00:00Z");
+    const twoWeeks = { days: 14, kind: "rhythm", workingDays: false } as const;
+    const team = await rule(
+      "Один на один с каждым из команды раз в две недели",
+      [andrey.id, igor.id, nina.id],
+      twoWeeks
+    );
+    // Andrey met 18 days ago: due by the team's rule. Igor 7 days ago.
+    await met(andrey.id, "2026-11-04T21:00:00Z");
+    await met(igor.id, "2026-11-15T21:00:00Z");
+    // Nina: no meeting yet — counted from when the rule was said (today, 9 November): 14 days on the 23rd.
+    // Said later for Igor: once a week now — 7 days since the 15th.
+    const weekly = await rule("С Игорем Беловым раз в неделю", [igor.id], {
+      days: 7,
+      kind: "rhythm",
+      workingDays: false,
+    });
+    // Without a deadline, waiting: 5 working days for anyone, 2 days for «Альфа-Логистика».
+    // About «user» as the model gives it — that means anyone.
+    await rule("Ответа ждём пять рабочих дней", [self.id], {
+      days: 5,
+      kind: "wait",
+      workingDays: true,
+    });
+    await rule("От «Альфа-Логистики» ждём не больше двух дней", [alfa.id], {
+      days: 2,
+      kind: "wait",
+      workingDays: false,
+    });
+    const waiting = (who: string, text: string, given: string) =>
+      memory.addRecord(ella, {
+        entities: owes(who, self.id),
+        givenAt: new Date(given),
+        kind: "commitment",
+        text,
+      });
+    // Thursday 12 → Monday 23: 7 working days. Wednesday 18 → Monday 23: 3 working days. Saturday 21: 2 days.
+    const vectorLong = await waiting(
+      vector.id,
+      "ООО «Вектор» ответит на предложение",
+      "2026-11-11T21:00:00Z"
+    );
+    await waiting(
+      vector.id,
+      "ООО «Вектор» пришлёт прайс",
+      "2026-11-17T21:00:00Z"
+    );
+    const alfaShort = await waiting(
+      alfa.id,
+      "«Альфа-Логистика» подтвердит рейс",
+      "2026-11-20T21:00:00Z"
+    );
+
+    const list = await today.todaySuggestions(ella, "Europe/Moscow", now);
+    expect(list.map((s) => [s.key, s.reason, s.days])).toEqual([
+      [vectorLong.id, "waiting", 7],
+      [alfaShort.id, "waiting", 2],
+      [`${team.id}:${andrey.id}`, "rhythm", 18],
+      [`${team.id}:${nina.id}`, "rhythm", 14],
+      [`${weekly.id}:${igor.id}`, "rhythm", 7],
+    ]);
+    const rhythm = list.find((s) => s.who?.id === andrey.id);
+    expect(rhythm).toMatchObject({
+      id: team.id,
+      kind: "rhythm",
+      rhythm: { every: 14, since: "2026-11-04T21:00:00.000Z" },
+      side: "mine",
+      status: null,
+      who: { id: andrey.id, name: "Андрей Седов" },
+    });
+
+    // «Убрать» keeps Andrey away until a new contact; a meeting resets the count.
+    expect(
+      await memory.dismissSuggestion(ella, team.id, {
+        entityId: andrey.id,
+        since: new Date("2026-11-04T21:00:00Z"),
+      })
+    ).toBe(true);
+    const away = await today.todaySuggestions(ella, "Europe/Moscow", now);
+    expect(away.map((s) => s.key)).not.toContain(`${team.id}:${andrey.id}`);
+    await met(andrey.id, "2026-11-05T21:00:00Z");
+    const back = await today.todaySuggestions(ella, "Europe/Moscow", now);
+    expect(back.find((s) => s.key === `${team.id}:${andrey.id}`)).toMatchObject(
+      { days: 17 }
+    );
+    expect(await memory.undismissSuggestion(ella, team.id, andrey.id)).toBe(
+      true
+    );
+    // A commitment's own key still works, and a rule is no commitment to take away the old way.
+    expect(await memory.dismissSuggestion(ella, vectorLong.id)).toBe(true);
+    expect(await memory.dismissSuggestion(ella, team.id)).toBe(false);
   });
 
   it("forgets everything, key included, and starts over with a new one", async () => {

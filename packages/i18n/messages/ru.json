@@ -2791,7 +2791,9 @@
         "unconfirmed": "ждёт проверки",
         "today": "сегодня",
         "tomorrow": "завтра",
-        "important": "важно"
+        "important": "важно",
+        "waiting": "ждём {days} дн.",
+        "rhythm": "не было {days} дн."
       },
       "done": "Уже сделано",
       "open": "Открыть в памяти",
@@ -2800,7 +2802,11 @@
       "more": "Ещё {count}",
       "askConfirm": "Составь короткую просьбу подтвердить, что сделано. Кому: {name}. Что: {text}.",
       "askMine": "Помоги сделать: {text}.{due, select, none {} other { Срок — {due}.}} С чего начать?",
-      "askRemind": "Составь короткое вежливое напоминание. Кому: {name}. О чём: {text}.{due, select, none {} other {{late, select, yes { Срок был {due}.} other { Срок — {due}.}}}}"
+      "askRemind": "Составь короткое вежливое напоминание. Кому: {name}. О чём: {text}.{due, select, none {} other {{late, select, yes { Срок был {due}.} other { Срок — {due}.}}}}",
+      "askMeet": "Составь короткое сообщение, чтобы договориться о встрече. Кому: {name}.{since, select, none { Встреч ещё не было.} other { Последний раз виделись {since}.}} Хочу видеться не реже раза в {every} дн.",
+      "contacted": "Уже было",
+      "contactText": "Контакт: {name}",
+      "savedContact": "Записан контакт: {name}"
     }
   }
 }

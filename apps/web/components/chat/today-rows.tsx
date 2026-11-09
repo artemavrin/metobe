@@ -34,7 +34,8 @@ import { moveTargets } from "@/lib/memory-dates";
 
 // «На сегодня» on the new chat screen (ARCH §19.6, P17 «Строки»): rows like «Начать с» — what to do and why now on the
 // right; a click puts the request into the composer, the person sends it. The menu: done (or confirmed), move the
-// deadline, open the card, take it away — each with «Вернуть».
+// deadline, open the card, take it away — each with «Вернуть». A rhythm row (a rule, ARCH §19.6): «Уже было» notes a
+// contact today, open the card, take it away until the next contact.
 
 /** The same rows as «Начать с»; on a phone the text wraps and «why» goes under it. */
 const ROW =
@@ -109,6 +110,19 @@ const usePrompt = (timeZone: string) => {
         })
       : null;
     const name = s.who?.name ?? null;
+    if (s.rhythm) {
+      return t("askMeet", {
+        every: s.rhythm.every,
+        name: name ?? "—",
+        since: s.rhythm.since
+          ? format.dateTime(new Date(s.rhythm.since), {
+              day: "numeric",
+              month: "long",
+              timeZone,
+            })
+          : "none",
+      });
+    }
     if (s.status === "unconfirmed") {
       return t("askConfirm", { name: name ?? "—", text: s.text });
     }
@@ -124,7 +138,7 @@ const usePrompt = (timeZone: string) => {
   };
 };
 
-/** Why now, on the right: «просрочено на 3 дн.», «ждёт проверки», «сегодня», «завтра», «важно». */
+/** Why now, on the right: «просрочено на 3 дн.», «ждёт проверки», «ждём 6 дн.», «сегодня», «завтра», «не было 18 дн.», «важно». */
 const Why = ({ s }: { s: Item }) => {
   const t = useTranslations("memory.forToday");
   return (
@@ -142,22 +156,10 @@ const Why = ({ s }: { s: Item }) => {
   );
 };
 
-const Menu = ({
-  s,
-  timeZone,
-  onGone,
-  onBack,
-}: {
-  s: Item;
-  timeZone: string;
-  onGone: () => void;
-  onBack: () => void;
-}) => {
+/** Done at once, with «Вернуть» in a toast; a failure puts the row back and says so. */
+const useAct = (onGone: () => void, onBack: () => void) => {
   const t = useTranslations("memory");
-  const today = useTranslations("memory.forToday");
-  const targets = moveTargets(new Date(), timeZone);
-  const said = s.status === "unconfirmed";
-  const act = async (
+  return async (
     run: () => Promise<Response>,
     done: string,
     undo?: () => Promise<Response>
@@ -183,7 +185,116 @@ const Menu = ({
         : undefined,
     });
   };
+};
+
+const More = () => {
+  const t = useTranslations("memory");
+  return (
+    <DropdownMenuTrigger
+      render={
+        <Button
+          aria-label={t("more")}
+          className="absolute top-1/2 right-2 -translate-y-1/2 opacity-60 group-hover:opacity-100 aria-expanded:opacity-100"
+          size="icon-xs"
+          variant="ghost"
+        />
+      }
+    >
+      <Ellipsis />
+    </DropdownMenuTrigger>
+  );
+};
+
+/**
+ * A rhythm row's menu (ARCH §19.6): «Уже было» notes a contact today, so the rhythm counts from it; «Убрать» — until
+ * the next contact. No deadline to move: a rule has none.
+ */
+const RhythmMenu = ({
+  s,
+  act,
+}: {
+  s: Item;
+  act: ReturnType<typeof useAct>;
+}) => {
+  const today = useTranslations("memory.forToday");
+  const { who } = s;
+  if (!(who && s.rhythm)) {
+    return null;
+  }
+  const dismiss = `/api/memory/records/${s.id}/dismiss`;
+  const contact = async () => {
+    const response = await send(`/api/memory/cards/${who.id}/contact`, "POST", {
+      text: today("contactText", { name: who.name }),
+    });
+    const made = response.ok
+      ? ((await response.clone().json()) as { id: string })
+      : null;
+    return { made, response };
+  };
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem
+          onClick={() => {
+            let made: { id: string } | null = null;
+            void act(
+              async () => {
+                const done = await contact();
+                ({ made } = done);
+                return done.response;
+              },
+              today("savedContact", { name: who.name }),
+              () => send(`/api/memory/records/${made?.id ?? ""}`, "DELETE")
+            );
+          }}
+        >
+          <Check /> {today("contacted")}
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href={`/memory?card=${who.id}`} />}>
+          <BookUser /> {today("open")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () =>
+                send(dismiss, "POST", {
+                  entityId: who.id,
+                  since: s.rhythm?.since ?? null,
+                }),
+              today("dismissed"),
+              () => send(`${dismiss}?entity=${who.id}`, "DELETE")
+            )
+          }
+        >
+          <X /> {today("dismiss")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+const Menu = ({
+  s,
+  timeZone,
+  onGone,
+  onBack,
+}: {
+  s: Item;
+  timeZone: string;
+  onGone: () => void;
+  onBack: () => void;
+}) => {
+  const t = useTranslations("memory");
+  const today = useTranslations("memory.forToday");
+  const targets = moveTargets(new Date(), timeZone);
+  const said = s.status === "unconfirmed";
+  const act = useAct(onGone, onBack);
   const record = `/api/memory/records/${s.id}`;
+  if (s.rhythm) {
+    return <RhythmMenu act={act} s={s} />;
+  }
   const move = (at: Date) =>
     act(
       () => send(record, "PATCH", { dueAt: at.toISOString() }),
@@ -192,18 +303,7 @@ const Menu = ({
     );
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={t("more")}
-            className="absolute top-1/2 right-2 -translate-y-1/2 opacity-60 group-hover:opacity-100 aria-expanded:opacity-100"
-            size="icon-xs"
-            variant="ghost"
-          />
-        }
-      >
-        <Ellipsis />
-      </DropdownMenuTrigger>
+      <More />
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem
           onClick={() =>
@@ -272,7 +372,7 @@ export const TodayRows = ({
   const prompt = usePrompt(timeZone);
   const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
   const [all, setAll] = useState(false);
-  const left = items.filter((s) => !gone.has(s.id));
+  const left = items.filter((s) => !gone.has(s.key));
   if (left.length === 0) {
     return null;
   }
@@ -292,7 +392,7 @@ export const TodayRows = ({
       </h2>
       <div className="flex flex-col gap-2">
         {shown.map((s) => (
-          <div className={cn("group relative", ENTER)} key={s.id}>
+          <div className={cn("group relative", ENTER)} key={s.key}>
             <button
               className={ROW}
               onClick={() => put(prompt(s))}
@@ -305,8 +405,8 @@ export const TodayRows = ({
               </span>
             </button>
             <Menu
-              onBack={() => show(s.id)}
-              onGone={() => hide(s.id)}
+              onBack={() => show(s.key)}
+              onGone={() => hide(s.key)}
               s={s}
               timeZone={timeZone}
             />

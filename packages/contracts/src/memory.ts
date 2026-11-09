@@ -33,6 +33,14 @@ export const memoryStatuses = [
 ] as const;
 export type MemoryStatus = (typeof memoryStatuses)[number];
 
+/**
+ * What a rule asks of «Не упустить» (ARCH §19.6): `rhythm` — how often the person wants to be in touch with someone
+ * («один на один с Андреем раз в две недели»); `wait` — how long a reply or result from others may take before it is
+ * worth asking («ответа ждём пять рабочих дней»). Other rules have neither, and nothing counts days by them.
+ */
+export const memoryRuleKinds = ["rhythm", "wait"] as const;
+export type MemoryRuleKind = (typeof memoryRuleKinds)[number];
+
 /** What of a commitment its history tracks; a text correction is a new version of the record instead. */
 export const memoryChangeFields = ["status", "due", "important"] as const;
 export type MemoryChangeField = (typeof memoryChangeFields)[number];
@@ -214,25 +222,36 @@ export const memoryCardPatchSchema = z
 export const memorySuggestionReasons = [
   "overdue",
   "unconfirmed",
+  "waiting",
   "today",
   "tomorrow",
+  "rhythm",
   "important",
 ] as const;
 export type MemorySuggestionReason = (typeof memorySuggestionReasons)[number];
 
-/** A row of «На сегодня»: an open commitment and why it is there now. */
+/**
+ * A row of «Не упустить»: an open commitment and why it is there now, or — `rhythm` — a person the person wants to be
+ * in touch with more often than they have been (a rule, ARCH §19.6).
+ */
 export interface MemorySuggestion {
-  /** The commitment's id. */
+  /** The row: the commitment's id, or the rule's and the card's for a rhythm row (`rule:card`). */
+  key: string;
+  /** The commitment's id, or the rule's. */
   id: string;
+  kind: "commitment" | "rhythm";
   reason: MemorySuggestionReason;
-  /** Days past the deadline, for «overdue». */
+  /** Days past the deadline (`overdue`), of waiting (`waiting`), since the last contact (`rhythm`). */
   days: number;
   text: string;
-  /** `theirs` — someone owes the person; `mine` — the person owes; `between` — two others. */
+  /** `theirs` — someone owes the person; `mine` — the person owes, or keeps the rhythm; `between` — two others. */
   side: "theirs" | "mine" | "between";
-  /** The other side: who owes, or whom the person owes. */
+  /** The other side: who owes, whom the person owes, whom to be in touch with. */
   who: { id: string; name: string; kind: MemoryEntityKind } | null;
   dueAt: string | null;
-  status: MemoryStatus;
+  /** A commitment's; none for a rhythm row. */
+  status: MemoryStatus | null;
   important: boolean;
+  /** A rhythm row: the last contact (null — none yet, counted from the rule) and the rule's period in days. */
+  rhythm: { since: string | null; every: number } | null;
 }
