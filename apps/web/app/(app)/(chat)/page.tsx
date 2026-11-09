@@ -1,6 +1,8 @@
 import { getLastModelIds, listChats } from "@metobe/core/chat";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers } from "@metobe/core/mcp";
+import { todaySuggestions } from "@metobe/core/memory-today";
+import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { skillsForChat } from "@metobe/core/skills";
 import { getFormatter, getTranslations } from "next-intl/server";
 
@@ -29,14 +31,25 @@ const NewChatPage = async ({
   if (!user) {
     return null;
   }
-  const [picker, last, servers, chats, boxes, skills] = await Promise.all([
-    getPickerData(user.id),
-    getLastModelIds(user.id),
-    listChatServers(user.id),
-    listChats(user.id),
-    listMailboxes(user.id),
-    skillsForChat(user.id),
-  ]);
+  const [picker, last, servers, chats, boxes, skills, today] =
+    await Promise.all([
+      getPickerData(user.id),
+      getLastModelIds(user.id),
+      listChatServers(user.id),
+      listChats(user.id),
+      listMailboxes(user.id),
+      skillsForChat(user.id),
+      // «На сегодня» (P17): only while the person's memory is on; a broken read leaves the screen as it was.
+      (async () =>
+        (await isMemoryOnFor(user.id))
+          ? todaySuggestions(user.id, prefs.timeZone).catch(
+              (error: unknown) => {
+                console.error("memory: could not gather «На сегодня»", error);
+                return [];
+              }
+            )
+          : [])(),
+    ]);
   const model = pickModel(picker.models, [...last, picker.favorites[0]]);
   // The layout shows «not ready» when chat has no model; a page without one never renders.
   if (!model) {
@@ -69,6 +82,8 @@ const NewChatPage = async ({
           }),
           mailboxes: boxes.map((b) => b.address),
           say: typeof say === "string" ? say.slice(0, 4000) : undefined,
+          suggestions: today,
+          timeZone: prefs.timeZone,
           today: format.dateTime(now, {
             day: "numeric",
             month: "long",

@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type * as MemoryModule from "./memory";
 import type * as MemoryPageModule from "./memory-page";
 import type * as MemoryReadModule from "./memory-read";
+import type * as MemoryTodayModule from "./memory-today";
 
 vi.mock("server-only", () => ({}));
 
@@ -19,6 +20,12 @@ vi.mock("server-only", () => ({}));
 // database works, and nothing else in it is touched.
 const URL = process.env.MEMORY_TEST_DATABASE_URL;
 
+/** Who owes whom, as a record's links. */
+const owes = (debtor: string, creditor: string) => [
+  { entityId: debtor, role: "debtor" as const },
+  { entityId: creditor, role: "creditor" as const },
+];
+
 describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   let memory: typeof MemoryModule;
   let db: Db;
@@ -26,6 +33,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   const bob = `memory-test-${randomBytes(4).toString("hex")}`;
   /** The «Память» page's owner: a memory of its own, so the counts are exact. */
   const cleo = `memory-test-${randomBytes(4).toString("hex")}`;
+  /** «На сегодня»: a memory of its own, so the list is exact. */
+  const dana = `memory-test-${randomBytes(4).toString("hex")}`;
 
   const recordIds = async (
     owner: string,
@@ -54,7 +63,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     await db.insert(user).values(
-      [ana, bob, cleo].map((id) => ({
+      [ana, bob, cleo, dana].map((id) => ({
         email: `${id}@example.test`,
         id,
         name: id,
@@ -63,7 +72,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   });
 
   afterAll(async () => {
-    await db?.delete(user).where(inArray(user.id, [ana, bob, cleo]));
+    await db?.delete(user).where(inArray(user.id, [ana, bob, cleo, dana]));
   });
 
   it("keeps texts and names sealed, and reads them back", async () => {
@@ -884,6 +893,72 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       "«Развиваю своих подчинённых: даю им задачи на рост»"
     );
     expect(own).not.toContain("About who this message mentions");
+  });
+
+  it("gathers «На сегодня»: important first, then past due, said done, tomorrow — and «Убрать» until it changes (P17)", async () => {
+    const today: typeof MemoryTodayModule = await import("./memory-today");
+    const self = await memory.ensureSelf(dana, "Дана");
+    const olga = await memory.createEntity(dana, {
+      kind: "person",
+      name: "Ольга Ли",
+    });
+    const add = (
+      text: string,
+      extra: Partial<MemoryModule.MemoryRecordInput>
+    ) =>
+      memory.addRecord(dana, {
+        entities: owes(olga.id, self.id),
+        kind: "commitment",
+        text,
+        ...extra,
+      });
+    // Monday 9 November in Moscow; deadlines are midnights there.
+    const now = new Date("2026-11-09T09:00:00Z");
+    const late = await add("Ольга Ли пришлёт договор", {
+      dueAt: new Date("2026-11-05T21:00:00Z"),
+    });
+    const mine = await memory.addRecord(dana, {
+      dueAt: new Date("2026-11-09T21:00:00Z"),
+      entities: owes(self.id, olga.id),
+      kind: "commitment",
+      text: "Отправить Ольге Ли реквизиты",
+    });
+    const said = await add("Ольга Ли подготовит акт", {
+      status: "unconfirmed",
+    });
+    const key = await add("Ольга Ли согласует пилот", { important: true });
+    await add("Ольга Ли пришлёт отчёт", {
+      dueAt: new Date("2026-11-19T21:00:00Z"),
+    });
+    await add("Ольга Ли прислала счёт", {
+      dueAt: new Date("2026-11-01T21:00:00Z"),
+      status: "done",
+    });
+
+    const list = await today.todaySuggestions(dana, "Europe/Moscow", now);
+    expect(list.map((s) => [s.id, s.reason, s.side])).toEqual([
+      [key.id, "important", "theirs"],
+      [late.id, "overdue", "theirs"],
+      [said.id, "unconfirmed", "theirs"],
+      [mine.id, "tomorrow", "mine"],
+    ]);
+    expect(list[1]).toMatchObject({
+      days: 3,
+      who: { id: olga.id, name: "Ольга Ли" },
+    });
+
+    // «Убрать»: gone while the deadline stays; a new deadline brings it back; «Вернуть» too.
+    expect(await memory.dismissSuggestion(dana, late.id)).toBe(true);
+    const without = await today.todaySuggestions(dana, "Europe/Moscow", now);
+    expect(without.map((s) => s.id)).not.toContain(late.id);
+    await memory.editCommitment(dana, late.id, {
+      dueAt: new Date("2026-11-07T21:00:00Z"),
+    });
+    const moved = await today.todaySuggestions(dana, "Europe/Moscow", now);
+    expect(moved.find((s) => s.id === late.id)).toMatchObject({ days: 1 });
+    await memory.dismissSuggestion(dana, late.id);
+    expect(await memory.undismissSuggestion(dana, late.id)).toBe(true);
+    expect(await memory.dismissSuggestion(bob, late.id)).toBe(false);
   });
 
   it("forgets everything, key included, and starts over with a new one", async () => {

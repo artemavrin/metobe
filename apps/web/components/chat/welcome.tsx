@@ -1,5 +1,6 @@
 "use client";
 
+import type { MemorySuggestion } from "@metobe/contracts/memory";
 import type { ChatServer } from "@metobe/core/mcp";
 import { FileText, Mail } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -9,6 +10,7 @@ import type { ReactNode, RefObject } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import type { ComposerHandle } from "@/components/chat/composer";
 import { GreetingFigure } from "@/components/chat/greeting-figure";
+import { TodayRows } from "@/components/chat/today-rows";
 
 /** What a new chat greets the user with, read on the server. */
 export interface WelcomeData {
@@ -19,6 +21,10 @@ export interface WelcomeData {
   first: boolean;
   /** The user's mailboxes: their mail tools are on in every chat. */
   mailboxes: string[];
+  /** «На сегодня» from the memory (P17): empty — no section. */
+  suggestions?: MemorySuggestion[];
+  /** The person's zone: «завтра» and «в понедельник» are counted in it. */
+  timeZone?: string;
   /** A request another page put into the address (`/?say=`, «Сверка» on the «Память» page): it waits in the composer. */
   say?: string;
 }
@@ -126,6 +132,13 @@ export const Welcome = ({
           </h1>
           <LineOfDay />
         </div>
+        {data.suggestions && data.suggestions.length > 0 && (
+          <TodayRows
+            items={data.suggestions}
+            put={(text) => composer.current?.say(text)}
+            timeZone={data.timeZone ?? "UTC"}
+          />
+        )}
         <Section title={t("welcome.start")}>
           <div className="flex flex-col gap-2">
             {offered.map((s) => (

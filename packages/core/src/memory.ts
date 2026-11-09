@@ -12,6 +12,7 @@ import type {
 import type { Db } from "@metobe/db/client";
 import {
   memoryChanges,
+  memoryDismissals,
   memoryDrafts,
   memoryEntities,
   memoryKeys,
@@ -1541,4 +1542,63 @@ export const commitmentCounts = async (ownerId: string, now = new Date()) => {
     )
     .groupBy(memoryRecordEntities.entityId);
   return new Map(rows.map((r) => [r.entityId, r]));
+};
+
+// --- «На сегодня» (P17) -------------------------------------------------------------------------------------------
+
+/**
+ * «Убрать»: the commitment is not suggested while its deadline and status stay as they are now. False when the owner
+ * has no such live commitment.
+ */
+export const dismissSuggestion = async (ownerId: string, recordId: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ dueAt: memoryRecords.dueAt, status: memoryRecords.status })
+    .from(memoryRecords)
+    .where(
+      and(
+        eq(memoryRecords.id, recordId),
+        eq(memoryRecords.ownerId, ownerId),
+        eq(memoryRecords.kind, "commitment"),
+        isNull(memoryRecords.deletedAt)
+      )
+    )
+    .limit(1);
+  if (!row) {
+    return false;
+  }
+  await db
+    .insert(memoryDismissals)
+    .values({ dueAt: row.dueAt, ownerId, recordId, status: row.status })
+    .onConflictDoUpdate({
+      set: { at: new Date(), dueAt: row.dueAt, status: row.status },
+      target: memoryDismissals.recordId,
+    });
+  return true;
+};
+
+/** «Вернуть» after «Убрать». */
+export const undismissSuggestion = async (
+  ownerId: string,
+  recordId: string
+) => {
+  const rows = await getDb()
+    .db.delete(memoryDismissals)
+    .where(
+      and(
+        eq(memoryDismissals.ownerId, ownerId),
+        eq(memoryDismissals.recordId, recordId)
+      )
+    )
+    .returning({ recordId: memoryDismissals.recordId });
+  return rows.length > 0;
+};
+
+/** What the person took away from «На сегодня», with the deadline and status it had then. */
+export const listDismissals = async (ownerId: string) => {
+  const rows = await getDb()
+    .db.select()
+    .from(memoryDismissals)
+    .where(eq(memoryDismissals.ownerId, ownerId));
+  return new Map(rows.map((r) => [r.recordId, r]));
 };

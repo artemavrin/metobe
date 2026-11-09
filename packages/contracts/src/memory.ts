@@ -207,3 +207,32 @@ export const memoryCardPatchSchema = z
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: "nothing to change",
   });
+
+// --- «На сегодня» (P17) ---------------------------------------------------------------------------------------------
+
+/** Why a commitment is in «На сегодня»: the order of these is the order of the rows after «важно». */
+export const memorySuggestionReasons = [
+  "overdue",
+  "unconfirmed",
+  "today",
+  "tomorrow",
+  "important",
+] as const;
+export type MemorySuggestionReason = (typeof memorySuggestionReasons)[number];
+
+/** A row of «На сегодня»: an open commitment and why it is there now. */
+export interface MemorySuggestion {
+  /** The commitment's id. */
+  id: string;
+  reason: MemorySuggestionReason;
+  /** Days past the deadline, for «overdue». */
+  days: number;
+  text: string;
+  /** `theirs` — someone owes the person; `mine` — the person owes; `between` — two others. */
+  side: "theirs" | "mine" | "between";
+  /** The other side: who owes, or whom the person owes. */
+  who: { id: string; name: string; kind: MemoryEntityKind } | null;
+  dueAt: string | null;
+  status: MemoryStatus;
+  important: boolean;
+}

@@ -272,3 +272,23 @@ export const memoryChanges = pgTable(
     ),
   ]
 );
+
+/**
+ * «Убрать» in «На сегодня» (P17): a commitment the person does not want suggested — while its deadline and status
+ * stay what they were then. A new deadline or status brings it back; so does «Вернуть» (the row goes).
+ */
+export const memoryDismissals = pgTable(
+  "memory_dismissals",
+  {
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    recordId: uuid("record_id")
+      .primaryKey()
+      .references(() => memoryRecords.id, { onDelete: "cascade" }),
+    status: text("status").$type<MemoryStatus>(),
+  },
+  (table) => [index("memory_dismissals_owner").on(table.ownerId)]
+);
