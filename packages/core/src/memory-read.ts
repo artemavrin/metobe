@@ -15,12 +15,12 @@ import { memoryCard, searchMemory } from "./memory-page";
 export const SEARCH_MEMORY = "search_memory";
 export const MEMORY_CARD = "memory_card";
 export const LIST_COMMITMENTS = "list_commitments";
-export const LIST_PEOPLE = "list_people";
+export const LIST_CARDS = "list_cards";
 export const MEMORY_TOOLS = [
   SEARCH_MEMORY,
   MEMORY_CARD,
   LIST_COMMITMENTS,
-  LIST_PEOPLE,
+  LIST_CARDS,
 ];
 
 /** Cards in the block, and what of each: enough to answer «что с Ольгой?», short enough for every message. */
@@ -30,9 +30,16 @@ const MAX_EVENTS = 2;
 /** What the user told about themselves — goals, ways of working — goes with every message: a few, the newest. */
 const MAX_SELF = 8;
 const MAX_FOUND = 30;
-/** `list_people`: everyone, with what is known about each — the model matches by meaning («SQL» for «анализ данных»). */
+/** `list_cards`: everyone, with what is known about each — the model matches by meaning («SQL» for «анализ данных»). */
 const MAX_PEOPLE = 100;
 const MAX_PER_PERSON = 8;
+/** `memory_card`: all of one card, the open first — enough for a long history, short of a whole archive. */
+const MAX_CARD = 80;
+/** A card's id as the model sees it: the first eight of its uuid — short, and unique among one person's cards. */
+const ID_LENGTH = 8;
+
+export const shortId = (id: string) => id.slice(0, ID_LENGTH);
+const tag = (e: { id: string }) => `[${shortId(e.id)}]`;
 const MIN_STEM = 4;
 
 const normalize = (s: string) => s.toLocaleLowerCase("ru").replaceAll("ё", "е");
@@ -136,7 +143,7 @@ const cardBlock = (
   const about = [card.kind === "org" ? "organization" : card.kind, card.role]
     .filter(Boolean)
     .join("; ");
-  return [`- ${card.name} (${about})`, ...lines].join("\n");
+  return [`- ${card.name} ${tag(card)} (${about})`, ...lines].join("\n");
 };
 
 /** The user's own lasting facts — their goals and ways of working — newest first. */
@@ -181,10 +188,31 @@ export const memoryBrief = async (
       `About who this message mentions:\n${cards.map((c) => cardBlock(c, records, names, timeZone)).join("\n")}`,
   ].filter(Boolean);
   return `<memory>
-What the user's memory keeps (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD}, ${LIST_COMMITMENTS} or ${LIST_PEOPLE} for more. It may be out of date or wrong — the user's words now come first.
+What the user's memory keeps (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD}, ${LIST_COMMITMENTS} or ${LIST_CARDS} for more. The [ids] are for ${MEMORY_CARD}; never show them to the user. It may be out of date or wrong — the user's words now come first.
 ${parts.join("\n")}
 </memory>`;
 };
+
+const RANK: Record<string, number> = {
+  assessment: 1,
+  commitment: 0,
+  event: 2,
+  fact: 1,
+  rule: 3,
+};
+
+/** Closed, or no longer true. */
+const isPast = (r: MemoryRecordView) =>
+  Boolean(r.validTo) || (r.kind === "commitment" && !OPEN.has(r.status ?? ""));
+
+/** A card's records for the model: open commitments, what is true now, events — then what is closed or past. */
+const cardOrder = (records: MemoryRecordView[]) =>
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own copy
+  [...records].sort(
+    (a, b) =>
+      Number(isPast(a)) - Number(isPast(b)) ||
+      (RANK[a.kind] ?? 9) - (RANK[b.kind] ?? 9)
+  );
 
 /** The memory's tools: read only. */
 export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
@@ -223,9 +251,9 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
           .describe("Only those past their deadline"),
       }),
     }),
-    [LIST_PEOPLE]: tool({
+    [LIST_CARDS]: tool({
       description:
-        "Everyone the user's memory knows of one kind, each with their role and what is known — skills, what they work on, the user's assessments. For questions by meaning, not by name: «кому поручить анализ данных», «кто разбирается в базах», «кого подключить к демо» — read the list and pick by sense.",
+        "Everyone the user's memory knows of one kind — people, organizations or projects — each with its [id], role and what is known: skills, what they work on, the user's assessments. For questions by meaning, not by name: «кому поручить анализ данных», «кто разбирается в базах», «какой поставщик возит оборудование» — read the list and pick by sense.",
       execute: async ({ kind }) => {
         const entities = await listEntities(ownerId);
         const records = await listRecords(ownerId, {
@@ -233,10 +261,11 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
         });
         const known = records.filter((r) => !r.validTo);
         return {
-          people: entities
+          cards: entities
             .filter((e) => e.kind === (kind ?? "person"))
             .slice(0, MAX_PEOPLE)
             .map((e) => ({
+              id: shortId(e.id),
               known: known
                 .filter((r) => r.entities.some((l) => l.entityId === e.id))
                 .slice(0, MAX_PER_PERSON)
@@ -257,34 +286,58 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
     }),
     [MEMORY_CARD]: tool({
       description:
-        "Everything the user's memory keeps about one person, organization or project: who they are, open and closed commitments, facts, assessments, events.",
-      execute: async ({ name }) => {
+        "Everything the user's memory keeps about one person, organization or project: who they are, open commitments first, then what is known, events, and what is closed or no longer true. Give its [id] from the memory block or another tool; a name works too — when it fits several cards, they come back to choose from, and then ask the user which one they mean.",
+      execute: async ({ id, name }) => {
         const entities = await listEntities(ownerId);
-        const [card] = mentionedCards(entities, name);
+        const cards = entities.filter((e) => e.kind !== "self");
+        const wanted = id?.replaceAll(/[[\]\s]/gu, "").toLowerCase();
+        const byId = wanted ? cards.filter((e) => e.id.startsWith(wanted)) : [];
+        const fits = byId.length > 0 ? byId : mentionedCards(cards, name ?? "");
+        if (fits.length > 1) {
+          return {
+            candidates: fits.map((e) => ({
+              id: shortId(e.id),
+              name: e.name,
+              role: e.role,
+            })),
+            found: false,
+          };
+        }
+        const [card] = fits;
         const data = card ? await memoryCard(ownerId, card.id) : null;
         if (!data) {
           return { found: false };
         }
         return {
           found: true,
+          id: shortId(data.card.id),
           name: data.card.name,
-          records: await lines(data.records.slice(0, MAX_FOUND)),
+          records: await lines(cardOrder(data.records).slice(0, MAX_CARD)),
           role: data.card.role,
         };
       },
       inputSchema: z.object({
+        id: z
+          .string()
+          .optional()
+          .describe("The card's id as the memory shows it: «a1b2c3d4»"),
         name: z
           .string()
-          .describe("The name as the user says it: «Ольга», «Вектор»"),
+          .optional()
+          .describe("Or the name as the user says it: «Ольга», «Вектор»"),
       }),
     }),
     [SEARCH_MEMORY]: tool({
       description:
-        "Searches the user's memory by words — not by meaning: people, organizations, projects and the records about them (facts, events, commitments, rules), done and cancelled ones too. A record is found only when it has every word of the query, so search a few times with other words for the same thing («SQL», then «базы данных», then «аналитика»); for who fits a task, read list_people instead.",
+        "Searches the user's memory by words — not by meaning: people, organizations, projects and the records about them (facts, events, commitments, rules), done and cancelled ones too. A record is found only when it has every word of the query, so search a few times with other words for the same thing («SQL», then «базы данных», then «аналитика»); for who fits a task, read list_cards instead.",
       execute: async ({ query }) => {
         const found = await searchMemory(ownerId, query);
         return {
-          cards: found.cards.map((c) => ({ name: c.name, role: c.role })),
+          cards: found.cards.map((c) => ({
+            id: shortId(c.id),
+            name: c.name,
+            role: c.role,
+          })),
           records: await lines(found.records.slice(0, MAX_FOUND)),
         };
       },

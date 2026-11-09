@@ -219,7 +219,7 @@ const MEMORY_TOOL_NAMES = [
   "search_memory",
   "memory_card",
   "list_commitments",
-  "list_people",
+  "list_cards",
 ] as const;
 const isMemoryTool = (
   name: string

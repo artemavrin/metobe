@@ -785,7 +785,9 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       "Что с Ольгой?",
       "Europe/Moscow"
     );
-    expect(brief).toContain("- Ольга Ли (person; менеджер «Альфа-Логистики»)");
+    expect(brief).toContain(
+      `- Ольга Ли [${read.shortId(olga.id)}] (person; менеджер «Альфа-Логистики»)`
+    );
     expect(brief).toContain(
       "commitment: «Ольга Ли пришлёт акт» (Ольга Ли owes the user, due"
     );
@@ -814,12 +816,43 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       name: "Ольга Ли",
     });
     // By meaning: everyone with what is known, for the model to pick from; the person's own card is not among them.
-    const people = (await run(read.LIST_PEOPLE, {})) as {
-      people: { name: string; role: string | null }[];
+    const listed = (await run(read.LIST_CARDS, {})) as {
+      cards: { id: string; name: string }[];
     };
-    expect(people.people).toEqual([
-      expect.objectContaining({ name: "Ольга Ли" }),
+    expect(listed.cards).toEqual([
+      expect.objectContaining({ id: read.shortId(olga.id), name: "Ольга Ли" }),
     ]);
+    // By the id the block shows; two cards a name fits come back to choose from.
+    expect(brief).toContain(`- Ольга Ли [${read.shortId(olga.id)}]`);
+    expect(
+      await run(read.MEMORY_CARD, { id: `[${read.shortId(olga.id)}]` })
+    ).toMatchObject({ found: true, name: "Ольга Ли" });
+    const twin = await memory.createEntity(cleo, {
+      kind: "person",
+      name: "Ольга Петрова",
+    });
+    expect(await run(read.MEMORY_CARD, { name: "Ольга" })).toEqual({
+      candidates: [
+        expect.objectContaining({ id: read.shortId(olga.id) }),
+        expect.objectContaining({ id: read.shortId(twin.id) }),
+      ],
+      found: false,
+    });
+    // Someone else's card is nobody's here.
+    expect(
+      await run(read.MEMORY_CARD, { id: read.shortId(olga.id) })
+    ).toMatchObject({ found: true });
+    const bobTools = read.memoryTools(bob, "UTC");
+    const foreign = bobTools[read.MEMORY_CARD]?.execute as (
+      i: object,
+      o: object
+    ) => Promise<unknown>;
+    expect(
+      await foreign(
+        { id: read.shortId(olga.id) },
+        { messages: [], toolCallId: "t" }
+      )
+    ).toEqual({ found: false });
 
     // Who she is now: the newest role fact is the card's line, a later edit by hand wins, a deleted fact gives it back.
     const role = async () => {
