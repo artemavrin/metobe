@@ -1,4 +1,5 @@
 import "server-only";
+import { memoryKeys } from "@metobe/db/schema/memory";
 import { secrets } from "@metobe/db/schema/secrets";
 import { systemSettings } from "@metobe/db/schema/system";
 import { and, eq, ne } from "drizzle-orm";
@@ -55,6 +56,18 @@ const getKeys = () => {
   }
   return keys;
 };
+
+/** A key kept in another table (the memory's data keys, ARCH §19.3): sealed with SECRETS_KEY like a secret. */
+export const sealWithMasterKey = (value: string, aad: Buffer) =>
+  seal(value, aad, getKeys().current);
+
+/** Opens it with SECRETS_KEY or the previous one, while `metobe secrets:rotate` has not moved it over. */
+export const openWithMasterKey = (sealed: Sealed, aad: Buffer) =>
+  open(sealed, aad, getKeys().all);
+
+/** Where a person's memory data key is sealed to: its owner and one purpose, nothing else opens it. */
+export const memoryKeyAad = (ownerId: string) =>
+  aadFor("memory_key", ownerId, "data");
 
 /**
  * Stores or replaces a secret; returns the hint the UI may show. A password — its purpose, or `password` for one
@@ -219,6 +232,21 @@ export const rotateSecrets = async () => {
           .where(eq(secrets.id, row.id));
       })
     );
+    // The memory's data keys are sealed with SECRETS_KEY too; the memory itself is sealed with them and stays as is.
+    const staleKeys = await tx
+      .select()
+      .from(memoryKeys)
+      .where(ne(memoryKeys.keyId, current.id));
+    await Promise.all(
+      staleKeys.map((row) => {
+        const aad = memoryKeyAad(row.ownerId);
+        const sealed = seal(open(row, aad, all), aad, current);
+        return tx
+          .update(memoryKeys)
+          .set({ ...sealed, rotatedAt: new Date() })
+          .where(eq(memoryKeys.ownerId, row.ownerId));
+      })
+    );
     const [settings] = await tx
       .select({ canary: systemSettings.secretsCanary })
       .from(systemSettings)
@@ -236,7 +264,7 @@ export const rotateSecrets = async () => {
         .set({ secretsCanary: canary })
         .where(eq(systemSettings.id, 1));
     }
-    return stale.length;
+    return stale.length + staleKeys.length;
   });
   return { rotated };
 };
