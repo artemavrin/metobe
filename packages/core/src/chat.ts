@@ -421,7 +421,7 @@ export const listChatModelLabels = () => {
     .innerJoin(sources, eq(sources.id, models.sourceId))
     .leftJoin(providers, eq(providers.id, models.providerId))
     .where(
-      sql`${models.enabled} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
+      sql`${models.enabled} and ${models.type} = 'language' and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
     )
     .orderBy(
       sql`${models.releasedAt} desc nulls last`,
@@ -474,6 +474,8 @@ export const getChatModel = async (id: string) => {
       and(
         eq(models.id, id),
         eq(models.enabled, true),
+        // A decision model writes no answers (ARCH §19.4).
+        eq(models.type, "language"),
         eq(sources.enabled, true),
         sql`coalesce(${sources.health}->>'state', '') <> 'error'`
       )

@@ -4,6 +4,7 @@ import type {
   Currency,
   ProxyMode,
   ModelSlot,
+  ModelType,
   RunPurpose,
   RunStatus,
   SourceHealth,
@@ -130,6 +131,8 @@ export const models = pgTable(
       .notNull()
       .references(() => sources.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
+    /** `language` — writes text; `evaluation` — a decision model, only for the «Решения» job (ARCH §19.4). */
+    type: text("type").$type<ModelType>().notNull().default("language"),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow()
@@ -137,6 +140,7 @@ export const models = pgTable(
   },
   (table) => [
     unique("models_source_model").on(table.sourceId, table.modelId),
+    check("models_type", sql`${table.type} in ('language', 'evaluation')`),
     index("models_provider").on(table.providerId),
     check(
       "models_price_unit",
@@ -185,7 +189,7 @@ export const modelRuns = pgTable(
     ),
     check(
       "model_runs_purpose",
-      sql`${table.purpose} in ('chat', 'describe', 'title', 'compact', 'task', 'memory')`
+      sql`${table.purpose} in ('chat', 'describe', 'title', 'compact', 'task', 'memory', 'decide')`
     ),
   ]
 );

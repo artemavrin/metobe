@@ -1450,6 +1450,10 @@
       "memory": {
         "label": "Memory",
         "hint": "Notes people, promises, events and rules from chat messages, to remember them in later conversations. Sees only the person’s own messages. Without a model, memory is off for everyone."
+      },
+      "decisions": {
+        "label": "Decisions",
+        "hint": "A decision model (Jev, Decision-1 and the like) first answers whether a message has anything to remember. When it surely has not, the «Memory» model does not read it, and memory costs less. Only Vercel AI Gateway has them. Without one, «Memory» reads every message."
       }
     },
     "empty": "No working sources with models — connect a source",
@@ -2130,7 +2134,8 @@
       "title": "Chat titles",
       "describe": "Vision",
       "compact": "Chat compaction",
-      "memory": "Memory"
+      "memory": "Memory",
+      "decide": "Memory decisions"
     },
     "other": "Other",
     "removedModel": "Deleted model",

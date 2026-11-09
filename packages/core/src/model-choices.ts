@@ -1,4 +1,5 @@
 import "server-only";
+import type { ModelType } from "@metobe/contracts/models";
 import {
   favoriteModels,
   modelRuns,
@@ -15,9 +16,13 @@ import { getDb } from "./db";
 
 /**
  * Models with everything the picker compares, newest first: those in chat right now, or (`working`) every model of
- * a source that is on and working — what a service job may take.
+ * a source that is on and working — what a service job may take. Language models only, unless `type` asks for the
+ * decision models of the «Решения» job (ARCH §19.4).
  */
-export const listModelChoices = (scope: "chat" | "working" = "chat") => {
+export const listModelChoices = (
+  scope: "chat" | "working" = "chat",
+  type: ModelType = "language"
+) => {
   const { db } = getDb();
   return db
     .select({
@@ -41,7 +46,7 @@ export const listModelChoices = (scope: "chat" | "working" = "chat") => {
     .innerJoin(sources, eq(sources.id, models.sourceId))
     .leftJoin(providers, eq(providers.id, models.providerId))
     .where(
-      sql`${scope === "chat" ? models.enabled : sql`true`} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
+      sql`${scope === "chat" ? models.enabled : sql`true`} and ${models.type} = ${type} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
     )
     .orderBy(
       sql`${models.releasedAt} desc nulls last`,
@@ -120,7 +125,7 @@ export const setFavoriteModels = async (userId: string, ids: string[]) => {
       ? await tx
           .select({ id: models.id })
           .from(models)
-          .where(inArray(models.id, unique))
+          .where(and(inArray(models.id, unique), eq(models.type, "language")))
       : [];
     const known = new Set(existing.map((m) => m.id));
     await tx.delete(favoriteModels).where(eq(favoriteModels.userId, userId));

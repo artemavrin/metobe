@@ -219,7 +219,7 @@ export const useLabel = () => {
       return labels.people[key]?.name ?? t("removedPerson");
     }
     return t(
-      `purposes.${key as "chat" | "title" | "describe" | "compact" | "memory"}`
+      `purposes.${key as "chat" | "title" | "describe" | "compact" | "memory" | "decide"}`
     );
   };
   const note = (group: Group, key: string) => {

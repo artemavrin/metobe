@@ -100,6 +100,7 @@ export const syncModels = async (sourceId: string) => {
           releasedAt: m.releasedAt,
           sourceId,
           title: m.title,
+          type: m.type ?? "language",
         }))
       )
       .onConflictDoUpdate({
@@ -118,6 +119,7 @@ export const syncModels = async (sourceId: string) => {
           providerId: sql`excluded.provider_id`,
           releasedAt: sql`excluded.released_at`,
           title: sql`excluded.title`,
+          type: sql`excluded.type`,
         },
         target: [models.sourceId, models.modelId],
       });

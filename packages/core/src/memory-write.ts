@@ -1,10 +1,16 @@
 import "server-only";
 import { user } from "@metobe/db/schema/auth";
 import { messages } from "@metobe/db/schema/chat";
-import { APICallError, Output, generateText } from "ai";
+import {
+  APICallError,
+  Output,
+  experimental_evaluate as evaluate,
+  generateText,
+} from "ai";
+import type { LanguageModelUsage } from "ai";
 import { and, desc, eq, lt } from "drizzle-orm";
 
-import { getLanguageModel } from "./ai";
+import { getEvaluationModel, getLanguageModel } from "./ai";
 import { recordRun } from "./chat-run";
 import { getDb } from "./db";
 import {
@@ -23,6 +29,7 @@ import {
   planWrite,
 } from "./memory-extract";
 import type { KnownCard, OpenCommitment } from "./memory-extract";
+import { GATE_QUESTIONS, gateState, nothingToKeep } from "./memory-gate";
 import { getSlotModel } from "./model-slots";
 import { announceMemory } from "./task-events";
 
@@ -143,6 +150,82 @@ const exchangeBefore = async (chatId: string, sentAt: Date) => {
   };
 };
 
+/** A decision model's run, as usage counts it: its input only — it writes nothing. */
+const decisionUsage = (
+  inputTokens: number | undefined
+): LanguageModelUsage => ({
+  inputTokenDetails: {
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    noCacheTokens: inputTokens,
+  },
+  inputTokens,
+  outputTokenDetails: { reasoningTokens: 0, textTokens: 0 },
+  outputTokens: 0,
+  totalTokens: inputTokens,
+});
+
+const GATE_TIMEOUT_MS = 15_000;
+
+/**
+ * The first step (ARCH §19.4, Б2b): with a model in «Решения», it answers the gate's yes/no questions, and only a sure
+ * «no» to all of them keeps the «Память» model from reading the message. No model, a failure or a timeout — the
+ * message is read as before: the step only saves, it never loses a message.
+ */
+const nothingToKeepSaid = async (
+  job: MemoryJob,
+  text: string,
+  before: Awaited<ReturnType<typeof exchangeBefore>>,
+  sentAt: Date
+) => {
+  const model = await getSlotModel("decisions");
+  if (!model) {
+    return false;
+  }
+  const started = Date.now();
+  const today = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    timeZone: job.timeZone,
+    weekday: "long",
+    year: "numeric",
+  }).format(sentAt);
+  try {
+    const result = await evaluate({
+      abortSignal: AbortSignal.timeout(GATE_TIMEOUT_MS),
+      maxRetries: 1,
+      model: await getEvaluationModel(model.sourceId, model.modelId),
+      providerOptions: { gateway: { zeroDataRetention: true } },
+      questions: GATE_QUESTIONS,
+      state: gateState(text.slice(0, MAX_TEXT), today, before),
+    });
+    await recordRun({
+      chatId: job.chatId,
+      latencyMs: Date.now() - started,
+      model,
+      providerMetadata: result.providerMetadata,
+      purpose: "decide",
+      status: "ok",
+      usage: decisionUsage(result.usage.inputTokens),
+      userId: job.ownerId,
+    });
+    return nothingToKeep(result.answers);
+  } catch (error) {
+    console.error("memory: the decision model did not answer", error);
+    await recordRun({
+      chatId: job.chatId,
+      latencyMs: null,
+      model,
+      purpose: "decide",
+      status: "error",
+      userId: job.ownerId,
+    }).catch((recordError: unknown) =>
+      console.error("memory: could not record the run", recordError)
+    );
+    return false;
+  }
+};
+
 /** What became of the job — for the worker's log. */
 export const writeMemory = async (job: MemoryJob) => {
   const model = await getSlotModel("memory");
@@ -170,6 +253,12 @@ export const writeMemory = async (job: MemoryJob) => {
   // Gone already (the chat deleted, the message edited away) or nothing in words: nothing to read.
   const text = message?.role === "user" ? textOf(message.parts) : "";
   if (!(message && text)) {
+    await markWrite(job.ownerId, write.id, "skipped");
+    return "skipped";
+  }
+  const before = await exchangeBefore(job.chatId, message.createdAt);
+  // A sure «nothing to keep» from the decision model: the «Память» model does not read it (Б2b).
+  if (await nothingToKeepSaid(job, text, before, message.createdAt)) {
     await markWrite(job.ownerId, write.id, "skipped");
     return "skipped";
   }
@@ -209,10 +298,7 @@ export const writeMemory = async (job: MemoryJob) => {
         timeZone: job.timeZone,
       }),
       model: await getLanguageModel(model.sourceId, model.modelId),
-      prompt: memoryPrompt(
-        text.slice(0, MAX_TEXT),
-        await exchangeBefore(job.chatId, message.createdAt)
-      ),
+      prompt: memoryPrompt(text.slice(0, MAX_TEXT), before),
       // A person's memory is not left with the provider behind the Gateway (D39).
       providerOptions:
         model.kind === "gateway"

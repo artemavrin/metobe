@@ -1,6 +1,6 @@
 import "server-only";
 import { models, providers, sources } from "@metobe/db/schema/models";
-import { asc, count, countDistinct, eq, sql } from "drizzle-orm";
+import { and, asc, count, countDistinct, eq, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
 import { PROVIDERS, titleOfSlug } from "./discovery-rules";
@@ -11,23 +11,29 @@ import { PROVIDERS, titleOfSlug } from "./discovery-rules";
 /** Every provider that has at least one model, with its counts across all sources. */
 export const listProviders = () => {
   const { db } = getDb();
-  return db
-    .select({
-      id: providers.id,
-      logo: providers.logo,
-      modelsEnabled:
-        sql<number>`count(${models.id}) filter (where ${models.enabled})`.mapWith(
-          Number
-        ),
-      modelsTotal: count(models.id),
-      slug: providers.slug,
-      sources: countDistinct(models.sourceId),
-      title: providers.title,
-    })
-    .from(providers)
-    .innerJoin(models, eq(models.providerId, providers.id))
-    .groupBy(providers.id)
-    .orderBy(sql`count(${models.id}) desc`, asc(providers.title));
+  return (
+    db
+      .select({
+        id: providers.id,
+        logo: providers.logo,
+        modelsEnabled:
+          sql<number>`count(${models.id}) filter (where ${models.enabled})`.mapWith(
+            Number
+          ),
+        modelsTotal: count(models.id),
+        slug: providers.slug,
+        sources: countDistinct(models.sourceId),
+        title: providers.title,
+      })
+      .from(providers)
+      // Language models: a maker with decision models only is no maker of chat models (ARCH §19.4).
+      .innerJoin(
+        models,
+        and(eq(models.providerId, providers.id), eq(models.type, "language"))
+      )
+      .groupBy(providers.id)
+      .orderBy(sql`count(${models.id}) desc`, asc(providers.title))
+  );
 };
 export type ProviderSummary = Awaited<ReturnType<typeof listProviders>>[number];
 
@@ -70,7 +76,7 @@ export const getProvider = async (id: string) => {
     })
     .from(models)
     .innerJoin(sources, eq(sources.id, models.sourceId))
-    .where(eq(models.providerId, id))
+    .where(and(eq(models.providerId, id), eq(models.type, "language")))
     // One list, newest first, whatever source a model comes through (prototype P7).
     .orderBy(
       sql`${models.releasedAt} desc nulls last`,
