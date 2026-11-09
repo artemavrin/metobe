@@ -356,7 +356,8 @@ export const saveMessages = async (chatId: string, list: ChatMessage[]) => {
 
 /**
  * Drops a message and everything after it — before the same message is sent again (a retry after an error, and
- * edit / regenerate later), so the model never sees it twice or an answer that no longer follows it.
+ * edit / regenerate later), so the model never sees it twice or an answer that no longer follows it. Answers the
+ * ids it dropped.
  */
 export const deleteMessagesFrom = async (chatId: string, messageId: string) => {
   const { db } = getDb();
@@ -366,13 +367,16 @@ export const deleteMessagesFrom = async (chatId: string, messageId: string) => {
     .where(and(eq(messages.chatId, chatId), eq(messages.id, messageId)))
     .limit(1);
   if (!from) {
-    return;
+    return [];
   }
-  await db
+  // The ids that went: what the memory took from them is undone (ARCH §19).
+  const dropped = await db
     .delete(messages)
     .where(
       and(eq(messages.chatId, chatId), gte(messages.createdAt, from.createdAt))
-    );
+    )
+    .returning({ id: messages.id });
+  return dropped.map((m) => m.id);
 };
 
 /** The models a user ran last — in this chat and anywhere; the caller keeps the first that is still in chat. */

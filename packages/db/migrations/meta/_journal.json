@@ -281,6 +281,13 @@
       "when": 1794201096736,
       "tag": "0039_memory",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794201757133,
+      "tag": "0040_memory_purpose",
+      "breakpoints": true
     }
   ]
 }

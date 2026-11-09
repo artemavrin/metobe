@@ -132,24 +132,24 @@ const toEntity = (
   };
 };
 
-export const createEntity = async (
+interface EntityInput {
+  kind: Exclude<MemoryEntityKind, "self">;
+  name: string;
+  aliases?: string[];
+  role?: string | null;
+  /** The write that found it: undoing the write takes the card away with it. */
+  writeId?: string;
+}
+
+const insertEntity = async (
+  tx: Db | Tx,
   ownerId: string,
-  input: {
-    kind: Exclude<MemoryEntityKind, "self">;
-    name: string;
-    aliases?: string[];
-    role?: string | null;
-    /** The write that found it: undoing the write takes the card away with it. */
-    writeId?: string;
-  }
+  key: SecretsKey,
+  input: EntityInput
 ) => {
   const name = input.name.trim();
   if (!name) {
     throw new Error("memory: an entity needs a name");
-  }
-  const key = await dataKey(ownerId, true);
-  if (!key) {
-    throw new Error("memory: no data key");
   }
   const id = crypto.randomUUID();
   const body = {
@@ -157,8 +157,8 @@ export const createEntity = async (
     name,
     role: input.role ?? null,
   };
-  const [row] = await getDb()
-    .db.insert(memoryEntities)
+  const [row] = await tx
+    .insert(memoryEntities)
     .values({
       id,
       kind: input.kind,
@@ -171,6 +171,14 @@ export const createEntity = async (
     throw new Error("memory: the entity was not saved");
   }
   return toEntity(row, key);
+};
+
+export const createEntity = async (ownerId: string, input: EntityInput) => {
+  const key = await dataKey(ownerId, true);
+  if (!key) {
+    throw new Error("memory: no data key");
+  }
+  return insertEntity(getDb().db, ownerId, key, input);
 };
 
 /** The person themselves: one card per owner, made when first needed. */
@@ -634,6 +642,78 @@ export const markWrite = async (
     .where(and(eq(memoryWrites.id, id), eq(memoryWrites.ownerId, ownerId)));
 };
 
+/** What one message adds: new cards under refs, and records pointing at known cards or those refs. */
+export interface MemoryWritePlan {
+  entities: (Omit<EntityInput, "aliases" | "writeId"> & { ref: string })[];
+  records: (Omit<MemoryRecordInput, "entities" | "writeId"> & {
+    entities: (
+      | { entityId: string; role: MemoryRole }
+      | { newRef: string; role: MemoryRole }
+    )[];
+  })[];
+}
+
+/**
+ * Puts in all a message adds, in one step: a write that fails halfway and is tried again leaves no doubles. The write
+ * ends `done`, or `skipped` when there was nothing to keep. False when the write is not the owner's or is already
+ * finished (a second delivery of the same job).
+ */
+export const applyWrite = async (
+  ownerId: string,
+  writeId: string,
+  plan: MemoryWritePlan
+) => {
+  const key = plan.records.length > 0 ? await dataKey(ownerId, true) : null;
+  return getDb().db.transaction(async (tx) => {
+    const [write] = await tx
+      .select({ status: memoryWrites.status })
+      .from(memoryWrites)
+      .where(
+        and(eq(memoryWrites.id, writeId), eq(memoryWrites.ownerId, ownerId))
+      )
+      .for("update");
+    if (!write || !["queued", "failed"].includes(write.status)) {
+      return false;
+    }
+    if (key) {
+      // One transaction is one connection: these go one after another in it, whatever the code looks like.
+      const made = new Map(
+        await Promise.all(
+          plan.entities.map(async (e) => {
+            const entity = await insertEntity(tx, ownerId, key, {
+              ...e,
+              writeId,
+            });
+            return [e.ref, entity.id] as const;
+          })
+        )
+      );
+      await Promise.all(
+        plan.records.map((r) =>
+          insertRecord(tx, ownerId, key, {
+            ...r,
+            entities: r.entities.flatMap((l) => {
+              const entityId =
+                "entityId" in l ? l.entityId : made.get(l.newRef);
+              return entityId ? [{ entityId, role: l.role }] : [];
+            }),
+            writeId,
+          })
+        )
+      );
+    }
+    await tx
+      .update(memoryWrites)
+      .set({
+        error: null,
+        finishedAt: new Date(),
+        status: plan.records.length > 0 ? "done" : "skipped",
+      })
+      .where(eq(memoryWrites.id, writeId));
+    return true;
+  });
+};
+
 /**
  * «Запомнено» undone: what the write put in is hidden, what it replaced or closed is as it was, and the cards it
  * found go if nothing else holds them. False when there is no such write of the owner, or it is already undone.
@@ -718,6 +798,38 @@ export const undoWrite = (ownerId: string, writeId: string) =>
       .where(eq(memoryWrites.id, writeId));
     return true;
   });
+
+/**
+ * Messages deleted from a chat (a retry, an edit, a regenerated answer): what they put in is undone, and their writes
+ * go, so the same message sent again is read afresh.
+ */
+export const forgetMessages = async (ownerId: string, messageIds: string[]) => {
+  if (messageIds.length === 0) {
+    return;
+  }
+  const { db } = getDb();
+  const writes = await db
+    .select({ id: memoryWrites.id })
+    .from(memoryWrites)
+    .where(
+      and(
+        eq(memoryWrites.ownerId, ownerId),
+        inArray(memoryWrites.messageId, messageIds)
+      )
+    );
+  await Promise.all(writes.map(({ id }) => undoWrite(ownerId, id)));
+  if (writes.length > 0) {
+    await db.delete(memoryWrites).where(
+      and(
+        eq(memoryWrites.ownerId, ownerId),
+        inArray(
+          memoryWrites.id,
+          writes.map((w) => w.id)
+        )
+      )
+    );
+  }
+};
 
 /** «Забыть всё»: records, cards, writes and the data key. Without the key whatever a backup still holds is noise. */
 export const forgetAll = async (ownerId: string) => {

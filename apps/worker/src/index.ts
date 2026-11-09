@@ -1,4 +1,5 @@
 import { checkHealth } from "@metobe/core/health";
+import { startMemoryWorker } from "@metobe/core/memory-queue";
 import { ensureSecretsCanary } from "@metobe/core/secrets";
 import { startTasksWorker } from "@metobe/core/tasks-worker";
 import { getUpdates } from "@metobe/core/updates";
@@ -25,6 +26,8 @@ const updates = setInterval(releases, 60 * 60_000);
 
 // Periodic tasks (ARCH §16): the minute tick and the runs, through BullMQ on REDIS_URL.
 let stopTasks: (() => Promise<void>) | null = null;
+// The memory's silent writer (ARCH §19.4), on the same Redis; it reads nothing while no model holds the job.
+let stopMemory: (() => Promise<void>) | null = null;
 
 const shutdown = async () => {
   clearInterval(keepAlive);
@@ -33,6 +36,9 @@ const shutdown = async () => {
   // A run in progress is let go: its job comes back to the queue and runs again on the next start.
   await stopTasks?.().catch((error: unknown) =>
     console.error("worker: tasks stop", error)
+  );
+  await stopMemory?.().catch((error: unknown) =>
+    console.error("worker: memory stop", error)
   );
   process.exit(0);
 };
@@ -62,9 +68,10 @@ try {
   void releases();
   if (process.env.REDIS_URL) {
     stopTasks = await startTasksWorker();
-    console.log("worker: tasks on");
+    stopMemory = startMemoryWorker();
+    console.log("worker: tasks and memory on");
   } else {
-    console.log("worker: tasks off — no REDIS_URL");
+    console.log("worker: tasks and memory off — no REDIS_URL");
   }
 } catch (error) {
   console.error(error);

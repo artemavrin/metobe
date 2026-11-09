@@ -68,6 +68,8 @@ import { attachFiles, pruneChatFiles } from "@metobe/core/files";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
+import { forgetMessages } from "@metobe/core/memory";
+import { queueMemoryWrite } from "@metobe/core/memory-queue";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
 import { getTaskByChat } from "@metobe/core/tasks";
@@ -161,6 +163,19 @@ const titleSource = (message: ChatMessage) =>
   message.parts
     .flatMap((p) => (p.type === "file" ? [p.filename ?? ""] : []))
     .join(", ");
+
+/**
+ * Drops a message and what follows it; what the memory took from them goes with them (ARCH §19) — the chat goes on
+ * whatever happens there.
+ */
+const dropMessages = async (userId: string, chatId: string, from: string) => {
+  const dropped = await deleteMessagesFrom(chatId, from);
+  try {
+    await forgetMessages(userId, dropped);
+  } catch (error) {
+    console.error("chat: memory could not forget dropped messages", error);
+  }
+};
 
 const provisionalTitle = (message: ChatMessage) =>
   chatTitleFrom(titleSource(message));
@@ -402,7 +417,7 @@ export const POST = async (request: Request) => {
     });
   }
   if (prepared.dropFrom) {
-    await deleteMessagesFrom(id, prepared.dropFrom);
+    await dropMessages(session.user.id, id, prepared.dropFrom);
   }
   await saveMessages(id, prepared.save);
   // The question's files join the chat (approvals carry no message — nothing to join).
@@ -823,6 +838,16 @@ export const POST = async (request: Request) => {
         await saveMessages(id, finished);
       } finally {
         recording.saved?.();
+      }
+      // The person's message, once the answer is saved, goes to the memory's queue (ARCH §19.4) — not at all while
+      // the memory is off. Nothing here holds the chat up.
+      if (message) {
+        void queueMemoryWrite({
+          chatId: id,
+          messageId: message.id,
+          ownerId: session.user.id,
+          timeZone,
+        });
       }
     },
     onError: (error) => {

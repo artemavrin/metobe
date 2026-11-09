@@ -120,6 +120,19 @@ Rules:
 - Requests to the assistant itself (count, write, plan), questions and small talk produce no items — return empty arrays.
 - Do not add judgements or guesses that the message does not state.`;
 
+// PROMPT=app — the prompt and schema the app itself sends (packages/core/src/memory-extract.ts), on the same cases.
+const app = PROMPT === "app" ? await import("../../packages/core/src/memory-extract.ts") : null;
+const appCards = Object.entries(knownCards).map(([ref, line]) => {
+  const [name, rest = ""] = line.split(" — ");
+  const [kindWord, role = null] = rest.split(": ");
+  const kind = kindWord === "человек" ? "person" : kindWord === "организация" ? "org" : "project";
+  return { aliases: [], id: ref, kind, name, ref, role } as const;
+});
+const useSchema = app ? app.extractionSchema : schema;
+const useSystem = app
+  ? app.memoryInstructions({ cards: appCards, sentAt: new Date(`${TODAY_ISO}T09:00:00Z`), timeZone: TIMEZONE })
+  : system;
+
 // --- scoring -----------------------------------------------------------------------------------------------------
 
 type Item = z.infer<typeof schema>["items"][number];
@@ -215,10 +228,10 @@ const runCase = async (id: string, c: (typeof extractCases)[number]): Promise<Sc
     const result = await generateText({
       maxRetries: 1,
       model: m,
-      output: Output.object({ schema }),
-      prompt: c.text,
+      output: Output.object({ schema: useSchema }),
+      prompt: app ? `<message>\n${c.text}\n</message>` : c.text,
       providerOptions: id.startsWith("yandex:") ? {} : { gateway: { zeroDataRetention: true } },
-      system,
+      system: useSystem,
     });
     const out = result.output;
     return {

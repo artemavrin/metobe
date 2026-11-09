@@ -1430,6 +1430,10 @@
       "summaries": {
         "label": "Chat compaction",
         "hint": "Writes the summary of a long chat when it is compacted. Needs a model with a large context window. Without one, the chat’s own model writes it."
+      },
+      "memory": {
+        "label": "Memory",
+        "hint": "Notes people, promises, events and rules from chat messages, to remember them in later conversations. Sees only the person’s own messages. Without a model, memory is off for everyone."
       }
     },
     "empty": "No working sources with models — connect a source",
@@ -2109,7 +2113,8 @@
       "chat": "Chat answers",
       "title": "Chat titles",
       "describe": "Vision",
-      "compact": "Chat compaction"
+      "compact": "Chat compaction",
+      "memory": "Memory"
     },
     "other": "Other",
     "removedModel": "Deleted model",

@@ -299,6 +299,78 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(await entityIds(ana)).not.toContain(lone.id);
     });
 
+    it("puts in a whole message at once, and only once", async () => {
+      const made = await memory.createWrite(ana, {
+        chatId,
+        messageId: crypto.randomUUID(),
+      });
+      const known = await memory.createEntity(ana, {
+        kind: "person",
+        name: "Ольга Ли",
+      });
+      const plan: MemoryModule.MemoryWritePlan = {
+        entities: [
+          {
+            kind: "org",
+            name: "Стрела",
+            ref: "new:strela",
+            role: "перевозчик",
+          },
+        ],
+        records: [
+          {
+            entities: [
+              { entityId: known.id, role: "debtor" },
+              { newRef: "new:strela", role: "creditor" },
+            ],
+            kind: "commitment",
+            text: "Ольга Ли отправит договор Стреле",
+          },
+        ],
+      };
+      expect(await memory.applyWrite(ana, made.id, plan)).toBe(true);
+      // The same job delivered twice puts nothing in twice.
+      expect(await memory.applyWrite(ana, made.id, plan)).toBe(false);
+      const records = await memory.listRecords(ana, { entityId: known.id });
+      expect(records.map((r) => r.text)).toEqual([
+        "Ольга Ли отправит договор Стреле",
+      ]);
+      const cards = await memory.listEntities(ana);
+      const strela = cards.filter((e) => e.name === "Стрела");
+      expect(strela).toHaveLength(1);
+      expect(records[0]?.entities).toContainEqual({
+        entityId: strela[0]?.id,
+        role: "creditor",
+      });
+      const again = await memory.createWrite(ana, {
+        chatId,
+        messageId: crypto.randomUUID(),
+      });
+      expect(
+        await memory.applyWrite(ana, again.id, { entities: [], records: [] })
+      ).toBe(true);
+      const skipped = await memory.createWrite(ana, {
+        chatId,
+        messageId: crypto.randomUUID(),
+      });
+      expect(skipped.status).toBe("queued");
+    });
+
+    it("forgets what deleted messages put in, and reads them afresh", async () => {
+      const messageId = crypto.randomUUID();
+      const made = await memory.createWrite(ana, { chatId, messageId });
+      await memory.applyWrite(ana, made.id, {
+        entities: [],
+        records: [
+          { entities: [], kind: "fact", text: "Из удалённого сообщения" },
+        ],
+      });
+      await memory.forgetMessages(ana, [messageId, crypto.randomUUID()]);
+      expect(await recordTexts(ana)).not.toContain("Из удалённого сообщения");
+      const anew = await memory.createWrite(ana, { chatId, messageId });
+      expect(anew.created).toBe(true);
+    });
+
     it("puts back what a write's correction replaced", async () => {
       const was = await memory.addRecord(ana, {
         entities: [],

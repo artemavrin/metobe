@@ -125,7 +125,8 @@ export const runStatuses = ["ok", "error", "aborted"] as const;
 export type RunStatus = (typeof runStatuses)[number];
 
 /** Service jobs an admin gives a model to (ARCH §7): outside the chat, a model need not be in the chat to do one. */
-export const modelSlots = ["titles", "vision", "summaries"] as const;
+/** `memory` — the silent writer of ARCH §19: without a model in it the memory is off for everyone. */
+export const modelSlots = ["titles", "vision", "summaries", "memory"] as const;
 export type ModelSlot = (typeof modelSlots)[number];
 
 /** What a run was for: a chat's answer, or a service job. */
@@ -135,5 +136,6 @@ export const runPurposes = [
   "title",
   "compact",
   "task",
+  "memory",
 ] as const;
 export type RunPurpose = (typeof runPurposes)[number];
