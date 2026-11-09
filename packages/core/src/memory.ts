@@ -48,19 +48,37 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 // On globalThis, like the pool: the dev server holds several copies of this module, and `forgetAll` in one must
 // reach the cache of the others — a stale key would go on sealing texts nothing can open.
 const CACHE = Symbol.for("metobe.memory.keys");
-const global = globalThis as { [CACHE]?: Map<string, SecretsKey> };
-const cache = () => (global[CACHE] ??= new Map<string, SecretsKey>());
+/** The key, and the `iv` of the row it came from: which key it is, when another process may have made a new one. */
+interface Cached {
+  key: SecretsKey;
+  iv: string;
+}
+const global = globalThis as { [CACHE]?: Map<string, Cached> };
+const cache = () => (global[CACHE] ??= new Map<string, Cached>());
 
 /** The owner's data key; made on the first write (`create`), otherwise null — a person with nothing kept has no key. */
 const dataKey = async (
   ownerId: string,
   create: boolean
 ): Promise<SecretsKey | null> => {
-  const cached = cache().get(ownerId);
-  if (cached) {
-    return cached;
-  }
   const { db } = getDb();
+  const cached = cache().get(ownerId);
+  if (cached && !create) {
+    return cached.key;
+  }
+  if (cached) {
+    // Before a write: «Забыть всё» in another process (the web, while this is the worker) took the key away or put a
+    // new one in its place, and a text sealed with the old one could never be opened.
+    const [still] = await db
+      .select({ iv: memoryKeys.iv })
+      .from(memoryKeys)
+      .where(eq(memoryKeys.ownerId, ownerId))
+      .limit(1);
+    if (still?.iv === cached.iv) {
+      return cached.key;
+    }
+    cache().delete(ownerId);
+  }
   const read = async () => {
     const [found] = await db
       .select()
@@ -89,7 +107,7 @@ const dataKey = async (
     throw new Error("memory: the data key was not saved");
   }
   const key = parseKey(openWithMasterKey(row, memoryKeyAad(ownerId)));
-  cache().set(ownerId, key);
+  cache().set(ownerId, { iv: row.iv, key });
   return key;
 };
 

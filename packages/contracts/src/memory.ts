@@ -143,6 +143,8 @@ export interface MemoryRecordView {
 /** `GET /api/memory`: the list on the left. Off — no «Память» model: the page says the memory is off. */
 export interface MemoryOverview {
   on: boolean;
+  /** Who turned it off: no «Память» model in the service, or the person in their account settings. */
+  off?: "service" | "person";
   cards: MemoryCardItem[];
   /** «Не записано»: the open questions (P18), answered with `POST /api/memory/questions/[id]`. */
   questions: ChatMemory["questions"];

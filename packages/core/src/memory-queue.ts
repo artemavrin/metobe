@@ -1,7 +1,7 @@
 import "server-only";
 import { Queue, Worker } from "bullmq";
 
-import { writeMemory, isMemoryOn } from "./memory-write";
+import { writeMemory, isMemoryOnFor } from "./memory-write";
 import type { MemoryJob } from "./memory-write";
 import { tasksConnection } from "./tasks-queue";
 
@@ -33,7 +33,7 @@ const getMemoryQueue = () => {
  */
 export const queueMemoryWrite = async (job: MemoryJob) => {
   try {
-    if (await isMemoryOn()) {
+    if (await isMemoryOnFor(job.ownerId)) {
       await getMemoryQueue().add("write", job);
     }
   } catch (error) {

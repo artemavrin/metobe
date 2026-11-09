@@ -796,6 +796,19 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   });
 
   // Last: it changes SECRETS_KEY for the rest of the process.
+  it("does not seal with a key another process has forgotten", async () => {
+    await memory.addRecord(bob, { entities: [], kind: "fact", text: "до" });
+    // «Забыть всё» in the web, and a new key there; this process (the worker) still holds the old one.
+    await db.delete(memoryRecords).where(eq(memoryRecords.ownerId, bob));
+    await db.delete(memoryKeys).where(eq(memoryKeys.ownerId, bob));
+    await memory.addRecord(bob, { entities: [], kind: "fact", text: "после" });
+    // Another process reads it with the key in the table.
+    (globalThis as Record<symbol, Map<string, unknown>>)[
+      Symbol.for("metobe.memory.keys")
+    ]?.clear();
+    expect(await recordTexts(bob)).toEqual(["после"]);
+  });
+
   it("survives a SECRETS_KEY rotation: only the data keys are sealed again", async () => {
     const record = await memory.addRecord(ana, {
       entities: [],

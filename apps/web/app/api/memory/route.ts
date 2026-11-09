@@ -1,6 +1,6 @@
 import type { MemoryOverview } from "@metobe/contracts/memory";
 import { memoryOverview } from "@metobe/core/memory-page";
-import { isMemoryOn } from "@metobe/core/memory-write";
+import { memoryStateFor } from "@metobe/core/memory-write";
 import { headers } from "next/headers";
 
 import { getAuth } from "@/lib/auth";
@@ -15,9 +15,11 @@ export const GET = async () => {
   if (!session) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
-  if (!(await isMemoryOn())) {
+  const state = await memoryStateFor(session.user.id);
+  if (!state.on) {
     return Response.json({
       cards: [],
+      off: state.service ? "person" : "service",
       on: false,
       questions: [],
       rules: [],

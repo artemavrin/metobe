@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "memory_off" boolean DEFAULT false NOT NULL;

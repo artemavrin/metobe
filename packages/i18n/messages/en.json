@@ -2771,6 +2771,18 @@
     "markByHand": "by hand",
     "markFromChat": "from a chat",
     "betweenToYou": "{debtor} · promised to you",
-    "youPromisedTo": "You · promised to: {creditor}"
+    "youPromisedTo": "You · promised to: {creditor}",
+    "offByYou": "You turned the memory off in your account settings: nothing is recorded from chats or read. What was recorded is kept.",
+    "offSettings": "Open settings",
+    "settingsTitle": "Memory",
+    "settingsOn": "Remember from chats",
+    "settingsOnHint": "People, promises, events and rules from your messages. Off — nothing is recorded or read, what was recorded is kept.",
+    "settingsForget": "Forget everything",
+    "settingsForgetHint": "Deletes everything in the memory, for good.",
+    "forgetTitle": "Forget everything?",
+    "forgetText": "People, promises, events, rules and the memory's questions will be deleted for good. Chats stay.",
+    "forgetConfirm": "Forget everything",
+    "forgetDone": "The memory is cleared.",
+    "close": "Close"
   }
 }

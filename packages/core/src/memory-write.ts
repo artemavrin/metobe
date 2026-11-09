@@ -47,9 +47,41 @@ const MEMORY_NOTE = `A separate memory keeps people, promises, events and rules 
 export const isMemoryOn = async () =>
   Boolean(process.env.REDIS_URL) && (await getSlotModel("memory")) !== null;
 
-/** The note for the chat's instructions: `MEMORY_NOTE` while the memory is on, nothing while it is off. */
-export const chatMemoryNote = async () =>
-  (await isMemoryOn()) ? MEMORY_NOTE : "";
+/** The person turned their memory off (ARCH §19.1). */
+const isOffFor = async (userId: string) => {
+  const [row] = await getDb()
+    .db.select({ off: user.memoryOff })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  return row?.off ?? true;
+};
+
+/**
+ * The memory as one person has it: `service` — a model holds the «Память» job; `on` — and they have not turned theirs
+ * off. Off either way, nothing of theirs is written or read.
+ */
+export const memoryStateFor = async (userId: string) => {
+  const service = await isMemoryOn();
+  return { on: service && !(await isOffFor(userId)), service };
+};
+
+export const isMemoryOnFor = async (userId: string) => {
+  const state = await memoryStateFor(userId);
+  return state.on;
+};
+
+/** The person's switch, in the account settings. */
+export const setMemoryOff = async (userId: string, off: boolean) => {
+  await getDb()
+    .db.update(user)
+    .set({ memoryOff: off })
+    .where(eq(user.id, userId));
+};
+
+/** The note for the chat's instructions: `MEMORY_NOTE` while the person's memory is on, nothing while it is off. */
+export const chatMemoryNote = async (userId: string) =>
+  (await isMemoryOnFor(userId)) ? MEMORY_NOTE : "";
 
 const WRITE_TIMEOUT_MS = 60_000;
 /** Open commitments the model sees, newest first: enough for a person's running promises, short for the prompt. */
@@ -114,7 +146,8 @@ const exchangeBefore = async (chatId: string, sentAt: Date) => {
 /** What became of the job — for the worker's log. */
 export const writeMemory = async (job: MemoryJob) => {
   const model = await getSlotModel("memory");
-  if (!model) {
+  // Turned off since the message was queued: it is not read.
+  if (!model || (await isOffFor(job.ownerId))) {
     return "off";
   }
   const write = await createWrite(job.ownerId, {

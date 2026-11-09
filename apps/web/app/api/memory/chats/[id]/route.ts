@@ -1,7 +1,7 @@
 import type { ChatMemory } from "@metobe/contracts/memory";
 import { getChat } from "@metobe/core/chat";
 import { chatMemory } from "@metobe/core/memory";
-import { isMemoryOn } from "@metobe/core/memory-write";
+import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { headers } from "next/headers";
 import { z } from "zod";
 
@@ -26,7 +26,7 @@ export const GET = async (
   if (!chat || chat.userId !== session.user.id) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
-  if (!(await isMemoryOn())) {
+  if (!(await isMemoryOnFor(session.user.id))) {
     return Response.json({
       notes: [],
       on: false,

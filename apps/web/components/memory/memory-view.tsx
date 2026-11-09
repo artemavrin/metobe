@@ -480,7 +480,15 @@ const Found = ({ records }: { records: MemoryRecordView[] }) => {
   );
 };
 
-const Empty = ({ title, body }: { title: string; body: string }) => (
+const Empty = ({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children?: React.ReactNode;
+}) => (
   <div
     className={cn(
       "mx-auto flex max-w-md flex-col gap-2 px-6 py-16 text-center",
@@ -489,6 +497,7 @@ const Empty = ({ title, body }: { title: string; body: string }) => (
   >
     <p className="text-sm font-medium">{title}</p>
     <p className="text-muted-foreground text-sm leading-6">{body}</p>
+    {children}
   </div>
 );
 
@@ -811,7 +820,21 @@ export const MemoryView = ({
     return (
       <>
         <Bar />
-        <Empty body={t("offBody")} title={t("offTitle")} />
+        {overview.off === "person" ? (
+          <Empty body={t("offByYou")} title={t("offTitle")}>
+            <Button
+              className={cn("self-center", PRESS)}
+              nativeButton={false}
+              render={<Link href="/settings/account#memory" />}
+              size="sm"
+              variant="outline"
+            >
+              {t("offSettings")}
+            </Button>
+          </Empty>
+        ) : (
+          <Empty body={t("offBody")} title={t("offTitle")} />
+        )}
       </>
     );
   }

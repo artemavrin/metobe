@@ -1,6 +1,6 @@
 import { getAccount } from "@metobe/core/account";
 import { listChats } from "@metobe/core/chat";
-import { isMemoryOn } from "@metobe/core/memory-write";
+import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { listSidebarTasks } from "@metobe/core/tasks";
 import { availableUpdate } from "@metobe/core/updates";
 import { getWhatsNew } from "@metobe/core/whats-new";
@@ -42,7 +42,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
     admin ? availableUpdate() : null,
     getWhatsNew(user.id),
     listSidebarTasks(user.id),
-    isMemoryOn(),
+    isMemoryOnFor(user.id),
   ]);
   // The pinned first, the latest pinned on top of them; the rest keep the order of their last message.
   // toSorted is past the ES2022 target; the filter gives a fresh array to sort.

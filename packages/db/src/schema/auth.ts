@@ -23,6 +23,8 @@ export const user = pgTable("user", {
   // «Не показывать после обновлений».
   whatsNewSeen: text("whats_new_seen"),
   whatsNewOff: boolean("whats_new_off").default(false).notNull(),
+  // The person's own switch of the memory (ARCH §19.1): on — nothing of theirs is written or read; what is kept waits.
+  memoryOff: boolean("memory_off").default(false).notNull(),
   // When an admin turned the account off: no sign-in, no code, no sessions; null — it works.
   disabledAt: timestamp("disabled_at"),
 });

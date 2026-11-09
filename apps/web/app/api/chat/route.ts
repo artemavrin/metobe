@@ -633,7 +633,7 @@ export const POST = async (request: Request) => {
         TIME_NOTE,
         STYLE_NOTE,
         // The memory writes on its own (ARCH §19): the model must not claim it saved or removed anything.
-        await chatMemoryNote(),
+        await chatMemoryNote(session.user.id),
         hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
         skilled.note,
         drafting.note,

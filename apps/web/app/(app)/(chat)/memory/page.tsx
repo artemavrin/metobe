@@ -1,6 +1,6 @@
 import type { MemoryOverview } from "@metobe/contracts/memory";
 import { memoryOverview } from "@metobe/core/memory-page";
-import { isMemoryOn } from "@metobe/core/memory-write";
+import { memoryStateFor } from "@metobe/core/memory-write";
 
 import { MemoryView } from "@/components/memory/memory-view";
 import { getPrefs } from "@/lib/prefs";
@@ -21,10 +21,16 @@ const MemoryPage = async ({
   if (!user) {
     return null;
   }
-  const on = await isMemoryOn();
-  const initial: MemoryOverview = on
-    ? { ...(await memoryOverview(user.id)), on }
-    : { cards: [], on, questions: [], rules: [] };
+  const state = await memoryStateFor(user.id);
+  const initial: MemoryOverview = state.on
+    ? { ...(await memoryOverview(user.id)), on: true }
+    : {
+        cards: [],
+        off: state.service ? "person" : "service",
+        on: false,
+        questions: [],
+        rules: [],
+      };
   return (
     <MemoryView
       initial={initial}

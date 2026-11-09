@@ -1,5 +1,6 @@
 import { getAccount } from "@metobe/core/account";
 import { isMailConfigured } from "@metobe/core/mail";
+import { memoryStateFor } from "@metobe/core/memory-write";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
 
@@ -12,6 +13,7 @@ import { getSettingsViewer } from "@/lib/settings-access";
 
 import { DataForm, DangerForm } from "./data-form";
 import { AccountHeader } from "./header";
+import { MemoryForm } from "./memory-form";
 import { ModelForm } from "./model-form";
 import { RegionForm } from "./region-form";
 import { Sessions } from "./sessions";
@@ -23,17 +25,29 @@ import { ThemePicker } from "./theme-picker";
 const AccountPage = async () => {
   const { user, role } = await getSettingsViewer();
   const requestHeaders = await headers();
-  const [t, tAppearance, tModel, current, all, account, prefs, mailOn] =
-    await Promise.all([
-      getTranslations("data"),
-      getTranslations("settings.appearance"),
-      getTranslations("personalization"),
-      getAuth().api.getSession({ headers: requestHeaders }),
-      getAuth().api.listSessions({ headers: requestHeaders }),
-      user ? getAccount(user.id) : null,
-      getPrefs(),
-      isMailConfigured(),
-    ]);
+  const [
+    t,
+    tAppearance,
+    tModel,
+    tMemory,
+    current,
+    all,
+    account,
+    prefs,
+    mailOn,
+    memory,
+  ] = await Promise.all([
+    getTranslations("data"),
+    getTranslations("settings.appearance"),
+    getTranslations("personalization"),
+    getTranslations("memory"),
+    getAuth().api.getSession({ headers: requestHeaders }),
+    getAuth().api.listSessions({ headers: requestHeaders }),
+    user ? getAccount(user.id) : null,
+    getPrefs(),
+    isMailConfigured(),
+    user ? memoryStateFor(user.id) : null,
+  ]);
   if (!user) {
     return null;
   }
@@ -60,6 +74,14 @@ const AccountPage = async () => {
           sendKey={account?.sendKey === "mod-enter" ? "mod-enter" : "enter"}
         />
       </Section>
+      {/* Only while the service has a «Память» model: without one there is nothing to turn on (ARCH §19.1). */}
+      {memory?.service && (
+        <div id="memory">
+          <Section title={tMemory("settingsTitle")}>
+            <MemoryForm on={memory.on} />
+          </Section>
+        </div>
+      )}
       <Sessions
         currentToken={current?.session.token ?? ""}
         sessions={all
