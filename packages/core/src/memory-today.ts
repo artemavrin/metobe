@@ -11,6 +11,7 @@ import {
   listRecords,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
+import { groupMembers } from "./memory-groups";
 
 // «Не упустить» on the new chat screen (ARCH §19.6, P17): open commitments that need the person now — past their day,
 // due today or tomorrow, said to be done by someone else, marked important, or waiting for others longer than a rule
@@ -73,29 +74,48 @@ const subjectsOf = (r: MemoryRecord, self: ReadonlySet<string>) =>
     )
     .map((e) => e.entityId);
 
+/** Keeps the newer of two rules for a card. */
+const keepNewer = (
+  map: Map<string, MemoryRecord>,
+  card: string,
+  r: MemoryRecord
+) => {
+  const had = map.get(card);
+  if (!had || had.recordedAt < r.recordedAt) {
+    map.set(card, r);
+  }
+};
+
 /**
- * The newest rule of a kind for each card it names, and the newest naming none (`""`): «теперь раз в неделю» said
- * later wins over «раз в две недели», without anyone closing the old one.
+ * The rule of a kind for each card: the newest naming it, and the newest naming none (`""`) — «теперь раз в неделю»
+ * said later wins over «раз в две недели», without anyone closing the old one. A group a rule names (`expand`) stands
+ * for whoever is in it now; a rule naming the person themselves wins over their group's.
  */
 const rulesByCard = (
   rules: MemoryRecord[],
   kind: Rule["kind"],
-  self: ReadonlySet<string>
+  self: ReadonlySet<string>,
+  expand: (card: string) => string[] | null
 ) => {
-  const byCard = new Map<string, MemoryRecord>();
+  const direct = new Map<string, MemoryRecord>();
+  const viaGroup = new Map<string, MemoryRecord>();
   for (const r of rules) {
     if (r.rule?.kind !== kind) {
       continue;
     }
     const cards = subjectsOf(r, self);
     for (const card of cards.length > 0 ? cards : [""]) {
-      const had = byCard.get(card);
-      if (!had || had.recordedAt < r.recordedAt) {
-        byCard.set(card, r);
+      const members = expand(card);
+      if (members) {
+        for (const member of members) {
+          keepNewer(viaGroup, member, r);
+        }
+      } else {
+        keepNewer(direct, card, r);
       }
     }
   }
-  return byCard;
+  return new Map([...viaGroup, ...direct]);
 };
 
 /** The latest event each card took part in, up to now: «давно не было» counts from when it happened. */
@@ -195,42 +215,58 @@ const rhythmRows = (
   events: MemoryRecord[],
   cards: Map<string, MemoryEntity>,
   dismissed: Awaited<ReturnType<typeof listDismissals>>,
-  { now, timeZone, today }: { now: Date; timeZone: string; today: string }
+  {
+    expand,
+    now,
+    timeZone,
+    today,
+  }: {
+    expand: (card: string) => string[] | null;
+    now: Date;
+    timeZone: string;
+    today: string;
+  }
 ): MemorySuggestion[] => {
   const last = lastContacts(events, now);
   const self = new Set(
     [...cards.values()].filter((e) => e.kind === "self").map((e) => e.id)
   );
-  return [...rulesByCard(rules, "rhythm", self)].flatMap(([cardId, r]) => {
-    const card = cards.get(cardId);
-    if (!(card && card.kind !== "self" && r.rule)) {
-      return [];
+  return [...rulesByCard(rules, "rhythm", self, expand)].flatMap(
+    ([cardId, r]) => {
+      const card = cards.get(cardId);
+      if (!(card && card.kind !== "self" && r.rule)) {
+        return [];
+      }
+      const contact = last.get(cardId) ?? null;
+      const days = daysBetween(
+        dayKey(contact ?? r.recordedAt, timeZone),
+        today
+      );
+      const gone = dismissed.get(dismissalKey(r.id, cardId));
+      const away =
+        gone &&
+        (gone.dueAt?.getTime() ?? null) === (contact?.getTime() ?? null);
+      if (days < r.rule.days || away) {
+        return [];
+      }
+      return [
+        {
+          days,
+          dueAt: null,
+          id: r.id,
+          important: false,
+          key: dismissalKey(r.id, cardId),
+          kind: "rhythm",
+          reason: "rhythm",
+          rhythm: { every: r.rule.days, since: contact?.toISOString() ?? null },
+          side: "mine",
+          status: null,
+          text: r.text,
+          who: cardOf(card),
+        },
+      ];
     }
-    const contact = last.get(cardId) ?? null;
-    const days = daysBetween(dayKey(contact ?? r.recordedAt, timeZone), today);
-    const gone = dismissed.get(dismissalKey(r.id, cardId));
-    const away =
-      gone && (gone.dueAt?.getTime() ?? null) === (contact?.getTime() ?? null);
-    if (days < r.rule.days || away) {
-      return [];
-    }
-    return [
-      {
-        days,
-        dueAt: null,
-        id: r.id,
-        important: false,
-        key: dismissalKey(r.id, cardId),
-        kind: "rhythm",
-        reason: "rhythm",
-        rhythm: { every: r.rule.days, since: contact?.toISOString() ?? null },
-        side: "mine",
-        status: null,
-        text: r.text,
-        who: cardOf(card),
-      },
-    ];
-  });
+  );
 };
 
 /** The rows, «важно» first, then past due (the longest first), said done, today, tomorrow, the rest important. */
@@ -239,19 +275,25 @@ export const todaySuggestions = async (
   timeZone: string,
   now = new Date()
 ): Promise<MemorySuggestion[]> => {
-  const [records, rules, events, entities, dismissed] = await Promise.all([
-    listRecords(ownerId, { kinds: ["commitment"] }),
-    listRecords(ownerId, { kinds: ["rule"] }),
-    listRecords(ownerId, { kinds: ["event"] }),
-    listEntities(ownerId),
-    listDismissals(ownerId),
-  ]);
+  const [records, rules, events, facts, entities, dismissed] =
+    await Promise.all([
+      listRecords(ownerId, { kinds: ["commitment"] }),
+      listRecords(ownerId, { kinds: ["rule"] }),
+      listRecords(ownerId, { kinds: ["event"] }),
+      listRecords(ownerId, { kinds: ["fact"] }),
+      listEntities(ownerId),
+      listDismissals(ownerId),
+    ]);
   const cards = new Map(entities.map((e) => [e.id, e]));
   const today = dayKey(now, timeZone);
   const self = new Set(
     entities.filter((e) => e.kind === "self").map((e) => e.id)
   );
-  const waits = rulesByCard(rules, "wait", self);
+  // A group in a rule is whoever is in it now (core/memory-groups).
+  const members = groupMembers(facts, now);
+  const expand = (card: string) =>
+    cards.get(card)?.kind === "group" ? [...(members.get(card) ?? [])] : null;
+  const waits = rulesByCard(rules, "wait", self, expand);
   const rows = records.flatMap((r): MemorySuggestion[] => {
     if (r.status !== "open" && r.status !== "unconfirmed") {
       return [];
@@ -290,7 +332,12 @@ export const todaySuggestions = async (
     ];
   });
   rows.push(
-    ...rhythmRows(rules, events, cards, dismissed, { now, timeZone, today })
+    ...rhythmRows(rules, events, cards, dismissed, {
+      expand,
+      now,
+      timeZone,
+      today,
+    })
   );
   // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own array
   return rows.sort(

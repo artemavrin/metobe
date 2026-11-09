@@ -4,7 +4,17 @@ import { z } from "zod";
 // are sealed (core/memory-crypto).
 
 /** `self` is the person themselves — one per owner; without it «who owes whom» has no one to point at. */
-export const memoryEntityKinds = ["self", "person", "org", "project"] as const;
+/**
+ * `group` — people the person names as one («моя команда», «отдел продаж», «подрядчики»): who is in it is a fact
+ * linking a person to it (role `group`), so a rule «с каждым из команды» keeps up with who joins and who leaves.
+ */
+export const memoryEntityKinds = [
+  "self",
+  "person",
+  "org",
+  "project",
+  "group",
+] as const;
 export type MemoryEntityKind = (typeof memoryEntityKinds)[number];
 
 /** A fact, an assessment («often misses deadlines»), an event, a commitment and a rule are different things (D39). */
@@ -52,6 +62,7 @@ export const memoryRoles = [
   "debtor",
   "creditor",
   "subject",
+  "group",
 ] as const;
 export type MemoryRole = (typeof memoryRoles)[number];
 
@@ -163,6 +174,8 @@ export interface MemoryOverview {
 export interface MemoryCard {
   card: MemoryCardItem;
   records: MemoryRecordView[];
+  /** A group's people now (who joined and has not left), for «Участники». */
+  members?: { id: string; name: string; kind: MemoryEntityKind }[];
 }
 
 /** `GET /api/memory/search?q=`: cards by name and records by text; done and cancelled ones too. */

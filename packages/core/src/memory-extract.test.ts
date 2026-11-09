@@ -69,7 +69,14 @@ const OPEN: OpenCommitment[] = [
 
 const plan = (extraction: Partial<Extraction>, selfId: string | null = SELF) =>
   planWrite(
-    { asks: [], items: [], new_entities: [], updates: [], ...extraction },
+    {
+      asks: [],
+      items: [],
+      leaves: [],
+      new_entities: [],
+      updates: [],
+      ...extraction,
+    },
     { cards, commitments: OPEN, selfId, timeZone: ZONE }
   );
 
@@ -485,12 +492,126 @@ describe("planWrite: questions (P18)", () => {
   });
 });
 
+describe("planWrite: groups (ARCH §19)", () => {
+  const TEAM = "33333333-3333-4333-8333-333333333333";
+  const groupCards: KnownCard[] = [
+    ...cards,
+    {
+      aliases: [],
+      id: TEAM,
+      kind: "group",
+      members: ["c1"],
+      name: "Моя команда",
+      ref: "g1",
+      role: null,
+    },
+  ];
+  const membership = {
+    closedByWrite: null,
+    deletedAt: null,
+    doneAt: null,
+    dueAt: null,
+    entities: [
+      { entityId: ANDREY, role: "about" as const },
+      { entityId: TEAM, role: "group" as const },
+    ],
+    givenAt: null,
+    id: "00000000-0000-4000-8000-0000000000f1",
+    important: false,
+    kind: "fact" as const,
+    occurredAt: null,
+    occurredPrecision: null,
+    recordedAt: new Date("2026-11-01T00:00:00Z"),
+    role: null,
+    rule: null,
+    status: null,
+    supersededAt: null,
+    text: "Андрей Смирнов в моей команде",
+    validFrom: null,
+    validTo: null,
+    writeId: null,
+  };
+  const groupPlan = (extraction: Partial<Extraction>) =>
+    planWrite(
+      {
+        asks: [],
+        items: [],
+        leaves: [],
+        new_entities: [],
+        updates: [],
+        ...extraction,
+      },
+      { cards: groupCards, facts: [membership], selfId: SELF, timeZone: ZONE }
+    );
+
+  it("puts a person in a known group, and in a new one", () => {
+    const known = groupPlan({
+      items: [
+        item({ about: ["new_pavel", "g1"], text: "Павел в моей команде" }),
+      ],
+      new_entities: [
+        { about: "", id: "new_pavel", kind: "person", name: "Павел" },
+      ],
+    });
+    expect(known.records[0]?.entities).toEqual([
+      { newRef: "new_pavel", role: "about" },
+      { entityId: TEAM, role: "group" },
+    ]);
+    const fresh = groupPlan({
+      items: [
+        item({
+          about: ["c1", "new_sales"],
+          text: "Андрей Смирнов в отделе продаж",
+        }),
+      ],
+      new_entities: [
+        { about: "", id: "new_sales", kind: "group", name: "Отдел продаж" },
+      ],
+    });
+    expect(fresh.entities).toEqual([
+      { kind: "group", name: "Отдел продаж", ref: "new_sales", role: null },
+    ]);
+    expect(fresh.records[0]?.entities).toEqual([
+      { entityId: ANDREY, role: "about" },
+      { newRef: "new_sales", role: "group" },
+    ]);
+  });
+
+  it("keeps a group as a rule's subject, not its people", () => {
+    const { records } = groupPlan({
+      items: [
+        item({
+          about: ["g1"],
+          interval_days: 14,
+          kind: "rule",
+          rule_kind: "rhythm",
+          text: "С каждым из моей команды раз в две недели",
+        }),
+      ],
+    });
+    expect(records[0]?.entities).toEqual([{ entityId: TEAM, role: "subject" }]);
+  });
+
+  it("ends the membership of who left, and nothing for a ref to nothing", () => {
+    expect(groupPlan({ leaves: [{ group: "g1", person: "c1" }] }).ends).toEqual(
+      [membership.id]
+    );
+    expect(groupPlan({ leaves: [{ group: "g1", person: "c2" }] }).ends).toEqual(
+      []
+    );
+    expect(groupPlan({ leaves: [{ group: "c2", person: "c1" }] }).ends).toEqual(
+      []
+    );
+  });
+});
+
 describe("mentionsUser", () => {
   it("sees the user in any ref", () => {
     expect(
       mentionsUser({
         asks: [],
         items: [item({ about: ["c1"] })],
+        leaves: [],
         new_entities: [],
         updates: [],
       })
@@ -499,6 +620,7 @@ describe("mentionsUser", () => {
       mentionsUser({
         asks: [],
         items: [item({ debtor: "user" })],
+        leaves: [],
         new_entities: [],
         updates: [],
       })

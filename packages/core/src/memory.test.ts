@@ -436,6 +436,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(
         await memory.applyWrite(ana, made.id, {
           drafts: [],
+          ends: [],
           entities: [],
           records: [],
           statuses: [
@@ -473,6 +474,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       });
       const plan: MemoryModule.MemoryWritePlan = {
         drafts: [],
+        ends: [],
         entities: [
           {
             kind: "org",
@@ -514,6 +516,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(
         await memory.applyWrite(ana, again.id, {
           drafts: [],
+          ends: [],
           entities: [],
           records: [],
           statuses: [],
@@ -531,6 +534,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       const made = await memory.createWrite(ana, { chatId, messageId });
       await memory.applyWrite(ana, made.id, {
         drafts: [],
+        ends: [],
         entities: [],
         records: [
           { entities: [], kind: "fact", text: "Из удалённого сообщения" },
@@ -573,6 +577,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
             ],
           },
         ],
+        ends: [],
         entities: [],
         records: [],
         statuses: [],
@@ -664,6 +669,43 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         expect(open.map((q) => q.id)).not.toContain(first.question?.id);
         expect(open.map((q) => q.id)).not.toContain(second.question?.id);
       });
+    });
+
+    it("ends a membership by a message, and «Отменить» brings it back (ARCH §19)", async () => {
+      const team = await memory.createEntity(ana, {
+        kind: "group",
+        name: "Отдел продаж",
+      });
+      const who = await memory.createEntity(ana, {
+        kind: "person",
+        name: "Нина Сом",
+      });
+      const inSales = await memory.addRecord(ana, {
+        entities: [
+          { entityId: who.id, role: "about" },
+          { entityId: team.id, role: "group" },
+        ],
+        kind: "fact",
+        text: "Нина Сом в отделе продаж",
+      });
+      const left = await memory.createWrite(ana, {
+        chatId,
+        messageId: crypto.randomUUID(),
+      });
+      await memory.applyWrite(ana, left.id, {
+        drafts: [],
+        ends: [inSales.id],
+        entities: [],
+        records: [],
+        statuses: [],
+      });
+      const ended = async () => {
+        const all = await memory.listRecords(ana, { entityId: team.id });
+        return all.find((r) => r.id === inSales.id)?.validTo ?? null;
+      };
+      expect(await ended()).not.toBeNull();
+      await memory.undoWrite(ana, left.id);
+      expect(await ended()).toBeNull();
     });
 
     it("puts back what a write's correction replaced", async () => {
@@ -1090,6 +1132,53 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     // A commitment's own key still works, and a rule is no commitment to take away the old way.
     expect(await memory.dismissSuggestion(ella, vectorLong.id)).toBe(true);
     expect(await memory.dismissSuggestion(ella, team.id)).toBe(false);
+  });
+
+  it("keeps a group's rule with whoever is in the group now (ARCH §19)", async () => {
+    const today: typeof MemoryTodayModule = await import("./memory-today");
+    const team = await memory.createEntity(ella, {
+      kind: "group",
+      name: "Моя команда",
+    });
+    const card = (name: string) =>
+      memory.createEntity(ella, { kind: "person", name });
+    const [lena, oleg, pasha] = await Promise.all([
+      card("Лена Котова"),
+      card("Олег Лис"),
+      card("Паша Дым"),
+    ]);
+    const join = (who: string) =>
+      memory.addRecord(ella, {
+        entities: [
+          { entityId: who, role: "about" },
+          { entityId: team.id, role: "group" },
+        ],
+        kind: "fact",
+        text: "В моей команде",
+      });
+    await join(lena.id);
+    const olegIn = await join(oleg.id);
+    const rule = await memory.addRecord(ella, {
+      entities: [{ entityId: team.id, role: "subject" }],
+      kind: "rule",
+      rule: { days: 14, kind: "rhythm", workingDays: false },
+      text: "Один на один с каждым из моей команды раз в две недели",
+    });
+    // Fifteen days after the rule was said (today), nobody met: both are due — by the group's rule.
+    const later = new Date(Date.now() + 15 * 86_400_000);
+    const names = async () => {
+      const list = await today.todaySuggestions(ella, "Europe/Moscow", later);
+      return list.filter((s) => s.id === rule.id).map((s) => s.who?.name);
+    };
+    expect(await names()).toEqual(
+      expect.arrayContaining(["Лена Котова", "Олег Лис"])
+    );
+    // Joined after the rule was said: counts at once. Left: no longer.
+    await join(pasha.id);
+    await memory.setValidTo(ella, olegIn.id, new Date());
+    const now = await names();
+    expect(now).toEqual(expect.arrayContaining(["Лена Котова", "Паша Дым"]));
+    expect(now).not.toContain("Олег Лис");
   });
 
   it("forgets everything, key included, and starts over with a new one", async () => {

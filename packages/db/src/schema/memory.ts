@@ -108,7 +108,7 @@ export const memoryEntities = pgTable(
       .where(sql`${table.kind} = 'self'`),
     check(
       "memory_entities_kind",
-      sql`${table.kind} in ('self', 'person', 'org', 'project')`
+      sql`${table.kind} in ('self', 'person', 'org', 'project', 'group')`
     ),
   ]
 );
@@ -213,7 +213,7 @@ export const memoryRecordEntities = pgTable(
     index("memory_record_entities_entity").on(table.entityId),
     check(
       "memory_record_entities_role",
-      sql`${table.role} in ('about', 'participant', 'debtor', 'creditor', 'subject')`
+      sql`${table.role} in ('about', 'participant', 'debtor', 'creditor', 'subject', 'group')`
     ),
   ]
 );

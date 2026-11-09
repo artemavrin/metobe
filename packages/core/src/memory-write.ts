@@ -30,6 +30,7 @@ import {
 } from "./memory-extract";
 import type { KnownCard, OpenCommitment } from "./memory-extract";
 import { GATE_QUESTIONS, gateState, nothingToKeep } from "./memory-gate";
+import { groupMembers } from "./memory-groups";
 import { getSlotModel } from "./model-slots";
 import { announceMemory } from "./task-events";
 
@@ -226,6 +227,41 @@ const nothingToKeepSaid = async (
   }
 };
 
+/** A plan that adds, asks, settles or ends something — «Запомнено» or a question to show. */
+const changesAnything = (plan: ReturnType<typeof planWrite>) =>
+  plan.records.length > 0 ||
+  plan.drafts.length > 0 ||
+  plan.statuses.length > 0 ||
+  plan.ends.length > 0;
+
+/** The cards the model may point at, by short refs; a group with its people now, by the same refs. */
+const knownCards = (
+  entities: Awaited<ReturnType<typeof listEntities>>,
+  members: Map<string, Set<string>>
+): KnownCard[] => {
+  const refs = new Map(entities.map((e, i) => [e.id, `c${i + 1}`]));
+  return entities.flatMap((e) =>
+    e.kind === "self"
+      ? []
+      : [
+          {
+            aliases: e.aliases,
+            id: e.id,
+            kind: e.kind,
+            members:
+              e.kind === "group"
+                ? [...(members.get(e.id) ?? [])].flatMap(
+                    (id) => refs.get(id) ?? []
+                  )
+                : undefined,
+            name: e.name,
+            ref: refs.get(e.id) ?? "",
+            role: e.role,
+          },
+        ]
+  );
+};
+
 /** What became of the job — for the worker's log. */
 export const writeMemory = async (job: MemoryJob) => {
   const model = await getSlotModel("memory");
@@ -262,21 +298,11 @@ export const writeMemory = async (job: MemoryJob) => {
     await markWrite(job.ownerId, write.id, "skipped");
     return "skipped";
   }
-  const entities = await listEntities(job.ownerId);
-  const cards: KnownCard[] = entities.flatMap((e, i) =>
-    e.kind === "self"
-      ? []
-      : [
-          {
-            aliases: e.aliases,
-            id: e.id,
-            kind: e.kind,
-            name: e.name,
-            ref: `c${i + 1}`,
-            role: e.role,
-          },
-        ]
-  );
+  const [entities, facts] = await Promise.all([
+    listEntities(job.ownerId),
+    listRecords(job.ownerId, { kinds: ["fact"] }),
+  ]);
+  const cards = knownCards(entities, groupMembers(facts));
   const promises = await listRecords(job.ownerId, { kinds: ["commitment"] });
   const commitments: OpenCommitment[] = promises
     .flatMap((r) =>
@@ -348,13 +374,11 @@ export const writeMemory = async (job: MemoryJob) => {
   const plan = planWrite(extraction, {
     cards,
     commitments,
+    facts,
     selfId,
     timeZone: job.timeZone,
   });
-  const kept =
-    plan.records.length > 0 ||
-    plan.drafts.length > 0 ||
-    plan.statuses.length > 0;
+  const kept = changesAnything(plan);
   if ((await applyWrite(job.ownerId, write.id, plan)) && kept) {
     // An open chat shows «Запомнено» or asks its question at once (P18).
     await announceMemory(job.ownerId, job.chatId);

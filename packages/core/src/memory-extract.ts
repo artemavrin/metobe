@@ -5,7 +5,8 @@ import type {
 } from "@metobe/contracts/memory";
 import { z } from "zod";
 
-import type { MemoryWritePlan } from "./memory";
+import type { MemoryRecord, MemoryWritePlan } from "./memory";
+import { membershipFacts } from "./memory-groups";
 
 // The silent writer's side of ARCH §19.4, free of the DB so it can be tested directly: what the «Память» model is
 // asked (prompt v2 of S13, which every model needed: «ждём ответа» is the other side's commitment, a commitment's
@@ -31,7 +32,7 @@ export const extractionSchema = z.object({
     .array(
       z.object({
         id: z.string().describe("new:<latin-slug>"),
-        kind: z.enum(["person", "organization", "project"]),
+        kind: z.enum(["person", "organization", "project", "group"]),
         name: z.string(),
         about: z
           .string()
@@ -122,6 +123,16 @@ export const extractionSchema = z.object({
     .describe(
       "Open commitments whose state the message changes: done, no longer needed, or said to be done by someone else"
     ),
+  leaves: z
+    .array(
+      z.object({
+        person: z.string().describe("The person's card ref"),
+        group: z.string().describe("The group's card ref"),
+      })
+    )
+    .describe(
+      "People the message says are no longer in a known group («Марина ушла из команды»)"
+    ),
 });
 /* oxlint-enable sort-keys */
 export type Extraction = z.infer<typeof extractionSchema>;
@@ -143,6 +154,8 @@ export interface KnownCard {
   name: string;
   aliases: string[];
   role: string | null;
+  /** A group's people now, by their refs. */
+  members?: string[];
 }
 
 const dayIn = (at: Date, timeZone: string) => ({
@@ -166,6 +179,9 @@ const cardLine = (c: KnownCard) => {
     c.kind === "org" ? "organization" : c.kind,
     c.role,
     c.aliases.length > 0 ? `also: ${c.aliases.join(", ")}` : null,
+    c.kind === "group"
+      ? `members: ${c.members?.length ? c.members.join(", ") : "none yet"}`
+      : null,
   ].filter(Boolean);
   return `- ${c.ref}: ${c.name} (${about.join("; ")})`;
 };
@@ -226,7 +242,8 @@ ${promises.join("\n")}
 
 Rules:
 - Kinds: fact — a lasting state or attribute (role, stage, preference, birthday); assessment — the user's own opinion or judgement of someone («часто срывает сроки»), never turned into a fact; event — something that happened or is scheduled at a time; commitment — someone owes someone an action, with or without a deadline; rule — the user's standing instruction about reminders or what to highlight.
-- A rule with a period: rhythm — how often the user wants to meet or talk with someone («один на один с Андреем раз в две недели» — 14 days, the person as ref; «с каждым из моей команды» — the refs of the known cards in the team); wait — how long a reply or result from others may take before it is worth asking («ответа от контрагента ждём пять рабочих дней» — 5, working days; the party as ref if named, none if it is anyone). «Раз в неделю» is 7, «раз в месяц» 30.
+- A rule with a period: rhythm — how often the user wants to meet or talk with someone («один на один с Андреем раз в две недели» — 14 days, the person as ref; «с каждым из моей команды» — the group as ref, not its people); wait — how long a reply or result from others may take before it is worth asking («ответа от контрагента ждём пять рабочих дней» — 5, working days; the party as ref if named, none if it is anyone). «Раз в неделю» is 7, «раз в месяц» 30.
+- Groups: people the user names as one — «моя команда», «отдел продаж», «бухгалтерия», «подрядчики» — are a card of kind group; a department of the user's own company is a group too, while another company is an organization. «Работает в отделе продаж» means being in that group. When the message says someone is in a group («Павел — новый разработчик в моей команде», «в отделе продаж теперь Игорь»), add a fact with both refs in about: the person and the group. When it says someone is no longer in a known group («Марина ушла из команды»), put them in leaves and add no fact for it. A rule for everyone in a group points at the group.
 - Refs: use a known card ref, "user", an id from new_entities or an id from asks. Pick a card only when the message makes it clear (a surname, a company, a role, the topic); a person not in the cards goes to new_entities. When a mention fits two or more known cards and nothing in the message tells which, do not guess: add it to asks with those cards as candidates, and use the ask id as the ref in the item (in about, debtor or creditor) instead of a card. The topic tells too: work on what a card is known for («API», «закупки») points at that card, and then it is not a question.
 - Dates: resolve relative dates against today and against the moment they refer to («в прошлый вторник сказал, что через две недели» — two weeks from that Tuesday). Past tense with a weekday means the latest such day before today. Set precision honestly: «на днях» is a week, «в начале октября» is a month. Never invent a date that the message does not imply.
 - In the text, turn a relative date the message gives into an absolute one («вчера» → «8 ноября», «до пятницы» → «до 13 ноября»); keep a vague time vague («на днях»), and never add a date or a deadline the message does not give.
@@ -305,6 +322,7 @@ type Planned = MemoryWritePlan["records"][number];
 type Link = Planned["entities"][number];
 
 const ENTITY_KINDS = {
+  group: "group",
   organization: "org",
   person: "person",
   project: "project",
@@ -475,6 +493,50 @@ const sortOut = (records: Planned[], asks: Map<string, Ask>) => {
   return { drafts: [...drafts.values()], ready };
 };
 
+/**
+ * A fact naming a group is who is in it: the group's link becomes `group`, the people stay `about` — so «Павел — в моей
+ * команде» counts for «с каждым из команды» (core/memory-groups).
+ */
+const asMemberships = (
+  records: Planned[],
+  groups: ReadonlySet<string>,
+  freshGroups: ReadonlySet<string>
+) =>
+  records.map((r) =>
+    r.kind === "fact"
+      ? {
+          ...r,
+          entities: r.entities.map((l) =>
+            l.role === "about" &&
+            (("entityId" in l && groups.has(l.entityId)) ||
+              ("newRef" in l && freshGroups.has(l.newRef)))
+              ? { ...l, role: "group" as const }
+              : l
+          ),
+        }
+      : r
+  );
+
+/** «Марина ушла из команды»: the facts that put her in it, to end — refs to nothing and no membership change nothing. */
+const leftGroups = (
+  extraction: Extraction,
+  cards: KnownCard[],
+  facts: MemoryRecord[]
+) => {
+  const byRef = new Map(cards.map((c) => [c.ref, c]));
+  const ends = new Set<string>();
+  for (const leave of extraction.leaves) {
+    const person = byRef.get(leave.person);
+    const group = byRef.get(leave.group);
+    if (person && group?.kind === "group") {
+      for (const f of membershipFacts(facts, person.id, group.id)) {
+        ends.add(f.id);
+      }
+    }
+  }
+  return [...ends];
+};
+
 /** What the message settles: a ref to nothing, a second word on the same one and «unconfirmed» twice are dropped. */
 const settled = (extraction: Extraction, commitments: OpenCommitment[]) => {
   const byRef = new Map(commitments.map((c) => [c.ref, c]));
@@ -498,11 +560,14 @@ export const planWrite = (
   {
     cards,
     commitments = [],
+    facts = [],
     selfId,
     timeZone,
   }: {
     cards: KnownCard[];
     commitments?: OpenCommitment[];
+    /** The facts kept now: who is in which group, for «ушёл из команды». */
+    facts?: MemoryRecord[];
     selfId: string | null;
     timeZone: string;
   }
@@ -531,8 +596,12 @@ export const planWrite = (
     const at = w ? localMidnight(w.date, timeZone) : null;
     return at && w ? { at, precision: w.precision as MemoryPrecision } : null;
   };
-  const records = extraction.items.flatMap(
-    (item) => toPlanned(item, link, day) ?? []
+  const records = asMemberships(
+    extraction.items.flatMap((item) => toPlanned(item, link, day) ?? []),
+    new Set(cards.filter((c) => c.kind === "group").map((c) => c.id)),
+    new Set(
+      [...fresh.values()].filter((e) => e.kind === "group").map((e) => e.ref)
+    )
   );
   const { drafts, ready } = sortOut(records, asks);
   const used = new Set(
@@ -542,6 +611,7 @@ export const planWrite = (
   );
   return {
     drafts,
+    ends: leftGroups(extraction, cards, facts),
     entities: [...fresh.values()].filter((e) => used.has(e.ref)),
     records: ready,
     statuses: settled(extraction, commitments),

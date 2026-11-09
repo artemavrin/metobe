@@ -28,6 +28,7 @@ import {
   ListChecks,
   MailCheck,
   Search,
+  Users,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -58,7 +59,7 @@ type Pick =
 type Question = ChatMemory["questions"][number];
 type T = ReturnType<typeof useTranslations<"memory">>;
 
-const KINDS = ["person", "org", "project"] as const;
+const KINDS = ["person", "group", "org", "project"] as const;
 const OPEN = new Set(["open", "unconfirmed"]);
 const SEARCH_DELAY_MS = 250;
 
@@ -84,6 +85,8 @@ const Avatar = ({
     face = <Building2 className="size-3.5" />;
   } else if (kind === "project") {
     face = <FolderKanban className="size-3.5" />;
+  } else if (kind === "group") {
+    face = <Users className="size-3.5" />;
   }
   return (
     <span
@@ -265,6 +268,33 @@ const CardView = ({
         onBack={onBack}
         title={card.name}
       />
+      {card.kind === "group" && (
+        <Section count={data.members?.length ?? 0} title={t("members")}>
+          {data.members?.length ? (
+            <div className="flex flex-wrap gap-1.5">
+              {data.members.map((m) => (
+                <Link
+                  className={cn(
+                    "hover:bg-muted flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-0.5 text-sm transition-colors duration-150",
+                    PRESS
+                  )}
+                  href={`/memory?card=${m.id}`}
+                  key={m.id}
+                >
+                  <Avatar
+                    kind={m.kind === "self" ? "person" : m.kind}
+                    name={m.name}
+                    size="size-6"
+                  />
+                  {m.name}
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">{t("noMembers")}</p>
+          )}
+        </Section>
+      )}
       {open.length > 0 && (
         <Section count={open.length} title={t("commitments")}>
           {open.map((r) => (
@@ -336,8 +366,9 @@ const CardView = ({
 
 const NEW_LABEL: Record<
   MemoryEntityKind,
-  "newPerson" | "newOrg" | "newProject"
+  "newPerson" | "newOrg" | "newProject" | "newGroup"
 > = {
+  group: "newGroup",
   org: "newOrg",
   person: "newPerson",
   project: "newProject",

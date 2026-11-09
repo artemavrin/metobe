@@ -594,7 +594,8 @@
       "question": "Memory question",
       "now": "just now",
       "show": "Show in chat",
-      "failed": "Could not save the answer"
+      "failed": "Could not save the answer",
+      "newGroup": "A new group"
     }
   },
   "login": {
@@ -2687,7 +2688,8 @@
     "kinds": {
       "person": "People",
       "org": "Organizations",
-      "project": "Projects"
+      "project": "Projects",
+      "group": "Groups"
     },
     "counts": "{open, plural, one {# open commitment} other {# open commitments}}{overdue, plural, =0 {} other {, # overdue}}",
     "questions": "Not recorded",
@@ -2818,6 +2820,8 @@
       "contacted": "Already done",
       "contactText": "Contact: {name}",
       "savedContact": "Contact noted: {name}"
-    }
+    },
+    "members": "Members",
+    "noMembers": "No members yet. Add them with a message in the chat: «Pavel is on my team»."
   }
 }

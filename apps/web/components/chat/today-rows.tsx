@@ -24,6 +24,7 @@ import {
   Ellipsis,
   FolderKanban,
   Star,
+  Users,
   X,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -60,6 +61,8 @@ const Face = ({ who }: { who: Item["who"] }) => {
     face = <Building2 className="size-3" />;
   } else if (who?.kind === "project") {
     face = <FolderKanban className="size-3" />;
+  } else if (who?.kind === "group") {
+    face = <Users className="size-3" />;
   } else if (who) {
     face = who.name
       .replaceAll(/[«»"]/gu, "")

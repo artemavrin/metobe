@@ -883,6 +883,8 @@ export interface MemoryWritePlan {
   }[];
   /** Open commitments the message settles. */
   statuses: { recordId: string; status: Exclude<MemoryStatus, "open"> }[];
+  /** Facts the message ends («Марина ушла из команды»): they move to «Раньше», and «Отменить» brings them back. */
+  ends: string[];
 }
 
 /**
@@ -896,7 +898,7 @@ export const applyWrite = async (
   plan: MemoryWritePlan
 ) => {
   const adds = plan.records.length > 0 || plan.drafts.length > 0;
-  const keeps = adds || plan.statuses.length > 0;
+  const keeps = adds || plan.statuses.length > 0 || plan.ends.length > 0;
   const key = adds ? await dataKey(ownerId, true) : null;
   return getDb().db.transaction(async (tx) => {
     const [write] = await tx
@@ -979,6 +981,21 @@ export const applyWrite = async (
         )
       )
     );
+    // Only a live fact of the owner's; the write that ended it reopens it when undone.
+    if (plan.ends.length > 0) {
+      await tx
+        .update(memoryRecords)
+        .set({ closedByWrite: writeId, validTo: new Date() })
+        .where(
+          and(
+            eq(memoryRecords.ownerId, ownerId),
+            inArray(memoryRecords.id, plan.ends),
+            eq(memoryRecords.kind, "fact"),
+            isNull(memoryRecords.validTo),
+            isNull(memoryRecords.deletedAt)
+          )
+        );
+    }
     await tx
       .update(memoryWrites)
       .set({

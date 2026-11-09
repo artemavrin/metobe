@@ -337,6 +337,13 @@
       "when": 1794223286850,
       "tag": "0047_decision_models",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794224193216,
+      "tag": "0048_memory_groups",
+      "breakpoints": true
     }
   ]
 }

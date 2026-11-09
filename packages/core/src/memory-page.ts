@@ -20,6 +20,7 @@ import {
   writeChats,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
+import { groupMembers } from "./memory-groups";
 
 // The «Память» page (ARCH §19, P16), put together from the store: the list of cards, a card, search and «Откуда».
 // Owner checks stay in core/memory.ts; here — what the page shows. The memory is a person's thousands of records,
@@ -125,9 +126,21 @@ export const memoryCard = async (
     listRecords(ownerId, { entityId: id }),
   ]);
   const [card] = cards;
-  return card
-    ? { card, records: await views(ownerId, records, entities) }
-    : null;
+  if (!card) {
+    return null;
+  }
+  const view = { card, records: await views(ownerId, records, entities) };
+  if (entity.kind !== "group") {
+    return view;
+  }
+  // Who is in it now: facts linking a person to it, not ended (core/memory-groups).
+  const members = groupMembers(records).get(id) ?? new Set<string>();
+  return {
+    ...view,
+    members: entities
+      .filter((e) => members.has(e.id))
+      .map((e) => ({ id: e.id, kind: e.kind, name: e.name })),
+  };
 };
 
 /** Cards by name, other name or role; records by text — every word of the query, in any order. */
