@@ -2,7 +2,7 @@ import "server-only";
 import { user } from "@metobe/db/schema/auth";
 import { messages } from "@metobe/db/schema/chat";
 import { APICallError, Output, generateText } from "ai";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 
 import { getLanguageModel } from "./ai";
 import { recordRun } from "./chat-run";
@@ -17,6 +17,7 @@ import {
 import {
   extractionSchema,
   memoryInstructions,
+  memoryPrompt,
   mentionsUser,
   planWrite,
 } from "./memory-extract";
@@ -78,6 +79,25 @@ const textOf = (parts: (typeof messages.$inferSelect)["parts"]) =>
     .join("\n")
     .trim();
 
+/**
+ * The exchange the message follows: the person's previous message and the answer to it — for the model to understand
+ * «он», «передумал» or an answer to the assistant's question (S13, part 5), not to record again.
+ */
+const exchangeBefore = async (chatId: string, sentAt: Date) => {
+  const rows = await getDb()
+    .db.select({ parts: messages.parts, role: messages.role })
+    .from(messages)
+    .where(and(eq(messages.chatId, chatId), lt(messages.createdAt, sentAt)))
+    .orderBy(desc(messages.createdAt))
+    .limit(4);
+  const answer = rows.find((r) => r.role === "assistant");
+  const question = rows.find((r) => r.role === "user");
+  return {
+    assistant: answer ? textOf(answer.parts) || undefined : undefined,
+    user: question ? textOf(question.parts) || undefined : undefined,
+  };
+};
+
 /** What became of the job — for the worker's log. */
 export const writeMemory = async (job: MemoryJob) => {
   const model = await getSlotModel("memory");
@@ -133,7 +153,10 @@ export const writeMemory = async (job: MemoryJob) => {
         timeZone: job.timeZone,
       }),
       model: await getLanguageModel(model.sourceId, model.modelId),
-      prompt: `<message>\n${text.slice(0, MAX_TEXT)}\n</message>`,
+      prompt: memoryPrompt(
+        text.slice(0, MAX_TEXT),
+        await exchangeBefore(job.chatId, message.createdAt)
+      ),
       // A person's memory is not left with the provider behind the Gateway (D39).
       providerOptions:
         model.kind === "gateway"

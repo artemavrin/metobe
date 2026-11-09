@@ -18,7 +18,11 @@ if (!person) {
 }
 const entities = await listEntities(person.id);
 const names = new Map(entities.map((e) => [e.id, e.name || "я"]));
-const day = (d: Date | null) => d?.toISOString().slice(0, 10) ?? "—";
+// Dates are midnights in the person's zone: shown in it (this machine's, if the profile has none), not in UTC.
+const zone =
+  person.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+const day = (d: Date | null) =>
+  d ? new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(d) : "—";
 
 console.log(`\nКарточки (${entities.length}):`);
 for (const e of entities) {

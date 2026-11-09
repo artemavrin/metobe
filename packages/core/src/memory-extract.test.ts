@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   localMidnight,
   memoryInstructions,
+  memoryPrompt,
   mentionsUser,
   planWrite,
 } from "./memory-extract";
@@ -91,6 +92,32 @@ describe("memoryInstructions", () => {
       "- c1: Андрей Смирнов (person; руководитель отдела продаж; also: Андрюша)"
     );
     expect(text).toContain("- user: the user themselves");
+  });
+});
+
+describe("memoryPrompt", () => {
+  it("is the message alone when nothing came before", () => {
+    expect(memoryPrompt("андрей передумал")).toBe(
+      "<message>\nандрей передумал\n</message>"
+    );
+  });
+
+  it("puts the exchange before the message, cut short", () => {
+    const prompt = memoryPrompt("Ланьшин, встречи не будет", {
+      assistant: `Какой Андрей передумал?${" ещё".repeat(1000)}`,
+      user: "андрей передумал",
+    });
+    expect(
+      prompt.startsWith(
+        "<context>\nUser: андрей передумал\nAssistant: Какой Андрей передумал?"
+      )
+    ).toBe(true);
+    expect(
+      prompt.endsWith(
+        "</context>\n<message>\nЛаньшин, встречи не будет\n</message>"
+      )
+    ).toBe(true);
+    expect(prompt.length).toBeLessThan(2200);
   });
 });
 

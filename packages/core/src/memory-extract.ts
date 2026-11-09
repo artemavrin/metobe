@@ -124,6 +124,27 @@ const cardLine = (c: KnownCard) => {
   return `- ${c.ref}: ${c.name} (${about.join("; ")})`;
 };
 
+const CONTEXT_USER = 1500;
+const CONTEXT_ANSWER = 2000;
+
+/**
+ * What the model reads: the message, and before it the exchange it follows — the person's previous message and the
+ * answer to it, cut short — only to understand «он», «передумал» or an answer to the assistant's question (S13, part 5).
+ */
+export const memoryPrompt = (
+  message: string,
+  before: { user?: string; assistant?: string } = {}
+) => {
+  const lines = [
+    before.user && `User: ${before.user.slice(0, CONTEXT_USER)}`,
+    before.assistant &&
+      `Assistant: ${before.assistant.slice(0, CONTEXT_ANSWER)}`,
+  ].filter(Boolean);
+  const context =
+    lines.length > 0 ? `<context>\n${lines.join("\n")}\n</context>\n` : "";
+  return `${context}<message>\n${message}\n</message>`;
+};
+
 /** «Today» is when the message was sent, in the person's zone: a write retried tomorrow still reads «вчера» right. */
 export const memoryInstructions = ({
   sentAt,
@@ -151,6 +172,8 @@ Rules:
 - For a commitment, \`when\` is the day it was given or said, \`due\` is the deadline; never put the deadline into \`when\`.
 - Every person or organization mentioned gets a ref: a known card, "user", or a new_entities id — also when unnamed («поставщик упаковки»).
 - Requests to the assistant itself (count, write, plan), questions and small talk produce no items — return empty arrays.
+- Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
+- Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
 - Do not add judgements or guesses that the message does not state.`;
 };
 
