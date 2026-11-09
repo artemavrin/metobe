@@ -576,6 +576,7 @@
     },
     "memory": {
       "remembered": "Запомнено: {text}",
+      "settled": "{status, select, done {Выполнено} cancelled {Отменено} other {Ждёт проверки}}: {text}",
       "rememberedMany": "Запомнено: {count, plural, one {# запись} few {# записи} many {# записей} other {# записи}}",
       "undo": "Отменить",
       "undone": "Удалено из памяти",

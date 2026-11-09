@@ -582,6 +582,7 @@
     },
     "memory": {
       "remembered": "Remembered: {text}",
+      "settled": "{status, select, done {Done} cancelled {Cancelled} other {Waiting for a check}}: {text}",
       "rememberedMany": "Remembered: {count, plural, one {# note} other {# notes}}",
       "undo": "Undo",
       "undone": "Removed from memory",

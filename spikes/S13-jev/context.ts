@@ -24,7 +24,19 @@ const appCards = Object.entries(known).map(([ref, line]) => {
   const kind = /организация/.test(line) ? "org" : /проект/.test(line) ? "project" : "person";
   return { aliases: [], id: ref, kind, name, ref, role } as const;
 });
-const system = memoryInstructions({ cards: appCards, sentAt: new Date(`${TODAY_ISO}T09:00:00Z`), timeZone: TIMEZONE });
+// What the app holds open after the previous messages: a message that settles one of them updates it (S13, part 6).
+const open = (ref: string, text: string) => ({ due: null, id: ref, ref, status: "open" as const, text });
+const commitments = [
+  open("k1", "Ольга Ли пришлёт подписанный договор до 13 ноября"),
+  open("k2", "Андрей Седов сделает API к 13 ноября"),
+  open("k3", "Позвонить Андрею Седову 10 ноября"),
+];
+const system = memoryInstructions({
+  cards: appCards,
+  commitments,
+  sentAt: new Date(`${TODAY_ISO}T09:00:00Z`),
+  timeZone: TIMEZONE,
+});
 
 interface Case {
   before: { user?: string; assistant?: string };
@@ -36,6 +48,8 @@ interface Case {
   /** A phrase of the context that must not be recorded again. */
   notAgain?: RegExp;
   when?: string;
+  /** An open commitment the message settles — then that update is the answer, and no refs are needed. */
+  settles?: string;
 }
 const ANDREYS = ["andrey_sedov", "andrey_lanshin"];
 const cases: Case[] = [
@@ -53,6 +67,7 @@ const cases: Case[] = [
     before: { assistant: "Понял, жду договор от Ольги Ли.", user: "Ольга обещала прислать подписанный договор до пятницы." },
     notAgain: /до пятниц|13 ноября/,
     refs: ["olga_li"],
+    settles: "k1:done",
     text: "она прислала",
   },
   {
@@ -76,6 +91,7 @@ const cases: Case[] = [
     before: { assistant: "Андрей Седов взял на себя API к пятнице.", user: "Андрей Седов обещал сделать API к пятнице." },
     notAgain: /к пятниц|13 ноября/,
     refs: ["andrey_sedov"],
+    settles: "k2:unconfirmed",
     text: "он уже всё сделал",
   },
   {
@@ -90,6 +106,10 @@ const refsOf = (o: Out) => o.items.flatMap((i) => [...i.about, i.debtor, i.credi
 const verdict = (c: Case, o: Out) => {
   if (c.nothing) return o.items.length === 0 && o.asks.length === 0 ? null : `recorded: ${o.items.map((i) => i.text).join(" / ")}`;
   const used = new Set(refsOf(o));
+  if (c.settles) {
+    const got = o.updates.map((u) => `${u.ref}:${u.status}`);
+    return got.includes(c.settles) ? null : `settled ${got.join(", ") || "nothing"}, not ${c.settles}`;
+  }
   // Silence is right too when it cannot say what to keep: the chat's assistant asks back anyway.
   if (c.ask && o.items.length === 0) return null;
   if (c.ask) {

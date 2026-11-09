@@ -7,7 +7,7 @@ import {
   mentionsUser,
   planWrite,
 } from "./memory-extract";
-import type { Extraction, KnownCard } from "./memory-extract";
+import type { Extraction, KnownCard, OpenCommitment } from "./memory-extract";
 
 const ZONE = "Europe/Moscow";
 const ANDREY = "11111111-1111-4111-8111-111111111111";
@@ -47,10 +47,27 @@ const item = (
   ...over,
 });
 
+const OPEN: OpenCommitment[] = [
+  {
+    due: null,
+    id: "00000000-0000-4000-8000-0000000000d1",
+    ref: "k1",
+    status: "open",
+    text: "Андрей Смирнов пришлёт отчёт",
+  },
+  {
+    due: null,
+    id: "00000000-0000-4000-8000-0000000000d2",
+    ref: "k2",
+    status: "unconfirmed",
+    text: "Ольга Ли подготовит API",
+  },
+];
+
 const plan = (extraction: Partial<Extraction>, selfId: string | null = SELF) =>
   planWrite(
-    { asks: [], items: [], new_entities: [], ...extraction },
-    { cards, selfId, timeZone: ZONE }
+    { asks: [], items: [], new_entities: [], updates: [], ...extraction },
+    { cards, commitments: OPEN, selfId, timeZone: ZONE }
   );
 
 describe("localMidnight", () => {
@@ -93,6 +110,25 @@ describe("memoryInstructions", () => {
       "- c1: Андрей Смирнов (person; руководитель отдела продаж; also: Андрюша)"
     );
     expect(text).toContain("- user: the user themselves");
+    expect(text).toContain("Open commitments (ref: text):\n- none");
+  });
+
+  it("lists open commitments with their deadline and whether someone said they are done", () => {
+    const text = memoryInstructions({
+      cards,
+      commitments: [
+        { ...OPEN[0], due: new Date("2026-11-16T21:00:00Z") } as OpenCommitment,
+        OPEN[1] as OpenCommitment,
+      ],
+      sentAt: new Date("2026-11-09T09:00:00Z"),
+      timeZone: ZONE,
+    });
+    expect(text).toContain(
+      "- k1: Андрей Смирнов пришлёт отчёт (due 2026-11-17)"
+    );
+    expect(text).toContain(
+      "- k2: Ольга Ли подготовит API (said to be done, not confirmed)"
+    );
   });
 });
 
@@ -148,6 +184,20 @@ describe("planWrite", () => {
         kind: "commitment",
         text: "Андрей Смирнов пришлёт отчёт к 17 ноября",
       },
+    ]);
+  });
+
+  it("settles open commitments by ref, once each, and only when the status changes", () => {
+    const { statuses } = plan({
+      updates: [
+        { ref: "k1", status: "done" },
+        { ref: "k1", status: "cancelled" },
+        { ref: "k2", status: "unconfirmed" },
+        { ref: "k9", status: "done" },
+      ],
+    });
+    expect(statuses).toEqual([
+      { recordId: "00000000-0000-4000-8000-0000000000d1", status: "done" },
     ]);
   });
 
@@ -377,6 +427,7 @@ describe("mentionsUser", () => {
         asks: [],
         items: [item({ about: ["c1"] })],
         new_entities: [],
+        updates: [],
       })
     ).toBe(false);
     expect(
@@ -384,6 +435,7 @@ describe("mentionsUser", () => {
         asks: [],
         items: [item({ debtor: "user" })],
         new_entities: [],
+        updates: [],
       })
     ).toBe(true);
   });

@@ -336,6 +336,51 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(await status()).toMatchObject({ doneAt: null, status: "open" });
     });
 
+    it("settles an open commitment from a message, shows it under the answer, and undoes it", async () => {
+      const call = await memory.addRecord(ana, {
+        entities: [],
+        kind: "commitment",
+        text: "Позвонить Андрею Седову",
+      });
+      const done = await memory.addRecord(ana, {
+        entities: [],
+        kind: "commitment",
+        status: "done",
+        text: "Уже сделанное",
+      });
+      const made = await memory.createWrite(ana, {
+        chatId,
+        messageId: crypto.randomUUID(),
+      });
+      expect(
+        await memory.applyWrite(ana, made.id, {
+          drafts: [],
+          entities: [],
+          records: [],
+          statuses: [
+            { recordId: call.id, status: "cancelled" },
+            // Closed since the model read it: stays as it is.
+            { recordId: done.id, status: "unconfirmed" },
+          ],
+        })
+      ).toBe(true);
+      const all = await memory.listRecords(ana, { kinds: ["commitment"] });
+      expect(all.find((r) => r.id === call.id)).toMatchObject({
+        closedByWrite: made.id,
+        status: "cancelled",
+      });
+      expect(all.find((r) => r.id === done.id)?.status).toBe("done");
+
+      const shown = await memory.chatMemory(ana, chatId);
+      expect(shown.notes.find((n) => n.writeId === made.id)?.records).toEqual([
+        { id: call.id, status: "cancelled", text: "Позвонить Андрею Седову" },
+      ]);
+
+      await memory.undoWrite(ana, made.id);
+      const back = await memory.listRecords(ana, { kinds: ["commitment"] });
+      expect(back.find((r) => r.id === call.id)?.status).toBe("open");
+    });
+
     it("puts in a whole message at once, and only once", async () => {
       const made = await memory.createWrite(ana, {
         chatId,
@@ -365,6 +410,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
             text: "Ольга Ли отправит договор Стреле",
           },
         ],
+        statuses: [],
       };
       expect(await memory.applyWrite(ana, made.id, plan)).toBe(true);
       // The same job delivered twice puts nothing in twice.
@@ -389,6 +435,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
           drafts: [],
           entities: [],
           records: [],
+          statuses: [],
         })
       ).toBe(true);
       const skipped = await memory.createWrite(ana, {
@@ -407,6 +454,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         records: [
           { entities: [], kind: "fact", text: "Из удалённого сообщения" },
         ],
+        statuses: [],
       });
       await memory.forgetMessages(ana, [messageId, crypto.randomUUID()]);
       expect(await recordTexts(ana)).not.toContain("Из удалённого сообщения");
@@ -446,6 +494,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         ],
         entities: [],
         records: [],
+        statuses: [],
       });
       const questions = await memory.listQuestions(ana, { chatId });
       const question = questions.find((q) => q.writeId === made.id);

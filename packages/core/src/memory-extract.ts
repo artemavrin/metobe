@@ -94,9 +94,28 @@ export const extractionSchema = z.object({
         .describe("Rule only: the period or threshold in days"),
     })
   ),
+  updates: z
+    .array(
+      z.object({
+        ref: z.string().describe("An open commitment's ref: «k2»"),
+        status: z.enum(["done", "cancelled", "unconfirmed"]),
+      })
+    )
+    .describe(
+      "Open commitments whose state the message changes: done, no longer needed, or said to be done by someone else"
+    ),
 });
 /* oxlint-enable sort-keys */
 export type Extraction = z.infer<typeof extractionSchema>;
+
+/** An open commitment the message may close, under a short ref («k2»). */
+export interface OpenCommitment {
+  ref: string;
+  id: string;
+  text: string;
+  status: "open" | "unconfirmed";
+  due: Date | null;
+}
 
 /** A card the model may point at, under a short ref («c3») instead of its id. */
 export interface KnownCard {
@@ -159,18 +178,33 @@ export const memoryInstructions = ({
   sentAt,
   timeZone,
   cards,
+  commitments = [],
 }: {
   sentAt: Date;
   timeZone: string;
   cards: KnownCard[];
+  commitments?: OpenCommitment[];
 }) => {
   const today = dayIn(sentAt, timeZone);
+  const promises =
+    commitments.length > 0
+      ? commitments.map((c) => {
+          const notes = [
+            c.due && `due ${dayIn(c.due, timeZone).iso}`,
+            c.status === "unconfirmed" && "said to be done, not confirmed",
+          ].filter(Boolean);
+          return `- ${c.ref}: ${c.text}${notes.length > 0 ? ` (${notes.join("; ")})` : ""}`;
+        })
+      : ["- none"];
   return `You maintain the long-term memory of one user of a work assistant. From the user's message inside <message> tags, extract what is worth remembering about their work: facts, assessments, events, commitments and the user's standing rules for the assistant.
 
 Today is ${today.text} (${today.iso}), time zone ${timeZone}.
 
 Known cards (ref: description):
 ${[...cards.map(cardLine), "- user: the user themselves"].join("\n")}
+
+Open commitments (ref: text):
+${promises.join("\n")}
 
 Rules:
 - Kinds: fact — a lasting state or attribute (role, stage, preference, birthday); assessment — the user's own opinion or judgement of someone («часто срывает сроки»), never turned into a fact; event — something that happened or is scheduled at a time; commitment — someone owes someone an action, with or without a deadline; rule — the user's standing instruction about reminders or what to highlight.
@@ -181,6 +215,7 @@ Rules:
 - For a commitment, \`when\` is the day it was given or said, \`due\` is the deadline; never put the deadline into \`when\`.
 - A commitment is important only when the message says so in words («критично», «горит», «это главное», «в первую очередь»). A deadline, a boss or money alone do not make it important.
 - Every person or organization mentioned gets a ref: a known card, "user", or a new_entities id — also when unnamed («поставщик упаковки»).
+- When the message says an open commitment is settled, put it in updates: done — the user did it or saw it done («Ольга прислала договор», «отправил смету»); unconfirmed — only someone else says it is done («Андрей говорит, API готов»); cancelled — it no longer has to be done («Андрей передумал», «встречу отменили»). Only when the message makes clear which commitment it is; a plan, a hope or a partial step («почти готово», «на этой неделе сделает») changes nothing. Do not also add the settled commitment as a new item. When what the message says is done or cancelled is not among the open commitments, record it as an event instead («Ольга Ли прислала договор»).
 - Requests to the assistant itself (count, write, plan), questions and small talk produce no items — return empty arrays.
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
@@ -390,6 +425,19 @@ const sortOut = (records: Planned[], asks: Map<string, Ask>) => {
   return { drafts: [...drafts.values()], ready };
 };
 
+/** What the message settles: a ref to nothing, a second word on the same one and «unconfirmed» twice are dropped. */
+const settled = (extraction: Extraction, commitments: OpenCommitment[]) => {
+  const byRef = new Map(commitments.map((c) => [c.ref, c]));
+  const statuses = new Map<string, MemoryWritePlan["statuses"][number]>();
+  for (const u of extraction.updates) {
+    const c = byRef.get(u.ref);
+    if (c && !statuses.has(c.id) && c.status !== u.status) {
+      statuses.set(c.id, { recordId: c.id, status: u.status });
+    }
+  }
+  return [...statuses.values()];
+};
+
 /**
  * The model's answer as a plan for the store. Refs become cards: a known one, the user's own, a new one, or the one
  * the person will pick (P18); a new card named exactly like a known one is the known one; a ref to nothing is
@@ -399,9 +447,15 @@ export const planWrite = (
   extraction: Extraction,
   {
     cards,
+    commitments = [],
     selfId,
     timeZone,
-  }: { cards: KnownCard[]; selfId: string | null; timeZone: string }
+  }: {
+    cards: KnownCard[];
+    commitments?: OpenCommitment[];
+    selfId: string | null;
+    timeZone: string;
+  }
 ): MemoryWritePlan => {
   const known = new Map(cards.map((c) => [c.ref, c.id]));
   const asKnown = new Map<string, string>();
@@ -440,5 +494,6 @@ export const planWrite = (
     drafts,
     entities: [...fresh.values()].filter((e) => used.has(e.ref)),
     records: ready,
+    statuses: settled(extraction, commitments),
   };
 };

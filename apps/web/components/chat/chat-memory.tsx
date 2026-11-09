@@ -96,6 +96,16 @@ const Note = ({
   const t = useTranslations("chat.memory");
   const [open, setOpen] = useState(false);
   const many = note.records.length > 1;
+  // A commitment the message settled reads as what became of it: «Выполнено: Прислать договор».
+  const line = (r: ChatMemory["notes"][number]["records"][number]) =>
+    r.status ? t("settled", { status: r.status, text: r.text }) : r.text;
+  const [first] = note.records;
+  let summary = t("rememberedMany", { count: note.records.length });
+  if (!many) {
+    summary = first?.status
+      ? line(first)
+      : t("remembered", { text: first?.text ?? "" });
+  }
   return (
     <div
       className={cn("text-muted-foreground flex flex-col gap-1 text-xs", ENTER)}
@@ -108,11 +118,7 @@ const Note = ({
           type="button"
         >
           <BookUser className="size-3.5 shrink-0" />
-          <span className="truncate">
-            {many
-              ? t("rememberedMany", { count: note.records.length })
-              : t("remembered", { text: note.records[0]?.text ?? "" })}
-          </span>
+          <span className="truncate">{summary}</span>
           {many && (
             <ChevronDown
               className={cn(
@@ -136,7 +142,7 @@ const Note = ({
       {open && many && (
         <ul className="flex flex-col gap-0.5 pl-5">
           {note.records.map((r) => (
-            <li key={r.id}>{r.text}</li>
+            <li key={r.id}>{line(r)}</li>
           ))}
         </ul>
       )}

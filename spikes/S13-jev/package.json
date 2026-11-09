@@ -6,7 +6,8 @@
     "spike": "node --env-file=../../.env --import tsx run.ts",
     "extract": "node --env-file=../../.env --import tsx extract.ts",
     "ask": "node --env-file=../../.env --import tsx ask.ts",
-    "context": "node --env-file=../../.env --import tsx context.ts"
+    "context": "node --env-file=../../.env --import tsx context.ts",
+    "status": "node --env-file=../../.env --import tsx status.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",

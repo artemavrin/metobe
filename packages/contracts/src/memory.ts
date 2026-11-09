@@ -71,7 +71,12 @@ export interface ChatMemory {
   notes: {
     messageId: string;
     writeId: string;
-    records: { id: string; text: string }[];
+    /** What the message added; with a status — an open commitment it settled («Выполнено: …»). */
+    records: {
+      id: string;
+      text: string;
+      status?: Exclude<MemoryStatus, "open">;
+    }[];
   }[];
   /** Open questions, under the answer to the message they came from. */
   questions: {

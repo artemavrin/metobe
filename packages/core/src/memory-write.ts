@@ -12,6 +12,7 @@ import {
   createWrite,
   ensureSelf,
   listEntities,
+  listRecords,
   markWrite,
 } from "./memory";
 import {
@@ -21,7 +22,7 @@ import {
   mentionsUser,
   planWrite,
 } from "./memory-extract";
-import type { KnownCard } from "./memory-extract";
+import type { KnownCard, OpenCommitment } from "./memory-extract";
 import { getSlotModel } from "./model-slots";
 import { announceMemory } from "./task-events";
 
@@ -51,6 +52,8 @@ export const chatMemoryNote = async () =>
   (await isMemoryOn()) ? MEMORY_NOTE : "";
 
 const WRITE_TIMEOUT_MS = 60_000;
+/** Open commitments the model sees, newest first: enough for a person's running promises, short for the prompt. */
+const MAX_OPEN = 60;
 /** A message longer than this is cut: what is worth remembering is said in words, not in pasted pages. */
 const MAX_TEXT = 8000;
 
@@ -152,6 +155,15 @@ export const writeMemory = async (job: MemoryJob) => {
           },
         ]
   );
+  const promises = await listRecords(job.ownerId, { kinds: ["commitment"] });
+  const commitments: OpenCommitment[] = promises
+    .flatMap((r) =>
+      r.status === "open" || r.status === "unconfirmed"
+        ? [{ due: r.dueAt, id: r.id, status: r.status, text: r.text }]
+        : []
+    )
+    .slice(0, MAX_OPEN)
+    .map((c, i) => ({ ...c, ref: `k${i + 1}` }));
   const started = Date.now();
   let result;
   try {
@@ -159,6 +171,7 @@ export const writeMemory = async (job: MemoryJob) => {
       abortSignal: AbortSignal.timeout(WRITE_TIMEOUT_MS),
       instructions: memoryInstructions({
         cards,
+        commitments,
         sentAt: message.createdAt,
         timeZone: job.timeZone,
       }),
@@ -215,10 +228,14 @@ export const writeMemory = async (job: MemoryJob) => {
   }
   const plan = planWrite(extraction, {
     cards,
+    commitments,
     selfId,
     timeZone: job.timeZone,
   });
-  const kept = plan.records.length > 0 || plan.drafts.length > 0;
+  const kept =
+    plan.records.length > 0 ||
+    plan.drafts.length > 0 ||
+    plan.statuses.length > 0;
   if ((await applyWrite(job.ownerId, write.id, plan)) && kept) {
     // An open chat shows «Запомнено» or asks its question at once (P18).
     await announceMemory(job.ownerId, job.chatId);

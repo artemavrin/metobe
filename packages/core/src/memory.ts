@@ -1,5 +1,6 @@
 import "server-only";
 import type {
+  ChatMemory,
   MemoryEntityKind,
   MemoryPrecision,
   MemoryRecordKind,
@@ -317,6 +318,8 @@ export interface MemoryRecord {
   status: MemoryStatus | null;
   important: boolean;
   doneAt: Date | null;
+  /** The write that closed it (a fact's end, a commitment's status). */
+  closedByWrite: string | null;
   recordedAt: Date;
   supersededAt: Date | null;
   deletedAt: Date | null;
@@ -328,6 +331,7 @@ const toRecord = (
   entities: MemoryRecord["entities"],
   key: SecretsKey
 ): MemoryRecord => ({
+  closedByWrite: row.closedByWrite,
   deletedAt: row.deletedAt,
   doneAt: row.doneAt,
   dueAt: row.dueAt,
@@ -545,6 +549,8 @@ export interface MemoryRecordFilter {
   entityId?: string;
   /** Records these writes put in. */
   writeIds?: string[];
+  /** Records these writes closed. */
+  closedBy?: string[];
   /** Corrections' old versions too. */
   includeSuperseded?: boolean;
   /** Deleted ones too (to offer taking the deletion back). */
@@ -574,6 +580,9 @@ export const listRecords = async (
         filter.kinds ? inArray(memoryRecords.kind, filter.kinds) : undefined,
         filter.writeIds
           ? inArray(memoryRecords.writeId, filter.writeIds)
+          : undefined,
+        filter.closedBy
+          ? inArray(memoryRecords.closedByWrite, filter.closedBy)
           : undefined,
         filter.entityId
           ? inArray(
@@ -682,6 +691,8 @@ export interface MemoryWritePlan {
     candidates: string[];
     records: PlannedRecord[];
   }[];
+  /** Open commitments the message settles. */
+  statuses: { recordId: string; status: Exclude<MemoryStatus, "open"> }[];
 }
 
 /**
@@ -694,8 +705,9 @@ export const applyWrite = async (
   writeId: string,
   plan: MemoryWritePlan
 ) => {
-  const keeps = plan.records.length > 0 || plan.drafts.length > 0;
-  const key = keeps ? await dataKey(ownerId, true) : null;
+  const adds = plan.records.length > 0 || plan.drafts.length > 0;
+  const keeps = adds || plan.statuses.length > 0;
+  const key = adds ? await dataKey(ownerId, true) : null;
   return getDb().db.transaction(async (tx) => {
     const [write] = await tx
       .select({ status: memoryWrites.status })
@@ -765,6 +777,28 @@ export const applyWrite = async (
         })
       );
     }
+    // Only an open one of the owner's: a commitment closed since the model read it stays as it is.
+    await Promise.all(
+      plan.statuses.map((s) =>
+        tx
+          .update(memoryRecords)
+          .set({
+            closedByWrite: writeId,
+            doneAt: ENDED.has(s.status) ? new Date() : null,
+            status: s.status,
+          })
+          .where(
+            and(
+              eq(memoryRecords.id, s.recordId),
+              eq(memoryRecords.ownerId, ownerId),
+              eq(memoryRecords.kind, "commitment"),
+              inArray(memoryRecords.status, ["open", "unconfirmed"]),
+              isNull(memoryRecords.supersededAt),
+              isNull(memoryRecords.deletedAt)
+            )
+          )
+      )
+    );
     await tx
       .update(memoryWrites)
       .set({
@@ -1079,19 +1113,29 @@ export const chatMemory = async (ownerId: string, chatId: string) => {
         eq(memoryWrites.status, "done")
       )
     );
-  const records =
-    writes.length > 0
-      ? await listRecords(ownerId, { writeIds: writes.map((w) => w.id) })
-      : [];
-  // Oldest first under one answer: in the order the message said them.
-  const byWrite = new Map<string, { id: string; text: string }[]>();
+  const ids = writes.map((w) => w.id);
+  const [records, closed] =
+    ids.length > 0
+      ? await Promise.all([
+          listRecords(ownerId, { writeIds: ids }),
+          listRecords(ownerId, { closedBy: ids, kinds: ["commitment"] }),
+        ])
+      : [[], []];
+  // Oldest first under one answer: in the order the message said them; what it settled after what it added.
+  const byWrite = new Map<string, ChatMemory["notes"][number]["records"]>();
+  const add = (
+    writeId: string,
+    line: ChatMemory["notes"][number]["records"][number]
+  ) => byWrite.set(writeId, [...(byWrite.get(writeId) ?? []), line]);
   for (let i = records.length - 1; i >= 0; i -= 1) {
     const r = records[i];
     if (r?.writeId) {
-      byWrite.set(r.writeId, [
-        ...(byWrite.get(r.writeId) ?? []),
-        { id: r.id, text: r.text },
-      ]);
+      add(r.writeId, { id: r.id, text: r.text });
+    }
+  }
+  for (const r of closed) {
+    if (r.closedByWrite && r.status && r.status !== "open") {
+      add(r.closedByWrite, { id: r.id, status: r.status, text: r.text });
     }
   }
   return {
