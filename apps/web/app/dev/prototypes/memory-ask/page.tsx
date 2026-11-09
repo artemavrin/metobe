@@ -2,26 +2,30 @@
 
 import { Picker } from "../_shared/picker";
 import { Mounted, Params, ProtoProvider } from "../memory/frame";
-import { AtField, Card, Line } from "./variants";
+import { Accent, Plate, PlatePointer, PlateToast } from "./variants";
 
-// P18 · вопрос памяти прямо в чате (ARCH §19, D39). В адресе: `?v=1&q=who|many|done&at=now|late&field=empty|typing&sz=phone`.
+// P18 · раунд 2: выбрана «Строка» (раунд 1 — ./round-1), теперь — как её не упустить. В адресе:
+// `?v=1&q=who|many|done&at=now|late&field=empty|typing&after=no|yes&toast=show|choices&sz=phone`.
 
 const MemoryAskPrototypePage = () => (
-  <ProtoProvider defaults={{ at: "now", field: "empty", q: "who" }}>
+  <ProtoProvider defaults={{ after: "no", at: "now", field: "empty", q: "who", toast: "show" }}>
     <Picker
       params={
         <Params
           rows={[
             ["q", "вопрос", [["who", "какой Андрей"], ["many", "три Ольги"], ["done", "выполнено?"]]],
             ["at", "пришёл", [["now", "сразу"], ["late", "через 3 с"]]],
+            ["after", "чат дальше", [["no", "нет"], ["yes", "ещё ответ"]]],
             ["field", "в поле", [["empty", "пусто"], ["typing", "пишет"]]],
+            ["toast", "в тосте", [["show", "«Показать»"], ["choices", "варианты"]]],
           ]}
         />
       }
       variants={[
-        { Component: () => <Mounted><Line /></Mounted>, name: "Строка", pickerTop: true },
-        { Component: () => <Mounted><Card /></Mounted>, name: "Карточка", pickerTop: true },
-        { Component: () => <Mounted><AtField /></Mounted>, name: "У поля", pickerTop: true },
+        { Component: () => <Mounted><Accent /></Mounted>, name: "Акцент", pickerTop: true },
+        { Component: () => <Mounted><Plate /></Mounted>, name: "Плашка", pickerTop: true },
+        { Component: () => <Mounted><PlatePointer /></Mounted>, name: "Плашка и указатель", pickerTop: true },
+        { Component: () => <Mounted><PlateToast /></Mounted>, name: "Плашка и тост", pickerTop: true },
       ]}
     />
   </ProtoProvider>

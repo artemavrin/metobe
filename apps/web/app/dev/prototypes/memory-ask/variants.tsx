@@ -5,7 +5,8 @@ import { Button } from "@metobe/ui/components/button";
 import { Message, MessageContent, MessageFooter } from "@metobe/ui/components/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
-import { ArrowUp, BookUser, ChevronDown, Copy, Plus, RefreshCw, ThumbsDown, ThumbsUp, Undo2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, BookUser, ChevronDown, Copy, Plus, RefreshCw, ThumbsDown, ThumbsUp, Undo2, X } from "lucide-react";
+import { Toaster, toast } from "@metobe/ui/components/sonner";
 import { useEffect, useRef, useState } from "react";
 
 import { ENTER, PRESS, Shell, usePhone, useProto } from "../memory/frame";
@@ -136,7 +137,7 @@ const User = ({ text }: { text: string }) => (
 const Answer = ({ text, at, children }: { text: string; at: string; children?: React.ReactNode }) => (
   <Message>
     <MessageContent>
-      <p className="leading-7">{text}</p>
+      <p className="leading-7 whitespace-pre-line">{text}</p>
       <MessageFooter className={cn(TOOLBAR, "-mt-1")}>
         <span className="flex items-center gap-1.5">
           <span>DeepSeek v4.1 Flash</span>
@@ -245,12 +246,43 @@ const Thread = ({ slot, above, stamp }: { slot: React.ReactNode; above?: React.R
         <Answer at="10:43" text={ask.answer}>
           {slot}
         </Answer>
+        {knobs.after === "yes" && (
+          <>
+            <User text="Составь повестку на четверг: статус проекта, сроки, риски." />
+            <Answer at="10:46" text={AGENDA} />
+          </>
+        )}
         <div ref={end} />
       </div>
       <Composer above={above} />
     </Shell>
   );
 };
+
+const AGENDA = `Повестка на четверг, 12 ноября, 45 минут.
+
+1. Статус проекта «Склад 2.0» — 10 минут
+   • что сделано за две недели
+   • что сдвинулось и почему
+
+2. Сроки — 10 минут
+   • договор с «Альфа-Логистикой» до 13 ноября
+   • ответ ООО «Вектор» по коммерческому предложению
+
+3. Риски — 10 минут
+   • отпуск в команде с 10 ноября
+   • перенос интеграции с перевозчиком
+
+4. Решения и ответственные — 15 минут
+
+Материалы к встрече:
+   • отчёт о статусе за две недели
+   • проект договора с «Альфа-Логистикой»
+   • коммерческое предложение ООО «Вектор» от 3 ноября
+   • план интеграции с перевозчиком
+   • список открытых задач команды
+
+Разослать участникам?`;
 
 // ── «Строка» ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -367,3 +399,209 @@ export const AtField = () => {
 };
 
 
+
+// ── Раунд 2: «Строка», но заметнее ───────────────────────────────────────────────────────────────────────────────────
+// «Акцент» — та же строка: вопрос не серым, значок и чипы в цвет приложения, при появлении — мягкая подсветка, гаснет
+// за полторы секунды. «Плашка» — строка на светлой плашке цвета приложения, видна и потом. «Плашка и указатель» —
+// плашка, а пока вопрос вне экрана (чат ушёл дальше), над полем кнопка «Вопрос памяти ↑» — ведёт к нему и подсвечивает.
+
+const KEYFRAMES =
+  "@keyframes memglow{0%{background-color:color-mix(in oklab,var(--primary) 16%,transparent)}100%{background-color:transparent}}" +
+  "@keyframes memring{0%{box-shadow:0 0 0 6px color-mix(in oklab,var(--primary) 22%,transparent)}100%{box-shadow:0 0 0 0 transparent}}";
+
+const AccentChip = ({ o, onPick }: { o: Option; onPick: (o: Option) => void }) => (
+  <Tip tip={o.note}>
+    <button
+      className={cn("bg-background text-foreground hover:border-primary/50 hover:text-primary border-primary/25 rounded-full border px-2.5 py-0.5 transition-colors duration-150", PRESS)}
+      onClick={() => onPick(o)}
+      type="button"
+    >
+      {o.label}
+    </button>
+  </Tip>
+);
+
+type Look = "accent" | "plate";
+type AskApi = ReturnType<typeof useAsk>;
+
+/** Появление — снаружи, подсветка — внутри: у одного элемента одна анимация. `glow` — номер подсветки, растёт — мигнёт снова. */
+const AskLine = ({ a, look, lineRef, glow }: { a: AskApi; look: Look; lineRef?: React.Ref<HTMLDivElement>; glow: number }) => {
+  if (a.state.kind === "saved") return <Remembered items={[a.state.text]} onUndo={a.undo} />;
+  if (a.state.kind !== "asking") return null;
+  return (
+    <div className={cn("-mt-1", ENTER)} ref={lineRef}>
+      <style>{KEYFRAMES}</style>
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-xs",
+          look === "accent" ? "-mx-2 rounded-lg px-2 py-1" : "bg-primary/[0.06] ring-primary/15 w-fit max-w-full rounded-xl px-2.5 py-2 ring-1"
+        )}
+        key={glow}
+        style={{ animation: `${look === "accent" ? "memglow" : "memring"} 1.6s cubic-bezier(0.23,1,0.32,1)` }}
+      >
+        <BookUser className="text-primary size-3.5 shrink-0" />
+        <span className="text-foreground mr-0.5">{a.ask.question}</span>
+        {a.options.map((o) => (
+          <AccentChip key={o.id} o={o} onPick={a.pick} />
+        ))}
+        <button className="text-muted-foreground hover:text-foreground px-1 transition-colors duration-150" onClick={a.skip} type="button">
+          Не запоминать
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/** Видно ли вопрос на экране, и где он, если нет. */
+const useInView = (active: boolean) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [where, setWhere] = useState<"in" | "above" | "below">("in");
+  useEffect(() => {
+    const el = ref.current;
+    if (!(el && active)) return;
+    // Корень — сама лента чата: на телефоне она в кадре, и «выше окна» и «выше ленты» — не одно и то же.
+    const root = el.closest<HTMLElement>(".overflow-y-auto");
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (!e) return;
+        if (e.isIntersecting) setWhere("in");
+        else setWhere(e.boundingClientRect.top < (e.rootBounds?.top ?? 0) ? "above" : "below");
+      },
+      { root }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [active]);
+  return { ref, where };
+};
+
+export const Accent = () => {
+  const a = useAsk();
+  return <Thread slot={<AskLine a={a} glow={0} look="accent" />} stamp={a.state.kind} />;
+};
+
+export const Plate = () => {
+  const a = useAsk();
+  return <Thread slot={<AskLine a={a} glow={0} look="plate" />} stamp={a.state.kind} />;
+};
+
+export const PlatePointer = () => {
+  const a = useAsk();
+  const asking = a.state.kind === "asking";
+  const { ref, where } = useInView(asking);
+  const [glow, setGlow] = useState(0);
+  const pointer =
+    asking && where !== "in" ? (
+      <div className={cn("mb-2 flex justify-center", ENTER)}>
+        <button
+          className={cn("bg-background text-foreground hover:bg-muted flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs shadow-sm transition-colors duration-150", PRESS)}
+          onClick={() => {
+            ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            setGlow((g) => g + 1);
+          }}
+          type="button"
+        >
+          <BookUser className="text-primary size-3.5" />
+          Вопрос памяти
+          {where === "above" ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+        </button>
+      </div>
+    ) : null;
+  return <Thread above={pointer} slot={<AskLine a={a} glow={glow} lineRef={ref} look="plate" />} stamp={a.state.kind} />;
+};
+
+// «Плашка и тост» — плашка, а если вопрос пришёл, когда его не видно (чат ушёл дальше, человек пишет), — тост над полем.
+// Тост исчезает сам, поэтому он только дополнение: вопрос остаётся в плашке и в «Не записано». Ответили в плашке —
+// тост уходит. «В тосте»: кнопка «Показать» ведёт к плашке, или варианты прямо в тосте.
+
+const ToastChoices = ({ a, id, show }: { a: AskApi; id: string | number; show: () => void }) => (
+  <div className="bg-popover text-popover-foreground flex w-[356px] max-w-[calc(100vw-32px)] flex-col gap-2 rounded-xl border p-3 text-xs shadow-lg">
+    <div className="flex items-start gap-2">
+      <BookUser className="text-primary mt-0.5 size-3.5 shrink-0" />
+      <span className="text-foreground flex-1 text-sm leading-5">{a.ask.question}</span>
+    </div>
+    <div className="flex flex-wrap gap-1.5 pl-5.5">
+      {a.options.map((o) => (
+        <AccentChip
+          key={o.id}
+          o={o}
+          onPick={(x) => {
+            a.pick(x);
+            toast.dismiss(id);
+          }}
+        />
+      ))}
+    </div>
+    <div className="text-muted-foreground flex gap-3 pl-5.5">
+      <button
+        className="hover:text-foreground transition-colors duration-150"
+        onClick={() => {
+          show();
+          toast.dismiss(id);
+        }}
+        type="button"
+      >
+        Показать в чате
+      </button>
+      <button
+        className="hover:text-foreground transition-colors duration-150"
+        onClick={() => {
+          a.skip();
+          toast.dismiss(id);
+        }}
+        type="button"
+      >
+        Не запоминать
+      </button>
+    </div>
+  </div>
+);
+
+export const PlateToast = () => {
+  const a = useAsk();
+  const { knobs } = useProto();
+  const asking = a.state.kind === "asking";
+  const { ref, where } = useInView(asking);
+  const [glow, setGlow] = useState(0);
+  const shown = useRef<string | number | null>(null);
+  const show = () => {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setGlow((g) => g + 1);
+  };
+  // Пришёл вопрос, а его не видно или человек пишет — один тост на вопрос. Ответили или убрали — тост уходит.
+  useEffect(() => {
+    if (!asking) {
+      if (shown.current !== null) toast.dismiss(shown.current);
+      shown.current = null;
+      return;
+    }
+    if (shown.current !== null) return;
+    if (where === "in" && knobs.field !== "typing") return;
+    const t = setTimeout(() => {
+      shown.current =
+        knobs.toast === "choices"
+          ? toast.custom((id) => <ToastChoices a={a} id={id} show={show} />, { duration: 12_000 })
+          : toast("Вопрос памяти", {
+              action: { label: "Показать", onClick: show },
+              cancel: { label: "Не запоминать", onClick: a.skip },
+              description: a.ask.question,
+              duration: 12_000,
+              icon: <BookUser className="text-primary size-4" />,
+            });
+    }, 400);
+    return () => clearTimeout(t);
+  });
+  useEffect(
+    () => () => {
+      toast.dismiss();
+    },
+    []
+  );
+  return (
+    <Thread
+      above={<Toaster mobileOffset={{ bottom: 88, left: 16, right: 16 }} offset={{ bottom: 88 }} position="bottom-center" style={{ position: "absolute" }} />}
+      slot={<AskLine a={a} glow={glow} lineRef={ref} look="plate" />}
+      stamp={a.state.kind}
+    />
+  );
+};
