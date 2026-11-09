@@ -108,6 +108,17 @@ const CodeInput = ({
             maxLength={6}
             onChange={setCode}
             onComplete={submit}
+            // Enter sends a whole code too: one the link put in waits for a press, and there is no <form> to submit.
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                code.length === CODE_SLOTS.length &&
+                !pending
+              ) {
+                event.preventDefault();
+                submit(code);
+              }
+            }}
             pattern="^[0-9]*$"
             value={code}
           >
