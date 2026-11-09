@@ -36,9 +36,19 @@ export interface MemoryJob {
   timeZone: string;
 }
 
+/**
+ * Told to the chat's model while the memory is on (ARCH §19). It does not keep the memory and cannot touch it yet
+ * (reading it comes with Б4): without this it said «эту заметку убираю» about a promise that stayed in the memory.
+ */
+const MEMORY_NOTE = `A separate memory keeps people, promises, events and rules from what the user says here — by itself, after your answer; the user sees what it kept under your answer. You cannot read or change that memory: never say you saved, noted, removed or updated anything, in it or in any «заметки». When you ask the user which one they mean («Андрей» — Седов or Ланьшин?), wait for the answer: do not go on with a guess in the same answer.`;
+
 /** Memory works only while a model holds the «Память» job and the queue has its Redis (D39). */
 export const isMemoryOn = async () =>
   Boolean(process.env.REDIS_URL) && (await getSlotModel("memory")) !== null;
+
+/** The note for the chat's instructions: `MEMORY_NOTE` while the memory is on, nothing while it is off. */
+export const chatMemoryNote = async () =>
+  (await isMemoryOn()) ? MEMORY_NOTE : "";
 
 const WRITE_TIMEOUT_MS = 60_000;
 /** A message longer than this is cut: what is worth remembering is said in words, not in pasted pages. */

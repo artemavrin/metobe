@@ -70,6 +70,7 @@ import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
 import { forgetMessages } from "@metobe/core/memory";
 import { queueMemoryWrite } from "@metobe/core/memory-queue";
+import { chatMemoryNote } from "@metobe/core/memory-write";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
 import { getTaskByChat } from "@metobe/core/tasks";
@@ -631,6 +632,8 @@ export const POST = async (request: Request) => {
       const instructions = [
         TIME_NOTE,
         STYLE_NOTE,
+        // The memory writes on its own (ARCH §19): the model must not claim it saved or removed anything.
+        await chatMemoryNote(),
         hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
         skilled.note,
         drafting.note,
