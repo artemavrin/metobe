@@ -1,4 +1,5 @@
 import type {
+  MemoryChangeField,
   MemoryDraftStatus,
   MemoryEntityKind,
   MemoryPrecision,
@@ -234,6 +235,40 @@ export const memoryDrafts = pgTable(
     check(
       "memory_drafts_status",
       sql`${table.status} in ('open', 'answered', 'dismissed')`
+    ),
+  ]
+);
+
+/**
+ * A commitment's history (D39, P16): «Срок перенесён: 13 ноя → 17 ноя», «Статус: открыто → выполнено». A text
+ * correction is a new version of the record instead (`superseded_by`). `write_id` — the message that changed it:
+ * undoing the write puts `before` back and drops the line; null — changed by hand.
+ */
+export const memoryChanges = pgTable(
+  "memory_changes",
+  {
+    after: text("after"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** A status, an ISO instant or `true`/`false` — the record keeps these in the clear too. */
+    before: text("before"),
+    field: text("field").$type<MemoryChangeField>().notNull(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    recordId: uuid("record_id")
+      .notNull()
+      .references(() => memoryRecords.id, { onDelete: "cascade" }),
+    writeId: uuid("write_id").references(() => memoryWrites.id, {
+      onDelete: "cascade",
+    }),
+  },
+  (table) => [
+    index("memory_changes_record").on(table.recordId, table.at),
+    index("memory_changes_write").on(table.writeId),
+    check(
+      "memory_changes_field",
+      sql`${table.field} in ('status', 'due', 'important')`
     ),
   ]
 );

@@ -3,12 +3,13 @@ import { randomBytes } from "node:crypto";
 import type { Db } from "@metobe/db/client";
 import { runMigrations } from "@metobe/db/migrate";
 import { user } from "@metobe/db/schema/auth";
-import { chats } from "@metobe/db/schema/chat";
+import { chats, messages } from "@metobe/db/schema/chat";
 import { memoryKeys, memoryRecords } from "@metobe/db/schema/memory";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type * as MemoryModule from "./memory";
+import type * as MemoryPageModule from "./memory-page";
 
 vi.mock("server-only", () => ({}));
 
@@ -22,6 +23,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   let db: Db;
   const ana = `memory-test-${randomBytes(4).toString("hex")}`;
   const bob = `memory-test-${randomBytes(4).toString("hex")}`;
+  /** The «Память» page's owner: a memory of its own, so the counts are exact. */
+  const cleo = `memory-test-${randomBytes(4).toString("hex")}`;
 
   const recordIds = async (
     owner: string,
@@ -50,7 +53,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     await db.insert(user).values(
-      [ana, bob].map((id) => ({
+      [ana, bob, cleo].map((id) => ({
         email: `${id}@example.test`,
         id,
         name: id,
@@ -59,7 +62,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   });
 
   afterAll(async () => {
-    await db?.delete(user).where(inArray(user.id, [ana, bob]));
+    await db?.delete(user).where(inArray(user.id, [ana, bob, cleo]));
   });
 
   it("keeps texts and names sealed, and reads them back", async () => {
@@ -309,7 +312,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(await entityIds(ana)).not.toContain(lone.id);
     });
 
-    it("cancels a commitment or takes «done» on someone's word, and the write's undo opens it again", async () => {
+    it("cancels a commitment or takes «done» on someone's word, and the write's undo puts back what was", async () => {
       const promise = await memory.addRecord(ana, {
         entities: [],
         kind: "commitment",
@@ -333,7 +336,71 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       const over = await status();
       expect(over?.doneAt).not.toBeNull();
       await memory.undoWrite(ana, cancelled);
-      expect(await status()).toMatchObject({ doneAt: null, status: "open" });
+      expect(await status()).toMatchObject({
+        doneAt: null,
+        status: "unconfirmed",
+      });
+      await memory.undoWrite(ana, said);
+      expect(await status()).toMatchObject({ status: "open" });
+    });
+
+    it("keeps a commitment's history, and undoing a write leaves what was changed by hand", async () => {
+      const promise = await memory.addRecord(ana, {
+        dueAt: new Date("2026-11-12T21:00:00Z"),
+        entities: [],
+        kind: "commitment",
+        text: "Прислать смету Игорю Белову",
+      });
+      const status = async () => {
+        const all = await memory.listRecords(ana);
+        return all.find((r) => r.id === promise.id);
+      };
+      const said = await write();
+      await memory.setCommitmentStatus(ana, promise.id, "done", said);
+      // By hand: a later deadline and «важно»; a patch that changes nothing leaves no line.
+      expect(
+        await memory.editCommitment(ana, promise.id, {
+          dueAt: new Date("2026-11-16T21:00:00Z"),
+          important: true,
+        })
+      ).toBe(true);
+      expect(
+        await memory.editCommitment(ana, promise.id, { important: true })
+      ).toBe(true);
+      let history = await memory.recordHistory(ana, promise.id);
+      expect(
+        history?.changes.map((c) => [c.field, c.before, c.after, c.writeId])
+      ).toEqual([
+        ["status", "open", "done", said],
+        ["due", "2026-11-12T21:00:00.000Z", "2026-11-16T21:00:00.000Z", null],
+        ["important", "false", "true", null],
+      ]);
+
+      await memory.undoWrite(ana, said);
+      expect(await status()).toMatchObject({
+        dueAt: new Date("2026-11-16T21:00:00Z"),
+        important: true,
+        status: "open",
+      });
+      history = await memory.recordHistory(ana, promise.id);
+      expect(history?.changes.map((c) => c.field)).toEqual([
+        "due",
+        "important",
+      ]);
+
+      // Changed by hand after the message: the message's undo leaves it.
+      const again = await write();
+      await memory.setCommitmentStatus(ana, promise.id, "done", again);
+      await memory.editCommitment(ana, promise.id, { status: "cancelled" });
+      await memory.undoWrite(ana, again);
+      const kept = await status();
+      expect(kept?.status).toBe("cancelled");
+
+      // Only a live commitment of the owner's.
+      expect(
+        await memory.editCommitment(bob, promise.id, { important: false })
+      ).toBe(false);
+      expect(await memory.recordHistory(bob, promise.id)).toBeNull();
     });
 
     it("settles an open commitment from a message, shows it under the answer, and undoes it", async () => {
@@ -604,6 +671,111 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(live).toContain(was.id);
       expect(live).not.toContain(next?.id);
     });
+  });
+
+  it("puts the «Память» page together: cards with counts, a card, search and «Откуда» (P16)", async () => {
+    const page: typeof MemoryPageModule = await import("./memory-page");
+    const [chat] = await db
+      .insert(chats)
+      .values({ title: "Договор с перевозчиком", userId: cleo })
+      .returning({ id: chats.id });
+    const chatId = chat?.id as string;
+    const messageId = crypto.randomUUID();
+    await db.insert(messages).values({
+      chatId,
+      id: messageId,
+      parts: [
+        { text: "Ольга обещала прислать договор до 13 ноября", type: "text" },
+      ],
+      role: "user",
+    });
+    const made = await memory.createWrite(cleo, { chatId, messageId });
+    const olga = await memory.createEntity(cleo, {
+      kind: "person",
+      name: "Ольга Ли",
+      role: "менеджер «Альфа-Логистики»",
+    });
+    const self = await memory.ensureSelf(cleo, "Клео");
+    const sides = [
+      { entityId: olga.id, role: "debtor" as const },
+      { entityId: self.id, role: "creditor" as const },
+    ];
+    const late = await memory.addRecord(cleo, {
+      dueAt: new Date("2026-11-02T21:00:00Z"),
+      entities: sides,
+      kind: "commitment",
+      text: "Ольга Ли пришлёт договор",
+      writeId: made.id,
+    });
+    await memory.addRecord(cleo, {
+      dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      entities: sides,
+      kind: "commitment",
+      text: "Ольга Ли пришлёт акт",
+    });
+    await memory.addRecord(cleo, {
+      entities: sides,
+      kind: "commitment",
+      status: "done",
+      text: "Ольга Ли прислала счёт",
+    });
+    await memory.addRecord(cleo, {
+      entities: [{ entityId: self.id, role: "subject" }],
+      kind: "rule",
+      text: "Встреча один на один раз в две недели",
+    });
+
+    const overview = await page.memoryOverview(cleo);
+    // The person's own card is not in the list.
+    expect(overview.cards).toEqual([
+      expect.objectContaining({ id: olga.id, open: 2, overdue: 1 }),
+    ]);
+    expect(overview.rules.map((r) => r.text)).toEqual([
+      "Встреча один на один раз в две недели",
+    ]);
+
+    const card = await page.memoryCard(cleo, olga.id);
+    expect(card?.records).toHaveLength(3);
+    expect(card?.records.find((r) => r.id === late.id)).toMatchObject({
+      chatId,
+      entities: [
+        { id: olga.id, kind: "person", name: "Ольга Ли", role: "debtor" },
+        { id: self.id, kind: "self", name: "Клео", role: "creditor" },
+      ],
+      fromChat: true,
+    });
+    expect(await page.memoryCard(cleo, self.id)).toBeNull();
+    expect(await page.memoryCard(bob, olga.id)).toBeNull();
+
+    // Every word, any order, ё as е; done ones too.
+    const found = await page.searchMemory(cleo, "СЧЁТ ольга");
+    expect(found.records.map((r) => r.status)).toEqual(["done"]);
+    const byRole = await page.searchMemory(cleo, "альфа");
+    expect(byRole.cards).toHaveLength(1);
+    expect(await page.searchMemory(cleo, "  ")).toEqual({
+      cards: [],
+      records: [],
+    });
+
+    // Corrected by hand: a new version, the source and the history follow it.
+    const fixed = await memory.correctRecord(
+      cleo,
+      late.id,
+      "Ольга Ли пришлёт подписанный договор"
+    );
+    await memory.editCommitment(cleo, fixed?.id as string, {
+      status: "done",
+    });
+    const source = await page.recordSource(cleo, fixed?.id as string);
+    expect(source).toMatchObject({
+      chat: { id: chatId, title: "Договор с перевозчиком" },
+      said: "Ольга обещала прислать договор до 13 ноября",
+      versions: [{ text: "Ольга Ли пришлёт договор" }],
+    });
+    expect(source?.changes).toEqual([
+      expect.objectContaining({ after: "done", byHand: true, field: "status" }),
+    ]);
+    expect(await page.recordSource(bob, late.id)).toBeNull();
   });
 
   it("forgets everything, key included, and starts over with a new one", async () => {

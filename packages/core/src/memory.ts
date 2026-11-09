@@ -1,6 +1,7 @@
 import "server-only";
 import type {
   ChatMemory,
+  MemoryChangeField,
   MemoryEntityKind,
   MemoryPrecision,
   MemoryRecordKind,
@@ -10,6 +11,7 @@ import type {
 } from "@metobe/contracts/memory";
 import type { Db } from "@metobe/db/client";
 import {
+  memoryChanges,
   memoryDrafts,
   memoryEntities,
   memoryKeys,
@@ -17,7 +19,16 @@ import {
   memoryRecords,
   memoryWrites,
 } from "@metobe/db/schema/memory";
-import { and, desc, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lte,
+  notExists,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb } from "./db";
@@ -476,34 +487,110 @@ export const supersedeRecord = async (
   });
 };
 
+export interface CommitmentPatch {
+  status?: MemoryStatus;
+  /** Null — no deadline any more. */
+  dueAt?: Date | null;
+  important?: boolean;
+}
+
+const asText = (v: MemoryStatus | Date | boolean | null) => {
+  if (v === null) {
+    return null;
+  }
+  return v instanceof Date ? v.toISOString() : String(v);
+};
+
 /**
- * Sets a commitment's status — done, cancelled, said to be done, or open again; `writeId` — the write that said it,
- * so undoing the write opens it again.
+ * Changes a live commitment of the owner's and writes each change into its history; `writeId` — the message that
+ * said it (undoing the write puts it back), none — by hand. `onlyOpen` leaves one closed meanwhile as it is. False when
+ * there is no such commitment; a patch that changes nothing is true and leaves no line.
  */
-export const setCommitmentStatus = async (
+const changeCommitment = async (
+  tx: Tx,
   ownerId: string,
   id: string,
-  status: MemoryStatus,
-  writeId?: string
+  patch: CommitmentPatch,
+  { onlyOpen = false, writeId }: { onlyOpen?: boolean; writeId?: string } = {}
 ) => {
-  const rows = await getDb()
-    .db.update(memoryRecords)
-    .set({
-      closedByWrite: status === "open" ? null : (writeId ?? null),
-      doneAt: ENDED.has(status) ? new Date() : null,
-      status,
-    })
+  const [row] = await tx
+    .select()
+    .from(memoryRecords)
     .where(
       and(
         eq(memoryRecords.id, id),
         eq(memoryRecords.ownerId, ownerId),
         eq(memoryRecords.kind, "commitment"),
-        isNull(memoryRecords.deletedAt)
+        isNull(memoryRecords.supersededAt),
+        isNull(memoryRecords.deletedAt),
+        onlyOpen
+          ? inArray(memoryRecords.status, ["open", "unconfirmed"])
+          : undefined
       )
     )
-    .returning({ id: memoryRecords.id });
-  return rows.length > 0;
+    .for("update");
+  if (!row) {
+    return false;
+  }
+  const lines: (typeof memoryChanges.$inferInsert)[] = [];
+  const set: Partial<typeof memoryRecords.$inferInsert> = {};
+  const line = (
+    field: MemoryChangeField,
+    before: MemoryStatus | Date | boolean | null,
+    after: MemoryStatus | Date | boolean | null
+  ) => {
+    if (asText(before) !== asText(after)) {
+      lines.push({
+        after: asText(after),
+        before: asText(before),
+        field,
+        ownerId,
+        recordId: id,
+        writeId,
+      });
+    }
+  };
+  if (patch.status && patch.status !== row.status) {
+    line("status", row.status, patch.status);
+    set.status = patch.status;
+    set.doneAt = ENDED.has(patch.status) ? new Date() : null;
+    set.closedByWrite = patch.status === "open" ? null : (writeId ?? null);
+  }
+  if (patch.dueAt !== undefined) {
+    line("due", row.dueAt, patch.dueAt);
+    set.dueAt = patch.dueAt;
+  }
+  if (patch.important !== undefined) {
+    line("important", row.important, patch.important);
+    set.important = patch.important;
+  }
+  if (lines.length > 0) {
+    await tx.update(memoryRecords).set(set).where(eq(memoryRecords.id, id));
+    await tx.insert(memoryChanges).values(lines);
+  }
+  return true;
 };
+
+/**
+ * Sets a commitment's status — done, cancelled, said to be done, or open again; `writeId` — the write that said it,
+ * so undoing the write puts the status back.
+ */
+export const setCommitmentStatus = (
+  ownerId: string,
+  id: string,
+  status: MemoryStatus,
+  writeId?: string
+) =>
+  getDb().db.transaction((tx) =>
+    changeCommitment(tx, ownerId, id, { status }, { writeId })
+  );
+
+/** The «Память» page: status, deadline and «важно» of a commitment, by hand. False — no such live commitment. */
+export const editCommitment = (
+  ownerId: string,
+  id: string,
+  patch: CommitmentPatch
+) => getDb().db.transaction((tx) => changeCommitment(tx, ownerId, id, patch));
 
 /** Ends a fact's validity (it is «Раньше» from then) or, with null, takes the end back. */
 export const setValidTo = async (
@@ -551,6 +638,7 @@ export interface MemoryRecordFilter {
   writeIds?: string[];
   /** Records these writes closed. */
   closedBy?: string[];
+  ids?: string[];
   /** Corrections' old versions too. */
   includeSuperseded?: boolean;
   /** Deleted ones too (to offer taking the deletion back). */
@@ -584,6 +672,7 @@ export const listRecords = async (
         filter.closedBy
           ? inArray(memoryRecords.closedByWrite, filter.closedBy)
           : undefined,
+        filter.ids ? inArray(memoryRecords.id, filter.ids) : undefined,
         filter.entityId
           ? inArray(
               memoryRecords.id,
@@ -780,23 +869,13 @@ export const applyWrite = async (
     // Only an open one of the owner's: a commitment closed since the model read it stays as it is.
     await Promise.all(
       plan.statuses.map((s) =>
-        tx
-          .update(memoryRecords)
-          .set({
-            closedByWrite: writeId,
-            doneAt: ENDED.has(s.status) ? new Date() : null,
-            status: s.status,
-          })
-          .where(
-            and(
-              eq(memoryRecords.id, s.recordId),
-              eq(memoryRecords.ownerId, ownerId),
-              eq(memoryRecords.kind, "commitment"),
-              inArray(memoryRecords.status, ["open", "unconfirmed"]),
-              isNull(memoryRecords.supersededAt),
-              isNull(memoryRecords.deletedAt)
-            )
-          )
+        changeCommitment(
+          tx,
+          ownerId,
+          s.recordId,
+          { status: s.status },
+          { onlyOpen: true, writeId }
+        )
       )
     );
     await tx
@@ -1013,6 +1092,61 @@ export const answerQuestion = async (
  * «Запомнено» undone: what the write put in is hidden, what it replaced or closed is as it was, and the cards it
  * found go if nothing else holds them. False when there is no such write of the owner, or it is already undone.
  */
+/**
+ * What a write changed in commitments goes back, newest first — each only while it still holds what the write set
+ * («выполнено» the person has since changed by hand stays). The write's lines leave the history.
+ */
+const revertChanges = async (tx: Tx, ownerId: string, writeId: string) => {
+  const changes = await tx
+    .select()
+    .from(memoryChanges)
+    .where(
+      and(
+        eq(memoryChanges.ownerId, ownerId),
+        eq(memoryChanges.writeId, writeId)
+      )
+    )
+    .orderBy(desc(memoryChanges.at));
+  for (const c of changes) {
+    const where = and(
+      eq(memoryRecords.id, c.recordId),
+      eq(memoryRecords.ownerId, ownerId)
+    );
+    if (c.field === "status" && c.before) {
+      const before = c.before as MemoryStatus;
+      // oxlint-disable-next-line no-await-in-loop -- newest first: a later change goes back before an earlier one
+      await tx
+        .update(memoryRecords)
+        .set({
+          closedByWrite: null,
+          doneAt: ENDED.has(before) ? sql`${memoryRecords.doneAt}` : null,
+          status: before,
+        })
+        .where(and(where, eq(memoryRecords.status, c.after as MemoryStatus)));
+    } else if (c.field === "due") {
+      // oxlint-disable-next-line no-await-in-loop -- as above
+      await tx
+        .update(memoryRecords)
+        .set({ dueAt: c.before ? new Date(c.before) : null })
+        .where(
+          and(
+            where,
+            c.after
+              ? eq(memoryRecords.dueAt, new Date(c.after))
+              : isNull(memoryRecords.dueAt)
+          )
+        );
+    } else if (c.field === "important") {
+      // oxlint-disable-next-line no-await-in-loop -- as above
+      await tx
+        .update(memoryRecords)
+        .set({ important: c.before === "true" })
+        .where(and(where, eq(memoryRecords.important, c.after === "true")));
+    }
+  }
+  await tx.delete(memoryChanges).where(eq(memoryChanges.writeId, writeId));
+};
+
 export const undoWrite = (ownerId: string, writeId: string) =>
   getDb().db.transaction(async (tx) => {
     const [write] = await tx
@@ -1046,6 +1180,8 @@ export const undoWrite = (ownerId: string, writeId: string) =>
           inArray(memoryRecords.kind, ["fact", "assessment"])
         )
       );
+    await revertChanges(tx, ownerId, writeId);
+    // Closed by the write before commitments had a history: open again.
     await tx
       .update(memoryRecords)
       .set({ closedByWrite: null, doneAt: null, status: "open" })
@@ -1190,4 +1326,149 @@ export const forgetAll = async (ownerId: string) => {
     await tx.delete(memoryKeys).where(eq(memoryKeys.ownerId, ownerId));
   });
   cache().delete(ownerId);
+};
+
+// --- the «Память» page (P16) --------------------------------------------------------------------------------------
+
+/**
+ * A correction by hand («Изменить» on the page): a new version with the new text and all else as it was; the old one
+ * stays in the history. It keeps the message it came from — «Откуда» still shows it, and undoing that message takes
+ * the corrected version too. Null when the owner has no such live record.
+ */
+export const correctRecord = async (
+  ownerId: string,
+  id: string,
+  text: string
+) => {
+  const [old] = await listRecords(ownerId, { ids: [id] });
+  if (!old) {
+    return null;
+  }
+  return supersedeRecord(ownerId, id, {
+    dueAt: old.dueAt ?? undefined,
+    entities: old.entities,
+    givenAt: old.givenAt ?? undefined,
+    important: old.important || undefined,
+    kind: old.kind,
+    occurred:
+      old.occurredAt && old.occurredPrecision
+        ? { at: old.occurredAt, precision: old.occurredPrecision }
+        : undefined,
+    status: old.status ?? undefined,
+    text,
+    validFrom: old.validFrom ?? undefined,
+    validTo: old.validTo ?? undefined,
+    writeId: old.writeId ?? undefined,
+  });
+};
+
+/** Which chat each write came from; a write of a deleted chat has none. */
+export const writeChats = async (ownerId: string, writeIds: string[]) => {
+  if (writeIds.length === 0) {
+    return new Map<string, { chatId: string | null; messageId: string }>();
+  }
+  const rows = await getDb()
+    .db.select({
+      chatId: memoryWrites.chatId,
+      id: memoryWrites.id,
+      messageId: memoryWrites.messageId,
+    })
+    .from(memoryWrites)
+    .where(
+      and(
+        eq(memoryWrites.ownerId, ownerId),
+        inArray(memoryWrites.id, [...new Set(writeIds)])
+      )
+    );
+  return new Map(rows.map((r) => [r.id, r]));
+};
+
+/**
+ * A record's past: its earlier texts (newest first) and what changed in it — status, deadline, «важно» — across all
+ * its versions, oldest first. Null when the owner has no such record.
+ */
+export const recordHistory = async (ownerId: string, id: string) => {
+  const key = await dataKey(ownerId, false);
+  if (!key) {
+    return null;
+  }
+  const { db } = getDb();
+  const versions: { id: string; text: string; recordedAt: Date }[] = [];
+  const [self] = await db
+    .select({ id: memoryRecords.id })
+    .from(memoryRecords)
+    .where(and(eq(memoryRecords.id, id), eq(memoryRecords.ownerId, ownerId)));
+  if (!self) {
+    return null;
+  }
+  // A chain is a handful of corrections: one step at a time.
+  for (let next = id, step = 0; step < 50; step += 1) {
+    // oxlint-disable-next-line no-await-in-loop -- each step needs the one before
+    const [older] = await db
+      .select()
+      .from(memoryRecords)
+      .where(
+        and(
+          eq(memoryRecords.ownerId, ownerId),
+          eq(memoryRecords.supersededBy, next)
+        )
+      )
+      .limit(1);
+    if (!older) {
+      break;
+    }
+    versions.push({
+      id: older.id,
+      recordedAt: older.recordedAt,
+      text: toRecord(older, [], key).text,
+    });
+    next = older.id;
+  }
+  const changes = await db
+    .select({
+      after: memoryChanges.after,
+      at: memoryChanges.at,
+      before: memoryChanges.before,
+      field: memoryChanges.field,
+      writeId: memoryChanges.writeId,
+    })
+    .from(memoryChanges)
+    .where(
+      and(
+        eq(memoryChanges.ownerId, ownerId),
+        inArray(memoryChanges.recordId, [id, ...versions.map((v) => v.id)])
+      )
+    )
+    .orderBy(memoryChanges.at);
+  return { changes, versions };
+};
+
+/**
+ * Open commitments per card, and how many of them are past their day — for the list on the «Память» page. A deadline
+ * is midnight of its day in the person's zone, so it is overdue a day after.
+ */
+export const commitmentCounts = async (ownerId: string, now = new Date()) => {
+  const overdueBefore = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const rows = await getDb()
+    .db.select({
+      entityId: memoryRecordEntities.entityId,
+      open: sql<number>`count(*)::int`,
+      overdue: sql<number>`count(*) filter (where ${lte(memoryRecords.dueAt, overdueBefore)})::int`,
+    })
+    .from(memoryRecordEntities)
+    .innerJoin(
+      memoryRecords,
+      eq(memoryRecords.id, memoryRecordEntities.recordId)
+    )
+    .where(
+      and(
+        eq(memoryRecords.ownerId, ownerId),
+        eq(memoryRecords.kind, "commitment"),
+        inArray(memoryRecords.status, ["open", "unconfirmed"]),
+        isNull(memoryRecords.supersededAt),
+        isNull(memoryRecords.deletedAt)
+      )
+    )
+    .groupBy(memoryRecordEntities.entityId);
+  return new Map(rows.map((r) => [r.entityId, r]));
 };
