@@ -23,6 +23,7 @@ import {
 } from "@metobe/db/schema/memory";
 import {
   and,
+  asc,
   desc,
   eq,
   inArray,
@@ -819,7 +820,13 @@ export const listRecords = async (
  */
 export const createWrite = async (
   ownerId: string,
-  input: { chatId: string; messageId: string }
+  input: {
+    chatId: string;
+    messageId: string;
+    /** When the message was sent: the queue's order (ARCH §19.8.1); now, if not given. */
+    sentAt?: Date;
+    timeZone?: string;
+  }
 ) => {
   const { db } = getDb();
   const [made] = await db
@@ -844,6 +851,70 @@ export const createWrite = async (
     throw new Error("memory: the write was not saved");
   }
   return { created: false, id: existing.id, status: existing.status };
+};
+
+/** A message waiting to be read: the next of a person's queue. */
+export interface QueuedWrite {
+  id: string;
+  chatId: string | null;
+  messageId: string;
+  sentAt: Date;
+  timeZone: string | null;
+  attempts: number;
+}
+
+/**
+ * The person's next message to read: the earliest sent still `queued` — one that failed and is tried again stays
+ * first, so a later message never overtakes it (ARCH §19.8.1).
+ */
+export const nextQueuedWrite = async (
+  ownerId: string
+): Promise<QueuedWrite | null> => {
+  const [row] = await getDb()
+    .db.select({
+      attempts: memoryWrites.attempts,
+      chatId: memoryWrites.chatId,
+      id: memoryWrites.id,
+      messageId: memoryWrites.messageId,
+      sentAt: memoryWrites.sentAt,
+      timeZone: memoryWrites.timeZone,
+    })
+    .from(memoryWrites)
+    .where(
+      and(eq(memoryWrites.ownerId, ownerId), eq(memoryWrites.status, "queued"))
+    )
+    .orderBy(asc(memoryWrites.sentAt), asc(memoryWrites.createdAt))
+    .limit(1);
+  return row ?? null;
+};
+
+/**
+ * One more failed read of a queued message. It stays `queued` — first in line for the next try — until `max`
+ * attempts; then it is `failed`, and the queue goes on without it.
+ */
+export const failWriteAttempt = async (
+  ownerId: string,
+  id: string,
+  error: string,
+  max: number
+) => {
+  const [row] = await getDb()
+    .db.update(memoryWrites)
+    .set({
+      attempts: sql`${memoryWrites.attempts} + 1`,
+      error: error.slice(0, 500),
+      finishedAt: sql`case when ${memoryWrites.attempts} + 1 >= ${max} then now() else null end`,
+      status: sql`case when ${memoryWrites.attempts} + 1 >= ${max} then 'failed' else ${memoryWrites.status} end`,
+    })
+    .where(
+      and(
+        eq(memoryWrites.id, id),
+        eq(memoryWrites.ownerId, ownerId),
+        eq(memoryWrites.status, "queued")
+      )
+    )
+    .returning({ status: memoryWrites.status });
+  return { failed: row?.status === "failed" };
 };
 
 export const markWrite = async (

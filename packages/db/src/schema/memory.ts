@@ -50,6 +50,8 @@ export const memoryKeys = pgTable("memory_keys", {
 export const memoryWrites = pgTable(
   "memory_writes",
   {
+    /** Failed reads of the message so far: after three the write is `failed` and the queue goes on (ARCH §19.8.1). */
+    attempts: integer("attempts").notNull().default(0),
     /** Set null when the chat is deleted: the memory stays (D39). */
     chatId: uuid("chat_id").references(() => chats.id, {
       onDelete: "set null",
@@ -65,14 +67,20 @@ export const memoryWrites = pgTable(
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /** When the message was sent: a person's messages are read in this order, one at a time (ARCH §19.8.1). */
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
     status: text("status")
       .$type<MemoryWriteStatus>()
       .notNull()
       .default("queued"),
+    /** The person's zone when they sent it (D31): «вчера» and «в среду» are counted in it. */
+    timeZone: text("time_zone"),
   },
   (table) => [
     // One message is looked at once, however many times it is queued.
     uniqueIndex("memory_writes_message").on(table.ownerId, table.messageId),
+    // The next message of a person's queue.
+    index("memory_writes_queue").on(table.ownerId, table.status, table.sentAt),
     check(
       "memory_writes_status",
       sql`${table.status} in ('queued', 'skipped', 'done', 'failed', 'undone')`

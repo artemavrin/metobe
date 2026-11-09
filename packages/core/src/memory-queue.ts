@@ -1,30 +1,69 @@
 import "server-only";
-import { Queue, Worker } from "bullmq";
+import { messages } from "@metobe/db/schema/chat";
+import { DelayedError, Queue, Worker } from "bullmq";
+import type { Job } from "bullmq";
+import { eq } from "drizzle-orm";
+import { createClient } from "redis";
+import { z } from "zod";
 
-import { writeMemory, isMemoryOnFor } from "./memory-write";
+import { getDb } from "./db";
+import { createWrite, failWriteAttempt, nextQueuedWrite } from "./memory";
+import { drainQueue } from "./memory-drain";
+import { isMemoryOnFor, readWrite } from "./memory-write";
 import type { MemoryJob } from "./memory-write";
 import { tasksConnection } from "./tasks-queue";
 
-// The memory's queue (ARCH §19.4): a message to read is a job, the worker reads it. Off the chat's path, and with
-// retries — the S13 runs saw a model time out now and then. The same message queued twice is read once: the write
-// row is the guard (core/memory), not the job id, so a message sent again after an edit is read afresh.
+// The memory's queue (ARCH §19.4, §19.8.1). A message to read is a row in `memory_writes`, made when it is queued; a
+// job only says whose queue to read. The worker reads a person's queue in the order the messages were sent, one at a
+// time, under a lock in Redis — two messages in a row never race for the same cards. Different people are read side
+// by side. A read that fails stays first in line: the job is tried again later, and no later message overtakes it.
 
 const MEMORY_QUEUE = "memory";
+/** People read side by side; one person's messages — always one at a time. */
 const CONCURRENCY = 2;
+/** Reads of one message before it is given up and the queue goes on. */
+const MAX_ATTEMPTS = 3;
+/** Longer than one read can take (the gate's 15 s and the model's 60 s); held again after each message. */
+const LOCK_MS = 120_000;
+/** A job that finds the person's queue being read waits this long and looks again. */
+const BUSY_DELAY_MS = 5000;
 
-let queue: Queue<MemoryJob> | undefined;
+/** A job: whose queue to read. Jobs queued before §19.8.1 carry the message too — it is put in the queue first. */
+type QueueJob = { ownerId: string } | MemoryJob;
+
+let queue: Queue<QueueJob> | undefined;
 
 const getMemoryQueue = () => {
-  queue ??= new Queue<MemoryJob>(MEMORY_QUEUE, {
+  queue ??= new Queue<QueueJob>(MEMORY_QUEUE, {
     connection: tasksConnection(),
     defaultJobOptions: {
-      attempts: 3,
+      attempts: MAX_ATTEMPTS,
       backoff: { delay: 30_000, type: "exponential" },
       removeOnComplete: 200,
       removeOnFail: 500,
     },
   });
   return queue;
+};
+
+/** When the message was sent — the queue's order; now, if it is not saved yet. */
+const sentAtOf = async (messageId: string) => {
+  const [row] = await getDb()
+    .db.select({ createdAt: messages.createdAt })
+    .from(messages)
+    .where(eq(messages.id, messageId))
+    .limit(1);
+  return row?.createdAt;
+};
+
+/** Puts a message in its person's queue: the write row, once — queuing it again changes nothing. */
+const enqueue = async (job: MemoryJob) => {
+  await createWrite(job.ownerId, {
+    chatId: job.chatId,
+    messageId: job.messageId,
+    sentAt: await sentAtOf(job.messageId),
+    timeZone: job.timeZone,
+  });
 };
 
 /**
@@ -34,28 +73,120 @@ const getMemoryQueue = () => {
 export const queueMemoryWrite = async (job: MemoryJob) => {
   try {
     if (await isMemoryOnFor(job.ownerId)) {
-      await getMemoryQueue().add("write", job);
+      await enqueue(job);
+      await getMemoryQueue().add("write", { ownerId: job.ownerId });
     }
   } catch (error) {
     console.error("memory: could not queue a write", error);
   }
 };
 
+// ── The lock: one reader of a person's queue at a time ─────────────────────────────────────────────────────────────
+
+/** Holds the lock longer, only while it is still this reader's. */
+const HOLD = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end`;
+/** Lets the lock go, only while it is still this reader's. */
+const DROP = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`;
+
+const connect = async () => {
+  const client = createClient({ url: z.url().parse(process.env.REDIS_URL) }).on(
+    "error",
+    (error) => console.error("memory: redis", error)
+  );
+  await client.connect();
+  return client;
+};
+
+let lockClient: ReturnType<typeof connect> | undefined;
+const locks = async () => {
+  lockClient ??= connect();
+  try {
+    return await lockClient;
+  } catch (error) {
+    // The next job tries to connect again.
+    lockClient = undefined;
+    throw error;
+  }
+};
+
+const lockKey = (ownerId: string) => `memory:lock:${ownerId}`;
+
+const takeLock = async (ownerId: string) => {
+  const token = crypto.randomUUID();
+  const client = await locks();
+  const set = await client.set(lockKey(ownerId), token, {
+    condition: "NX",
+    expiration: { type: "PX", value: LOCK_MS },
+  });
+  return set === "OK" ? token : null;
+};
+
+const holdLock = async (ownerId: string, token: string) => {
+  const client = await locks();
+  const held = await client.eval(HOLD, {
+    arguments: [token, String(LOCK_MS)],
+    keys: [lockKey(ownerId)],
+  });
+  return held === 1;
+};
+
+const dropLock = async (ownerId: string, token: string) => {
+  try {
+    const client = await locks();
+    await client.eval(DROP, { arguments: [token], keys: [lockKey(ownerId)] });
+  } catch (error) {
+    // It runs out by itself in LOCK_MS.
+    console.error("memory: could not let the lock go", error);
+  }
+};
+
+// ── The worker ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Reads a person's queue to the end; another reader at it — the job waits a little and looks again. */
+const readQueue = async (job: Job<QueueJob>, token?: string) => {
+  const { ownerId } = job.data;
+  if ("messageId" in job.data) {
+    await enqueue(job.data);
+  }
+  const lock = await takeLock(ownerId);
+  if (!lock) {
+    await job.moveToDelayed(Date.now() + BUSY_DELAY_MS, token);
+    throw new DelayedError();
+  }
+  try {
+    return await drainQueue({
+      fail: (id, error) => failWriteAttempt(ownerId, id, error, MAX_ATTEMPTS),
+      hold: () => holdLock(ownerId, lock),
+      next: () => nextQueuedWrite(ownerId),
+      read: (write) => readWrite(ownerId, write),
+    });
+  } finally {
+    await dropLock(ownerId, lock);
+  }
+};
+
 /** Starts reading queued messages; answers how to stop. */
 export const startMemoryWorker = () => {
-  const worker = new Worker<MemoryJob>(
-    MEMORY_QUEUE,
-    (job) => writeMemory(job.data),
-    { concurrency: CONCURRENCY, connection: tasksConnection() }
-  );
+  const worker = new Worker<QueueJob>(MEMORY_QUEUE, readQueue, {
+    concurrency: CONCURRENCY,
+    connection: tasksConnection(),
+  });
   worker.on("failed", (job, error) =>
     console.error(
-      `memory: write failed (attempt ${job?.attemptsMade ?? "?"})`,
+      `memory: reading a queue failed (attempt ${job?.attemptsMade ?? "?"})`,
       error.message
     )
   );
   return async () => {
     await worker.close();
     await queue?.close();
+    if (lockClient) {
+      try {
+        const client = await lockClient;
+        await client.quit();
+      } catch {
+        // Closing anyway: the lock runs out by itself.
+      }
+    }
   };
 };

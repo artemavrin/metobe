@@ -37,6 +37,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   const dana = `memory-test-${randomBytes(4).toString("hex")}`;
   /** Rules in «Не упустить»: a memory of its own. */
   const ella = `memory-test-${randomBytes(4).toString("hex")}`;
+  /** The queue (§19.8.1): a queue of its own, so the order is exact. */
+  const fern = `memory-test-${randomBytes(4).toString("hex")}`;
 
   const recordIds = async (
     owner: string,
@@ -65,7 +67,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     await db.insert(user).values(
-      [ana, bob, cleo, dana, ella].map((id) => ({
+      [ana, bob, cleo, dana, ella, fern].map((id) => ({
         email: `${id}@example.test`,
         id,
         name: id,
@@ -76,7 +78,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   afterAll(async () => {
     await db
       ?.delete(user)
-      .where(inArray(user.id, [ana, bob, cleo, dana, ella]));
+      .where(inArray(user.id, [ana, bob, cleo, dana, ella, fern]));
   });
 
   it("keeps texts and names sealed, and reads them back", async () => {
@@ -227,6 +229,47 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       });
       return made.id;
     };
+
+    it("reads a person's queue by when the messages were sent; a failed one stays first (§19.8.1)", async () => {
+      const [chat] = await db
+        .insert(chats)
+        .values({ title: "queue", userId: fern })
+        .returning({ id: chats.id });
+      const queued = (minute: number) =>
+        memory.createWrite(fern, {
+          chatId: chat?.id as string,
+          messageId: crypto.randomUUID(),
+          sentAt: new Date(Date.UTC(2026, 10, 9, 10, minute)),
+          timeZone: "Europe/Moscow",
+        });
+      // Queued out of order: the later message first.
+      const late = await queued(5);
+      const early = await queued(1);
+      expect(await memory.nextQueuedWrite(fern)).toMatchObject({
+        attempts: 0,
+        id: early.id,
+        timeZone: "Europe/Moscow",
+      });
+      expect(
+        await memory.failWriteAttempt(fern, early.id, "timeout", 3)
+      ).toEqual({ failed: false });
+      expect(await memory.nextQueuedWrite(fern)).toMatchObject({
+        attempts: 1,
+        id: early.id,
+      });
+      await memory.failWriteAttempt(fern, early.id, "timeout", 3);
+      expect(
+        await memory.failWriteAttempt(fern, early.id, "timeout", 3)
+      ).toEqual({ failed: true });
+      // Given up: the queue goes on to the next message.
+      const next = await memory.nextQueuedWrite(fern);
+      expect(next?.id).toBe(late.id);
+      await memory.markWrite(fern, late.id, "skipped");
+      expect(await memory.nextQueuedWrite(fern)).toBeNull();
+      // Another person's queue is their own.
+      const others = await memory.nextQueuedWrite(ana);
+      expect(others?.id).not.toBe(late.id);
+    });
 
     it("takes one message once", async () => {
       const messageId = crypto.randomUUID();

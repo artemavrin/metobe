@@ -15,12 +15,12 @@ import { recordRun } from "./chat-run";
 import { getDb } from "./db";
 import {
   applyWrite,
-  createWrite,
   ensureSelf,
   listEntities,
   listRecords,
   markWrite,
 } from "./memory";
+import type { QueuedWrite } from "./memory";
 import {
   extractionSchema,
   memoryInstructions,
@@ -262,20 +262,39 @@ const knownCards = (
   );
 };
 
-/** What became of the job — for the worker's log. */
-export const writeMemory = async (job: MemoryJob) => {
+/** The zone a queued message is read in: its own, else the person's from their settings (D31). */
+const zoneOf = async (ownerId: string, write: QueuedWrite) => {
+  if (write.timeZone) {
+    return write.timeZone;
+  }
+  const [owner] = await getDb()
+    .db.select({ timeZone: user.timeZone })
+    .from(user)
+    .where(eq(user.id, ownerId))
+    .limit(1);
+  return owner?.timeZone ?? "UTC";
+};
+
+/**
+ * Reads the next message of a person's queue (ARCH §19.8.1) and answers what became of it: `off` — no model in
+ * «Память», the message stays queued for later; `skipped` or `done`. A failed read is thrown for the drain to count.
+ */
+export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   const model = await getSlotModel("memory");
-  // Turned off since the message was queued: it is not read.
-  if (!model || (await isOffFor(job.ownerId))) {
+  if (!model) {
     return "off";
   }
-  const write = await createWrite(job.ownerId, {
-    chatId: job.chatId,
-    messageId: job.messageId,
-  });
-  if (!["queued", "failed"].includes(write.status)) {
-    return write.status;
+  // Turned off by the person since the message was queued, or the chat deleted: not read.
+  if (!write.chatId || (await isOffFor(ownerId))) {
+    await markWrite(ownerId, write.id, "skipped");
+    return "skipped";
   }
+  const job: MemoryJob = {
+    chatId: write.chatId,
+    messageId: write.messageId,
+    ownerId,
+    timeZone: await zoneOf(ownerId, write),
+  };
   const { db } = getDb();
   const [message] = await db
     .select({
@@ -286,10 +305,10 @@ export const writeMemory = async (job: MemoryJob) => {
     .from(messages)
     .where(and(eq(messages.id, job.messageId), eq(messages.chatId, job.chatId)))
     .limit(1);
-  // Gone already (the chat deleted, the message edited away) or nothing in words: nothing to read.
+  // Gone already (the message edited away) or nothing in words: nothing to read.
   const text = message?.role === "user" ? textOf(message.parts) : "";
   if (!(message && text)) {
-    await markWrite(job.ownerId, write.id, "skipped");
+    await markWrite(ownerId, write.id, "skipped");
     return "skipped";
   }
   const before = await exchangeBefore(job.chatId, message.createdAt);
@@ -342,12 +361,7 @@ export const writeMemory = async (job: MemoryJob) => {
     }).catch((recordError: unknown) =>
       console.error("memory: could not record the run", recordError)
     );
-    await markWrite(
-      job.ownerId,
-      write.id,
-      "failed",
-      error instanceof Error ? error.message.slice(0, 500) : String(error)
-    );
+    // The drain counts the attempt: the message stays first in the queue until it is read or given up (§19.8.1).
     throw error;
   }
   await recordRun({
