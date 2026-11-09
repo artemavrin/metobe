@@ -15,7 +15,13 @@ import { memoryCard, searchMemory } from "./memory-page";
 export const SEARCH_MEMORY = "search_memory";
 export const MEMORY_CARD = "memory_card";
 export const LIST_COMMITMENTS = "list_commitments";
-export const MEMORY_TOOLS = [SEARCH_MEMORY, MEMORY_CARD, LIST_COMMITMENTS];
+export const LIST_PEOPLE = "list_people";
+export const MEMORY_TOOLS = [
+  SEARCH_MEMORY,
+  MEMORY_CARD,
+  LIST_COMMITMENTS,
+  LIST_PEOPLE,
+];
 
 /** Cards in the block, and what of each: enough to answer «что с Ольгой?», short enough for every message. */
 const MAX_CARDS = 5;
@@ -24,6 +30,9 @@ const MAX_EVENTS = 2;
 /** What the user told about themselves — goals, ways of working — goes with every message: a few, the newest. */
 const MAX_SELF = 8;
 const MAX_FOUND = 30;
+/** `list_people`: everyone, with what is known about each — the model matches by meaning («SQL» for «анализ данных»). */
+const MAX_PEOPLE = 100;
+const MAX_PER_PERSON = 8;
 const MIN_STEM = 4;
 
 const normalize = (s: string) => s.toLocaleLowerCase("ru").replaceAll("ё", "е");
@@ -172,7 +181,7 @@ export const memoryBrief = async (
       `About who this message mentions:\n${cards.map((c) => cardBlock(c, records, names, timeZone)).join("\n")}`,
   ].filter(Boolean);
   return `<memory>
-What the user's memory keeps (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD} or ${LIST_COMMITMENTS} for more. It may be out of date or wrong — the user's words now come first.
+What the user's memory keeps (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD}, ${LIST_COMMITMENTS} or ${LIST_PEOPLE} for more. It may be out of date or wrong — the user's words now come first.
 ${parts.join("\n")}
 </memory>`;
 };
@@ -214,6 +223,38 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
           .describe("Only those past their deadline"),
       }),
     }),
+    [LIST_PEOPLE]: tool({
+      description:
+        "Everyone the user's memory knows of one kind, each with their role and what is known — skills, what they work on, the user's assessments. For questions by meaning, not by name: «кому поручить анализ данных», «кто разбирается в базах», «кого подключить к демо» — read the list and pick by sense.",
+      execute: async ({ kind }) => {
+        const entities = await listEntities(ownerId);
+        const records = await listRecords(ownerId, {
+          kinds: ["fact", "assessment"],
+        });
+        const known = records.filter((r) => !r.validTo);
+        return {
+          people: entities
+            .filter((e) => e.kind === (kind ?? "person"))
+            .slice(0, MAX_PEOPLE)
+            .map((e) => ({
+              known: known
+                .filter((r) => r.entities.some((l) => l.entityId === e.id))
+                .slice(0, MAX_PER_PERSON)
+                .map((r) =>
+                  r.kind === "assessment" ? `оценка: ${r.text}` : r.text
+                ),
+              name: e.name,
+              role: e.role,
+            })),
+        };
+      },
+      inputSchema: z.object({
+        kind: z
+          .enum(["person", "org", "project"])
+          .optional()
+          .describe("People by default; organizations or projects"),
+      }),
+    }),
     [MEMORY_CARD]: tool({
       description:
         "Everything the user's memory keeps about one person, organization or project: who they are, open and closed commitments, facts, assessments, events.",
@@ -239,7 +280,7 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
     }),
     [SEARCH_MEMORY]: tool({
       description:
-        "Searches the user's memory by words: people, organizations, projects and the records about them (facts, events, commitments, rules), done and cancelled ones too.",
+        "Searches the user's memory by words — not by meaning: people, organizations, projects and the records about them (facts, events, commitments, rules), done and cancelled ones too. A record is found only when it has every word of the query, so search a few times with other words for the same thing («SQL», then «базы данных», then «аналитика»); for who fits a task, read list_people instead.",
       execute: async ({ query }) => {
         const found = await searchMemory(ownerId, query);
         return {

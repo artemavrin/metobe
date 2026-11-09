@@ -2781,7 +2781,8 @@
     "tools": {
       "search_memory": "Поиск в памяти",
       "memory_card": "Карточка из памяти",
-      "list_commitments": "Обязательства из памяти"
+      "list_commitments": "Обязательства из памяти",
+      "list_people": "Люди из памяти"
     }
   }
 }

@@ -813,6 +813,13 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       found: true,
       name: "Ольга Ли",
     });
+    // By meaning: everyone with what is known, for the model to pick from; the person's own card is not among them.
+    const people = (await run(read.LIST_PEOPLE, {})) as {
+      people: { name: string; role: string | null }[];
+    };
+    expect(people.people).toEqual([
+      expect.objectContaining({ name: "Ольга Ли" }),
+    ]);
 
     // Who she is now: the newest role fact is the card's line, a later edit by hand wins, a deleted fact gives it back.
     const role = async () => {
