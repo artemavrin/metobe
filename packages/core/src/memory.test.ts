@@ -813,6 +813,37 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       found: true,
       name: "Ольга Ли",
     });
+
+    // Who she is now: the newest role fact is the card's line, a later edit by hand wins, a deleted fact gives it back.
+    const role = async () => {
+      const cards = await memory.listEntities(cleo);
+      return cards.find((e) => e.id === olga.id)?.role;
+    };
+    const promoted = await memory.addRecord(cleo, {
+      entities: [{ entityId: olga.id, role: "about" }],
+      kind: "fact",
+      role: "директор «Альфа-Логистики»",
+      text: "Ольга Ли теперь директор «Альфа-Логистики»",
+    });
+    expect(await role()).toBe("директор «Альфа-Логистики»");
+    await memory.deleteRecord(cleo, promoted.id);
+    expect(await role()).toBe("менеджер «Альфа-Логистики»");
+    await memory.restoreRecord(cleo, promoted.id);
+    await memory.updateEntity(cleo, olga.id, { role: "партнёр" });
+    expect(await role()).toBe("партнёр");
+
+    // What the person told about themselves goes with every message, whoever it mentions.
+    await memory.addRecord(cleo, {
+      entities: [{ entityId: self.id, role: "about" }],
+      kind: "fact",
+      text: "Развиваю своих подчинённых: даю им задачи на рост",
+    });
+    const own = await read.memoryBrief(cleo, "посчитай 15%", "UTC");
+    expect(own).toContain("About the user");
+    expect(own).toContain(
+      "«Развиваю своих подчинённых: даю им задачи на рост»"
+    );
+    expect(own).not.toContain("About who this message mentions");
   });
 
   it("forgets everything, key included, and starts over with a new one", async () => {

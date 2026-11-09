@@ -7,7 +7,8 @@
     "extract": "node --env-file=../../.env --import tsx extract.ts",
     "ask": "node --env-file=../../.env --import tsx ask.ts",
     "context": "node --env-file=../../.env --import tsx context.ts",
-    "status": "node --env-file=../../.env --import tsx status.ts"
+    "status": "node --env-file=../../.env --import tsx status.ts",
+    "self": "node --env-file=../../.env --import tsx self.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",

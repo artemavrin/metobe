@@ -253,19 +253,6 @@ export const ensureSelf = async (ownerId: string, name: string) => {
   return toEntity(row, key);
 };
 
-export const listEntities = async (ownerId: string) => {
-  const key = await dataKey(ownerId, false);
-  if (!key) {
-    return [];
-  }
-  const rows = await getDb()
-    .db.select()
-    .from(memoryEntities)
-    .where(eq(memoryEntities.ownerId, ownerId))
-    .orderBy(memoryEntities.createdAt);
-  return rows.map((row) => toEntity(row, key));
-};
-
 /** Changes a card in place; null when the owner has no such card. */
 export const updateEntity = async (
   ownerId: string,
@@ -312,7 +299,8 @@ export const updateEntity = async (
 
 // --- records -----------------------------------------------------------------------------------------------------
 
-const recordBody = z.object({ text: z.string() });
+/** `role` — a fact that says who the card is now («тимлид бэкенда»): the newest one is the card's line. */
+const recordBody = z.object({ role: z.string().optional(), text: z.string() });
 
 export interface MemoryRecordInput {
   kind: MemoryRecordKind;
@@ -331,6 +319,8 @@ export interface MemoryRecordInput {
   important?: boolean;
   /** The write it comes from; leave out for what the person put in by hand. */
   writeId?: string;
+  /** A fact about who its card is now, in a few words: the card's line follows the newest one. */
+  role?: string;
 }
 
 export interface MemoryRecord {
@@ -346,6 +336,8 @@ export interface MemoryRecord {
   dueAt: Date | null;
   status: MemoryStatus | null;
   important: boolean;
+  /** Set on a fact about who its card is now. */
+  role: string | null;
   doneAt: Date | null;
   /** The write that closed it (a fact's end, a commitment's status). */
   closedByWrite: string | null;
@@ -359,30 +351,85 @@ const toRecord = (
   row: typeof memoryRecords.$inferSelect,
   entities: MemoryRecord["entities"],
   key: SecretsKey
-): MemoryRecord => ({
-  closedByWrite: row.closedByWrite,
-  deletedAt: row.deletedAt,
-  doneAt: row.doneAt,
-  dueAt: row.dueAt,
-  entities,
-  givenAt: row.givenAt,
-  id: row.id,
-  important: row.important,
-  kind: row.kind,
-  occurredAt: row.occurredAt,
-  occurredPrecision: row.occurredPrecision,
-  recordedAt: row.recordedAt,
-  status: row.status,
-  supersededAt: row.supersededAt,
-  text: recordBody.parse(
+): MemoryRecord => {
+  const body = recordBody.parse(
     JSON.parse(
       openField(row.sealed, memoryAad(row.ownerId, RECORDS, row.id, BODY), key)
     )
-  ).text,
-  validFrom: row.validFrom,
-  validTo: row.validTo,
-  writeId: row.writeId,
-});
+  );
+  return {
+    closedByWrite: row.closedByWrite,
+    deletedAt: row.deletedAt,
+    doneAt: row.doneAt,
+    dueAt: row.dueAt,
+    entities,
+    givenAt: row.givenAt,
+    id: row.id,
+    important: row.important,
+    kind: row.kind,
+    occurredAt: row.occurredAt,
+    occurredPrecision: row.occurredPrecision,
+    recordedAt: row.recordedAt,
+    role: body.role ?? null,
+    status: row.status,
+    supersededAt: row.supersededAt,
+    text: body.text,
+    validFrom: row.validFrom,
+    validTo: row.validTo,
+    writeId: row.writeId,
+  };
+};
+
+/** Each card's newest live fact about who it is now («тимлид бэкенда»), and when it was put in. */
+const currentRoles = async (db: Db, ownerId: string, key: SecretsKey) => {
+  const rows = await db
+    .select({ entityId: memoryRecordEntities.entityId, record: memoryRecords })
+    .from(memoryRecords)
+    .innerJoin(
+      memoryRecordEntities,
+      eq(memoryRecordEntities.recordId, memoryRecords.id)
+    )
+    .where(
+      and(
+        eq(memoryRecords.ownerId, ownerId),
+        eq(memoryRecords.kind, "fact"),
+        isNull(memoryRecords.validTo),
+        isNull(memoryRecords.supersededAt),
+        isNull(memoryRecords.deletedAt)
+      )
+    )
+    .orderBy(memoryRecords.recordedAt);
+  const roles = new Map<string, { role: string; at: Date }>();
+  for (const { entityId, record } of rows) {
+    const { role } = toRecord(record, [], key);
+    if (role) {
+      roles.set(entityId, { at: record.recordedAt, role });
+    }
+  }
+  return roles;
+};
+
+export const listEntities = async (ownerId: string) => {
+  const key = await dataKey(ownerId, false);
+  if (!key) {
+    return [];
+  }
+  const { db } = getDb();
+  const rows = await db
+    .select()
+    .from(memoryEntities)
+    .where(eq(memoryEntities.ownerId, ownerId))
+    .orderBy(memoryEntities.createdAt);
+  const roles = await currentRoles(db, ownerId, key);
+  return rows.map((row) => {
+    const entity = toEntity(row, key);
+    const said = roles.get(entity.id);
+    // The newest wins: a role fact from a chat after the card was last edited by hand, or that edit.
+    return said && said.at > entity.updatedAt
+      ? { ...entity, role: said.role }
+      : entity;
+  });
+};
 
 /** A commitment that is over — done or no longer needed; `unconfirmed` is not over, it waits for the person. */
 const ENDED = new Set<MemoryStatus>(["done", "cancelled"]);
@@ -438,7 +485,11 @@ const insertRecord = async (
       occurredPrecision: input.occurred?.precision,
       ownerId,
       sealed: sealField(
-        JSON.stringify({ text }),
+        JSON.stringify(
+          input.kind === "fact" && input.role?.trim()
+            ? { role: input.role.trim(), text }
+            : { text }
+        ),
         memoryAad(ownerId, RECORDS, id, BODY),
         key
       ),
@@ -1372,6 +1423,7 @@ export const correctRecord = async (
       old.occurredAt && old.occurredPrecision
         ? { at: old.occurredAt, precision: old.occurredPrecision }
         : undefined,
+    role: old.role ?? undefined,
     status: old.status ?? undefined,
     text,
     validFrom: old.validFrom ?? undefined,

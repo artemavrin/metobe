@@ -42,6 +42,7 @@ const item = (
   important: false,
   interval_days: null,
   kind: "fact",
+  role: null,
   text: "текст",
   when: null,
   ...over,
@@ -199,6 +200,21 @@ describe("planWrite", () => {
     expect(statuses).toEqual([
       { recordId: "00000000-0000-4000-8000-0000000000d1", status: "done" },
     ]);
+  });
+
+  it("keeps a fact's role — who the card is now — and nothing else's", () => {
+    const { records } = plan({
+      items: [
+        item({
+          about: ["c1"],
+          role: "тимлид бэкенда",
+          text: "Андрей Смирнов теперь тимлид бэкенда",
+        }),
+        item({ about: ["c1"], kind: "event", role: "ещё", text: "Встреча" }),
+      ],
+    });
+    expect(records[0]?.role).toBe("тимлид бэкенда");
+    expect(records[1]).not.toHaveProperty("role");
   });
 
   it("keeps «важно» on a commitment only", () => {

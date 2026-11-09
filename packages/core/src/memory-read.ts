@@ -21,6 +21,8 @@ export const MEMORY_TOOLS = [SEARCH_MEMORY, MEMORY_CARD, LIST_COMMITMENTS];
 const MAX_CARDS = 5;
 const MAX_KNOWN = 5;
 const MAX_EVENTS = 2;
+/** What the user told about themselves — goals, ways of working — goes with every message: a few, the newest. */
+const MAX_SELF = 8;
 const MAX_FOUND = 30;
 const MIN_STEM = 4;
 
@@ -128,9 +130,23 @@ const cardBlock = (
   return [`- ${card.name} (${about})`, ...lines].join("\n");
 };
 
+/** The user's own lasting facts — their goals and ways of working — newest first. */
+const selfLines = (self: MemoryEntity | undefined, records: MemoryRecord[]) =>
+  self
+    ? records
+        .filter(
+          (r) =>
+            r.kind === "fact" &&
+            !r.validTo &&
+            r.entities.some((e) => e.entityId === self.id && e.role === "about")
+        )
+        .slice(0, MAX_SELF)
+        .map((r) => `  - «${r.text}»`)
+    : [];
+
 /**
- * The block in front of the person's message: the cards it mentions and what is kept about them. Empty when it
- * mentions none — the model can still search.
+ * The block in front of the person's message: what they told about themselves, then the cards the message mentions
+ * and what is kept about them. Empty when there is neither — the model can still search.
  */
 export const memoryBrief = async (
   ownerId: string,
@@ -139,14 +155,25 @@ export const memoryBrief = async (
 ) => {
   const entities = await listEntities(ownerId);
   const cards = mentionedCards(entities, text).slice(0, MAX_CARDS);
-  if (cards.length === 0) {
+  const self = entities.find((e) => e.kind === "self");
+  if (cards.length === 0 && !self) {
     return "";
   }
   const records = await listRecords(ownerId);
+  const own = selfLines(self, records);
+  if (cards.length === 0 && own.length === 0) {
+    return "";
+  }
   const names = new Map(entities.map((e) => [e.id, e]));
+  const parts = [
+    own.length > 0 &&
+      `About the user — their goals and ways of working, from what they told; keep them in mind:\n${own.join("\n")}`,
+    cards.length > 0 &&
+      `About who this message mentions:\n${cards.map((c) => cardBlock(c, records, names, timeZone)).join("\n")}`,
+  ].filter(Boolean);
   return `<memory>
-What the user's memory keeps about who this message mentions (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD} or ${LIST_COMMITMENTS} for more. It may be out of date or wrong — the user's words now come first.
-${cards.map((c) => cardBlock(c, records, names, timeZone)).join("\n")}
+What the user's memory keeps (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD} or ${LIST_COMMITMENTS} for more. It may be out of date or wrong — the user's words now come first.
+${parts.join("\n")}
 </memory>`;
 };
 

@@ -83,6 +83,12 @@ export const extractionSchema = z.object({
         "Fact or assessment: since when it is true. Event: when it happened or is scheduled. Commitment: when it was given. Null if unknown"
       ),
       due: when.describe("Commitment only: the deadline, null if none"),
+      role: z
+        .string()
+        .nullable()
+        .describe(
+          "Fact only: when the fact is who a person or organization is to the user now — position, job, company — that in a few words («тимлид бэкенда»); null otherwise"
+        ),
       important: z
         .boolean()
         .describe(
@@ -216,6 +222,9 @@ Rules:
 - A commitment is important only when the message says so in words («критично», «горит», «это главное», «в первую очередь»). A deadline, a boss or money alone do not make it important.
 - Every person or organization mentioned gets a ref: a known card, "user", or a new_entities id — also when unnamed («поставщик упаковки»).
 - When the message says an open commitment is settled, put it in updates: done — the user did it or saw it done («Ольга прислала договор», «отправил смету»); unconfirmed — only someone else says it is done («Андрей говорит, API готов»); cancelled — it no longer has to be done («Андрей передумал», «встречу отменили»). Only when the message makes clear which commitment it is; a plan, a hope or a partial step («почти готово», «на этой неделе сделает») changes nothing. Do not also add the settled commitment as a new item. When what the message says is done or cancelled is not among the open commitments, record it as an event instead («Ольга Ли прислала договор»).
+- The user's own lasting goals, aims and ways of working («развиваю своих подчинённых», «хочу, чтобы команда сама принимала решения», «держу фокус на качестве») are facts about "user", even when said as a wish for the assistant to know them.
+- A person's skills, strengths and what they work on are facts about them, one per skill; the user's judgement of how good they are is an assessment.
+- When a fact says who someone is now — a new position, job or company («Андрей теперь тимлид»), set role to that in a few words.
 - Requests to the assistant itself (count, write, plan), questions and small talk produce no items — return empty arrays.
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
@@ -388,6 +397,9 @@ const toPlanned = (
   }
   if ((item.kind === "fact" || item.kind === "assessment") && at) {
     record.validFrom = at.at;
+  }
+  if (item.kind === "fact" && item.role?.trim()) {
+    record.role = item.role.trim();
   }
   if (item.kind === "commitment") {
     record.givenAt = at?.at;
