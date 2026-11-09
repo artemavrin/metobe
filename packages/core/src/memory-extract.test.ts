@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chatContext,
   localMidnight,
   memoryInstructions,
   memoryPrompt,
   mentionsUser,
   planWrite,
 } from "./memory-extract";
-import type { Extraction, KnownCard, OpenCommitment } from "./memory-extract";
+import type {
+  ChatTurn,
+  Extraction,
+  KnownCard,
+  OpenCommitment,
+} from "./memory-extract";
 
 const ZONE = "Europe/Moscow";
 const ANDREY = "11111111-1111-4111-8111-111111111111";
@@ -149,22 +155,60 @@ describe("memoryPrompt", () => {
     );
   });
 
-  it("puts the exchange before the message, cut short", () => {
-    const prompt = memoryPrompt("Ланьшин, встречи не будет", {
-      assistant: `Какой Андрей передумал?${" ещё".repeat(1000)}`,
-      user: "андрей передумал",
-    });
-    expect(
-      prompt.startsWith(
-        "<context>\nUser: андрей передумал\nAssistant: Какой Андрей передумал?"
-      )
-    ).toBe(true);
-    expect(
-      prompt.endsWith(
-        "</context>\n<message>\nЛаньшин, встречи не будет\n</message>"
-      )
-    ).toBe(true);
-    expect(prompt.length).toBeLessThan(2200);
+  it("puts the chat before the message, the nearest last", () => {
+    const prompt = memoryPrompt("он уже прислал", [
+      { role: "user", text: "Созвонился с Павлом Гуровым" },
+      { role: "assistant", text: "Как прошло?" },
+      { role: "user", text: "Павел обещал прайс к пятнице" },
+      { role: "assistant", text: "Понял." },
+    ]);
+    expect(prompt).toBe(
+      "<context>\nUser: Созвонился с Павлом Гуровым\nAssistant: Как прошло?\nUser: Павел обещал прайс к пятнице\nAssistant: Понял.\n</context>\n<message>\nон уже прислал\n</message>"
+    );
+  });
+});
+
+const turn = (role: ChatTurn["role"], text: string): ChatTurn => ({
+  role,
+  text,
+});
+
+describe("chatContext", () => {
+  it("keeps the last six messages", () => {
+    const turns = Array.from({ length: 9 }, (_, i) =>
+      turn(i % 2 ? "assistant" : "user", `m${i}`)
+    );
+    expect(chatContext(turns).map((t) => t.text)).toEqual([
+      "m3",
+      "m4",
+      "m5",
+      "m6",
+      "m7",
+      "m8",
+    ]);
+  });
+
+  it("cuts an answer to 800 characters and the person's message not at all", () => {
+    const [user, answer] = chatContext([
+      turn("user", "у".repeat(1200)),
+      turn("assistant", "а".repeat(3000)),
+    ]);
+    expect(user?.text).toHaveLength(1200);
+    expect(answer?.text).toHaveLength(800);
+  });
+
+  it("stops at 4000 characters, the far end dropped first, the nearest cut to fit", () => {
+    const kept = chatContext([
+      turn("user", "старое"),
+      turn("user", "п".repeat(3500)),
+      turn("assistant", "о".repeat(300)),
+      turn("user", "н".repeat(300)),
+    ]);
+    expect(kept.map((t) => t.text.length)).toEqual([3400, 300, 300]);
+    expect(kept.map((t) => t.text[0])).toEqual(["п", "о", "н"]);
+    expect(chatContext([turn("user", "д".repeat(9000))])[0]?.text).toHaveLength(
+      4000
+    );
   });
 });
 

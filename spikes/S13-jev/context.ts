@@ -6,7 +6,8 @@ import { createGateway } from "@ai-sdk/gateway";
 import { generateText, Output } from "ai";
 
 import { extractionSchema, memoryInstructions, memoryPrompt } from "../../packages/core/src/memory-extract.ts";
-import { cards } from "./cases.ts";
+import type { ChatTurn } from "../../packages/core/src/memory-extract.ts";
+import { cards, exchange } from "./cases.ts";
 import { TIMEZONE, TODAY_ISO } from "./extract-cases.ts";
 import { sourceKey } from "./keys.ts";
 
@@ -40,6 +41,8 @@ const system = memoryInstructions({
 
 interface Case {
   before: { user?: string; assistant?: string };
+  /** A story over a few messages (ARCH §19.8.2): the chat before, oldest first, in place of `before`. */
+  story?: ChatTurn[];
   text: string;
   /** Refs the records must point at; `ask` — a question with these candidates, or nothing kept; `nothing` — nothing at all. */
   refs?: string[];
@@ -48,6 +51,8 @@ interface Case {
   /** A phrase of the context that must not be recorded again. */
   notAgain?: RegExp;
   when?: string;
+  /** A commitment's deadline, by its start. */
+  due?: string;
   /** An open commitment the message settles — then that update is the answer, and no refs are needed. */
   settles?: string;
 }
@@ -99,6 +104,32 @@ const cases: Case[] = [
     nothing: true,
     text: "посчитай 15% от 240 тысяч",
   },
+  // Told over a few messages: who «он» and «она» are was said two messages back, not in the last exchange.
+  {
+    before: {},
+    refs: ["igor_belov"],
+    story: [
+      { role: "user", text: "Встретился с Игорем Беловым, обсуждали поставки на декабрь." },
+      { role: "assistant", text: "Как прошло? О чём договорились?" },
+      { role: "user", text: "Нормально, долго спорили о сроках." },
+      { role: "assistant", text: "Сроки — частая тема. Что в итоге решили?" },
+    ],
+    due: "2026-11-11",
+    text: "он пришлёт график к среде",
+  },
+  {
+    before: {},
+    notAgain: /до пятниц|13 ноября/,
+    refs: ["olga_li"],
+    settles: "k1:done",
+    story: [
+      { role: "user", text: "Ольга Ли обещала прислать подписанный договор до пятницы." },
+      { role: "assistant", text: "Понял, жду договор от Ольги Ли." },
+      { role: "user", text: "Посчитай 15% от 240 тысяч" },
+      { role: "assistant", text: "15% от 240 000 — 36 000." },
+    ],
+    text: "кстати, она уже прислала",
+  },
 ];
 
 type Out = (typeof extractionSchema)["_output"];
@@ -120,6 +151,7 @@ const verdict = (c: Case, o: Out) => {
   for (const r of c.refs ?? []) if (!used.has(r)) return `no ${r}: refs ${[...used].join(", ")}`;
   if (c.notAgain && o.items.some((i) => c.notAgain?.test(i.text))) return `recorded the context again: ${o.items.map((i) => i.text).join(" / ")}`;
   if (c.when && !o.items.some((i) => i.when?.date.startsWith(c.when as string))) return `date: ${o.items.map((i) => i.when?.date).join(", ")}`;
+  if (c.due && !o.items.some((i) => i.due?.date.startsWith(c.due as string))) return `due: ${o.items.map((i) => i.due?.date).join(", ")}`;
   return null;
 };
 
@@ -131,7 +163,7 @@ for (const id of MODELS) {
       maxRetries: 1,
       model: gw(id),
       output: Output.object({ schema: extractionSchema }),
-      prompt: memoryPrompt(c.text, c.before),
+      prompt: memoryPrompt(c.text, c.story ?? exchange(c.before)),
       providerOptions: { gateway: { zeroDataRetention: true } },
       reasoning: "low",
     });

@@ -6,7 +6,7 @@ import { createGateway } from "@ai-sdk/gateway";
 import { experimental_evaluate as evaluate } from "ai";
 
 import { GATE_QUESTIONS, GATE_SKIP, gateState, nothingToKeep } from "../../packages/core/src/memory-gate.ts";
-import { TODAY, gate } from "./cases.ts";
+import { TODAY, exchange, gate } from "./cases.ts";
 import { sourceKey } from "./keys.ts";
 
 const MODELS = (process.env.MODELS ?? "typesafe-ai/jev-1.14.0,microsoft/microsoft-decision-1,baseten/mammoth-1").split(",");
@@ -40,7 +40,7 @@ for (const id of MODELS) {
         model: gw.evaluationModel(id),
         providerOptions: { gateway: { zeroDataRetention: true } },
         questions: GATE_QUESTIONS,
-        state: gateState(c.text, TODAY, c.before) as never,
+        state: gateState(c.text, TODAY, exchange(c.before)) as never,
       });
       ms.push(performance.now() - started);
       tokens += r.usage.inputTokens ?? 0;

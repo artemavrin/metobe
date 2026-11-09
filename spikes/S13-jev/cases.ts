@@ -3,6 +3,12 @@
 
 export const TODAY = "понедельник, 9 ноября 2026";
 
+/** The chat before a message, as the app passes it: the person's earlier message, then the answer. */
+export const exchange = (b: { user?: string; assistant?: string } = {}) => [
+  ...(b.user ? [{ role: "user" as const, text: b.user }] : []),
+  ...(b.assistant ? [{ role: "assistant" as const, text: b.assistant }] : []),
+];
+
 export type Direction =
   | "user_owes"
   | "owed_to_user"

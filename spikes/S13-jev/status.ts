@@ -6,6 +6,7 @@ import { generateText, Output } from "ai";
 
 import { extractionSchema, memoryInstructions, memoryPrompt } from "../../packages/core/src/memory-extract.ts";
 import type { OpenCommitment } from "../../packages/core/src/memory-extract.ts";
+import { exchange } from "./cases.ts";
 import { TIMEZONE, TODAY_ISO } from "./extract-cases.ts";
 import { sourceKey } from "./keys.ts";
 
@@ -94,7 +95,7 @@ for (const id of MODELS) {
       maxRetries: 1,
       model: gw(id),
       output: Output.object({ schema: extractionSchema }),
-      prompt: memoryPrompt(c.text, c.before),
+      prompt: memoryPrompt(c.text, exchange(c.before)),
       providerOptions: { gateway: { zeroDataRetention: true } },
       reasoning: "low",
     });

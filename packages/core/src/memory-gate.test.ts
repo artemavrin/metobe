@@ -23,16 +23,22 @@ describe("the first step of the writer (ARCH §19.4)", () => {
     expect(nothingToKeep(answers({ remember: 0.95 }))).toBe(false);
   });
 
-  it("gives the model today, the exchange before, cut short, and the message", () => {
+  it("gives the model today, the chat before, cut short, and the message", () => {
     expect(gateState("спасибо", "Monday, 9 November 2026")).toEqual({
       message: "спасибо",
       today: "Monday, 9 November 2026",
     });
-    const state = gateState("она прислала", "Monday, 9 November 2026", {
-      assistant: "Понял, жду договор от Ольги Ли.",
-      user: "Ольга обещала прислать договор.".repeat(100),
+    const state = gateState("она прислала", "Monday, 9 November 2026", [
+      { role: "user", text: "Ольга обещала прислать договор." },
+      {
+        role: "assistant",
+        text: "Понял, жду договор от Ольги Ли.".repeat(100),
+      },
+    ]);
+    expect(state.earlier?.[0]).toEqual({
+      role: "user",
+      text: "Ольга обещала прислать договор.",
     });
-    expect(state.earlier?.assistant).toBe("Понял, жду договор от Ольги Ли.");
-    expect(state.earlier?.user).toHaveLength(1500);
+    expect(state.earlier?.[1]?.text).toHaveLength(800);
   });
 });

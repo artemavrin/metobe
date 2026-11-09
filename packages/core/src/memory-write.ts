@@ -22,13 +22,14 @@ import {
 } from "./memory";
 import type { QueuedWrite } from "./memory";
 import {
+  CONTEXT_TURNS,
   extractionSchema,
   memoryInstructions,
   memoryPrompt,
   mentionsUser,
   planWrite,
 } from "./memory-extract";
-import type { KnownCard, OpenCommitment } from "./memory-extract";
+import type { ChatTurn, KnownCard, OpenCommitment } from "./memory-extract";
 import { GATE_QUESTIONS, gateState, nothingToKeep } from "./memory-gate";
 import { groupMembers } from "./memory-groups";
 import { getSlotModel } from "./model-slots";
@@ -133,22 +134,23 @@ const textOf = (parts: (typeof messages.$inferSelect)["parts"]) =>
     .trim();
 
 /**
- * The exchange the message follows: the person's previous message and the answer to it — for the model to understand
- * «он», «передумал» or an answer to the assistant's question (S13, part 5), not to record again.
+ * The chat the message follows (ARCH §19.8.2): the messages before it, as many as `chatContext` keeps — for the model
+ * to understand «он», «передумал», an answer to the assistant's question or a story told over a few messages (S13,
+ * part 5), not to record again: the queue reads a person's messages in order, what the earlier ones said is kept.
  */
-const exchangeBefore = async (chatId: string, sentAt: Date) => {
+const chatBefore = async (chatId: string, sentAt: Date) => {
   const rows = await getDb()
     .db.select({ parts: messages.parts, role: messages.role })
     .from(messages)
     .where(and(eq(messages.chatId, chatId), lt(messages.createdAt, sentAt)))
     .orderBy(desc(messages.createdAt))
-    .limit(4);
-  const answer = rows.find((r) => r.role === "assistant");
-  const question = rows.find((r) => r.role === "user");
-  return {
-    assistant: answer ? textOf(answer.parts) || undefined : undefined,
-    user: question ? textOf(question.parts) || undefined : undefined,
-  };
+    .limit(CONTEXT_TURNS);
+  return rows.toReversed().flatMap((r): ChatTurn[] => {
+    const text = textOf(r.parts);
+    return text && (r.role === "user" || r.role === "assistant")
+      ? [{ role: r.role, text }]
+      : [];
+  });
 };
 
 /** A decision model's run, as usage counts it: its input only — it writes nothing. */
@@ -176,7 +178,7 @@ const GATE_TIMEOUT_MS = 15_000;
 const nothingToKeepSaid = async (
   job: MemoryJob,
   text: string,
-  before: Awaited<ReturnType<typeof exchangeBefore>>,
+  before: ChatTurn[],
   sentAt: Date
 ) => {
   const model = await getSlotModel("decisions");
@@ -311,7 +313,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     await markWrite(ownerId, write.id, "skipped");
     return "skipped";
   }
-  const before = await exchangeBefore(job.chatId, message.createdAt);
+  const before = await chatBefore(job.chatId, message.createdAt);
   // A sure «nothing to keep» from the decision model: the «Память» model does not read it (Б2b).
   if (await nothingToKeepSaid(job, text, before, message.createdAt)) {
     await markWrite(job.ownerId, write.id, "skipped");

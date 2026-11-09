@@ -1,5 +1,8 @@
 import type { Experimental_EvaluationQuestion } from "ai";
 
+import { chatContext } from "./memory-extract";
+import type { ChatTurn } from "./memory-extract";
+
 // The first step of the silent writer (ARCH §19.4, Б2b): a decision model — the «Решения» job, Jev and the like,
 // a few hundredths of a cent — answers yes/no questions about a message before the «Память» model reads it. Only a
 // sure «no» to every one of them skips the message; anything else goes on as before. Free of the DB: S13 runs it.
@@ -46,25 +49,23 @@ export type GateAnswers = Record<
 /** Below this for every question — a sure «no»; S13's decision models were never wrong that sure. */
 export const GATE_SKIP = 0.1;
 
-/** What the decision model reads: today, the exchange the message follows (to understand «она прислала»), the message. */
+/** What the decision model reads: today, the chat the message follows (to understand «она прислала»), the message. */
 export const gateState = (
   message: string,
   today: string,
-  before: { user?: string; assistant?: string } = {}
-) => ({
-  ...(before.user || before.assistant
-    ? {
-        earlier: {
-          ...(before.user ? { user: before.user.slice(0, 1500) } : {}),
-          ...(before.assistant
-            ? { assistant: before.assistant.slice(0, 2000) }
-            : {}),
-        },
-      }
-    : {}),
-  message,
-  today,
-});
+  context: ChatTurn[] = []
+) => {
+  // Plain objects: the state goes to the model as JSON.
+  const earlier = chatContext(context).map(({ role, text }) => ({
+    role,
+    text,
+  }));
+  return {
+    ...(earlier.length > 0 ? { earlier } : {}),
+    message,
+    today,
+  };
+};
 
 /** Nothing to keep — every answer a sure «no»; otherwise the «Память» model reads the message. */
 export const nothingToKeep = (answers: GateAnswers) =>

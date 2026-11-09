@@ -186,25 +186,49 @@ const cardLine = (c: KnownCard) => {
   return `- ${c.ref}: ${c.name} (${about.join("; ")})`;
 };
 
-const CONTEXT_USER = 1500;
-const CONTEXT_ANSWER = 2000;
+/** A message of the chat before the one being read, in words only. */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+/** The chat before a message, at most (ARCH §19.8.2): a story told over a few messages fits, a long chat does not. */
+export const CONTEXT_TURNS = 6;
+const CONTEXT_CHARS = 4000;
+/** An answer is mostly the assistant's own words: its start says what it was about. */
+const CONTEXT_ANSWER = 800;
 
 /**
- * What the model reads: the message, and before it the exchange it follows — the person's previous message and the
- * answer to it, cut short — only to understand «он», «передумал» or an answer to the assistant's question (S13, part 5).
+ * The chat before a message, oldest first, cut from the far end: the last `CONTEXT_TURNS` messages, an answer to
+ * `CONTEXT_ANSWER` characters, `CONTEXT_CHARS` in all. The nearest message always comes in, cut to fit if it is long.
  */
-export const memoryPrompt = (
-  message: string,
-  before: { user?: string; assistant?: string } = {}
-) => {
-  const lines = [
-    before.user && `User: ${before.user.slice(0, CONTEXT_USER)}`,
-    before.assistant &&
-      `Assistant: ${before.assistant.slice(0, CONTEXT_ANSWER)}`,
-  ].filter(Boolean);
-  const context =
+export const chatContext = (turns: ChatTurn[]) => {
+  const kept: ChatTurn[] = [];
+  let left = CONTEXT_CHARS;
+  for (const turn of turns.slice(-CONTEXT_TURNS).toReversed()) {
+    if (left <= 0) {
+      break;
+    }
+    const text = turn.text
+      .slice(0, turn.role === "assistant" ? CONTEXT_ANSWER : undefined)
+      .slice(0, left);
+    kept.push({ role: turn.role, text });
+    left -= text.length;
+  }
+  return kept.toReversed();
+};
+
+/**
+ * What the model reads: the message, and before it the chat it follows (`chatContext`) — only to understand «он»,
+ * «передумал», an answer to the assistant's question or a story told over a few messages (S13, part 5).
+ */
+export const memoryPrompt = (message: string, context: ChatTurn[] = []) => {
+  const lines = chatContext(context).map(
+    (t) => `${t.role === "user" ? "User" : "Assistant"}: ${t.text}`
+  );
+  const before =
     lines.length > 0 ? `<context>\n${lines.join("\n")}\n</context>\n` : "";
-  return `${context}<message>\n${message}\n</message>`;
+  return `${before}<message>\n${message}\n</message>`;
 };
 
 /** «Today» is when the message was sent, in the person's zone: a write retried tomorrow still reads «вчера» right. */
