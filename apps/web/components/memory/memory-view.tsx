@@ -912,7 +912,7 @@ export const MemoryView = ({
     <MemoryActionsContext.Provider value={actions}>
       <Bar />
       {phone ? narrow : wide}
-      <Toaster position="bottom-center" />
+      <Toaster position="bottom-right" />
     </MemoryActionsContext.Provider>
   );
 };

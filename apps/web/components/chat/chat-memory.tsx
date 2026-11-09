@@ -352,8 +352,9 @@ export const MemoryUnder = ({ messageId }: { messageId?: string }) => {
 };
 
 /**
- * The chat's toasts, over the composer whatever its height (several lines, files): the question's and «Удалено из
- * памяти · Вернуть». The composer stands 16 px off the bottom; the toast keeps 12 px over it.
+ * The chat's toasts, in the bottom right corner over the composer whatever its height (several lines, files): the
+ * question's, «Удалено из памяти · Вернуть», «Не упустить». The composer stands 16 px off the bottom; the toast keeps
+ * 12 px over it — on a narrow window the composer reaches the corner. On a phone sonner spreads it across the width.
  */
 export const MemoryToaster = ({
   composer,
@@ -375,8 +376,8 @@ export const MemoryToaster = ({
   return (
     <Toaster
       mobileOffset={{ bottom: lift, left: 16, right: 16 }}
-      offset={{ bottom: lift }}
-      position="bottom-center"
+      offset={{ bottom: lift, right: 16 }}
+      position="bottom-right"
     />
   );
 };
