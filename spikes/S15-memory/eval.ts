@@ -21,6 +21,7 @@ import { z } from "zod";
 
 import { extractionSchema } from "../../packages/core/src/memory-extract.ts";
 import { GATE_QUESTIONS, type GateAnswers } from "../../packages/core/src/memory-gate.ts";
+import { RELATION_QUESTIONS, type RelationAnswer } from "../../packages/core/src/memory-relations.ts";
 import { evalCases as contextCases } from "../S13-jev/context.ts";
 import type { EvalCase, Tally } from "../S13-jev/eval-case.ts";
 import { evalCases as gateCases } from "../S13-jev/gate.ts";
@@ -29,6 +30,7 @@ import { sourceKey } from "../S13-jev/keys.ts";
 import { evalCases as selfCases } from "../S13-jev/self.ts";
 import { evalCases as foreignCases } from "./foreign.ts";
 import { evalCases as manyCases } from "./many.ts";
+import { relationCases } from "./relation.ts";
 import { evalCases as updateCases } from "./update.ts";
 
 const MODEL = process.env.MODEL ?? "deepseek/deepseek-v4.1-flash-1017";
@@ -58,11 +60,12 @@ const SETS: Record<string, () => EvalCase[]> = {
   "many.ask": () => manyCases("ask", { facts }),
   "many.extract": () => manyCases("extract", { facts }),
   "many.status": () => manyCases("status", { facts }),
+  relation: relationCases,
   self: selfCases,
   status: () => manyCases("status", { facts, small: true }),
   update: () => updateCases({ known: facts }),
 };
-const ORDER = ["gate", "extract", "ask", "context", "status", "self", "groups", "many.extract", "many.ask", "many.status", "foreign", "update"];
+const ORDER = ["gate", "extract", "ask", "context", "status", "self", "groups", "many.extract", "many.ask", "many.status", "foreign", "update", "relation"];
 const PARTS = process.env.PARTS?.split(",") ?? ORDER;
 const unknown = PARTS.filter((p) => !SETS[p]);
 if (unknown.length > 0) throw new Error(`no such set: ${unknown.join(", ")}; there are ${ORDER.join(", ")}`);
@@ -135,8 +138,11 @@ const CHARS_PER_TOKEN = 3;
 const OUTPUT_TOKENS = 400;
 const SCHEMA_CHARS = JSON.stringify(z.toJSONSchema(extractionSchema)).length;
 const QUESTIONS_CHARS = JSON.stringify(GATE_QUESTIONS).length;
+const RELATION_CHARS = JSON.stringify(RELATION_QUESTIONS).length;
 const chars = (c: EvalCase) =>
-  c.kind === "write" ? c.instructions.length + c.prompt.length + SCHEMA_CHARS : JSON.stringify(c.state).length + QUESTIONS_CHARS;
+  c.kind === "write"
+    ? c.instructions.length + c.prompt.length + SCHEMA_CHARS
+    : JSON.stringify(c.state).length + (c.kind === "relation" ? RELATION_CHARS : QUESTIONS_CHARS);
 const guess = (set: string, c: EvalCase) => {
   const was = before?.sets[set]?.cases.find((x) => x.id === c.id);
   if (was && was.runs > 0 && was.cost > 0) return was.cost / was.runs;
@@ -199,6 +205,22 @@ const ask = async (c: EvalCase) => {
       state: c.state as never,
     });
     return { answer: r.answers, cost: costOf(r as never), inputTokens: r.usage.inputTokens ?? 0, verdict: c.score(r.answers as GateAnswers) };
+  }
+  if (c.kind === "relation") {
+    const r = await evaluate({
+      abortSignal: AbortSignal.timeout(120_000),
+      maxRetries: 2,
+      model: gw.evaluationModel(GATE_MODEL),
+      providerOptions: { gateway: { zeroDataRetention: true } },
+      questions: RELATION_QUESTIONS,
+      state: c.state as never,
+    });
+    return {
+      answer: r.answers,
+      cost: costOf(r as never),
+      inputTokens: r.usage.inputTokens ?? 0,
+      verdict: c.score(r.answers as unknown as Record<string, RelationAnswer>),
+    };
   }
   const r = await generateText({
     abortSignal: AbortSignal.timeout(120_000),

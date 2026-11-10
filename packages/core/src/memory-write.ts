@@ -34,9 +34,22 @@ import {
   planWrite,
   splitQuoted,
 } from "./memory-extract";
-import type { ChatTurn, KnownCard, OpenCommitment } from "./memory-extract";
+import type {
+  ChatTurn,
+  KnownCard,
+  KnownRecord,
+  OpenCommitment,
+} from "./memory-extract";
 import { GATE_QUESTIONS, gateState, nothingToKeep } from "./memory-gate";
 import { groupMembers } from "./memory-groups";
+import {
+  RELATION_QUESTIONS,
+  claimedPairs,
+  pairDays,
+  relationState,
+  withConfirmed,
+} from "./memory-relations";
+import type { RelationAnswer } from "./memory-relations";
 import { memorySource } from "./memory-sources";
 import { getSlotModel } from "./model-slots";
 
@@ -205,6 +218,92 @@ const nothingToKeepSaid = async (
       console.error("memory: could not record the run", recordError)
     );
     return false;
+  }
+};
+
+const RELATION_TIMEOUT_MS = 10_000;
+
+/**
+ * The second step (ARCH §19.9.3): the writer names what a new fact or event replaces; a decision model is asked about
+ * each such pair — with the message and the days of the two — and only a sure «replaces» lets it stand, otherwise the
+ * record lies beside the old one. No model in «Решения», a failure or a timeout — the writer's word stands, as before:
+ * the step only holds back, it never loses a record.
+ */
+const withRelations = async (
+  job: Reading,
+  timeZone: string,
+  message: string,
+  records: ReturnType<typeof planWrite>["records"],
+  known: KnownRecord[]
+) => {
+  const pairs = claimedPairs(records, known);
+  if (pairs.length === 0) {
+    return records;
+  }
+  const model = await getSlotModel("decisions");
+  if (!model) {
+    return records;
+  }
+  const started = Date.now();
+  try {
+    const evaluation = await getEvaluationModel(model.sourceId, model.modelId);
+    const results = await Promise.allSettled(
+      pairs.map(({ index, old }) =>
+        evaluate({
+          abortSignal: AbortSignal.timeout(RELATION_TIMEOUT_MS),
+          maxRetries: 1,
+          model: evaluation,
+          providerOptions: { gateway: { zeroDataRetention: true } },
+          questions: RELATION_QUESTIONS,
+          state: relationState(
+            message,
+            records[index]?.text ?? "",
+            old.text,
+            records[index] ? pairDays(records[index], old, timeZone) : {}
+          ),
+        })
+      )
+    );
+    const answered = results.flatMap((r) =>
+      r.status === "fulfilled" ? [r.value] : []
+    );
+    if (answered.length === 0) {
+      throw new Error("the decision model answered none of the pairs");
+    }
+    await recordRun({
+      chatId: job.chatId,
+      latencyMs: Date.now() - started,
+      model,
+      providerMetadata: answered[0]?.providerMetadata,
+      purpose: "decide",
+      status: "ok",
+      usage: decisionUsage(
+        answered.reduce((n, r) => n + (r.usage.inputTokens ?? 0), 0)
+      ),
+      userId: job.ownerId,
+    });
+    return withConfirmed(
+      records,
+      pairs,
+      results.map((r) =>
+        r.status === "fulfilled"
+          ? (r.value.answers.relation as RelationAnswer)
+          : undefined
+      )
+    );
+  } catch (error) {
+    console.error("memory: the decision model did not answer", error);
+    await recordRun({
+      chatId: job.chatId,
+      latencyMs: null,
+      model,
+      purpose: "decide",
+      status: "error",
+      userId: job.ownerId,
+    }).catch((recordError: unknown) =>
+      console.error("memory: could not record the run", recordError)
+    );
+    return records;
   }
 };
 
@@ -382,7 +481,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     const self = await ensureSelf(job.ownerId, owner?.name ?? "");
     selfId = self.id;
   }
-  const plan = planWrite(extraction, {
+  const written = planWrite(extraction, {
     cards,
     commitments,
     facts,
@@ -390,6 +489,16 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     selfId,
     timeZone: job.timeZone,
   });
+  const plan = {
+    ...written,
+    records: await withRelations(
+      job,
+      job.timeZone,
+      text.slice(0, MAX_TEXT),
+      written.records,
+      known
+    ),
+  };
   const kept = changesAnything(plan);
   if ((await applyWrite(job.ownerId, write.id, plan)) && kept) {
     // Whoever shows the material shows «Запомнено» or asks its question at once (P18).
