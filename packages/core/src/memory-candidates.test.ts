@@ -5,6 +5,7 @@ import {
   MAX_CANDIDATES,
   candidateCards,
   candidateCommitments,
+  likelySame,
 } from "./memory-candidates";
 
 const NOW = new Date("2026-11-09T09:00:00Z");
@@ -245,5 +246,62 @@ describe("the promises the «Память» model is shown (ARCH §19.8.3)", () 
     );
     expect(found).toHaveLength(MAX_CANDIDATES);
     expect(found[0]).toBe("act");
+  });
+});
+
+const pairKey = (a: string, b: string) => (a < b ? `${a}:${b}` : `${b}:${a}`);
+const pairs = (cards: MemoryEntity[], dismissed: string[] = []) =>
+  likelySame(cards, new Set(dismissed), pairKey).map(
+    (p) => `${p.keep.id}<${p.gone.id}`
+  );
+
+describe("«Один человек?» (ARCH §19.8.5)", () => {
+  it("offers a name within another, keeping the longer", () => {
+    expect(pairs([card("olga", "Ольга"), card("olga-li", "Ольга Ли")])).toEqual(
+      ["olga-li<olga"]
+    );
+    expect(
+      pairs([card("v1", "ООО «Вектор»", "org"), card("v2", "Вектор", "org")])
+    ).toEqual(["v1<v2"]);
+    expect(pairs([card("a", "Ольга Ли"), card("b", "Ольга Ли")])).toEqual([
+      "a<b",
+    ]);
+  });
+
+  it("offers a surname with an initial or the names swapped", () => {
+    expect(
+      pairs([card("a", "Андрей Ковалёв"), card("b", "А. Ковалёв")])
+    ).toEqual(["a<b"]);
+    expect(
+      pairs([card("a", "Андрей Ковалёв"), card("b", "Ковалёв Андрей")])
+    ).toEqual(["a<b"]);
+  });
+
+  it("does not offer namesakes, other kinds or a pair said to be different", () => {
+    expect(
+      pairs([card("a", "Андрей Смирнов"), card("b", "Алексей Смирнов")])
+    ).toEqual([]);
+    expect(pairs([card("a", "Ольга Ли"), card("b", "Ольга Петрова")])).toEqual(
+      []
+    );
+    expect(
+      pairs([card("a", "Марина Орлова"), card("b", "Мария Орлова")])
+    ).toEqual([]);
+    expect(
+      pairs([card("a", "Склад", "project"), card("b", "Склад", "org")])
+    ).toEqual([]);
+    expect(
+      pairs(
+        [card("olga", "Ольга"), card("olga-li", "Ольга Ли")],
+        ["olga:olga-li"]
+      )
+    ).toEqual([]);
+  });
+
+  it("offers three at most", () => {
+    const many = ["Ли", "Петрова", "Сидорова", "Котова"].map((s) =>
+      card(s, `Ольга ${s}`)
+    );
+    expect(pairs([card("olga", "Ольга"), ...many])).toHaveLength(3);
   });
 });

@@ -39,6 +39,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   const ella = `memory-test-${randomBytes(4).toString("hex")}`;
   /** The queue (§19.8.1): a queue of its own, so the order is exact. */
   const fern = `memory-test-${randomBytes(4).toString("hex")}`;
+  /** Merging cards (§19.8.5): a memory of its own, so «Не упустить» is exact. */
+  const gwen = `memory-test-${randomBytes(4).toString("hex")}`;
 
   const recordIds = async (
     owner: string,
@@ -67,7 +69,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     await db.insert(user).values(
-      [ana, bob, cleo, dana, ella, fern].map((id) => ({
+      [ana, bob, cleo, dana, ella, fern, gwen].map((id) => ({
         email: `${id}@example.test`,
         id,
         name: id,
@@ -78,7 +80,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   afterAll(async () => {
     await db
       ?.delete(user)
-      .where(inArray(user.id, [ana, bob, cleo, dana, ella, fern]));
+      .where(inArray(user.id, [ana, bob, cleo, dana, ella, fern, gwen]));
   });
 
   it("keeps texts and names sealed, and reads them back", async () => {
@@ -1091,10 +1093,15 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       [andrey.id, igor.id, nina.id],
       twoWeeks
     );
+    // Said on Monday 9 November, whatever day the test runs.
+    await db
+      .update(memoryRecords)
+      .set({ recordedAt: new Date("2026-11-09T09:00:00Z") })
+      .where(eq(memoryRecords.id, team.id));
     // Andrey met 18 days ago: due by the team's rule. Igor 7 days ago.
     await met(andrey.id, "2026-11-04T21:00:00Z");
     await met(igor.id, "2026-11-15T21:00:00Z");
-    // Nina: no meeting yet — counted from when the rule was said (today, 9 November): 14 days on the 23rd.
+    // Nina: no meeting yet — counted from when the rule was said (9 November): 14 days on the 23rd.
     // Said later for Igor: once a week now — 7 days since the 15th.
     const weekly = await rule("С Игорем Беловым раз в неделю", [igor.id], {
       days: 7,
@@ -1222,6 +1229,129 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     const now = await names();
     expect(now).toEqual(expect.arrayContaining(["Лена Котова", "Паша Дым"]));
     expect(now).not.toContain("Олег Лис");
+  });
+
+  it("merges two cards into one and takes it back as it was (ARCH §19.8.5)", async () => {
+    const today: typeof MemoryTodayModule = await import("./memory-today");
+    const team = await memory.createEntity(gwen, {
+      kind: "group",
+      name: "Моя команда",
+    });
+    const lena = await memory.createEntity(gwen, {
+      kind: "person",
+      name: "Лена",
+    });
+    const kotova = await memory.createEntity(gwen, {
+      kind: "person",
+      name: "Лена Котова",
+      role: "аналитик",
+    });
+    const self = await memory.ensureSelf(gwen, "Я");
+    const join = (who: string) =>
+      memory.addRecord(gwen, {
+        entities: [
+          { entityId: who, role: "about" },
+          { entityId: team.id, role: "group" },
+        ],
+        kind: "fact",
+        text: "В моей команде",
+      });
+    await join(lena.id);
+    await join(kotova.id);
+    const promise = await memory.addRecord(gwen, {
+      entities: owes(lena.id, self.id),
+      kind: "commitment",
+      text: "Лена пришлёт отчёт",
+    });
+    // Both on one meeting: after the merge the card is there once.
+    const meeting = await memory.addRecord(gwen, {
+      entities: [
+        { entityId: lena.id, role: "participant" },
+        { entityId: kotova.id, role: "participant" },
+      ],
+      kind: "event",
+      occurred: { at: new Date(), precision: "day" },
+      text: "Созвон с Леной",
+    });
+    const rule = await memory.addRecord(gwen, {
+      entities: [{ entityId: team.id, role: "subject" }],
+      kind: "rule",
+      rule: { days: 14, kind: "rhythm", workingDays: false },
+      text: "Один на один с каждым из моей команды раз в две недели",
+    });
+    const later = new Date(Date.now() + 15 * 86_400_000);
+    const due = async () => {
+      const list = await today.todaySuggestions(gwen, "Europe/Moscow", later);
+      return list
+        .filter((s) => s.id === rule.id)
+        .map((s) => s.who?.name)
+        .toSorted();
+    };
+    const links = async (id: string) => {
+      const [r] = await memory.listRecords(gwen, { ids: [id] });
+      return r?.entities.map((e) => e.entityId).toSorted();
+    };
+    // Two cards for one person: the team's rule counts her twice.
+    expect(await due()).toEqual(["Лена", "Лена Котова"]);
+    const offered = await memory.mergeSuggestions(gwen);
+    expect(offered.map((p) => `${p.keep.name} ← ${p.gone.name}`)).toEqual([
+      "Лена Котова ← Лена",
+    ]);
+
+    // Not with a card of another kind, not with the person's own, not with itself.
+    expect(await memory.mergeEntities(gwen, kotova.id, team.id)).toBeNull();
+    expect(await memory.mergeEntities(gwen, self.id, lena.id)).toBeNull();
+    expect(await memory.mergeEntities(gwen, lena.id, lena.id)).toBeNull();
+
+    const merge = await memory.mergeEntities(gwen, kotova.id, lena.id);
+    expect(merge).not.toBeNull();
+    const cards = await memory.listEntities(gwen);
+    expect(cards.map((c) => c.name)).not.toContain("Лена");
+    expect(cards.find((c) => c.id === kotova.id)?.aliases).toEqual(["Лена"]);
+    expect(await links(promise.id)).toEqual([kotova.id, self.id].toSorted());
+    expect(await links(meeting.id)).toEqual([kotova.id]);
+    // The group has her once; «Убрать» of her rhythm row followed her.
+    const facts = await memory.listRecords(gwen, { kinds: ["fact"] });
+    const { groupMembers } = await import("./memory-groups");
+    expect([...(groupMembers(facts).get(team.id) ?? [])]).toEqual([kotova.id]);
+    expect(await due()).toEqual(["Лена Котова"]);
+    // A write that still names the merged card lands on the one left.
+    const after = await memory.addRecord(gwen, {
+      entities: [{ entityId: lena.id, role: "about" }],
+      kind: "fact",
+      text: "Любит короткие письма",
+    });
+    expect(await links(after.id)).toEqual([kotova.id]);
+    expect(await memory.mergeSuggestions(gwen)).toEqual([]);
+
+    // «Вернуть»: both cards as they were; what came after stays with the one it went to.
+    expect(await memory.undoMerge(gwen, merge?.id as string)).toBe(true);
+    expect(await memory.undoMerge(gwen, merge?.id as string)).toBe(false);
+    const back = await memory.listEntities(gwen);
+    expect(back.map((c) => c.name)).toContain("Лена");
+    expect(back.find((c) => c.id === kotova.id)?.aliases).toEqual([]);
+    expect(await links(promise.id)).toEqual([lena.id, self.id].toSorted());
+    expect(await links(meeting.id)).toEqual([kotova.id, lena.id].toSorted());
+    expect(await links(after.id)).toEqual([kotova.id]);
+    expect(await due()).toEqual(["Лена", "Лена Котова"]);
+
+    // «Убрать» of her rhythm row follows her into the card left, and back.
+    await memory.dismissSuggestion(gwen, rule.id, {
+      entityId: lena.id,
+      since: null,
+    });
+    const second = await memory.mergeEntities(gwen, kotova.id, lena.id);
+    const moved = await memory.listDismissals(gwen);
+    expect(moved.has(`${rule.id}:${kotova.id}`)).toBe(true);
+    expect(moved.has(`${rule.id}:${lena.id}`)).toBe(false);
+    expect(await memory.undoMerge(gwen, second?.id as string)).toBe(true);
+    const back2 = await memory.listDismissals(gwen);
+    expect(back2.has(`${rule.id}:${lena.id}`)).toBe(true);
+    expect(back2.has(`${rule.id}:${kotova.id}`)).toBe(false);
+
+    // «Разные»: the pair is not offered again.
+    await memory.dismissMergePair(gwen, lena.id, kotova.id);
+    expect(await memory.mergeSuggestions(gwen)).toEqual([]);
   });
 
   it("forgets everything, key included, and starts over with a new one", async () => {

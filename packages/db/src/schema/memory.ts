@@ -22,6 +22,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { chats } from "./chat";
@@ -96,6 +97,11 @@ export const memoryEntities = pgTable(
       .defaultNow(),
     id: uuid("id").primaryKey(),
     kind: text("kind").$type<MemoryEntityKind>().notNull(),
+    /** Merged into another card (ARCH §19.8.5): not read anywhere, kept for «Вернуть». Its keeper gone — back. */
+    mergedInto: uuid("merged_into").references(
+      (): AnyPgColumn => memoryEntities.id,
+      { onDelete: "set null" }
+    ),
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -313,10 +319,35 @@ export const memoryDismissals = pgTable(
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    recordId: uuid("record_id")
-      .notNull()
-      .references(() => memoryRecords.id, { onDelete: "cascade" }),
+    /** Null for a pair of cards said to be different (`merge:<a>:<b>`, ARCH §19.8.5). */
+    recordId: uuid("record_id").references(() => memoryRecords.id, {
+      onDelete: "cascade",
+    }),
     status: text("status").$type<MemoryStatus>(),
   },
   (table) => [index("memory_dismissals_owner").on(table.ownerId)]
+);
+
+/**
+ * Two cards made one (ARCH §19.8.5): `gone` went into `keep`. `sealed` holds what «Вернуть» needs — the links moved
+ * and those dropped as repeats, the other names added, the role before, the «Убрать» rows moved — sealed: names.
+ */
+export const memoryMerges = pgTable(
+  "memory_merges",
+  {
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    goneId: uuid("gone_id")
+      .notNull()
+      .references(() => memoryEntities.id, { onDelete: "cascade" }),
+    id: uuid("id").primaryKey(),
+    keepId: uuid("keep_id")
+      .notNull()
+      .references(() => memoryEntities.id, { onDelete: "cascade" }),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sealed: text("sealed").notNull(),
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
+  },
+  (table) => [index("memory_merges_owner").on(table.ownerId)]
 );

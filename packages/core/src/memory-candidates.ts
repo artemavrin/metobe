@@ -170,7 +170,8 @@ export const candidateCards = ({
   const byId = new Map(entities.map((e) => [e.id, e]));
   const since = now.getTime() - RECENT_DAYS * DAY_MS;
   const recent: MemoryEntity[] = [];
-  for (const r of records.toSorted(
+  // oxlint-disable-next-line unicorn/no-array-sort -- a copy; toSorted is past the ES2022 target
+  for (const r of [...records].sort(
     (a, b) => b.recordedAt.getTime() - a.recordedAt.getTime()
   )) {
     if (r.recordedAt.getTime() < since || recent.length >= MAX_RECENT) {
@@ -244,17 +245,83 @@ export const candidateCommitments = ({
     // Past every card and own one: more shared words, nearer the front.
     return words > 0 ? byWord + 1 / (words + 1) : null;
   };
-  return records
-    .flatMap((r) => {
-      const at = isOpen(r) ? rank(r) : null;
-      return at === null ? [] : [{ at, r }];
-    })
-    .toSorted(
-      (a, b) =>
-        a.at - b.at ||
-        due(a.r) - due(b.r) ||
-        b.r.recordedAt.getTime() - a.r.recordedAt.getTime()
-    )
-    .slice(0, MAX_CANDIDATES)
-    .map(({ r }) => r);
+  return (
+    records
+      .flatMap((r) => {
+        const at = isOpen(r) ? rank(r) : null;
+        return at === null ? [] : [{ at, r }];
+      })
+      // oxlint-disable-next-line unicorn/no-array-sort -- flatMap gave a fresh array; toSorted is past the ES2022 target
+      .sort(
+        (a, b) =>
+          a.at - b.at ||
+          due(a.r) - due(b.r) ||
+          b.r.recordedAt.getTime() - a.r.recordedAt.getTime()
+      )
+      .slice(0, MAX_CANDIDATES)
+      .map(({ r }) => r)
+  );
+};
+
+/** At most so many «Один человек?» at once: a few to decide, not a list to work through. */
+export const MAX_SAME = 3;
+
+/** Between two names a short word counts too: «Ли» is «Ли» (in a message it may be the particle «ли»). */
+const nameWord = (a: string, b: string) => a === b || sameWord(a, b);
+
+/** Every word of `a` is a word of `b`, declined or not: «Ольга» in «Ольга Ли», «Вектор» in «ООО «Вектор»». */
+const within = (a: string[], b: string[]) =>
+  a.length > 0 && a.every((w) => b.some((x) => nameWord(w, x)));
+
+/** «А» and «Андрей», «Андрею» and «Андрей»: an initial or the same name. */
+const sameFirst = (a: string, b: string) =>
+  sameWord(a, b) ||
+  (a.length === 1 && b.startsWith(a)) ||
+  (b.length === 1 && a.startsWith(b));
+
+/** «Андрей Ковалёв» and «А. Ковалёв», «Ковалёв Андрей»: a surname in common and nothing that differs. */
+const samePerson = (a: string[], b: string[]) =>
+  a.length >= 2 &&
+  b.length >= 2 &&
+  a.some((w) => w.length > 1 && b.some((x) => nameWord(w, x))) &&
+  a.every((w) => b.some((x) => sameFirst(w, x)));
+
+/**
+ * Pairs of cards that may be one (ARCH §19.8.5), without a model: of one kind, where the words of a name are all in
+ * the other's («Ольга» — «Ольга Ли») or, for people, a surname matches and the first names agree («Андрей Ковалёв» —
+ * «А. Ковалёв»). Pairs said to be different (`dismissed`, by `pairKey`) are left out; the longer name is kept.
+ */
+export const likelySame = (
+  entities: MemoryEntity[],
+  dismissed: Set<string>,
+  pairKey: (a: string, b: string) => string
+) => {
+  const cards = entities.filter((e) => e.kind !== "self");
+  const names = new Map(
+    cards.map((e) => [e.id, [e.name, ...e.aliases].map(wordsOf)])
+  );
+  const pairs: { keep: MemoryEntity; gone: MemoryEntity }[] = [];
+  for (const [i, a] of cards.entries()) {
+    for (const b of cards.slice(i + 1)) {
+      if (a.kind !== b.kind || dismissed.has(pairKey(a.id, b.id))) {
+        continue;
+      }
+      const an = names.get(a.id) ?? [];
+      const bn = names.get(b.id) ?? [];
+      const alike = an.some((x) =>
+        bn.some(
+          (y) =>
+            within(x, y) ||
+            within(y, x) ||
+            (a.kind === "person" && samePerson(x, y))
+        )
+      );
+      if (alike) {
+        const [keep, gone] =
+          wordsOf(a.name).length >= wordsOf(b.name).length ? [a, b] : [b, a];
+        pairs.push({ gone, keep });
+      }
+    }
+  }
+  return pairs.slice(0, MAX_SAME);
 };

@@ -17,6 +17,7 @@ import {
   memoryDrafts,
   memoryEntities,
   memoryKeys,
+  memoryMerges,
   memoryRecordEntities,
   memoryRecords,
   memoryWrites,
@@ -27,6 +28,7 @@ import {
   desc,
   eq,
   inArray,
+  isNotNull,
   isNull,
   lte,
   notExists,
@@ -35,6 +37,7 @@ import {
 import { z } from "zod";
 
 import { getDb } from "./db";
+import { likelySame } from "./memory-candidates";
 import { memoryAad, newDataKey, openField, sealField } from "./memory-crypto";
 import { memoryKeyAad, openWithMasterKey, sealWithMasterKey } from "./secrets";
 import { parseKey } from "./secrets-crypto";
@@ -117,6 +120,7 @@ const dataKey = async (
 const ENTITIES = "memory_entities";
 const RECORDS = "memory_records";
 const DRAFTS = "memory_drafts";
+const MERGES = "memory_merges";
 const BODY = "body";
 
 // --- entities ----------------------------------------------------------------------------------------------------
@@ -164,6 +168,31 @@ const toEntity = (
     name: body.name,
     role: body.role,
     updatedAt: row.updatedAt,
+  };
+};
+
+/**
+ * Where merged cards went (ARCH §19.8.5): a card's id to the card it is part of now — itself when it was never merged.
+ * A question asked before a merge, or a write read after it, still lands on the card that is left.
+ */
+const mergedTo = async (db: Db | Tx, ownerId: string) => {
+  const rows = await db
+    .select({ id: memoryEntities.id, into: memoryEntities.mergedInto })
+    .from(memoryEntities)
+    .where(
+      and(
+        eq(memoryEntities.ownerId, ownerId),
+        isNotNull(memoryEntities.mergedInto)
+      )
+    );
+  const next = new Map(rows.map((r) => [r.id, r.into as string]));
+  return (id: string) => {
+    let at = id;
+    // A chain is short: a card merged into one merged later. The bound only guards a cycle.
+    for (let hop = 0; hop < next.size && next.has(at); hop += 1) {
+      at = next.get(at) as string;
+    }
+    return at;
   };
 };
 
@@ -269,7 +298,8 @@ export const updateEntity = async (
   const { db } = getDb();
   const where = and(
     eq(memoryEntities.id, id),
-    eq(memoryEntities.ownerId, ownerId)
+    eq(memoryEntities.ownerId, ownerId),
+    isNull(memoryEntities.mergedInto)
   );
   const [row] = await db.select().from(memoryEntities).where(where).limit(1);
   if (!row) {
@@ -433,7 +463,12 @@ export const listEntities = async (ownerId: string) => {
   const rows = await db
     .select()
     .from(memoryEntities)
-    .where(eq(memoryEntities.ownerId, ownerId))
+    .where(
+      and(
+        eq(memoryEntities.ownerId, ownerId),
+        isNull(memoryEntities.mergedInto)
+      )
+    )
     .orderBy(memoryEntities.createdAt);
   const roles = await currentRoles(db, ownerId, key);
   return rows.map((row) => {
@@ -478,9 +513,16 @@ const insertRecord = async (
   input: MemoryRecordInput
 ) => {
   const text = checkedText(input);
+  const to = await mergedTo(tx, ownerId);
   const links = [
     ...new Map(
-      input.entities.map((e) => [`${e.entityId}:${e.role}`, e] as const)
+      input.entities.map(
+        (e) =>
+          [
+            `${to(e.entityId)}:${e.role}`,
+            { entityId: to(e.entityId), role: e.role },
+          ] as const
+      )
     ).values(),
   ];
   // A record points only at its owner's cards.
@@ -1163,10 +1205,12 @@ export const listQuestions = async (
   }
   const entities = await listEntities(ownerId);
   const cards = new Map(entities.map((e) => [e.id, e]));
+  const to = await mergedTo(db, ownerId);
   return rows.map(({ chatId, draft, messageId }) => {
     const body = openDraft(draft, key);
     return {
-      candidates: body.candidates.flatMap((id) => {
+      // A candidate merged since the question was asked is the card it went into, once.
+      candidates: [...new Set(body.candidates.map(to))].flatMap((id) => {
         const card = cards.get(id);
         return card
           ? [{ id, kind: card.kind, name: card.name, role: card.role }]
@@ -1228,7 +1272,8 @@ export const answerQuestion = async (
     const body = openDraft(draft, key);
     let entityId: string;
     if ("entityId" in answer) {
-      if (!body.candidates.includes(answer.entityId)) {
+      const to = await mergedTo(tx, ownerId);
+      if (!body.candidates.map(to).includes(to(answer.entityId))) {
         throw new Error(
           "memory: the answer is not one of the question's cards"
         );
@@ -1391,10 +1436,12 @@ export const undoWrite = (ownerId: string, writeId: string) =>
           isNull(memoryRecords.deletedAt)
         )
       );
+    // A card merged into another stays: «Вернуть» of the merge brings it back.
     await tx.delete(memoryEntities).where(
       and(
         eq(memoryEntities.ownerId, ownerId),
         eq(memoryEntities.writeId, writeId),
+        isNull(memoryEntities.mergedInto),
         notExists(
           tx
             .select({ one: sql`1` })
@@ -1762,4 +1809,353 @@ export const listDismissals = async (ownerId: string) => {
     .from(memoryDismissals)
     .where(eq(memoryDismissals.ownerId, ownerId));
   return new Map(rows.map((r) => [r.key, r]));
+};
+
+// --- merging cards (ARCH §19.8.5) ----------------------------------------------------------------------------------
+
+const mergeBody = z.object({
+  /** Other names `keep` got from `gone`. */
+  aliasesAdded: z.array(z.string()),
+  /** `gone`'s «Убрать» rows: moved to `keep` (`from` → `to`), or dropped as `keep` had one (`row`). */
+  dismissals: z.array(
+    z.object({
+      from: z.string(),
+      row: z
+        .object({
+          at: z.string(),
+          dueAt: z.string().nullable(),
+          recordId: z.string().nullable(),
+          status: z.string().nullable(),
+        })
+        .optional(),
+      to: z.string().optional(),
+    })
+  ),
+  /** `gone`'s links dropped as repeats: `keep` had the same role in the same record. */
+  dropped: z.array(z.object({ recordId: z.string(), role: z.string() })),
+  /** `gone`'s links now on `keep`. */
+  moved: z.array(z.object({ recordId: z.string(), role: z.string() })),
+  /** `keep`'s role before, when it took `gone`'s. */
+  roleBefore: z.string().nullable().optional(),
+});
+
+const keyOf = (s: string) => s.trim().toLocaleLowerCase("ru");
+
+/**
+ * «Объединить» (ARCH §19.8.5): `gone` becomes part of `keep`, in one transaction. Its links go to `keep` (a repeat is
+ * dropped), its name and other names become `keep`'s other names, `keep` takes its role if it has none, its «Убрать»
+ * rows follow it. `gone` stays hidden (`merged_into`) for «Вернуть». Null when either card is not the owner's live
+ * one, they are the same or of different kinds, or one of them is the owner's own.
+ */
+export const mergeEntities = async (
+  ownerId: string,
+  keepId: string,
+  goneId: string
+) => {
+  const key = await dataKey(ownerId, false);
+  if (!key || keepId === goneId) {
+    return null;
+  }
+  return getDb().db.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(memoryEntities)
+      .where(
+        and(
+          eq(memoryEntities.ownerId, ownerId),
+          inArray(memoryEntities.id, [keepId, goneId]),
+          isNull(memoryEntities.mergedInto)
+        )
+      )
+      .for("update");
+    const keepRow = rows.find((r) => r.id === keepId);
+    const goneRow = rows.find((r) => r.id === goneId);
+    if (
+      !(keepRow && goneRow) ||
+      keepRow.kind !== goneRow.kind ||
+      keepRow.kind === "self"
+    ) {
+      return null;
+    }
+    const keep = toEntity(keepRow, key);
+    const gone = toEntity(goneRow, key);
+    // Links: to `keep`, but not where it already has the same role in the same record.
+    const moved = await tx
+      .update(memoryRecordEntities)
+      .set({ entityId: keepId })
+      .where(
+        and(
+          eq(memoryRecordEntities.entityId, goneId),
+          notExists(
+            tx
+              .select({ one: sql`1` })
+              .from(sql`memory_record_entities as k`)
+              .where(
+                sql`k.entity_id = ${keepId} and k.record_id = ${memoryRecordEntities.recordId} and k.role = ${memoryRecordEntities.role}`
+              )
+          )
+        )
+      )
+      .returning({
+        recordId: memoryRecordEntities.recordId,
+        role: memoryRecordEntities.role,
+      });
+    const dropped = await tx
+      .delete(memoryRecordEntities)
+      .where(eq(memoryRecordEntities.entityId, goneId))
+      .returning({
+        recordId: memoryRecordEntities.recordId,
+        role: memoryRecordEntities.role,
+      });
+    // Names: `gone`'s become `keep`'s other names, once each.
+    const known = new Set([keep.name, ...keep.aliases].map(keyOf));
+    const aliasesAdded: string[] = [];
+    for (const name of [gone.name, ...gone.aliases]) {
+      if (name.trim() && !known.has(keyOf(name))) {
+        known.add(keyOf(name));
+        aliasesAdded.push(name.trim());
+      }
+    }
+    const takesRole = !keep.role && Boolean(gone.role);
+    await tx
+      .update(memoryEntities)
+      .set({
+        sealed: sealEntity(
+          ownerId,
+          keepId,
+          {
+            aliases: [...keep.aliases, ...aliasesAdded],
+            name: keep.name,
+            role: takesRole ? gone.role : keep.role,
+          },
+          key
+        ),
+        updatedAt: new Date(),
+      })
+      .where(eq(memoryEntities.id, keepId));
+    // «Убрать» rows keyed by `gone` (a rhythm row: `rule:card`) follow it; where `keep` has one already, it stays.
+    const dismissals: z.infer<typeof mergeBody>["dismissals"] = [];
+    const goneRows = await tx
+      .select()
+      .from(memoryDismissals)
+      .where(
+        and(
+          eq(memoryDismissals.ownerId, ownerId),
+          eq(memoryDismissals.entityId, goneId)
+        )
+      );
+    for (const row of goneRows) {
+      const to = row.key.replace(goneId, keepId);
+      // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
+      const [taken] = await tx
+        .select({ key: memoryDismissals.key })
+        .from(memoryDismissals)
+        .where(eq(memoryDismissals.key, to))
+        .limit(1);
+      if (taken) {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
+        await tx
+          .delete(memoryDismissals)
+          .where(eq(memoryDismissals.key, row.key));
+        dismissals.push({
+          from: row.key,
+          row: {
+            at: row.at.toISOString(),
+            dueAt: row.dueAt?.toISOString() ?? null,
+            recordId: row.recordId,
+            status: row.status,
+          },
+        });
+      } else {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
+        await tx
+          .update(memoryDismissals)
+          .set({ entityId: keepId, key: to })
+          .where(eq(memoryDismissals.key, row.key));
+        dismissals.push({ from: row.key, to });
+      }
+    }
+    await tx
+      .update(memoryEntities)
+      .set({ mergedInto: keepId, updatedAt: new Date() })
+      .where(eq(memoryEntities.id, goneId));
+    const id = crypto.randomUUID();
+    const body: z.infer<typeof mergeBody> = {
+      aliasesAdded,
+      dismissals,
+      dropped,
+      moved,
+      roleBefore: takesRole ? keep.role : undefined,
+    };
+    await tx.insert(memoryMerges).values({
+      goneId,
+      id,
+      keepId,
+      ownerId,
+      sealed: sealField(
+        JSON.stringify(body),
+        memoryAad(ownerId, MERGES, id, BODY),
+        key
+      ),
+    });
+    return { goneId, id, keepId };
+  });
+};
+
+/**
+ * «Вернуть» after «Объединить»: the links, names, role and «Убрать» rows go back as they were, and `gone` is a card
+ * again. What was written to `keep` after the merge stays with it. False when there is no such merge of the owner's
+ * still in force.
+ */
+export const undoMerge = async (ownerId: string, mergeId: string) => {
+  const key = await dataKey(ownerId, false);
+  if (!key) {
+    return false;
+  }
+  return getDb().db.transaction(async (tx) => {
+    const [merge] = await tx
+      .select()
+      .from(memoryMerges)
+      .where(
+        and(
+          eq(memoryMerges.id, mergeId),
+          eq(memoryMerges.ownerId, ownerId),
+          isNull(memoryMerges.undoneAt)
+        )
+      )
+      .for("update")
+      .limit(1);
+    if (!merge) {
+      return false;
+    }
+    const [gone] = await tx
+      .select({ into: memoryEntities.mergedInto })
+      .from(memoryEntities)
+      .where(eq(memoryEntities.id, merge.goneId))
+      .limit(1);
+    // Merged again since, or its keeper gone: nothing to put back.
+    if (gone?.into !== merge.keepId) {
+      return false;
+    }
+    const body = mergeBody.parse(
+      JSON.parse(
+        openField(merge.sealed, memoryAad(ownerId, MERGES, merge.id, BODY), key)
+      )
+    );
+    for (const link of body.moved) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one card's links, one transaction
+      await tx
+        .update(memoryRecordEntities)
+        .set({ entityId: merge.goneId })
+        .where(
+          and(
+            eq(memoryRecordEntities.entityId, merge.keepId),
+            eq(memoryRecordEntities.recordId, link.recordId),
+            eq(memoryRecordEntities.role, link.role as MemoryRole)
+          )
+        );
+    }
+    if (body.dropped.length > 0) {
+      await tx
+        .insert(memoryRecordEntities)
+        .values(
+          body.dropped.map((l) => ({
+            entityId: merge.goneId,
+            recordId: l.recordId,
+            role: l.role as MemoryRole,
+          }))
+        )
+        .onConflictDoNothing();
+    }
+    const [keepRow] = await tx
+      .select()
+      .from(memoryEntities)
+      .where(eq(memoryEntities.id, merge.keepId))
+      .limit(1);
+    if (keepRow) {
+      const keep = toEntity(keepRow, key);
+      const added = new Set(body.aliasesAdded.map(keyOf));
+      await tx
+        .update(memoryEntities)
+        .set({
+          sealed: sealEntity(
+            ownerId,
+            keep.id,
+            {
+              aliases: keep.aliases.filter((a) => !added.has(keyOf(a))),
+              name: keep.name,
+              role: body.roleBefore === undefined ? keep.role : body.roleBefore,
+            },
+            key
+          ),
+          updatedAt: new Date(),
+        })
+        .where(eq(memoryEntities.id, keep.id));
+    }
+    for (const d of body.dismissals) {
+      if (d.to) {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
+        await tx
+          .update(memoryDismissals)
+          .set({ entityId: merge.goneId, key: d.from })
+          .where(eq(memoryDismissals.key, d.to));
+      } else if (d.row) {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
+        await tx
+          .insert(memoryDismissals)
+          .values({
+            at: new Date(d.row.at),
+            dueAt: d.row.dueAt ? new Date(d.row.dueAt) : null,
+            entityId: merge.goneId,
+            key: d.from,
+            ownerId,
+            recordId: d.row.recordId,
+            status: d.row.status as MemoryStatus | null,
+          })
+          .onConflictDoNothing();
+      }
+    }
+    await tx
+      .update(memoryEntities)
+      .set({ mergedInto: null, updatedAt: new Date() })
+      .where(eq(memoryEntities.id, merge.goneId));
+    await tx
+      .update(memoryMerges)
+      .set({ undoneAt: new Date() })
+      .where(eq(memoryMerges.id, merge.id));
+    return true;
+  });
+};
+
+/** The «Разные» row of a pair: one key whichever card comes first. */
+export const mergePairKey = (a: string, b: string) =>
+  a < b ? `merge:${a}:${b}` : `merge:${b}:${a}`;
+
+/** «Разные» on «Один человек?»: the pair is not offered again. */
+export const dismissMergePair = async (
+  ownerId: string,
+  a: string,
+  b: string
+) => {
+  await getDb()
+    .db.insert(memoryDismissals)
+    .values({ key: mergePairKey(a, b), ownerId })
+    .onConflictDoNothing();
+};
+
+/** «Один человек?» in «Не записано» (ARCH §19.8.5): a few pairs of cards that may be one, none said to be different. */
+export const mergeSuggestions = async (ownerId: string) => {
+  const [entities, rows] = await Promise.all([
+    listEntities(ownerId),
+    getDb()
+      .db.select({ key: memoryDismissals.key })
+      .from(memoryDismissals)
+      .where(
+        and(
+          eq(memoryDismissals.ownerId, ownerId),
+          sql`${memoryDismissals.key} like 'merge:%'`
+        )
+      ),
+  ]);
+  return likelySame(entities, new Set(rows.map((r) => r.key)), mergePairKey);
 };

@@ -268,3 +268,25 @@ export interface MemorySuggestion {
   /** A rhythm row: the last contact (null — none yet, counted from the rule) and the rule's period in days. */
   rhythm: { since: string | null; every: number } | null;
 }
+
+// --- merging cards (ARCH §19.8.5) -----------------------------------------------------------------------------------
+
+/** One side of «Один человек?». */
+export interface MemoryMergeCard {
+  id: string;
+  kind: Exclude<MemoryEntityKind, "self">;
+  name: string;
+  role: string | null;
+}
+
+/** «Один человек?» in «Не записано»: two cards that may be one; `keep` is the one left after «Объединить». */
+export interface MemoryMergeSuggestion {
+  keep: MemoryMergeCard;
+  gone: MemoryMergeCard;
+}
+
+/** POST /api/memory/cards/[id]/merge: this card goes into `into`. */
+export const memoryMergeSchema = z.object({ into: z.uuid() });
+
+/** POST /api/memory/merges/dismiss: «Разные» — the pair is not offered again. */
+export const memoryMergePairSchema = z.object({ a: z.uuid(), b: z.uuid() });
