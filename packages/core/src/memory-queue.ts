@@ -1,22 +1,47 @@
 import "server-only";
-import { messages } from "@metobe/db/schema/chat";
 import { DelayedError, Queue, Worker } from "bullmq";
 import type { Job } from "bullmq";
-import { eq } from "drizzle-orm";
 import { createClient } from "redis";
 import { z } from "zod";
 
-import { getDb } from "./db";
-import { createWrite, failWriteAttempt, nextQueuedWrite } from "./memory";
+import {
+  CHAT_SOURCE,
+  createWrite,
+  failWriteAttempt,
+  nextQueuedWrite,
+} from "./memory";
 import { drainQueue } from "./memory-drain";
+import { memorySource } from "./memory-sources";
 import { isMemoryOnFor, readWrite } from "./memory-write";
-import type { MemoryJob } from "./memory-write";
 import { tasksConnection } from "./tasks-queue";
 
-// The memory's queue (ARCH §19.4, §19.8.1). A message to read is a row in `memory_writes`, made when it is queued; a
-// job only says whose queue to read. The worker reads a person's queue in the order the messages were sent, one at a
-// time, under a lock in Redis — two messages in a row never race for the same cards. Different people are read side
-// by side. A read that fails stays first in line: the job is tried again later, and no later message overtakes it.
+// The memory's queue (ARCH §19.4, §19.8.1). Material to read — a chat's message today (ARCH §19.9.5) — is a row in
+// `memory_writes`, made when it is queued; a job only says whose queue to read. The worker reads a person's queue in
+// the order the material was said, one at a time, under a lock in Redis — two messages in a row never race for the
+// same cards. Different people are read side by side. A read that fails stays first in line: the job is tried again
+// later, and nothing later overtakes it.
+
+/** Material for the memory, from any source. */
+export interface MemoryMaterial {
+  ownerId: string;
+  /** Which adapter loads it (`memory-sources.ts`), and which material it is there: for a chat — the message's id. */
+  source: string;
+  sourceKey: string;
+  /** The chat it was said in, when there is one. */
+  chatId?: string;
+  /** When it was said — the queue's order; asked of the source, if not given. */
+  at?: Date;
+  /** The person's zone when they said it (D31): «вчера» and «в среду» are counted in it. */
+  timeZone: string;
+}
+
+/** A job queued before §19.9.5: a chat's message, named by its own fields. */
+interface ChatMessageJob {
+  ownerId: string;
+  chatId: string;
+  messageId: string;
+  timeZone: string;
+}
 
 const MEMORY_QUEUE = "memory";
 /** People read side by side; one person's messages — always one at a time. */
@@ -29,7 +54,7 @@ const LOCK_MS = 120_000;
 const BUSY_DELAY_MS = 5000;
 
 /** A job: whose queue to read. Jobs queued before §19.8.1 carry the message too — it is put in the queue first. */
-type QueueJob = { ownerId: string } | MemoryJob;
+type QueueJob = { ownerId: string } | ChatMessageJob;
 
 let queue: Queue<QueueJob> | undefined;
 
@@ -46,35 +71,31 @@ const getMemoryQueue = () => {
   return queue;
 };
 
-/** When the message was sent — the queue's order; now, if it is not saved yet. */
-const sentAtOf = async (messageId: string) => {
-  const [row] = await getDb()
-    .db.select({ createdAt: messages.createdAt })
-    .from(messages)
-    .where(eq(messages.id, messageId))
-    .limit(1);
-  return row?.createdAt;
-};
-
-/** Puts a message in its person's queue: the write row, once — queuing it again changes nothing. */
-const enqueue = async (job: MemoryJob) => {
-  await createWrite(job.ownerId, {
-    chatId: job.chatId,
-    messageId: job.messageId,
-    sentAt: await sentAtOf(job.messageId),
-    timeZone: job.timeZone,
+/**
+ * Puts material in its person's queue: the write row, once — queuing it again changes nothing. Its place in the queue
+ * is when it was said: what the caller says, else what its source says, else now.
+ */
+const enqueue = async (material: MemoryMaterial) => {
+  await createWrite(material.ownerId, {
+    chatId: material.chatId,
+    sentAt:
+      material.at ??
+      (await memorySource(material.source)?.saidAt?.(material.sourceKey)),
+    source: material.source,
+    sourceKey: material.sourceKey,
+    timeZone: material.timeZone,
   });
 };
 
 /**
- * Queues a message for the memory — nothing at all while the memory is off. Never throws: the chat that calls it
- * must not stumble on the memory.
+ * Queues material for the memory — nothing at all while the memory is off. Never throws: the chat that calls it must
+ * not stumble on the memory.
  */
-export const queueMemoryWrite = async (job: MemoryJob) => {
+export const queueMemoryWrite = async (material: MemoryMaterial) => {
   try {
-    if (await isMemoryOnFor(job.ownerId)) {
-      await enqueue(job);
-      await getMemoryQueue().add("write", { ownerId: job.ownerId });
+    if (await isMemoryOnFor(material.ownerId)) {
+      await enqueue(material);
+      await getMemoryQueue().add("write", { ownerId: material.ownerId });
     }
   } catch (error) {
     console.error("memory: could not queue a write", error);
@@ -146,7 +167,14 @@ const dropLock = async (ownerId: string, token: string) => {
 const readQueue = async (job: Job<QueueJob>, token?: string) => {
   const { ownerId } = job.data;
   if ("messageId" in job.data) {
-    await enqueue(job.data);
+    const { chatId, messageId, timeZone } = job.data;
+    await enqueue({
+      chatId,
+      ownerId,
+      source: CHAT_SOURCE,
+      sourceKey: messageId,
+      timeZone,
+    });
   }
   const lock = await takeLock(ownerId);
   if (!lock) {

@@ -63,13 +63,21 @@ export const memoryWrites = pgTable(
     error: text("error"),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     id: uuid("id").primaryKey(),
-    /** The message — kept without a foreign key: deleting or editing a message undoes its write by hand. */
-    messageId: uuid("message_id").notNull(),
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     /** When the message was sent: a person's messages are read in this order, one at a time (ARCH §19.8.1). */
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Where the material came from (ARCH §19.9.5): «chat» today; a mailbox or a meeting later. Only a label to the
+     * memory — its adapter knows how to load the material and where to point «Откуда».
+     */
+    source: text("source").notNull().default("chat"),
+    /**
+     * The material inside its source: a chat message's id — kept without a foreign key: deleting or editing a
+     * message undoes its write by hand. The same material queued again is the same write.
+     */
+    sourceKey: text("source_key").notNull(),
     status: text("status")
       .$type<MemoryWriteStatus>()
       .notNull()
@@ -78,8 +86,12 @@ export const memoryWrites = pgTable(
     timeZone: text("time_zone"),
   },
   (table) => [
-    // One message is looked at once, however many times it is queued.
-    uniqueIndex("memory_writes_message").on(table.ownerId, table.messageId),
+    // One material is looked at once, however many times it is queued.
+    uniqueIndex("memory_writes_source").on(
+      table.ownerId,
+      table.source,
+      table.sourceKey
+    ),
     // The next message of a person's queue.
     index("memory_writes_queue").on(table.ownerId, table.status, table.sentAt),
     check(

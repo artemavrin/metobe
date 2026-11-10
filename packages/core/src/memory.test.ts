@@ -26,8 +26,28 @@ const owes = (debtor: string, creditor: string) => [
   { entityId: creditor, role: "creditor" as const },
 ];
 
+/** A minute past noon on 9 November 2026, UTC. */
+const noon = (minute: number) => new Date(Date.UTC(2026, 10, 9, 12, minute));
+
 describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   let memory: typeof MemoryModule;
+  /** A chat's message put in the queue, as the chat does it: the message's id is its key there (§19.9.5). */
+  const chatWrite = (
+    owner: string,
+    message: {
+      chatId: string;
+      messageId: string;
+      sentAt?: Date;
+      timeZone?: string;
+    }
+  ) =>
+    memory.createWrite(owner, {
+      chatId: message.chatId,
+      sentAt: message.sentAt,
+      source: memory.CHAT_SOURCE,
+      sourceKey: message.messageId,
+      timeZone: message.timeZone,
+    });
   let db: Db;
   const ana = `memory-test-${randomBytes(4).toString("hex")}`;
   const bob = `memory-test-${randomBytes(4).toString("hex")}`;
@@ -228,7 +248,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     });
 
     const write = async () => {
-      const made = await memory.createWrite(ana, {
+      const made = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -241,7 +261,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         .values({ title: "queue", userId: fern })
         .returning({ id: chats.id });
       const queued = (minute: number) =>
-        memory.createWrite(fern, {
+        chatWrite(fern, {
           chatId: chat?.id as string,
           messageId: crypto.randomUUID(),
           sentAt: new Date(Date.UTC(2026, 10, 9, 10, minute)),
@@ -278,8 +298,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
 
     it("takes one message once", async () => {
       const messageId = crypto.randomUUID();
-      const first = await memory.createWrite(ana, { chatId, messageId });
-      const again = await memory.createWrite(ana, { chatId, messageId });
+      const first = await chatWrite(ana, { chatId, messageId });
+      const again = await chatWrite(ana, { chatId, messageId });
       expect(first.created).toBe(true);
       expect(again).toMatchObject({ created: false, id: first.id });
     });
@@ -289,7 +309,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         .insert(chats)
         .values({ title: "to delete", userId: ana })
         .returning({ id: chats.id });
-      const made = await memory.createWrite(ana, {
+      const made = await chatWrite(ana, {
         chatId: chat?.id as string,
         messageId: crypto.randomUUID(),
       });
@@ -477,7 +497,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         status: "done",
         text: "Уже сделанное",
       });
-      const made = await memory.createWrite(ana, {
+      const made = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -536,7 +556,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         kind: "commitment",
         text: "Прислать смету по складу",
       });
-      const made = await memory.createWrite(ana, {
+      const made = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -655,7 +675,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         kind: "fact",
         text: "Чужой факт",
       });
-      const made = await memory.createWrite(ana, {
+      const made = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -689,7 +709,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     });
 
     it("puts in a whole message at once, and only once", async () => {
-      const made = await memory.createWrite(ana, {
+      const made = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -735,7 +755,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         entityId: strela[0]?.id,
         role: "creditor",
       });
-      const again = await memory.createWrite(ana, {
+      const again = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -749,7 +769,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
           statuses: [],
         })
       ).toBe(true);
-      const skipped = await memory.createWrite(ana, {
+      const skipped = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -758,7 +778,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
 
     it("forgets what deleted messages put in, and reads them afresh", async () => {
       const messageId = crypto.randomUUID();
-      const made = await memory.createWrite(ana, { chatId, messageId });
+      const made = await chatWrite(ana, { chatId, messageId });
       await memory.applyWrite(ana, made.id, {
         drafts: [],
         dues: [],
@@ -769,15 +789,58 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         ],
         statuses: [],
       });
-      await memory.forgetMessages(ana, [messageId, crypto.randomUUID()]);
+      // Another source's material under the same key is not this message.
+      await memory.forgetSources(ana, "mail", [messageId]);
+      expect(await recordTexts(ana)).toContain("Из удалённого сообщения");
+      await memory.forgetSources(ana, memory.CHAT_SOURCE, [
+        messageId,
+        crypto.randomUUID(),
+      ]);
       expect(await recordTexts(ana)).not.toContain("Из удалённого сообщения");
-      const anew = await memory.createWrite(ana, { chatId, messageId });
+      const anew = await chatWrite(ana, { chatId, messageId });
       expect(anew.created).toBe(true);
+    });
+
+    it("keeps each source's material apart: its own keys, its own place in the one queue (§19.9.5)", async () => {
+      const [chat] = await db
+        .insert(chats)
+        .values({ title: "sources", userId: gwen })
+        .returning({ id: chats.id });
+      const key = crypto.randomUUID();
+      const said = await chatWrite(gwen, {
+        chatId: chat?.id as string,
+        messageId: key,
+        sentAt: noon(5),
+      });
+      // The same key in another source is other material; queued again there, it is the same write.
+      const letter = { sentAt: noon(1), source: "mail", sourceKey: key };
+      const mailed = await memory.createWrite(gwen, letter);
+      expect(mailed).toMatchObject({ created: true });
+      expect(mailed.id).not.toBe(said.id);
+      expect(await memory.createWrite(gwen, letter)).toMatchObject({
+        created: false,
+        id: mailed.id,
+      });
+      // One queue by when it was said, whatever the source: the letter of 12:01 before the message of 12:05.
+      expect(await memory.nextQueuedWrite(gwen)).toMatchObject({
+        chatId: null,
+        id: mailed.id,
+        source: "mail",
+        sourceKey: key,
+      });
+      await memory.markWrite(gwen, mailed.id, "done");
+      expect(await memory.nextQueuedWrite(gwen)).toMatchObject({
+        chatId: chat?.id,
+        id: said.id,
+        source: memory.CHAT_SOURCE,
+        sourceKey: key,
+      });
+      await memory.markWrite(gwen, said.id, "skipped");
     });
 
     /** A write with one question: «Какой Андрей?» between two new cards. */
     const ask = async () => {
-      const made = await memory.createWrite(ana, {
+      const made = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -917,7 +980,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         kind: "fact",
         text: "Нина Сом в отделе продаж",
       });
-      const left = await memory.createWrite(ana, {
+      const left = await chatWrite(ana, {
         chatId,
         messageId: crypto.randomUUID(),
       });
@@ -975,7 +1038,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       ],
       role: "user",
     });
-    const made = await memory.createWrite(cleo, { chatId, messageId });
+    const made = await chatWrite(cleo, { chatId, messageId });
     const olga = await memory.createEntity(cleo, {
       kind: "person",
       name: "Ольга Ли",

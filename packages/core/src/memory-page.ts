@@ -12,6 +12,7 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb } from "./db";
 import {
+  CHAT_SOURCE,
   commitmentCounts,
   listEntities,
   listQuestions,
@@ -220,7 +221,9 @@ export const recordSource = async (
   let chat: MemoryRecordSource["chat"] = null;
   let said: string | null = null;
   let saidAt: string | null = null;
-  if (origin?.chatId) {
+  // «Откуда» knows the chat only: a record from another source shows its history without where it was said, until
+  // that source's adapter can say it (ARCH §19.9.5).
+  if (origin?.chatId && origin.source === CHAT_SOURCE) {
     const [row] = await getDb()
       .db.select({
         createdAt: messages.createdAt,
@@ -231,7 +234,7 @@ export const recordSource = async (
       .innerJoin(chats, eq(chats.id, messages.chatId))
       .where(
         and(
-          eq(messages.id, origin.messageId),
+          eq(messages.id, origin.sourceKey),
           eq(messages.chatId, origin.chatId),
           // The chat is the owner's: a write points at it, but the page shows nothing it cannot check.
           eq(chats.userId, ownerId)

@@ -860,15 +860,24 @@ export const listRecords = async (
 // --- writes ------------------------------------------------------------------------------------------------------
 
 /**
- * One row per message looked at. The same message again is the same write — `created` says which — so a message
- * queued twice is not read twice.
+ * The source of a chat's message: its key is the message's id. The store names it only where it answers a chat —
+ * what to show under which message.
+ */
+export const CHAT_SOURCE = "chat";
+
+/**
+ * One row per material looked at — a chat's message today (ARCH §19.9.5). The same material again is the same write —
+ * `created` says which — so one queued twice is not read twice.
  */
 export const createWrite = async (
   ownerId: string,
   input: {
-    chatId: string;
-    messageId: string;
-    /** When the message was sent: the queue's order (ARCH §19.8.1); now, if not given. */
+    /** Where the material came from («chat») and which one it is there (a message's id). */
+    source: string;
+    sourceKey: string;
+    /** The chat it was said in, when there is one: «Запомнено» is shown there. */
+    chatId?: string;
+    /** When it was said: the queue's order (ARCH §19.8.1); now, if not given. */
     sentAt?: Date;
     timeZone?: string;
   }
@@ -888,7 +897,8 @@ export const createWrite = async (
     .where(
       and(
         eq(memoryWrites.ownerId, ownerId),
-        eq(memoryWrites.messageId, input.messageId)
+        eq(memoryWrites.source, input.source),
+        eq(memoryWrites.sourceKey, input.sourceKey)
       )
     )
     .limit(1);
@@ -898,11 +908,13 @@ export const createWrite = async (
   return { created: false, id: existing.id, status: existing.status };
 };
 
-/** A message waiting to be read: the next of a person's queue. */
+/** Material waiting to be read: the next of a person's queue. */
 export interface QueuedWrite {
   id: string;
+  /** Which adapter loads it (`memory-sources.ts`), and which material it is there. */
+  source: string;
+  sourceKey: string;
   chatId: string | null;
-  messageId: string;
   sentAt: Date;
   timeZone: string | null;
   attempts: number;
@@ -920,8 +932,9 @@ export const nextQueuedWrite = async (
       attempts: memoryWrites.attempts,
       chatId: memoryWrites.chatId,
       id: memoryWrites.id,
-      messageId: memoryWrites.messageId,
       sentAt: memoryWrites.sentAt,
+      source: memoryWrites.source,
+      sourceKey: memoryWrites.sourceKey,
       timeZone: memoryWrites.timeZone,
     })
     .from(memoryWrites)
@@ -1242,7 +1255,8 @@ export interface MemoryQuestion {
   id: string;
   writeId: string;
   chatId: string | null;
-  messageId: string;
+  /** The chat's message it came from; null for material of another source. */
+  messageId: string | null;
   question: string;
   /** The cards it could be, with who each one is — what the person picks from. */
   candidates: {
@@ -1268,7 +1282,8 @@ export const listQuestions = async (
     .select({
       chatId: memoryWrites.chatId,
       draft: memoryDrafts,
-      messageId: memoryWrites.messageId,
+      source: memoryWrites.source,
+      sourceKey: memoryWrites.sourceKey,
     })
     .from(memoryDrafts)
     .innerJoin(memoryWrites, eq(memoryWrites.id, memoryDrafts.writeId))
@@ -1286,7 +1301,7 @@ export const listQuestions = async (
   const entities = await listEntities(ownerId);
   const cards = new Map(entities.map((e) => [e.id, e]));
   const to = await mergedTo(db, ownerId);
-  return rows.map(({ chatId, draft, messageId }) => {
+  return rows.map(({ chatId, draft, source, sourceKey }) => {
     const body = openDraft(draft, key);
     return {
       // A candidate merged since the question was asked is the card it went into, once.
@@ -1299,7 +1314,7 @@ export const listQuestions = async (
       chatId,
       createdAt: draft.createdAt,
       id: draft.id,
-      messageId,
+      messageId: source === CHAT_SOURCE ? sourceKey : null,
       question: body.question,
       writeId: draft.writeId,
     };
@@ -1645,13 +1660,15 @@ const dueMoves = async (ownerId: string, writeIds: string[]) => {
 
 /** What the memory took from one chat: «Запомнено» per message, and the open questions (P18). */
 export const chatMemory = async (ownerId: string, chatId: string) => {
+  // The chat's own messages: what another source put in is not shown under an answer.
   const writes = await getDb()
-    .db.select({ id: memoryWrites.id, messageId: memoryWrites.messageId })
+    .db.select({ id: memoryWrites.id, messageId: memoryWrites.sourceKey })
     .from(memoryWrites)
     .where(
       and(
         eq(memoryWrites.ownerId, ownerId),
         eq(memoryWrites.chatId, chatId),
+        eq(memoryWrites.source, CHAT_SOURCE),
         eq(memoryWrites.status, "done")
       )
     );
@@ -1702,11 +1719,15 @@ export const chatMemory = async (ownerId: string, chatId: string) => {
 };
 
 /**
- * Messages deleted from a chat (a retry, an edit, a regenerated answer): what they put in is undone, and their writes
- * go, so the same message sent again is read afresh.
+ * Material that is gone from its source — messages deleted from a chat (a retry, an edit, a regenerated answer): what
+ * it put in is undone, and its writes go, so the same material queued again is read afresh.
  */
-export const forgetMessages = async (ownerId: string, messageIds: string[]) => {
-  if (messageIds.length === 0) {
+export const forgetSources = async (
+  ownerId: string,
+  source: string,
+  keys: string[]
+) => {
+  if (keys.length === 0) {
     return;
   }
   const { db } = getDb();
@@ -1716,7 +1737,8 @@ export const forgetMessages = async (ownerId: string, messageIds: string[]) => {
     .where(
       and(
         eq(memoryWrites.ownerId, ownerId),
-        inArray(memoryWrites.messageId, messageIds)
+        eq(memoryWrites.source, source),
+        inArray(memoryWrites.sourceKey, keys)
       )
     );
   await Promise.all(writes.map(({ id }) => undoWrite(ownerId, id)));
@@ -1779,16 +1801,20 @@ export const correctRecord = async (
   });
 };
 
-/** Which chat each write came from; a write of a deleted chat has none. */
+/** Where each write came from: its source and material there, and its chat — a write of a deleted chat has none. */
 export const writeChats = async (ownerId: string, writeIds: string[]) => {
   if (writeIds.length === 0) {
-    return new Map<string, { chatId: string | null; messageId: string }>();
+    return new Map<
+      string,
+      { chatId: string | null; source: string; sourceKey: string }
+    >();
   }
   const rows = await getDb()
     .db.select({
       chatId: memoryWrites.chatId,
       id: memoryWrites.id,
-      messageId: memoryWrites.messageId,
+      source: memoryWrites.source,
+      sourceKey: memoryWrites.sourceKey,
     })
     .from(memoryWrites)
     .where(

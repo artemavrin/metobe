@@ -110,7 +110,8 @@ export interface ChatMemory {
   questions: {
     id: string;
     writeId: string;
-    messageId: string;
+    /** The chat's message it came from; null — from another source. */
+    messageId: string | null;
     question: string;
     candidates: {
       id: string;

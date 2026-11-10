@@ -1,6 +1,5 @@
 import "server-only";
 import { user } from "@metobe/db/schema/auth";
-import { messages } from "@metobe/db/schema/chat";
 import {
   APICallError,
   Output,
@@ -8,7 +7,7 @@ import {
   generateText,
 } from "ai";
 import type { LanguageModelUsage } from "ai";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { getEvaluationModel, getLanguageModel } from "./ai";
 import { recordRun } from "./chat-run";
@@ -27,7 +26,6 @@ import {
   candidateKnown,
 } from "./memory-candidates";
 import {
-  CONTEXT_TURNS,
   chatContext,
   extractionSchema,
   memoryInstructions,
@@ -39,17 +37,19 @@ import {
 import type { ChatTurn, KnownCard, OpenCommitment } from "./memory-extract";
 import { GATE_QUESTIONS, gateState, nothingToKeep } from "./memory-gate";
 import { groupMembers } from "./memory-groups";
+import { memorySource } from "./memory-sources";
 import { getSlotModel } from "./model-slots";
-import { announceMemory } from "./task-events";
 
-// The silent writer (ARCH §19.4): a message the person sent is read by the «Память» model, and what it finds goes
-// into their memory. Runs in the worker, off the chat's path; a failure is thrown for the queue to try again.
+// The silent writer (ARCH §19.4): what the person said is read by the «Память» model, and what it finds goes into
+// their memory. It reads material — a text, when it was said, what was said before — that the adapter of the write's
+// source loads (ARCH §19.9.5): nothing here knows a chat's tables. Runs in the worker, off the chat's path; a failure
+// is thrown for the queue to try again.
 
-export interface MemoryJob {
+/** Whose material is read, in which zone, and the chat its model runs are counted to — none outside a chat. */
+interface Reading {
   ownerId: string;
-  chatId: string;
-  messageId: string;
-  /** The person's zone when they sent it (D31): «вчера» and «в среду» are counted in it. */
+  chatId: string | null;
+  /** The person's zone when they said it (D31): «вчера» and «в среду» are counted in it. */
   timeZone: string;
 }
 
@@ -132,34 +132,6 @@ const extract = async (call: {
   }
 };
 
-const textOf = (parts: (typeof messages.$inferSelect)["parts"]) =>
-  parts
-    .flatMap((p) => (p.type === "text" ? [p.text] : []))
-    .join("\n")
-    .trim();
-
-/**
- * The chat the message follows (ARCH §19.8.2): the messages before it, as many as `chatContext` keeps — for the model
- * to understand «он», «передумал», an answer to the assistant's question or a story told over a few messages (S13,
- * part 5), not to record again: the queue reads a person's messages in order, what the earlier ones said is kept.
- */
-const chatBefore = async (chatId: string, sentAt: Date) => {
-  const rows = await getDb()
-    .db.select({ parts: messages.parts, role: messages.role })
-    .from(messages)
-    .where(and(eq(messages.chatId, chatId), lt(messages.createdAt, sentAt)))
-    .orderBy(desc(messages.createdAt))
-    .limit(CONTEXT_TURNS);
-  // Oldest first.
-  // oxlint-disable-next-line unicorn/no-array-reverse -- a fresh array; toReversed is past the ES2022 target
-  return rows.reverse().flatMap((r): ChatTurn[] => {
-    const text = textOf(r.parts);
-    return text && (r.role === "user" || r.role === "assistant")
-      ? [{ role: r.role, text }]
-      : [];
-  });
-};
-
 /** A decision model's run, as usage counts it: its input only — it writes nothing. */
 const decisionUsage = (
   inputTokens: number | undefined
@@ -183,7 +155,7 @@ const GATE_TIMEOUT_MS = 15_000;
  * message is read as before: the step only saves, it never loses a message.
  */
 const nothingToKeepSaid = async (
-  job: MemoryJob,
+  job: Reading,
   text: string,
   before: ChatTurn[],
   sentAt: Date
@@ -286,44 +258,35 @@ const zoneOf = async (ownerId: string, write: QueuedWrite) => {
 };
 
 /**
- * Reads the next message of a person's queue (ARCH §19.8.1) and answers what became of it: `off` — no model in
- * «Память», the message stays queued for later; `skipped` or `done`. A failed read is thrown for the drain to count.
+ * Reads the next material of a person's queue (ARCH §19.8.1) and answers what became of it: `off` — no model in
+ * «Память», it stays queued for later; `skipped` or `done`. A failed read is thrown for the drain to count.
  */
 export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   const model = await getSlotModel("memory");
   if (!model) {
     return "off";
   }
-  // Turned off by the person since the message was queued, or the chat deleted: not read.
-  if (!write.chatId || (await isOffFor(ownerId))) {
+  const source = memorySource(write.source);
+  // Turned off by the person since it was queued, or of a source this build does not know: not read.
+  if (!source || (await isOffFor(ownerId))) {
     await markWrite(ownerId, write.id, "skipped");
     return "skipped";
   }
-  const job: MemoryJob = {
+  // Gone from its source (the chat deleted, the message edited away) or nothing in words: nothing to read.
+  const input = await source.load(ownerId, write);
+  if (!input) {
+    await markWrite(ownerId, write.id, "skipped");
+    return "skipped";
+  }
+  const job: Reading = {
     chatId: write.chatId,
-    messageId: write.messageId,
     ownerId,
     timeZone: await zoneOf(ownerId, write),
   };
+  const { at, text, context: before } = input;
   const { db } = getDb();
-  const [message] = await db
-    .select({
-      createdAt: messages.createdAt,
-      parts: messages.parts,
-      role: messages.role,
-    })
-    .from(messages)
-    .where(and(eq(messages.id, job.messageId), eq(messages.chatId, job.chatId)))
-    .limit(1);
-  // Gone already (the message edited away) or nothing in words: nothing to read.
-  const text = message?.role === "user" ? textOf(message.parts) : "";
-  if (!(message && text)) {
-    await markWrite(ownerId, write.id, "skipped");
-    return "skipped";
-  }
-  const before = await chatBefore(job.chatId, message.createdAt);
   // A sure «nothing to keep» from the decision model: the «Память» model does not read it (Б2b).
-  if (await nothingToKeepSaid(job, text, before, message.createdAt)) {
+  if (await nothingToKeepSaid(job, text, before, at)) {
     await markWrite(job.ownerId, write.id, "skipped");
     return "skipped";
   }
@@ -336,7 +299,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   const said = [text, ...chatContext(before).map((t) => t.text)].join("\n");
   const found = candidateCards({
     entities,
-    now: message.createdAt,
+    now: at,
     records,
     text: said,
   });
@@ -346,13 +309,13 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   const known = candidateKnown({
     cards: found,
     entities,
-    now: message.createdAt,
+    now: at,
     records,
     selfId: ownId,
   });
   const commitments: OpenCommitment[] = candidateCommitments({
     cards: found,
-    now: message.createdAt,
+    now: at,
     records,
     selfId: ownId,
     text: said,
@@ -373,7 +336,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
         commitments,
         known,
         quoted: splitQuoted(text.slice(0, MAX_TEXT)).quoted !== "",
-        sentAt: message.createdAt,
+        sentAt: at,
         timeZone: job.timeZone,
       }),
       model: await getLanguageModel(model.sourceId, model.modelId),
@@ -429,8 +392,8 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   });
   const kept = changesAnything(plan);
   if ((await applyWrite(job.ownerId, write.id, plan)) && kept) {
-    // An open chat shows «Запомнено» or asks its question at once (P18).
-    await announceMemory(job.ownerId, job.chatId);
+    // Whoever shows the material shows «Запомнено» or asks its question at once (P18).
+    await source.announce?.(job.ownerId, write);
   }
   return kept ? "done" : "skipped";
 };

@@ -68,7 +68,7 @@ import { attachFiles, pruneChatFiles } from "@metobe/core/files";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
-import { forgetMessages } from "@metobe/core/memory";
+import { CHAT_SOURCE, forgetSources } from "@metobe/core/memory";
 import { queueMemoryWrite } from "@metobe/core/memory-queue";
 import { memoryBrief, memoryTools } from "@metobe/core/memory-read";
 import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
@@ -222,7 +222,7 @@ const titleSource = (message: ChatMessage) =>
 const dropMessages = async (userId: string, chatId: string, from: string) => {
   const dropped = await deleteMessagesFrom(chatId, from);
   try {
-    await forgetMessages(userId, dropped);
+    await forgetSources(userId, CHAT_SOURCE, dropped);
   } catch (error) {
     console.error("chat: memory could not forget dropped messages", error);
   }
@@ -900,8 +900,9 @@ export const POST = async (request: Request) => {
       if (message) {
         void queueMemoryWrite({
           chatId: id,
-          messageId: message.id,
           ownerId: session.user.id,
+          source: CHAT_SOURCE,
+          sourceKey: message.id,
           timeZone,
         });
       }

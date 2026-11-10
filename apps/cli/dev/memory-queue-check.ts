@@ -56,7 +56,13 @@ try {
   // All three at once, as a chat with three quick answers would queue them.
   await Promise.all(
     ids.map((messageId) =>
-      queueMemoryWrite({ chatId, messageId, ownerId, timeZone: TIME_ZONE })
+      queueMemoryWrite({
+        chatId,
+        ownerId,
+        source: "chat",
+        sourceKey: messageId,
+        timeZone: TIME_ZONE,
+      })
     )
   );
   const deadline = Date.now() + 4 * 60_000;
