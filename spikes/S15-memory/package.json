@@ -9,7 +9,8 @@
     "decide": "node --env-file=../../.env --import tsx decide.ts",
     "prompt-cache": "node --env-file=../../.env --import tsx cache-check.ts",
     "foreign": "node --env-file=../../.env --import tsx foreign.ts",
-    "memory:eval": "node --env-file=../../.env --import tsx eval.ts"
+    "memory:eval": "node --env-file=../../.env --import tsx eval.ts",
+    "types": "node --env-file=../../.env --import tsx types.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",
