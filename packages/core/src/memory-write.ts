@@ -21,8 +21,10 @@ import {
   markWrite,
 } from "./memory";
 import type { QueuedWrite } from "./memory";
+import { candidateCards, candidateCommitments } from "./memory-candidates";
 import {
   CONTEXT_TURNS,
+  chatContext,
   extractionSchema,
   memoryInstructions,
   memoryPrompt,
@@ -93,8 +95,6 @@ export const chatMemoryNote = async (userId: string) =>
   (await isMemoryOnFor(userId)) ? MEMORY_NOTE : "";
 
 const WRITE_TIMEOUT_MS = 60_000;
-/** Open commitments the model sees, newest first: enough for a person's running promises, short for the prompt. */
-const MAX_OPEN = 60;
 /** A message longer than this is cut: what is worth remembering is said in words, not in pasted pages. */
 const MAX_TEXT = 8000;
 
@@ -319,20 +319,33 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     await markWrite(job.ownerId, write.id, "skipped");
     return "skipped";
   }
-  const [entities, facts] = await Promise.all([
+  const [entities, records] = await Promise.all([
     listEntities(job.ownerId),
-    listRecords(job.ownerId, { kinds: ["fact"] }),
+    listRecords(job.ownerId),
   ]);
-  const cards = knownCards(entities, groupMembers(facts));
-  const promises = await listRecords(job.ownerId, { kinds: ["commitment"] });
-  const commitments: OpenCommitment[] = promises
-    .flatMap((r) =>
-      r.status === "open" || r.status === "unconfirmed"
-        ? [{ due: r.dueAt, id: r.id, status: r.status, text: r.text }]
-        : []
-    )
-    .slice(0, MAX_OPEN)
-    .map((c, i) => ({ ...c, ref: `k${i + 1}` }));
+  const facts = records.filter((r) => r.kind === "fact");
+  // Not the whole memory: what the message and the chat before it may be about (ARCH §19.8.3).
+  const said = [text, ...chatContext(before).map((t) => t.text)].join("\n");
+  const found = candidateCards({
+    entities,
+    now: message.createdAt,
+    records,
+    text: said,
+  });
+  const cards = knownCards(found, groupMembers(facts));
+  const commitments: OpenCommitment[] = candidateCommitments({
+    cards: found,
+    now: message.createdAt,
+    records,
+    selfId: entities.find((e) => e.kind === "self")?.id ?? null,
+    text: said,
+  }).map((r, i) => ({
+    due: r.dueAt,
+    id: r.id,
+    ref: `k${i + 1}`,
+    status: r.status === "unconfirmed" ? "unconfirmed" : "open",
+    text: r.text,
+  }));
   const started = Date.now();
   let result;
   try {

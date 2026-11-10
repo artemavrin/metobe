@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { MemoryEntity } from "./memory";
-import { mentionedCards } from "./memory-read";
+import { mentionedCards } from "./memory-candidates";
 
 vi.mock("server-only", () => ({}));
 

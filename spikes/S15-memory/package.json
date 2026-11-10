@@ -1,0 +1,14 @@
+{
+  "name": "spike-s15-memory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "many": "node --env-file=../../.env --import tsx many.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "4.0.91",
+    "ai": "7.0.113",
+    "tsx": "^4.23.15",
+    "zod": "4.6.5"
+  }
+}

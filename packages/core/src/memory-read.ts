@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { listEntities, listRecords } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
+import { mentionedCards } from "./memory-candidates";
 import { memoryCard, searchMemory } from "./memory-page";
 
 // The chat reads the memory (ARCH §19.5, Б4): the cards a message mentions go to the model as a short block in front
@@ -40,44 +41,6 @@ const ID_LENGTH = 8;
 
 export const shortId = (id: string) => id.slice(0, ID_LENGTH);
 const tag = (e: { id: string }) => `[${shortId(e.id)}]`;
-const MIN_STEM = 4;
-
-const normalize = (s: string) => s.toLocaleLowerCase("ru").replaceAll("ё", "е");
-
-const wordsOf = (s: string) =>
-  normalize(s)
-    .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
-    .split(" ")
-    .filter(Boolean);
-
-/**
- * Do two words name the same thing, declined: «Ольге» and «Ольга», «Седову» and «Седов», «Вектора» and «Вектор».
- * They share the start but for the last two letters, and at least four letters — «Ли» and «ли» never match.
- */
-const sameWord = (a: string, b: string) => {
-  const need = Math.max(MIN_STEM, Math.min(a.length, b.length) - 2);
-  if (a.length < MIN_STEM || b.length < MIN_STEM) {
-    return false;
-  }
-  let common = 0;
-  while (common < a.length && common < b.length && a[common] === b[common]) {
-    common += 1;
-  }
-  return common >= need;
-};
-
-/** The cards a text mentions by a name or an other name, by any word of it. */
-export const mentionedCards = (entities: MemoryEntity[], text: string) => {
-  const said = wordsOf(text);
-  return entities.filter(
-    (e) =>
-      e.kind !== "self" &&
-      [e.name, ...e.aliases].some((name) =>
-        wordsOf(name).some((w) => said.some((s) => sameWord(w, s)))
-      )
-  );
-};
-
 const day = (d: Date | string | null, timeZone: string) =>
   d
     ? new Intl.DateTimeFormat("en-CA", {
