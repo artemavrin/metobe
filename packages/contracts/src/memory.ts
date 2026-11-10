@@ -94,11 +94,16 @@ export interface ChatMemory {
   notes: {
     messageId: string;
     writeId: string;
-    /** What the message added; with a status — an open commitment it settled («Выполнено: …»). */
+    /**
+     * What the message added; with a status — an open commitment it settled («Выполнено: …»); with `due` — one whose
+     * deadline it moved (ISO instants, null — none); with `replaced` — the text of the fact or event it took the place of.
+     */
     records: {
       id: string;
       text: string;
       status?: Exclude<MemoryStatus, "open">;
+      due?: { from: string | null; to: string | null };
+      replaced?: string;
     }[];
   }[];
   /** Open questions, under the answer to the message they came from. */
@@ -152,6 +157,8 @@ export interface MemoryRecordView {
   important: boolean;
   doneAt: string | null;
   recordedAt: string;
+  /** A later message replaced it (an event): «Раньше». A hand correction's old version is not shown at all. */
+  supersededAt: string | null;
   /** Deleted with «Вернуть» still on offer. */
   deletedAt: string | null;
   /** The chat it was said in; null — put in by hand, or the chat is deleted (`fromChat` tells which). */

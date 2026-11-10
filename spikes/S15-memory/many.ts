@@ -11,13 +11,16 @@ import { createGateway } from "@ai-sdk/gateway";
 import { generateText, Output } from "ai";
 
 import type { MemoryEntity, MemoryRecord } from "../../packages/core/src/memory.ts";
-import { candidateCards, candidateCommitments } from "../../packages/core/src/memory-candidates.ts";
+import { candidateCards, candidateCommitments, candidateKnown } from "../../packages/core/src/memory-candidates.ts";
 import { extractionSchema, memoryInstructions, memoryPrompt } from "../../packages/core/src/memory-extract.ts";
 import type { ChatTurn, KnownCard, OpenCommitment } from "../../packages/core/src/memory-extract.ts";
 import { cards as askCards, exchange } from "../S13-jev/cases.ts";
 import { TIMEZONE, extractCases, knownCards, type Expect, type When } from "../S13-jev/extract-cases.ts";
 import { sourceKey } from "../S13-jev/keys.ts";
 import { NOW, SELF, fillerCards, fillerPromises, promise } from "./memory300.ts";
+
+/** FACTS=1: every card's role is a fact that holds, as in a real memory — so the writer is shown the block of known facts (§19.9.3). */
+const FACTS = Boolean(process.env.FACTS);
 
 const MODEL = process.env.MODEL ?? "google/gemini-3.5-flash";
 const DRY = Boolean(process.env.DRY);
@@ -52,9 +55,18 @@ interface Memory {
   entities: MemoryEntity[];
   records: MemoryRecord[];
 }
+const roleFact = (e: MemoryEntity): MemoryRecord => ({
+  ...promise(`fact-${e.id}`, `${e.name} — ${e.role}`, e.id, e.id),
+  dueAt: null,
+  entities: [{ entityId: e.id, role: "about" }],
+  givenAt: null,
+  kind: "fact",
+  status: null,
+  validFrom: new Date(NOW.getTime() - 200 * 86_400_000),
+});
 const memoryOf = (base: MemoryEntity[], promises: MemoryRecord[] = []): Memory => ({
   entities: [SELF, ...base, team, ...filler],
-  records: [...promises, ...fillerOpen],
+  records: [...promises, ...fillerOpen, ...(FACTS ? base.filter((e) => e.role).map(roleFact) : [])],
 });
 
 /** What the model is shown for a message: the pick, or (ALL) everything as before. */
@@ -87,7 +99,11 @@ const shown = (memory: Memory, text: string) => {
     status: r.status === "unconfirmed" ? "unconfirmed" : "open",
     text: r.text,
   }));
-  return { cards, commitments };
+  const known =
+    FACTS && !EMPTY
+      ? candidateKnown({ cards: found, entities: memory.entities, now: NOW, records: memory.records, selfId: SELF.id })
+      : [];
+  return { cards, commitments, known };
 };
 
 // --- parts ----------------------------------------------------------------------------------------------------------
@@ -353,7 +369,10 @@ const PART_OF: Record<string, () => { memory: Memory; cases: Case[] }> = {
 const pct = ([a, b]: [number, number]) => (b ? `${a}/${b} (${Math.round((100 * a) / b)}%)` : "—");
 
 for (const name of PARTS) {
-  const { memory, cases } = (PART_OF[name] as () => { memory: Memory; cases: Case[] })();
+  const { memory, cases: every } = (PART_OF[name] as () => { memory: Memory; cases: Case[] })();
+  // ONLY="a|b": just the cases whose text has one of these — for looking at the ones that failed.
+  const only = process.env.ONLY?.split("|");
+  const cases = only ? every.filter((c) => only.some((w) => c.text.includes(w))) : every;
   const sizes = cases.map((c) => {
     const said = [c.text, ...(c.context ?? []).map((t) => t.text)].join("\n");
     const s = shown(memory, said);
@@ -382,7 +401,7 @@ for (const name of PARTS) {
     const { s } = sizes[i] as (typeof sizes)[number];
     try {
       const r = await generateText({
-        instructions: memoryInstructions({ cards: s.cards, commitments: s.commitments, sentAt: NOW, timeZone: TIMEZONE }),
+        instructions: memoryInstructions({ cards: s.cards, commitments: s.commitments, known: s.known, sentAt: NOW, timeZone: TIMEZONE }),
         maxRetries: 2,
         model: gw(MODEL),
         output: Output.object({ schema: extractionSchema }),
@@ -411,7 +430,7 @@ for (const name of PARTS) {
       cost_per_msg: `$${(cost / Math.max(1, tokens.length)).toFixed(4)}`,
       input_tokens_max: sorted.at(-1),
       input_tokens_p50: sorted[Math.floor(sorted.length / 2)],
-      mode: EMPTY ? "empty" : ALL ? "all" : "candidates",
+      mode: EMPTY ? "empty" : ALL ? "all" : FACTS ? "candidates + known facts" : "candidates",
       model: MODEL,
       part: name,
       ...Object.fromEntries(Object.entries(tally).map(([k, v]) => [k, pct(v)])),

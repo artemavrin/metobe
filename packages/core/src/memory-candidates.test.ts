@@ -5,6 +5,7 @@ import {
   MAX_CANDIDATES,
   candidateCards,
   candidateCommitments,
+  candidateKnown,
   likelySame,
   mentionedCards,
 } from "./memory-candidates";
@@ -46,6 +47,7 @@ const record = (
   rule: null,
   status: null,
   supersededAt: null,
+  supersededBy: null,
   validFrom: null,
   validTo: null,
   writeId: null,
@@ -293,6 +295,137 @@ const pairs = (cards: MemoryEntity[], dismissed: string[] = []) =>
   likelySame(cards, new Set(dismissed), pairKey).map(
     (p) => `${p.keep.id}<${p.gone.id}`
   );
+
+/** A record about one card. */
+const about = (id: string) => [{ entityId: id, role: "about" as const }];
+
+describe("the facts and events a new item may replace (ARCH §19.9.3)", () => {
+  const andrey = card("a", "Андрей Смирнов");
+  const sklad = card("s", "«Склад 2.0»", "project");
+  const team = card("g", "Моя команда", "group");
+  const self = card("me", "Проверка", "self");
+  const known = (records: MemoryRecord[], cards = [andrey, sklad]) =>
+    candidateKnown({
+      cards,
+      entities: [andrey, sklad, team, self],
+      now: NOW,
+      records,
+      selfId: self.id,
+    });
+
+  it("gives the facts that hold and no others, f1…, the cards in the order given", () => {
+    const list = known(
+      [
+        record("f-a", {
+          entities: about("a"),
+          kind: "fact",
+          text: "Андрей — разработчик",
+          validFrom: daysAgo(30),
+        }),
+        record("f-s", {
+          entities: about("s"),
+          kind: "fact",
+          text: "Склад в тестировании",
+          validFrom: daysAgo(5),
+        }),
+        record("f-old", {
+          entities: about("a"),
+          kind: "fact",
+          text: "Андрей — стажёр",
+          validTo: daysAgo(30),
+        }),
+        record("f-me", {
+          entities: about("me"),
+          kind: "fact",
+          text: "Развиваю команду",
+        }),
+        record("assessment", {
+          entities: about("a"),
+          kind: "assessment",
+          text: "Надёжный",
+        }),
+      ],
+      [sklad, andrey]
+    );
+    expect(list.map((k) => [k.ref, k.text])).toEqual([
+      ["f1", "Склад в тестировании"],
+      ["f2", "Андрей — разработчик"],
+      ["f3", "Развиваю команду"],
+    ]);
+    expect(list[0]).toMatchObject({
+      entityIds: ["s"],
+      id: "f-s",
+      kind: "fact",
+    });
+  });
+
+  it("leaves out who is in a group — that is for «ушёл из команды» — and five a card, thirty in all", () => {
+    const members = record("m", {
+      entities: [...about("a"), ...about("g")],
+      kind: "fact",
+      text: "Андрей — в команде",
+    });
+    const many = Array.from({ length: 8 }, (_, i) =>
+      record(`f${i}`, {
+        entities: about("a"),
+        kind: "fact",
+        text: `факт ${i}`,
+        validFrom: daysAgo(i),
+      })
+    );
+    const list = known([members, ...many]);
+    expect(list.map((k) => k.id)).toEqual(["f0", "f1", "f2", "f3", "f4"]);
+    const cards = Array.from({ length: 10 }, (_, i) =>
+      card(`c${i}`, `Карточка ${i}`)
+    );
+    const lots = candidateKnown({
+      cards,
+      entities: cards,
+      now: NOW,
+      records: cards.flatMap((c, ci) =>
+        Array.from({ length: 5 }, (_, i) =>
+          record(`${c.id}-${i}`, {
+            entities: about(c.id),
+            kind: "fact",
+            text: `${ci}/${i}`,
+          })
+        )
+      ),
+      selfId: null,
+    });
+    expect(lots).toHaveLength(30);
+  });
+
+  it("gives the events of the cards from the last week on, the nearest to today first", () => {
+    const at = (id: string, d: number, who = "a") =>
+      record(id, {
+        entities: about(who),
+        kind: "event",
+        occurredAt: daysAgo(d),
+        text: id,
+      });
+    const list = known([
+      at("soon", -2),
+      at("yesterday", 1),
+      at("week-ago", 6),
+      at("month-ago", 30),
+      at("later", -20),
+      at("someone-else", -1, "other"),
+      record("no-day", {
+        entities: about("a"),
+        kind: "event",
+        text: "без даты",
+      }),
+    ]);
+    expect(list.map((k) => [k.ref, k.id])).toEqual([
+      ["e1", "yesterday"],
+      ["e2", "soon"],
+      ["e3", "week-ago"],
+      ["e4", "later"],
+    ]);
+    expect(list[1]?.on).toEqual(daysAgo(-2));
+  });
+});
 
 describe("«Один человек?» (ARCH §19.8.5)", () => {
   it("offers a name within another, keeping the longer", () => {

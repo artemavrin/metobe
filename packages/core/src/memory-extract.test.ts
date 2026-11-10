@@ -13,6 +13,7 @@ import type {
   ChatTurn,
   Extraction,
   KnownCard,
+  KnownRecord,
   OpenCommitment,
 } from "./memory-extract";
 
@@ -52,6 +53,7 @@ const item = (
   important: false,
   interval_days: 0,
   kind: "fact",
+  replaces: "",
   role: null,
   rule_kind: null,
   text: "текст",
@@ -77,18 +79,55 @@ const OPEN: OpenCommitment[] = [
   },
 ];
 
-const plan = (extraction: Partial<Extraction>, selfId: string | null = SELF) =>
+const plan = (
+  extraction: Partial<Extraction>,
+  selfId: string | null = SELF,
+  knownRecords: KnownRecord[] = []
+) =>
   planWrite(
     {
       asks: [],
       items: [],
       leaves: [],
+      moves: [],
       new_entities: [],
       updates: [],
       ...extraction,
     },
-    { cards, commitments: OPEN, selfId, timeZone: ZONE }
+    { cards, commitments: OPEN, knownRecords, selfId, timeZone: ZONE }
   );
+
+/** The facts and events shown to the model: Андрей's stage and a meeting with him, Ковалёв's role. */
+const KNOWN: KnownRecord[] = [
+  {
+    entityIds: [ANDREY],
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    kind: "fact",
+    on: new Date("2026-10-02T00:00:00Z"),
+    ref: "f1",
+    text: "Андрей Смирнов на испытательном сроке",
+  },
+  {
+    entityIds: [KOVALEV],
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    kind: "fact",
+    on: null,
+    ref: "f2",
+    text: "Андрей Ковалёв — менеджер по закупкам",
+  },
+  {
+    entityIds: [ANDREY],
+    id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    kind: "event",
+    on: new Date("2026-11-11T00:00:00Z"),
+    ref: "e1",
+    text: "Встреча с Андреем Смирновым в среду",
+  },
+];
+
+/** The deadlines a message moves, as the plan has them. */
+const moveOf = (moves: Extraction["moves"], extra: Partial<Extraction> = {}) =>
+  plan({ moves, ...extra }).dues;
 
 describe("localMidnight", () => {
   it("is the day's midnight in the zone", () => {
@@ -148,6 +187,44 @@ describe("memoryInstructions", () => {
     );
     expect(text).toContain(
       "- k2: Ольга Ли подготовит API (said to be done, not confirmed)"
+    );
+  });
+});
+
+describe("the block of what a new item may replace (ARCH §19.9.3)", () => {
+  const at = new Date("2026-11-09T09:00:00Z");
+  const base = { cards, sentAt: at, timeZone: ZONE };
+
+  it("is not in the prompt without facts or events, nor the rules for it — S13 was measured without them", () => {
+    const text = memoryInstructions(base);
+    expect(text).not.toContain("Current facts and coming events");
+    expect(text).not.toContain("replaces");
+    expect(text).not.toContain("moves");
+  });
+
+  it("lists each fact and event with its day and the cards it is about, and adds the rule", () => {
+    const text = memoryInstructions({ ...base, known: KNOWN });
+    expect(text).toContain(
+      "- f1: Андрей Смирнов на испытательном сроке (since 2026-10-02; about c1)"
+    );
+    expect(text).toContain(
+      "- e1: Встреча с Андреем Смирновым в среду (on 2026-11-11; about c1)"
+    );
+    // A record about no shown card says no card.
+    expect(
+      memoryInstructions({
+        ...base,
+        known: [{ ...(KNOWN[1] as KnownRecord), entityIds: ["somebody"] }],
+      })
+    ).toContain("- f2: Андрей Ковалёв — менеджер по закупкам\n");
+    expect(text).toContain("put its ref in `replaces`");
+    expect(text).toContain("points at the same cards (about)");
+  });
+
+  it("adds the rule on deadlines only with open commitments listed", () => {
+    expect(memoryInstructions(base)).not.toContain("moves");
+    expect(memoryInstructions({ ...base, commitments: OPEN })).toContain(
+      "put it in moves"
     );
   });
 });
@@ -333,6 +410,106 @@ describe("planWrite", () => {
     });
     expect(records[0]?.role).toBe("тимлид бэкенда");
     expect(records[1]).not.toHaveProperty("role");
+  });
+
+  it("lets a new fact or event replace a shown one, and checks it in code (ARCH §19.9.3)", () => {
+    const { records } = plan(
+      {
+        items: [
+          item({
+            about: ["c1"],
+            replaces: "f1",
+            text: "Андрей Смирнов прошёл испытательный срок",
+          }),
+          item({
+            about: ["c1"],
+            kind: "event",
+            replaces: "e1",
+            text: "Встреча с Андреем Смирновым в четверг",
+          }),
+        ],
+      },
+      SELF,
+      KNOWN
+    );
+    expect(records.map((r) => r.replaces)).toEqual([
+      KNOWN[0]?.id,
+      KNOWN[2]?.id,
+    ]);
+  });
+
+  it("drops a replacement the code cannot vouch for — the record stays beside the old one", () => {
+    const refused = (items: Parameters<typeof plan>[0]["items"]) =>
+      plan({ items }, SELF, KNOWN).records.map((r) => r.replaces);
+    // A ref that was not shown, a fact asked to replace an event, a card the two do not share.
+    expect(refused([item({ about: ["c1"], replaces: "f9" })])).toEqual([
+      undefined,
+    ]);
+    expect(refused([item({ about: ["c1"], replaces: "e1" })])).toEqual([
+      undefined,
+    ]);
+    expect(refused([item({ about: ["c1"], replaces: "f2" })])).toEqual([
+      undefined,
+    ]);
+    // Only the first of two takes an old one; an item that is not a fact or event keeps nothing of it.
+    expect(
+      refused([
+        item({ about: ["c1"], replaces: "f1", text: "а" }),
+        item({ about: ["c1"], replaces: "f1", text: "б" }),
+        item({ about: ["c1"], kind: "assessment", replaces: "f1", text: "в" }),
+      ])
+    ).toEqual([KNOWN[0]?.id, undefined, undefined]);
+    // Nothing shown, nothing to replace.
+    expect(
+      plan({ items: [item({ about: ["c1"], replaces: "f1" })] }).records[0]
+    ).not.toHaveProperty("replaces");
+  });
+
+  it("does not let a record that waits for a question replace anything", () => {
+    const { drafts, records } = plan(
+      {
+        asks: [
+          {
+            candidates: ["c1", "c2"],
+            id: "ask:andrey",
+            name: "Андрей",
+            question: "Какой Андрей?",
+          },
+        ],
+        items: [
+          item({
+            about: ["ask:andrey"],
+            replaces: "f1",
+            text: "Андрей теперь тимлид",
+          }),
+        ],
+      },
+      SELF,
+      KNOWN
+    );
+    expect(records).toEqual([]);
+    expect(drafts[0]?.records[0]).not.toHaveProperty("replaces");
+  });
+
+  it("moves a commitment's deadline once, to a real other day", () => {
+    const to = { date: "2026-11-16", precision: "day" } as const;
+    expect(moveOf([{ due: to, ref: "k1" }])).toEqual([
+      { dueAt: new Date("2026-11-15T21:00:00Z"), recordId: OPEN[0]?.id },
+    ]);
+    // A ref to nothing, no day, a second word on the same one, one the message settles too.
+    expect(moveOf([{ due: to, ref: "k9" }])).toEqual([]);
+    expect(moveOf([{ due: NO_TIME, ref: "k1" }])).toEqual([]);
+    expect(
+      moveOf([
+        { due: to, ref: "k1" },
+        { due: { date: "2026-11-20", precision: "day" }, ref: "k1" },
+      ])
+    ).toHaveLength(1);
+    expect(
+      moveOf([{ due: to, ref: "k1" }], {
+        updates: [{ ref: "k1", status: "done" }],
+      })
+    ).toEqual([]);
   });
 
   it("keeps «важно» on a commitment only", () => {
@@ -635,6 +812,7 @@ describe("planWrite: groups (ARCH §19)", () => {
     rule: null,
     status: null,
     supersededAt: null,
+    supersededBy: null,
     text: "Андрей Смирнов в моей команде",
     validFrom: null,
     validTo: null,
@@ -646,6 +824,7 @@ describe("planWrite: groups (ARCH §19)", () => {
         asks: [],
         items: [],
         leaves: [],
+        moves: [],
         new_entities: [],
         updates: [],
         ...extraction,
@@ -721,6 +900,7 @@ describe("mentionsUser", () => {
         asks: [],
         items: [item({ about: ["c1"] })],
         leaves: [],
+        moves: [],
         new_entities: [],
         updates: [],
       })
@@ -730,6 +910,7 @@ describe("mentionsUser", () => {
         asks: [],
         items: [item({ debtor: "user" })],
         leaves: [],
+        moves: [],
         new_entities: [],
         updates: [],
       })

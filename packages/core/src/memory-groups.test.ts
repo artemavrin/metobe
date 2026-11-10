@@ -28,6 +28,7 @@ const fact = (
   rule: null,
   status: null,
   supersededAt: null,
+  supersededBy: null,
   text: "в команде",
   validFrom: null,
   validTo: null,

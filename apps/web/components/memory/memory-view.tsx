@@ -228,7 +228,10 @@ const CardView = ({
   );
   const now = known.filter((r) => !r.validTo);
   const before = known.filter((r) => r.validTo);
-  const events = records.filter((r) => r.kind === "event");
+  const allEvents = records.filter((r) => r.kind === "event");
+  const events = allEvents.filter((r) => !r.supersededAt);
+  // A later message took their place (a meeting moved): folded, like what was true before.
+  const replaced = allEvents.filter((r) => r.supersededAt);
   const day = (iso: string | null) =>
     iso ? shortDay(iso, format, timeZone) : null;
   return (
@@ -336,7 +339,7 @@ const CardView = ({
           )}
         </Section>
       )}
-      {events.length > 0 && (
+      {allEvents.length > 0 && (
         <Section title={t("events")}>
           {events.map((r) => (
             <MemoryRecordRow
@@ -345,6 +348,18 @@ const CardView = ({
               record={r}
             />
           ))}
+          {replaced.length > 0 && (
+            <Folded title={t("earlier")}>
+              {replaced.map((r) => (
+                <MemoryRecordRow
+                  key={r.id}
+                  meta={occurredWords(r, format, timeZone, t)}
+                  muted
+                  record={r}
+                />
+              ))}
+            </Folded>
+          )}
         </Section>
       )}
       {closed.length > 0 && (

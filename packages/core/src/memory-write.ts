@@ -21,7 +21,11 @@ import {
   markWrite,
 } from "./memory";
 import type { QueuedWrite } from "./memory";
-import { candidateCards, candidateCommitments } from "./memory-candidates";
+import {
+  candidateCards,
+  candidateCommitments,
+  candidateKnown,
+} from "./memory-candidates";
 import {
   CONTEXT_TURNS,
   chatContext,
@@ -237,6 +241,7 @@ const changesAnything = (plan: ReturnType<typeof planWrite>) =>
   plan.records.length > 0 ||
   plan.drafts.length > 0 ||
   plan.statuses.length > 0 ||
+  plan.dues.length > 0 ||
   plan.ends.length > 0;
 
 /** The cards the model may point at, by short refs; a group with its people now, by the same refs. */
@@ -336,11 +341,20 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     text: said,
   });
   const cards = knownCards(found, groupMembers(facts));
+  const ownId = entities.find((e) => e.kind === "self")?.id ?? null;
+  // The facts and events a new item may replace, under short refs (ARCH §19.9.3).
+  const known = candidateKnown({
+    cards: found,
+    entities,
+    now: message.createdAt,
+    records,
+    selfId: ownId,
+  });
   const commitments: OpenCommitment[] = candidateCommitments({
     cards: found,
     now: message.createdAt,
     records,
-    selfId: entities.find((e) => e.kind === "self")?.id ?? null,
+    selfId: ownId,
     text: said,
   }).map((r, i) => ({
     due: r.dueAt,
@@ -357,6 +371,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
       instructions: memoryInstructions({
         cards,
         commitments,
+        known,
         quoted: splitQuoted(text.slice(0, MAX_TEXT)).quoted !== "",
         sentAt: message.createdAt,
         timeZone: job.timeZone,
@@ -408,6 +423,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     cards,
     commitments,
     facts,
+    knownRecords: known,
     selfId,
     timeZone: job.timeZone,
   });

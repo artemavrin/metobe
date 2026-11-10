@@ -71,6 +71,7 @@ const record = (id: string, over: Partial<MemoryRecord> & Pick<MemoryRecord, "ki
   rule: null,
   status: null,
   supersededAt: null,
+  supersededBy: null,
   validFrom: null,
   validTo: null,
   writeId: null,

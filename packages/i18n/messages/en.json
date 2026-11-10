@@ -595,7 +595,10 @@
       "now": "just now",
       "show": "Show in chat",
       "failed": "Could not save the answer",
-      "newGroup": "A new group"
+      "newGroup": "A new group",
+      "replaced": "{text} · replaced: «{was}»",
+      "moved": "Deadline moved: {text} · {from} → {to}",
+      "noDue": "none"
     }
   },
   "login": {

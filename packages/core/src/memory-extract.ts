@@ -116,6 +116,12 @@ export const extractionSchema = z.object({
         .describe(
           "Rule only: true when the days are working days («пять рабочих дней»)"
         ),
+      // Last, so that the order of the fields S13 measured stays as it was (ARCH §19.9.3).
+      replaces: z
+        .string()
+        .describe(
+          "The ref of the current fact or coming event this item replaces («f1», «e2»); empty when it replaces nothing or none are listed"
+        ),
     })
   ),
   updates: z
@@ -138,6 +144,16 @@ export const extractionSchema = z.object({
     .describe(
       "People the message says are no longer in a known group («Марина ушла из команды»)"
     ),
+  moves: z
+    .array(
+      z.object({
+        ref: z.string().describe("An open commitment's ref: «k2»"),
+        due: when.describe("The new deadline"),
+      })
+    )
+    .describe(
+      "Open commitments whose deadline the message moves («не к пятнице, а к понедельнику»); empty when it moves none"
+    ),
 });
 /* oxlint-enable sort-keys */
 export type Extraction = z.infer<typeof extractionSchema>;
@@ -149,6 +165,21 @@ export interface OpenCommitment {
   text: string;
   status: "open" | "unconfirmed";
   due: Date | null;
+}
+
+/**
+ * A fact that holds now or an event coming up, shown to the model under a short ref («f1», «e2») so that a new item can
+ * say it replaces it (ARCH §19.9.3).
+ */
+export interface KnownRecord {
+  ref: string;
+  id: string;
+  kind: "fact" | "event";
+  text: string;
+  /** The cards it is about: a replacement has to share one. */
+  entityIds: string[];
+  /** A fact: since when it holds. An event: when it is. */
+  on: Date | null;
 }
 
 /** A card the model may point at, under a short ref («c3») instead of its id. */
@@ -281,6 +312,45 @@ export const memoryPrompt = (message: string, context: ChatTurn[] = []) => {
 };
 
 /**
+ * The block of current facts and coming events, each with the cards it is about, so that an item that replaces it can
+ * point at the same ones; nothing at all while there are none, so the prompt stays as measured.
+ */
+const knownBlock = (
+  known: KnownRecord[],
+  cards: KnownCard[],
+  timeZone: string
+) =>
+  known.length === 0
+    ? ""
+    : `Current facts and coming events (ref: text):
+${known
+  .map((k) => {
+    const refs = cards
+      .filter((c) => k.entityIds.includes(c.id))
+      .map((c) => c.ref);
+    const notes = [
+      k.on &&
+        `${k.kind === "fact" ? "since" : "on"} ${dayIn(k.on, timeZone).iso}`,
+      refs.length > 0 && `about ${refs.join(", ")}`,
+    ].filter(Boolean);
+    return `- ${k.ref}: ${k.text}${notes.length > 0 ? ` (${notes.join("; ")})` : ""}`;
+  })
+  .join("\n")}
+
+`;
+
+/**
+ * Only with the block of current facts and coming events (ARCH §19.9.3): every other message keeps the prompt S13 was
+ * measured on, word for word.
+ */
+const REPLACE_RULE = `
+- An item may replace one of the current facts or coming events above: put its ref in \`replaces\`. Replace only when the item says the same thing about the same subject and the old one is no longer true — a new stage of a project, a new position, a meeting moved or cancelled. A meeting that is moved is replaced by the new event with its new day; a cancelled one by an event «…отменена». The new item points at the same cards (about) as the one it replaces. Something added beside the old one («ещё и ведёт закупки») replaces nothing. When in doubt, replace nothing.`;
+
+/** Only with open commitments listed: the same exception as above. */
+const MOVE_RULE = `
+- When the message moves the deadline of an open commitment («не к пятнице, а к понедельнику»), put it in moves with the new deadline, and add no new item for it.`;
+
+/**
  * Only for a message with a quote, a letter or a forwarded message in it (ARCH §19.8.4): every other message keeps
  * the prompt S13 was measured on, word for word.
  */
@@ -293,12 +363,15 @@ export const memoryInstructions = ({
   timeZone,
   cards,
   commitments = [],
+  known = [],
   quoted = false,
 }: {
   sentAt: Date;
   timeZone: string;
   cards: KnownCard[];
   commitments?: OpenCommitment[];
+  /** Current facts and coming events a new item may replace; the block and its rule are there only when not empty. */
+  known?: KnownRecord[];
   /** The message has someone else's text in it (`splitQuoted`): the rule on it is added, and only then. */
   quoted?: boolean;
 }) => {
@@ -323,7 +396,7 @@ ${[...cards.map(cardLine), "- user: the user themselves"].join("\n")}
 Open commitments (ref: text):
 ${promises.join("\n")}
 
-Rules:
+${knownBlock(known, cards, timeZone)}Rules:
 - Kinds: fact — a lasting state or attribute (role, stage, preference, birthday); assessment — the user's own opinion or judgement of someone («часто срывает сроки»), never turned into a fact; event — something that happened or is scheduled at a time; commitment — someone owes someone an action, with or without a deadline; rule — the user's standing instruction about reminders or what to highlight.
 - A rule with a period: rhythm — how often the user wants to meet or talk with someone («один на один с Андреем раз в две недели» — 14 days, the person as ref; «с каждым из моей команды» — the group as ref, not its people); wait — how long a reply or result from others may take before it is worth asking («ответа от контрагента ждём пять рабочих дней» — 5, working days; the party as ref if named, none if it is anyone). «Раз в неделю» is 7, «раз в месяц» 30.
 - Groups: people the user names as one — «моя команда», «отдел продаж», «бухгалтерия», «подрядчики» — are a card of kind group; a department of the user's own company is a group too, while another company is an organization. «Работает в отделе продаж» means being in that group. When the message says someone is in a group («Павел — новый разработчик в моей команде», «в отделе продаж теперь Игорь»), add a fact with both refs in about: the person and the group. When it says someone is no longer in a known group («Марина ушла из команды»), put them in leaves and add no fact for it. A rule for everyone in a group points at the group.
@@ -342,7 +415,7 @@ Rules:
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
 - One item per thing: never the same item twice in other words, or once for each side of an agreement.
-- Do not add judgements or guesses that the message does not state.${quoted ? QUOTED_RULE : ""}`;
+- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}`;
 };
 
 /** Does the answer point at the user anywhere — then their own card has to exist before the plan is made. */
@@ -540,6 +613,10 @@ const toPlanned = (
   if (rule) {
     record.rule = rule;
   }
+  // The model's ref until `resolveReplaces` has checked it; then a record's id, or nothing.
+  if ((item.kind === "fact" || item.kind === "event") && item.replaces.trim()) {
+    record.replaces = item.replaces.trim();
+  }
   if (item.kind === "commitment") {
     record.givenAt = at?.at;
     record.dueAt = day(item.due)?.at;
@@ -634,6 +711,68 @@ const settled = (extraction: Extraction, commitments: OpenCommitment[]) => {
 };
 
 /**
+ * What the code lets a replacement through (ARCH §19.9.3): the ref is one that was shown, the kind is the same (a fact
+ * replaces a fact, an event an event), the two share a card, and the old one is not replaced twice in one answer.
+ * Anything else loses `replaces` and the record is added beside the old one. A record that waits for a question has no
+ * card yet to share, so it replaces nothing.
+ */
+const resolveReplaces = (records: Planned[], known: KnownRecord[]) => {
+  const byRef = new Map(known.map((k) => [k.ref, k]));
+  const taken = new Set<string>();
+  return records.map(({ replaces, ...record }): Planned => {
+    const old = replaces ? byRef.get(replaces) : undefined;
+    const cards = new Set(
+      record.entities.flatMap((l) => ("entityId" in l ? [l.entityId] : []))
+    );
+    if (
+      !old ||
+      old.kind !== record.kind ||
+      taken.has(old.id) ||
+      !old.entityIds.some((id) => cards.has(id))
+    ) {
+      return record;
+    }
+    taken.add(old.id);
+    return { ...record, replaces: old.id };
+  });
+};
+
+/** A question's records never replace: they wait for a card (the ref goes, the record stays). */
+const withoutReplaces = (draft: Draft): Draft => ({
+  ...draft,
+  records: draft.records.map(({ replaces: _ref, ...r }) => r),
+});
+
+/**
+ * The new deadlines the message gives open commitments: a ref to nothing, no day, the same day, a second word on the
+ * same one or a commitment the message settles in the same answer change nothing.
+ */
+const moved = (
+  extraction: Extraction,
+  commitments: OpenCommitment[],
+  statuses: MemoryWritePlan["statuses"],
+  day: (w: Item["when"]) => { at: Date } | null
+) => {
+  const byRef = new Map(commitments.map((c) => [c.ref, c]));
+  const settling = new Set(statuses.map((s) => s.recordId));
+  const dues = new Map<string, MemoryWritePlan["dues"][number]>();
+  for (const m of extraction.moves) {
+    const c = byRef.get(m.ref);
+    const to = day(m.due);
+    if (
+      c &&
+      to &&
+      !settling.has(c.id) &&
+      !dues.has(c.id) &&
+      c.due?.getTime() !== to.at.getTime()
+    ) {
+      dues.set(c.id, { dueAt: to.at, recordId: c.id });
+    }
+  }
+  return [...dues.values()];
+};
+
+/**
  * The model's answer as a plan for the store. Refs become cards: a known one, the user's own, a new one, or the one
  * the person will pick (P18); a new card named exactly like a known one is the known one; a ref to nothing is
  * dropped, and so is a new card no record points at. Dates become instants at midnight in the person's zone.
@@ -644,11 +783,14 @@ export const planWrite = (
     cards,
     commitments = [],
     facts = [],
+    knownRecords = [],
     selfId,
     timeZone,
   }: {
     cards: KnownCard[];
     commitments?: OpenCommitment[];
+    /** The facts and events shown to the model under refs: what a new record may replace. */
+    knownRecords?: KnownRecord[];
     /** The facts kept now: who is in which group, for «ушёл из команды». */
     facts?: MemoryRecord[];
     selfId: string | null;
@@ -687,17 +829,21 @@ export const planWrite = (
       [...fresh.values()].filter((e) => e.kind === "group").map((e) => e.ref)
     )
   );
-  const { drafts, ready } = sortOut(records, asks);
+  const sorted = sortOut(records, asks);
+  const drafts = sorted.drafts.map(withoutReplaces);
+  const ready = resolveReplaces(sorted.ready, knownRecords);
   const used = new Set(
     [...ready, ...drafts.flatMap((d) => d.records)].flatMap((r) =>
       r.entities.flatMap((l) => ("newRef" in l ? [l.newRef] : []))
     )
   );
+  const statuses = settled(extraction, commitments);
   return {
     drafts,
+    dues: moved(extraction, commitments, statuses, day),
     ends: leftGroups(extraction, cards, facts),
     entities: [...fresh.values()].filter((e) => used.has(e.ref)),
     records: ready,
-    statuses: settled(extraction, commitments),
+    statuses,
   };
 };

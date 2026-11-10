@@ -79,6 +79,7 @@ const lineOf = (
       `on ${day(r.occurredAt, timeZone)}${r.occurredPrecision && r.occurredPrecision !== "day" ? ` (${r.occurredPrecision})` : ""}`,
     r.validFrom && `since ${day(r.validFrom, timeZone)}`,
     r.validTo && `until ${day(r.validTo, timeZone)}`,
+    "supersededAt" in r && r.supersededAt && "replaced by a later message",
   ].filter(Boolean);
   return `${r.kind}: «${r.text}»${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
 };
@@ -166,7 +167,9 @@ const RANK: Record<string, number> = {
 
 /** Closed, or no longer true. */
 const isPast = (r: MemoryRecordView) =>
-  Boolean(r.validTo) || (r.kind === "commitment" && !OPEN.has(r.status ?? ""));
+  Boolean(r.validTo) ||
+  Boolean(r.supersededAt) ||
+  (r.kind === "commitment" && !OPEN.has(r.status ?? ""));
 
 /** A card's records for the model: open commitments, what is true now, events — then what is closed or past. */
 const cardOrder = (records: MemoryRecordView[]) =>

@@ -484,6 +484,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(
         await memory.applyWrite(ana, made.id, {
           drafts: [],
+          dues: [],
           ends: [],
           entities: [],
           records: [],
@@ -511,6 +512,182 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(back.find((r) => r.id === call.id)?.status).toBe("open");
     });
 
+    it("replaces a fact and an event from a message and moves a deadline — shown under the answer, undone with it (ARCH §19.9.3)", async () => {
+      const project = await memory.createEntity(ana, {
+        kind: "project",
+        name: "Склад 2.0",
+      });
+      const about = [{ entityId: project.id, role: "about" as const }];
+      const stage = await memory.addRecord(ana, {
+        entities: about,
+        kind: "fact",
+        text: "«Склад 2.0» на этапе разработки",
+        validFrom: new Date("2026-10-02T00:00:00Z"),
+      });
+      const meeting = await memory.addRecord(ana, {
+        entities: about,
+        kind: "event",
+        occurred: { at: new Date("2026-11-11T00:00:00Z"), precision: "day" },
+        text: "Встреча по складу в среду",
+      });
+      const promise = await memory.addRecord(ana, {
+        dueAt: new Date("2026-11-12T21:00:00Z"),
+        entities: [],
+        kind: "commitment",
+        text: "Прислать смету по складу",
+      });
+      const made = await memory.createWrite(ana, {
+        chatId,
+        messageId: crypto.randomUUID(),
+      });
+      expect(
+        await memory.applyWrite(ana, made.id, {
+          drafts: [],
+          dues: [
+            { dueAt: new Date("2026-11-15T21:00:00Z"), recordId: promise.id },
+          ],
+          ends: [],
+          entities: [],
+          records: [
+            {
+              entities: about,
+              kind: "fact",
+              replaces: stage.id,
+              text: "«Склад 2.0» в тестировании",
+              validFrom: new Date("2026-11-02T00:00:00Z"),
+            },
+            {
+              entities: about,
+              kind: "event",
+              occurred: {
+                at: new Date("2026-11-12T00:00:00Z"),
+                precision: "day",
+              },
+              replaces: meeting.id,
+              text: "Встреча по складу в четверг",
+            },
+          ],
+          statuses: [],
+        })
+      ).toBe(true);
+
+      const all = await memory.listRecords(ana, { includeSuperseded: true });
+      const byId = (id: string) => all.find((r) => r.id === id);
+      // The fact is ended on the day the new one begins; the event is set aside, not deleted.
+      expect(byId(stage.id)).toMatchObject({
+        closedByWrite: made.id,
+        validTo: new Date("2026-11-02T00:00:00Z"),
+      });
+      expect(byId(meeting.id)?.supersededAt).not.toBeNull();
+      expect(byId(promise.id)?.dueAt).toEqual(new Date("2026-11-15T21:00:00Z"));
+
+      const shown = await memory.chatMemory(ana, chatId);
+      const lines = shown.notes.find((n) => n.writeId === made.id)?.records;
+      expect(lines).toEqual([
+        expect.objectContaining({
+          replaced: "«Склад 2.0» на этапе разработки",
+          text: "«Склад 2.0» в тестировании",
+        }),
+        expect.objectContaining({
+          replaced: "Встреча по складу в среду",
+          text: "Встреча по складу в четверг",
+        }),
+        {
+          due: {
+            from: "2026-11-12T21:00:00.000Z",
+            to: "2026-11-15T21:00:00.000Z",
+          },
+          id: promise.id,
+          text: "Прислать смету по складу",
+        },
+      ]);
+
+      // On the card the replaced meeting stands in «Раньше»; the old version of a hand correction does not.
+      const page: typeof MemoryPageModule = await import("./memory-page");
+      const card = await page.memoryCard(ana, project.id);
+      expect(
+        card?.records
+          .filter((r) => r.kind === "event")
+          .map((r) => [r.text, Boolean(r.supersededAt)])
+      ).toEqual([
+        ["Встреча по складу в четверг", false],
+        ["Встреча по складу в среду", true],
+      ]);
+
+      await memory.undoWrite(ana, made.id);
+      const back = await memory.listRecords(ana, { includeSuperseded: true });
+      expect(back.find((r) => r.id === stage.id)).toMatchObject({
+        closedByWrite: null,
+        validTo: null,
+      });
+      expect(back.find((r) => r.id === meeting.id)?.supersededAt).toBeNull();
+      expect(back.find((r) => r.id === promise.id)?.dueAt).toEqual(
+        new Date("2026-11-12T21:00:00Z")
+      );
+      // Nothing of the write is left in the history.
+      const history = await memory.recordHistory(ana, promise.id);
+      expect(history?.changes).toEqual([]);
+      await memory.correctRecord(
+        ana,
+        meeting.id,
+        "Встреча по складу в среду в 15:00"
+      );
+      const fixed = await page.memoryCard(ana, project.id);
+      expect(
+        fixed?.records.filter((r) => r.kind === "event").map((r) => r.text)
+      ).toEqual(["Встреча по складу в среду в 15:00"]);
+    });
+
+    it("lets a replacement stand only on a live record of the owner's that the new one does not precede", async () => {
+      const project = await memory.createEntity(ana, {
+        kind: "project",
+        name: "Склад 3.0",
+      });
+      const about = [{ entityId: project.id, role: "about" as const }];
+      const live = await memory.addRecord(ana, {
+        entities: about,
+        kind: "fact",
+        text: "Склад 3.0 в тестировании",
+        validFrom: new Date("2026-11-02T00:00:00Z"),
+      });
+      const foreign = await memory.addRecord(bob, {
+        entities: [],
+        kind: "fact",
+        text: "Чужой факт",
+      });
+      const made = await memory.createWrite(ana, {
+        chatId,
+        messageId: crypto.randomUUID(),
+      });
+      await memory.applyWrite(ana, made.id, {
+        drafts: [],
+        dues: [],
+        ends: [],
+        entities: [],
+        records: [
+          // «В сентябре был на этапе дизайна»: older than the stage it would end — history, not a replacement.
+          {
+            entities: about,
+            kind: "fact",
+            replaces: live.id,
+            text: "Склад 3.0 был на этапе дизайна",
+            validFrom: new Date("2026-09-01T00:00:00Z"),
+          },
+          {
+            entities: about,
+            kind: "fact",
+            replaces: foreign.id,
+            text: "Склад 3.0 — для всех",
+          },
+        ],
+        statuses: [],
+      });
+      const mine = await memory.listRecords(ana);
+      expect(mine.find((r) => r.id === live.id)?.validTo).toBeNull();
+      const theirs = await memory.listRecords(bob);
+      expect(theirs.find((r) => r.id === foreign.id)?.validTo).toBeNull();
+    });
+
     it("puts in a whole message at once, and only once", async () => {
       const made = await memory.createWrite(ana, {
         chatId,
@@ -522,6 +699,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       });
       const plan: MemoryModule.MemoryWritePlan = {
         drafts: [],
+        dues: [],
         ends: [],
         entities: [
           {
@@ -564,6 +742,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       expect(
         await memory.applyWrite(ana, again.id, {
           drafts: [],
+          dues: [],
           ends: [],
           entities: [],
           records: [],
@@ -582,6 +761,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       const made = await memory.createWrite(ana, { chatId, messageId });
       await memory.applyWrite(ana, made.id, {
         drafts: [],
+        dues: [],
         ends: [],
         entities: [],
         records: [
@@ -625,6 +805,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
             ],
           },
         ],
+        dues: [],
         ends: [],
         entities: [],
         records: [],
@@ -742,6 +923,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       });
       await memory.applyWrite(ana, left.id, {
         drafts: [],
+        dues: [],
         ends: [inSales.id],
         entities: [],
         records: [],

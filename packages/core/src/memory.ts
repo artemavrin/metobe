@@ -380,6 +380,8 @@ export interface MemoryRecord {
   closedByWrite: string | null;
   recordedAt: Date;
   supersededAt: Date | null;
+  /** The record that took its place: a correction by hand, or a later message (ARCH §19.9.3). */
+  supersededBy: string | null;
   deletedAt: Date | null;
   writeId: string | null;
 }
@@ -418,6 +420,7 @@ const toRecord = (
         : null,
     status: row.status,
     supersededAt: row.supersededAt,
+    supersededBy: row.supersededBy,
     text: body.text,
     validFrom: row.validFrom,
     validTo: row.validTo,
@@ -979,6 +982,11 @@ type PlannedLink =
 
 type PlannedRecord = Omit<MemoryRecordInput, "entities" | "writeId"> & {
   entities: PlannedLink[];
+  /**
+   * The fact or event this one replaces (ARCH §19.9.3), already checked by `planWrite`: a fact is ended (`valid_to`),
+   * an event is put aside as replaced (`superseded_by`); undoing the write brings it back.
+   */
+  replaces?: string;
 };
 
 /** What one message adds: new cards under refs, records pointing at known cards or those refs, and questions. */
@@ -996,9 +1004,57 @@ export interface MemoryWritePlan {
   }[];
   /** Open commitments the message settles. */
   statuses: { recordId: string; status: Exclude<MemoryStatus, "open"> }[];
+  /** Open commitments whose deadline the message moves: the change goes into their history, undoing the write reverts it. */
+  dues: { recordId: string; dueAt: Date }[];
   /** Facts the message ends («Марина ушла из команды»): they move to «Раньше», and «Отменить» brings them back. */
   ends: string[];
 }
+
+/**
+ * A new fact or event takes the place of an old one the plan named (ARCH §19.9.3). A fact is ended — `valid_to` at the
+ * day the new one begins (now, when it has no day), `closed_by_write` the message — and an event is set aside as
+ * replaced, `superseded_by` the new one: undoing the write brings either back. Only a live record of the owner's of
+ * the same kind; a new fact that began before the old one is history beside it, not its end.
+ */
+const replaceRecord = async (
+  tx: Tx,
+  ownerId: string,
+  writeId: string,
+  oldId: string,
+  next: MemoryRecord
+) => {
+  const [old] = await tx
+    .select()
+    .from(memoryRecords)
+    .where(
+      and(
+        eq(memoryRecords.id, oldId),
+        eq(memoryRecords.ownerId, ownerId),
+        eq(memoryRecords.kind, next.kind),
+        isNull(memoryRecords.deletedAt),
+        isNull(memoryRecords.supersededAt)
+      )
+    )
+    .for("update");
+  if (!old || old.id === next.id) {
+    return;
+  }
+  if (next.kind === "fact") {
+    const to = next.validFrom ?? new Date();
+    if (old.validTo || (old.validFrom && old.validFrom > to)) {
+      return;
+    }
+    await tx
+      .update(memoryRecords)
+      .set({ closedByWrite: writeId, validTo: to })
+      .where(eq(memoryRecords.id, old.id));
+  } else if (next.kind === "event") {
+    await tx
+      .update(memoryRecords)
+      .set({ supersededAt: new Date(), supersededBy: next.id })
+      .where(eq(memoryRecords.id, old.id));
+  }
+};
 
 /**
  * Puts in all a message adds, in one step: a write that fails halfway and is tried again leaves no doubles. The write
@@ -1011,7 +1067,11 @@ export const applyWrite = async (
   plan: MemoryWritePlan
 ) => {
   const adds = plan.records.length > 0 || plan.drafts.length > 0;
-  const keeps = adds || plan.statuses.length > 0 || plan.ends.length > 0;
+  const keeps =
+    adds ||
+    plan.statuses.length > 0 ||
+    plan.dues.length > 0 ||
+    plan.ends.length > 0;
   const key = adds ? await dataKey(ownerId, true) : null;
   return getDb().db.transaction(async (tx) => {
     const [write] = await tx
@@ -1046,8 +1106,8 @@ export const applyWrite = async (
           const entityId = made.get(l.newRef);
           return entityId ? [{ entityId, role: l.role }] : [];
         });
-      await Promise.all(
-        plan.records.map((r) =>
+      const inserted = await Promise.all(
+        plan.records.map(({ replaces: _replaces, ...r }) =>
           insertRecord(tx, ownerId, key, {
             ...r,
             entities: settle(r.entities).flatMap((l) =>
@@ -1057,6 +1117,14 @@ export const applyWrite = async (
           })
         )
       );
+      // What the new records replace (ARCH §19.9.3): one after another, each checked against the row as it is now.
+      for (const [i, r] of plan.records.entries()) {
+        const next = inserted[i];
+        if (r.replaces && next) {
+          // oxlint-disable-next-line no-await-in-loop -- one connection, and each replacement reads its row first
+          await replaceRecord(tx, ownerId, writeId, r.replaces, next);
+        }
+      }
       await Promise.all(
         plan.drafts.map((d) => {
           const id = crypto.randomUUID();
@@ -1090,6 +1158,18 @@ export const applyWrite = async (
           ownerId,
           s.recordId,
           { status: s.status },
+          { onlyOpen: true, writeId }
+        )
+      )
+    );
+    // The new deadlines, each into the commitment's history; undoing the write puts the old one back.
+    await Promise.all(
+      plan.dues.map((d) =>
+        changeCommitment(
+          tx,
+          ownerId,
+          d.recordId,
+          { dueAt: d.dueAt },
           { onlyOpen: true, writeId }
         )
       )
@@ -1473,6 +1553,96 @@ export const undoWrite = (ownerId: string, writeId: string) =>
     return true;
   });
 
+/**
+ * What each new record of a message took the place of, by the new record's id, as the old text (ARCH §19.9.3). An
+ * event: the one set aside as replaced by it. A fact: the one the same message ended that shares a card with it. A
+ * hand correction is not one — the old version of it has the same message as the new.
+ */
+const replacedTexts = async (
+  ownerId: string,
+  writeIds: string[],
+  records: MemoryRecord[]
+) => {
+  const out = new Map<string, string>();
+  const key = await dataKey(ownerId, false);
+  if (!key || records.length === 0) {
+    return out;
+  }
+  const { db } = getDb();
+  const events = await db
+    .select()
+    .from(memoryRecords)
+    .where(
+      and(
+        eq(memoryRecords.ownerId, ownerId),
+        inArray(
+          memoryRecords.supersededBy,
+          records.map((r) => r.id)
+        ),
+        isNull(memoryRecords.deletedAt)
+      )
+    );
+  const writeOf = new Map(records.map((r) => [r.id, r.writeId]));
+  for (const row of events) {
+    if (row.supersededBy && row.writeId !== writeOf.get(row.supersededBy)) {
+      out.set(row.supersededBy, toRecord(row, [], key).text);
+    }
+  }
+  const ended = await listRecords(ownerId, {
+    closedBy: writeIds,
+    kinds: ["fact"],
+  });
+  const taken = new Set<string>();
+  for (const r of records) {
+    const old = ended.find(
+      (e) =>
+        r.kind === "fact" &&
+        e.closedByWrite === r.writeId &&
+        !taken.has(e.id) &&
+        e.entities.some((l) =>
+          r.entities.some((n) => n.entityId === l.entityId)
+        )
+    );
+    if (old) {
+      taken.add(old.id);
+      out.set(r.id, old.text);
+    }
+  }
+  return out;
+};
+
+/** The deadlines messages moved, by message: which commitment, from when to when. */
+const dueMoves = async (ownerId: string, writeIds: string[]) => {
+  const rows = await getDb()
+    .db.select()
+    .from(memoryChanges)
+    .where(
+      and(
+        eq(memoryChanges.ownerId, ownerId),
+        eq(memoryChanges.field, "due"),
+        inArray(memoryChanges.writeId, writeIds)
+      )
+    )
+    .orderBy(memoryChanges.at);
+  const commitments = await listRecords(ownerId, {
+    ids: rows.map((r) => r.recordId),
+  });
+  const texts = new Map(commitments.map((r) => [r.id, r.text]));
+  return rows.flatMap((c) => {
+    const text = texts.get(c.recordId);
+    return text && c.writeId
+      ? [
+          {
+            due: { from: c.before, to: c.after },
+            id: c.recordId,
+            text,
+            writeId: c.writeId,
+          },
+        ]
+      : [];
+  });
+};
+
 /** What the memory took from one chat: «Запомнено» per message, and the open questions (P18). */
 export const chatMemory = async (ownerId: string, chatId: string) => {
   const writes = await getDb()
@@ -1486,13 +1656,15 @@ export const chatMemory = async (ownerId: string, chatId: string) => {
       )
     );
   const ids = writes.map((w) => w.id);
-  const [records, closed] =
+  const [records, closed, moved] =
     ids.length > 0
       ? await Promise.all([
           listRecords(ownerId, { writeIds: ids }),
           listRecords(ownerId, { closedBy: ids, kinds: ["commitment"] }),
+          dueMoves(ownerId, ids),
         ])
-      : [[], []];
+      : [[], [], []];
+  const replaced = await replacedTexts(ownerId, ids, records);
   // Oldest first under one answer: in the order the message said them; what it settled after what it added.
   const byWrite = new Map<string, ChatMemory["notes"][number]["records"]>();
   const add = (
@@ -1502,13 +1674,21 @@ export const chatMemory = async (ownerId: string, chatId: string) => {
   for (let i = records.length - 1; i >= 0; i -= 1) {
     const r = records[i];
     if (r?.writeId) {
-      add(r.writeId, { id: r.id, text: r.text });
+      const was = replaced.get(r.id);
+      add(r.writeId, {
+        id: r.id,
+        text: r.text,
+        ...(was ? { replaced: was } : {}),
+      });
     }
   }
   for (const r of closed) {
     if (r.closedByWrite && r.status && r.status !== "open") {
       add(r.closedByWrite, { id: r.id, status: r.status, text: r.text });
     }
+  }
+  for (const m of moved) {
+    add(m.writeId, { due: m.due, id: m.id, text: m.text });
   }
   return {
     notes: writes.flatMap((w) => {

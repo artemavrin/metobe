@@ -1,4 +1,5 @@
 import type { MemoryEntity, MemoryRecord } from "./memory";
+import type { KnownRecord } from "./memory-extract";
 import { fullNames } from "./memory-names";
 
 // What the «Память» model is shown of a person's memory (ARCH §19.8.3): not every card and promise, but the ones a
@@ -288,6 +289,100 @@ export const candidateCommitments = ({
       .slice(0, MAX_CANDIDATES)
       .map(({ r }) => r)
   );
+};
+
+/** Facts per card, and in all, that a new item may replace (ARCH §19.9.3). */
+const KNOWN_PER_CARD = 5;
+const MAX_KNOWN_FACTS = 30;
+/** Events coming up and those of the last week: «не во вторник, а в среду» is about one that has just passed. */
+const MAX_KNOWN_EVENTS = 15;
+const EVENT_BACK_DAYS = 7;
+
+const linksOf = (r: MemoryRecord) => r.entities.map((e) => e.entityId);
+const newest = (r: MemoryRecord) => (r.validFrom ?? r.recordedAt).getTime();
+
+/**
+ * The facts that hold now and the events around today of the cards the model is shown, each under a short ref
+ * («f1», «e1») so that an item can say it replaces one (ARCH §19.9.3). Facts: up to five of the newest on a card, the
+ * cards in the order they were given (the named ones first), then the person's own, thirty in all; facts about who is
+ * in a group are `leaves`' business, not replaced here. Events: coming ones and those of the last seven days,
+ * the nearest to today first, fifteen. Assessments are never shown — a changed opinion is a second assessment with a
+ * date, not a replacement.
+ */
+export const candidateKnown = ({
+  entities,
+  records,
+  cards,
+  selfId,
+  now = new Date(),
+}: {
+  entities: MemoryEntity[];
+  records: MemoryRecord[];
+  /** The candidate cards, the named ones first. */
+  cards: MemoryEntity[];
+  selfId: string | null;
+  now?: Date;
+}): KnownRecord[] => {
+  const groups = new Set(
+    entities.filter((e) => e.kind === "group").map((e) => e.id)
+  );
+  const facts = records.filter(
+    (r) =>
+      r.kind === "fact" &&
+      !r.validTo &&
+      !linksOf(r).some((id) => groups.has(id))
+  );
+  const ids = [...cards.map((c) => c.id), ...(selfId ? [selfId] : [])];
+  const seen = new Set<string>();
+  const shownFacts: MemoryRecord[] = [];
+  for (const id of ids) {
+    const mine = facts
+      .filter((r) => linksOf(r).includes(id) && !seen.has(r.id))
+      // oxlint-disable-next-line unicorn/no-array-sort -- filter gave a fresh array; toSorted is past the ES2022 target
+      .sort((a, b) => newest(b) - newest(a))
+      .slice(0, KNOWN_PER_CARD);
+    for (const r of mine) {
+      if (shownFacts.length < MAX_KNOWN_FACTS) {
+        seen.add(r.id);
+        shownFacts.push(r);
+      }
+    }
+  }
+  const from = now.getTime() - EVENT_BACK_DAYS * DAY_MS;
+  const cardIds = new Set(cards.map((c) => c.id));
+  const shownEvents = records
+    .filter(
+      (r) =>
+        r.kind === "event" &&
+        r.occurredAt &&
+        r.occurredAt.getTime() >= from &&
+        linksOf(r).some((id) => cardIds.has(id))
+    )
+    // oxlint-disable-next-line unicorn/no-array-sort -- filter gave a fresh array; toSorted is past the ES2022 target
+    .sort(
+      (a, b) =>
+        Math.abs((a.occurredAt?.getTime() ?? 0) - now.getTime()) -
+        Math.abs((b.occurredAt?.getTime() ?? 0) - now.getTime())
+    )
+    .slice(0, MAX_KNOWN_EVENTS);
+  return [
+    ...shownFacts.map((r, i): KnownRecord => ({
+      entityIds: linksOf(r),
+      id: r.id,
+      kind: "fact",
+      on: r.validFrom,
+      ref: `f${i + 1}`,
+      text: r.text,
+    })),
+    ...shownEvents.map((r, i): KnownRecord => ({
+      entityIds: linksOf(r),
+      id: r.id,
+      kind: "event",
+      on: r.occurredAt,
+      ref: `e${i + 1}`,
+      text: r.text,
+    })),
+  ];
 };
 
 /** At most so many «Один человек?» at once: a few to decide, not a list to work through. */

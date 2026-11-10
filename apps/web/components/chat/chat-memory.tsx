@@ -10,7 +10,7 @@ import {
 } from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import { BookUser, ChevronDown, Undo2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { use, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
@@ -95,17 +95,34 @@ const Note = ({
   api: ChatMemoryApi;
 }) => {
   const t = useTranslations("chat.memory");
+  const format = useFormatter();
   const [open, setOpen] = useState(false);
   const many = note.records.length > 1;
-  // A commitment the message settled reads as what became of it: «Выполнено: Прислать договор».
-  const line = (r: ChatMemory["notes"][number]["records"][number]) =>
-    r.status ? t("settled", { status: r.status, text: r.text }) : r.text;
+  type Line = ChatMemory["notes"][number]["records"][number];
+  const day = (iso: string | null) =>
+    iso
+      ? format.dateTime(new Date(iso), { day: "numeric", month: "short" })
+      : t("noDue");
+  // What the message put in, and what it took the place of: «… · заменило: «…»».
+  const body = (r: Line) =>
+    r.replaced ? t("replaced", { text: r.text, was: r.replaced }) : r.text;
+  // A commitment the message settled reads as what became of it («Выполнено: Прислать договор»), one whose deadline it
+  // moved as the move («Срок перенесён: … · 13 ноя → 16 ноя»).
+  const line = (r: Line) => {
+    if (r.status) {
+      return t("settled", { status: r.status, text: r.text });
+    }
+    return r.due
+      ? t("moved", { from: day(r.due.from), text: r.text, to: day(r.due.to) })
+      : body(r);
+  };
   const [first] = note.records;
   let summary = t("rememberedMany", { count: note.records.length });
   if (!many) {
-    summary = first?.status
-      ? line(first)
-      : t("remembered", { text: first?.text ?? "" });
+    summary =
+      first?.status || first?.due
+        ? line(first)
+        : t("remembered", { text: first ? body(first) : "" });
   }
   return (
     <div

@@ -81,6 +81,7 @@ const views = async (
       occurredPrecision: r.occurredPrecision,
       recordedAt: r.recordedAt.toISOString(),
       status: r.status,
+      supersededAt: iso(r.supersededAt),
       text: r.text,
       validFrom: iso(r.validFrom),
       validTo: iso(r.validTo),
@@ -111,6 +112,27 @@ export const memoryOverview = async (
   };
 };
 
+/**
+ * A card's records, and with them the events a later message replaced («Раньше»; ARCH §19.9.3). An old version of a
+ * hand correction is not one: it has the message its correction has. A replaced one whose replacement was deleted
+ * is out of sight with it.
+ */
+const withReplacedEvents = async (ownerId: string, entityId: string) => {
+  const all = await listRecords(ownerId, { entityId, includeSuperseded: true });
+  const replacers = await listRecords(ownerId, {
+    ids: all.flatMap((r) => (r.supersededBy ? [r.supersededBy] : [])),
+  });
+  const writeOf = new Map(replacers.map((r) => [r.id, r.writeId]));
+  return all.filter(
+    (r) =>
+      !r.supersededAt ||
+      (r.kind === "event" &&
+        r.supersededBy !== null &&
+        writeOf.has(r.supersededBy) &&
+        writeOf.get(r.supersededBy) !== r.writeId)
+  );
+};
+
 /** One card with all it takes part in; null — not the owner's, or the person's own. */
 export const memoryCard = async (
   ownerId: string,
@@ -123,7 +145,7 @@ export const memoryCard = async (
   }
   const [cards, records] = await Promise.all([
     cardItems(ownerId, [entity]),
-    listRecords(ownerId, { entityId: id }),
+    withReplacedEvents(ownerId, id),
   ]);
   const [card] = cards;
   if (!card) {

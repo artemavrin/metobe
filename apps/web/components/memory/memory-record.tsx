@@ -377,9 +377,12 @@ const RecordMenu = ({
         <DropdownMenuItem onClick={onSource}>
           <Quote /> {t("source")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onEdit}>
-          <Pencil /> {t("edit")}
-        </DropdownMenuItem>
+        {/* Replaced by a later message: it is history, and there is no live record to correct. */}
+        {!r.supersededAt && (
+          <DropdownMenuItem onClick={onEdit}>
+            <Pencil /> {t("edit")}
+          </DropdownMenuItem>
+        )}
         {r.kind === "commitment" && r.status && <CommitmentItems record={r} />}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => remove(r.id)} variant="destructive">
