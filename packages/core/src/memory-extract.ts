@@ -218,9 +218,46 @@ export const chatContext = (turns: ChatTurn[]) => {
   return kept.toReversed();
 };
 
+/** A line that starts what was forwarded or copied from a letter: everything from it on is someone else's. */
+const FORWARDED =
+  /^\s*(?:-{2,}\s*)?(?:пересланное сообщение|forwarded message|original message|исходное сообщение|переслано от|forwarded from)(?!\p{L})/iu;
+/** A letter's header: two of them in a row start a letter. */
+const HEADER =
+  /^\s*(?:от|кому|копия|тема|дата|отправлено|from|to|cc|subject|date|sent)\s*:/iu;
+
+/**
+ * The person's own words apart from what they pasted (ARCH §19.8.4): lines quoted with «>», and everything from a
+ * forwarding line («Пересланное сообщение», «-----Original Message-----») or a letter's headers («От:», «Тема:») on.
+ * A text without such marks is all the person's: a letter pasted bare is left to the prompt's rule.
+ */
+export const splitQuoted = (text: string) => {
+  const lines = text.split("\n");
+  const own: string[] = [];
+  const quoted: string[] = [];
+  let rest = false;
+  for (const [i, line] of lines.entries()) {
+    if (
+      !rest &&
+      (FORWARDED.test(line) ||
+        (HEADER.test(line) && HEADER.test(lines[i + 1] ?? "")))
+    ) {
+      rest = true;
+    }
+    if (rest) {
+      quoted.push(line);
+    } else if (line.trimStart().startsWith(">")) {
+      quoted.push(line.replace(/^\s*>\s?/u, ""));
+    } else {
+      own.push(line);
+    }
+  }
+  return { own: own.join("\n").trim(), quoted: quoted.join("\n").trim() };
+};
+
 /**
  * What the model reads: the message, and before it the chat it follows (`chatContext`) — only to understand «он»,
- * «передумал», an answer to the assistant's question or a story told over a few messages (S13, part 5).
+ * «передумал», an answer to the assistant's question or a story told over a few messages (S13, part 5). A message with
+ * something quoted or forwarded in it comes split: the person's words in <user>, the rest in <quoted>.
  */
 export const memoryPrompt = (message: string, context: ChatTurn[] = []) => {
   const lines = chatContext(context).map(
@@ -228,8 +265,19 @@ export const memoryPrompt = (message: string, context: ChatTurn[] = []) => {
   );
   const before =
     lines.length > 0 ? `<context>\n${lines.join("\n")}\n</context>\n` : "";
-  return `${before}<message>\n${message}\n</message>`;
+  const { own, quoted } = splitQuoted(message);
+  const body = quoted
+    ? `<user>\n${own}\n</user>\n<quoted>\n${quoted}\n</quoted>`
+    : message;
+  return `${before}<message>\n${body}\n</message>`;
 };
+
+/**
+ * Only for a message with a quote, a letter or a forwarded message in it (ARCH §19.8.4): every other message keeps
+ * the prompt S13 was measured on, word for word.
+ */
+const QUOTED_RULE = `
+- The message has someone else's text inside <quoted>: a letter, a forwarded message or a quote. It speaks in its author's voice: «я», «мы», «наша компания» there are the author, never the user. An author's promise is the author's commitment, to the user unless it names someone else; a request to the user is the user's commitment to the author. The user's own words are inside <user>. A long quoted text gives the few items that matter to the user, not one per sentence.`;
 
 /** «Today» is when the message was sent, in the person's zone: a write retried tomorrow still reads «вчера» right. */
 export const memoryInstructions = ({
@@ -237,11 +285,14 @@ export const memoryInstructions = ({
   timeZone,
   cards,
   commitments = [],
+  quoted = false,
 }: {
   sentAt: Date;
   timeZone: string;
   cards: KnownCard[];
   commitments?: OpenCommitment[];
+  /** The message has someone else's text in it (`splitQuoted`): the rule on it is added, and only then. */
+  quoted?: boolean;
 }) => {
   const today = dayIn(sentAt, timeZone);
   const promises =
@@ -283,7 +334,7 @@ Rules:
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
 - One item per thing: never the same item twice in other words, or once for each side of an agreement.
-- Do not add judgements or guesses that the message does not state.`;
+- Do not add judgements or guesses that the message does not state.${quoted ? QUOTED_RULE : ""}`;
 };
 
 /** Does the answer point at the user anywhere — then their own card has to exist before the plan is made. */

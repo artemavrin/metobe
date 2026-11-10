@@ -7,6 +7,7 @@ import {
   memoryPrompt,
   mentionsUser,
   planWrite,
+  splitQuoted,
 } from "./memory-extract";
 import type {
   ChatTurn,
@@ -171,6 +172,67 @@ describe("memoryPrompt", () => {
 const turn = (role: ChatTurn["role"], text: string): ChatTurn => ({
   role,
   text,
+});
+
+describe("splitQuoted", () => {
+  it("leaves a message without quotes as it is", () => {
+    expect(splitQuoted("Тема простая: созвонились с Ольгой")).toEqual({
+      own: "Тема простая: созвонились с Ольгой",
+      quoted: "",
+    });
+    expect(memoryPrompt("Ольга прислала договор")).toBe(
+      "<message>\nОльга прислала договор\n</message>"
+    );
+  });
+
+  it("takes lines with «>» out, the reply stays the person's", () => {
+    expect(
+      splitQuoted("> Мы подготовим договор к пятнице\n> Ольга\nОк, жду.")
+    ).toEqual({
+      own: "Ок, жду.",
+      quoted: "Мы подготовим договор к пятнице\nОльга",
+    });
+  });
+
+  it("takes everything from a forwarding line on", () => {
+    const { own, quoted } = splitQuoted(
+      "Глянь, что пишут\n---------- Пересланное сообщение ----------\nМы отгрузим до 20-го."
+    );
+    expect(own).toBe("Глянь, что пишут");
+    expect(quoted).toBe(
+      "---------- Пересланное сообщение ----------\nМы отгрузим до 20-го."
+    );
+    expect(splitQuoted("-----Original Message-----\nWe will send it").own).toBe(
+      ""
+    );
+  });
+
+  it("starts a letter at two headers in a row, not at one", () => {
+    const { own, quoted } = splitQuoted(
+      "Письмо от Вектора\n\nОт: Андрей Ковалёв\nТема: Поставка\n\nМы обязуемся отгрузить."
+    );
+    expect(own).toBe("Письмо от Вектора");
+    expect(quoted.startsWith("От: Андрей Ковалёв")).toBe(true);
+    expect(splitQuoted("Тема: перенос встречи на четверг").quoted).toBe("");
+  });
+
+  it("adds the rule on someone else's text only for a message with a quote", () => {
+    const args = {
+      cards: [],
+      sentAt: new Date("2026-11-09T09:00:00Z"),
+      timeZone: "Europe/Moscow",
+    };
+    expect(memoryInstructions(args)).not.toContain("<quoted>");
+    expect(memoryInstructions({ ...args, quoted: true })).toContain(
+      "someone else's text inside <quoted>"
+    );
+  });
+
+  it("gives the model the person's words and the quote apart", () => {
+    expect(memoryPrompt("> Я сделаю API к среде\nОк")).toBe(
+      "<message>\n<user>\nОк\n</user>\n<quoted>\nЯ сделаю API к среде\n</quoted>\n</message>"
+    );
+  });
 });
 
 describe("chatContext", () => {
