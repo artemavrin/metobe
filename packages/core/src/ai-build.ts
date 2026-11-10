@@ -98,6 +98,9 @@ export const buildProvider = ({
         // Without it llama.cpp and others send no usage in a stream: no tokens, no cache, no cost.
         includeUsage: true,
         name: "compatible",
+        // Without it the schema of a structured answer is not sent: the model answers in a shape of its own (the
+        // «Память» writer on gpt-oss:120b got `{facts, events…}`, never `items`). llama.cpp, Ollama and vLLM take it.
+        supportsStructuredOutputs: true,
       });
       return { languageModel: (id) => p.chatModel(id) };
     }
