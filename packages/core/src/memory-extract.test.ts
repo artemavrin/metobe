@@ -39,20 +39,23 @@ const cards: KnownCard[] = [
   },
 ];
 
+/** «No time», as the model says it. */
+const NO_TIME = { date: "", precision: "none" } as const;
+
 const item = (
   over: Partial<Extraction["items"][number]>
 ): Extraction["items"][number] => ({
   about: [],
   creditor: null,
   debtor: null,
-  due: null,
+  due: NO_TIME,
   important: false,
-  interval_days: null,
+  interval_days: 0,
   kind: "fact",
   role: null,
   rule_kind: null,
   text: "текст",
-  when: null,
+  when: NO_TIME,
   working_days: null,
   ...over,
 });
@@ -731,5 +734,30 @@ describe("mentionsUser", () => {
         updates: [],
       })
     ).toBe(true);
+  });
+});
+
+describe("an item's time (ARCH §19.4)", () => {
+  it("takes «no time» said outright, and a dated «none», as no date", () => {
+    const { records } = plan({
+      items: [
+        item({ kind: "event", text: "Созвон", when: NO_TIME }),
+        item({
+          kind: "event",
+          text: "Встреча",
+          when: { date: "2026-11-20", precision: "none" },
+        }),
+        item({
+          kind: "event",
+          text: "Подписание",
+          when: { date: "2026-11-03", precision: "day" },
+        }),
+      ],
+    });
+    expect(records.map((r) => r.occurred?.precision ?? null)).toEqual([
+      null,
+      null,
+      "day",
+    ]);
   });
 });

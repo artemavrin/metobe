@@ -16,16 +16,18 @@ import { membershipFacts } from "./memory-groups";
 // prompt — the kind before the text, the new cards before the records that point at them. Sorted, Gemini Flash-Lite
 // fell from 100 % to 83 % of records on the S13 set: events became commitments, new people went unnamed.
 /* oxlint-disable sort-keys */
-const when = z
-  .object({
-    date: z
-      .string()
-      .describe(
-        "YYYY-MM-DD. For a week — the middle of it; for a month — its first day; for a year — 1 January"
-      ),
-    precision: z.enum(["day", "week", "month", "year"]),
-  })
-  .nullable();
+/**
+ * A time, always given: a model allowed `null` here took it even after writing the date into the text (DeepSeek v4.1
+ * Flash left a third of the dates out, S13). No time in the message — precision `none` and an empty date, said outright.
+ */
+const when = z.object({
+  date: z
+    .string()
+    .describe(
+      "YYYY-MM-DD. For a week — the middle of it; for a month — its first day; for a year — 1 January. Empty when precision is none"
+    ),
+  precision: z.enum(["day", "week", "month", "year", "none"]),
+});
 
 export const extractionSchema = z.object({
   new_entities: z
@@ -81,9 +83,11 @@ export const extractionSchema = z.object({
         .describe("Commitment only: who has to do it"),
       creditor: z.string().nullable().describe("Commitment only: for whom"),
       when: when.describe(
-        "Fact or assessment: since when it is true. Event: when it happened or is scheduled. Commitment: when it was given. Null if unknown"
+        "Fact or assessment: since when it is true. Event: when it happened or is scheduled. Commitment: when it was given. Precision none only if the message gives no time for it"
       ),
-      due: when.describe("Commitment only: the deadline, null if none"),
+      due: when.describe(
+        "Commitment only: the deadline. Precision none if it is not a commitment or the message gives no deadline"
+      ),
       role: z
         .string()
         .nullable()
@@ -97,8 +101,9 @@ export const extractionSchema = z.object({
         ),
       interval_days: z
         .number()
-        .nullable()
-        .describe("Rule only: the period or threshold in days"),
+        .describe(
+          "Rule only: the period or threshold in days («раз в две недели» — 14). 0 if it is not a rule or has no period"
+        ),
       rule_kind: z
         .enum(["rhythm", "wait", "other"])
         .nullable()
@@ -671,8 +676,9 @@ export const planWrite = (
     return fresh.has(ref) ? { newRef: ref, role } : null;
   };
   const day = (w: Item["when"]) => {
-    const at = w ? localMidnight(w.date, timeZone) : null;
-    return at && w ? { at, precision: w.precision as MemoryPrecision } : null;
+    // «No time» is said outright (precision `none`); a date that is not a day is no time either.
+    const at = w.precision === "none" ? null : localMidnight(w.date, timeZone);
+    return at && w.precision !== "none" ? { at, precision: w.precision } : null;
   };
   const records = asMemberships(
     extraction.items.flatMap((item) => toPlanned(item, link, day) ?? []),
