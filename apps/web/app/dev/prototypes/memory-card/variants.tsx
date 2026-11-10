@@ -1,153 +1,228 @@
 "use client";
 
 import { Button } from "@metobe/ui/components/button";
-import { Input } from "@metobe/ui/components/input";
 import { cn } from "@metobe/ui/lib/utils";
-import { ArrowUp, Check, FolderKanban, Mail, Pencil, Plus, Users } from "lucide-react";
-import { useState } from "react";
+import { Check, Mail, Pencil, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
-import { ENTER, PRESS, Shell, rise, usePhone, useProto } from "../memory/frame";
+import { ENTER, Shell, rise, usePhone, useProto } from "../memory/frame";
 
-// P22 · карточка человека на странице «Память», заново. Что было не так: строки повторяют имя и подпись («Ирина
-// Белова — заместитель пользователя»), нет ни проектов, ни последнего контакта, добавить самому нельзя, кнопка
-// «Сверка» не объясняет, что делает. Здесь: шапка с тем, кто это (роль, группы, проекты — правятся на месте), строка
-// «что сейчас» (сколько открыто, когда виделись), обязательства в две стороны, записи без имени в начале.
-// «Одной колонкой» — всё подряд, внизу поле: написал словами — запись появилась (тип определяется сам).
-// «С боковой» — справа «О человеке» (что известно, проекты, как часто встречаться), слева дела и история; у каждого
-// раздела свой «+».
-// Параметры: записей — много или пусто (новая карточка). В адресе: `?v=1&fill=empty&sz=phone`.
+// P22 · раунд 2: карточка человека. Раунд 1 («Одной колонкой» взят за основу) — ./round-1.
+// Что изменено после разбора (ui-design: спокойная плотность, структура без рамок; emil: отклик на нажатие, движение
+// только там, где объясняет):
+// — «что сейчас» — не абзац, а три числа в строку: последняя встреча, ритм, открыто. Читается за секунду.
+// — обязательство — строка с кружком слева, как дело в списке: нажал — закрыл. Галочка справа терялась.
+// — срок — у текста, а не в 500 px от него; просрочка — единственный цвет на странице.
+// — история — с датой в левом поле: видно, что это хронология, а не ещё один список.
+// — добавление — тихая строка «Записать…» под шапкой, не второе поле чата внизу: его путали бы с чатом.
+// — значки у группы и проектов убраны: они ничего не различали.
+// «Колонкой» — всё подряд, дела первыми. «Баланс» — «ждёте» и «обещали» рядом: видно, кто кому больше должен.
+// Параметры: записей — много или пусто. В адресе: `?v=1&fill=empty&sz=phone`.
 
 interface Item { id: string; text: string; meta?: string; late?: boolean }
+type Key = "them" | "me" | "known" | "history";
 
-const PERSON = { groups: ["Моя команда"], initials: "ИБ", name: "Ирина Белова", role: "Заместитель" };
-const FROM_THEM: Item[] = [
-  { id: "t1", late: true, meta: "просрочено на 2 дн.", text: "Доделать вторую версию портала" },
-  { id: "t2", meta: "до пт, 13 ноя", text: "Прислать план работ на декабрь" },
-];
-const FROM_ME: Item[] = [{ id: "m1", meta: "до ср, 11 ноя", text: "Согласовать её отпуск на январь" }];
-const KNOWN: Item[] = [
-  { id: "k1", text: "Сильна в переговорах с поставщиками" },
-  { id: "k2", text: "Предпочитает короткие сообщения, не звонки" },
-  { id: "k3", meta: "с 3 ноя", text: "Ведёт вторую версию портала" },
-];
-const PROJECTS = ["Портал, вторая версия", "Склад 2.0"];
-const HISTORY: Item[] = [
-  { id: "h1", meta: "6 ноя", text: "Встреча один на один: обсудили сроки портала" },
-  { id: "h2", meta: "28 окт", text: "Созвон с поставщиком, вела переговоры" },
-  { id: "h3", meta: "14 окт", text: "Встреча один на один" },
-];
+const PERSON = { initials: "ИБ", name: "Ирина Белова", role: "Заместитель", tags: ["Моя команда", "Портал, вторая версия", "Склад 2.0"] };
+const BASE: Record<Key, Item[]> = {
+  history: [
+    { id: "h1", meta: "6 ноя", text: "Встреча один на один: обсудили сроки портала" },
+    { id: "h2", meta: "28 окт", text: "Созвон с поставщиком, вела переговоры" },
+    { id: "h3", meta: "14 окт", text: "Встреча один на один" },
+  ],
+  known: [
+    { id: "k1", text: "Сильна в переговорах с поставщиками" },
+    { id: "k2", text: "Предпочитает короткие сообщения, не звонки" },
+    { id: "k3", meta: "с 3 ноя", text: "Ведёт вторую версию портала" },
+  ],
+  me: [{ id: "m1", meta: "до ср, 11 ноя", text: "Согласовать её отпуск на январь" }],
+  them: [
+    { id: "t1", late: true, meta: "просрочено на 2 дн.", text: "Доделать вторую версию портала" },
+    { id: "t2", meta: "до пт, 13 ноя", text: "Прислать план работ на декабрь" },
+  ],
+};
+const TITLE: Record<Key, string> = { history: "История", known: "Известно", me: "Вы обещали", them: "Ждёте от неё" };
+
+// Одна кривая на всё: ease-out, быстро начинается. Нажатие — 0.97 за 160 мс.
+const OUT = "ease-[cubic-bezier(0.23,1,0.32,1)]";
+const PRESS = "transition-transform duration-160 ease-out active:scale-[0.97] motion-reduce:active:scale-100";
 
 const useCard = () => {
   const { knobs, say } = useProto();
   const empty = knobs.fill === "empty";
-  const [added, setAdded] = useState<Record<string, Item[]>>({});
-  const [done, setDone] = useState<string[]>([]);
-  const list = (key: string, base: Item[]) => [...(added[key] ?? []), ...(empty ? [] : base)].filter((i) => !done.includes(i.id));
+  const [added, setAdded] = useState<Partial<Record<Key, Item[]>>>({});
+  const [closing, setClosing] = useState<string[]>([]);
+  const [gone, setGone] = useState<string[]>([]);
+  /** Только что записанное — подсветка показывает, куда оно легло. */
+  const [fresh, setFresh] = useState<string | null>(null);
+  const list = (key: Key) => [...(added[key] ?? []), ...(empty ? [] : BASE[key])].filter((i) => !gone.includes(i.id));
   return {
-    add: (key: string, text: string, note: string) => {
+    add: (key: Key, text: string) => {
       const id = crypto.randomUUID();
-      setAdded((a) => ({ ...a, [key]: [{ id, meta: "сейчас", text }, ...(a[key] ?? [])] }));
-      say(note, () => setAdded((a) => ({ ...a, [key]: (a[key] ?? []).filter((i) => i.id !== id) })));
+      setAdded((a) => ({ ...a, [key]: [{ id, meta: key === "history" ? "сегодня" : undefined, text }, ...(a[key] ?? [])] }));
+      setFresh(id);
+      say(`Записано в «${TITLE[key]}»`, () => setAdded((a) => ({ ...a, [key]: (a[key] ?? []).filter((i) => i.id !== id) })));
     },
+    /** Кружок заполняется сразу, строка уходит чуть позже: видно, что нажатие принято. */
     close: (id: string) => {
-      setDone((d) => [...d, id]);
-      say("Отмечено выполненным", () => setDone((d) => d.filter((x) => x !== id)));
+      setClosing((c) => [...c, id]);
+      setTimeout(() => {
+        setGone((g) => [...g, id]);
+        setClosing((c) => c.filter((x) => x !== id));
+        say("Отмечено выполненным", () => setGone((g) => g.filter((x) => x !== id)));
+      }, 450);
     },
+    closing,
     empty,
+    fresh,
     list,
   };
 };
 type Card = ReturnType<typeof useCard>;
 
-/** Куда ложится написанное словами: по первым словам — как это сделала бы служебная модель. */
-const sort = (text: string) => {
+/** Куда ложится написанное словами — как решила бы служебная модель. */
+const sort = (text: string): Key => {
   const t = text.toLowerCase();
-  if (/обещал|должн|пришл[её]т|сделает|к пятниц|до \d/.test(t)) return ["them", "Записано: обязательство"] as const;
-  if (/обещаю|я должен|мне нужно|согласую/.test(t)) return ["me", "Записано: ваше обязательство"] as const;
-  if (/встрет|созвон|виделись|говорили|вчера|сегодня/.test(t)) return ["history", "Записано: событие"] as const;
-  return ["known", "Записано: что известно"] as const;
+  if (/обещаю|я должен|мне нужно|согласую|пришлю/.test(t)) return "me";
+  if (/обещал|должн|пришл[её]т|сделает|к пятниц|до \d/.test(t)) return "them";
+  if (/встрет|созвон|виделись|говорили|вчера|сегодня/.test(t)) return "history";
+  return "known";
 };
 
-const Line = ({ item, n, onDone }: { item: Item; n: number; onDone?: () => void }) => (
-  <li className={cn("group flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/40", ENTER)} style={rise(n)}>
-    <span className="min-w-0 flex-1 text-sm">{item.text}</span>
-    {item.meta && (
-      <span className={cn("text-muted-foreground shrink-0 pt-0.5 text-xs tabular-nums", item.late && "text-destructive")}>{item.meta}</span>
-    )}
-    {onDone && (
-      <Button aria-label="Выполнено" className={cn("opacity-50 group-hover:opacity-100", PRESS)} onClick={onDone} size="icon-xs" variant="ghost">
-        <Check />
-      </Button>
-    )}
-  </li>
+const FRESH = "animate-[fresh_1400ms_ease-out]";
+const CSS = `@keyframes fresh { from { background-color: color-mix(in oklab, var(--primary) 12%, transparent); } to { background-color: transparent; } }`;
+
+const Heading = ({ children, count }: { children: React.ReactNode; count?: number }) => (
+  <h3 className="text-muted-foreground flex items-baseline gap-1.5 text-xs font-medium">
+    {children}
+    {count ? <span className="text-muted-foreground/60 tabular-nums">{count}</span> : null}
+  </h3>
 );
 
-/** Раздел; `onAdd` — свой «+»: поле на месте, Enter записывает. */
-const Section = ({ title, hint, items, onDone, onAdd, placeholder }: {
-  title: string; hint?: string; items: Item[]; onDone?: (id: string) => void; onAdd?: (text: string) => void; placeholder?: string;
-}) => {
-  const [adding, setAdding] = useState(false);
-  const [text, setText] = useState("");
-  if (!(items.length || onAdd)) return null;
+/** Обязательство: кружок слева закрывает; срок — сразу под текстом на телефоне, рядом — на компьютере. */
+const Todo = ({ item, card, n }: { item: Item; card: Card; n: number }) => {
+  const closing = card.closing.includes(item.id);
   return (
-    <section className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 px-2">
-        <h3 className="text-muted-foreground text-xs font-medium">
-          {title}
-          {items.length > 0 && <span className="ml-1.5 tabular-nums">{items.length}</span>}
-        </h3>
-        {onAdd && !adding && (
-          <Button aria-label={`Добавить: ${title}`} className="text-muted-foreground -my-1" onClick={() => setAdding(true)} size="icon-xs" variant="ghost">
-            <Plus />
-          </Button>
+    <li className={cn("-mx-2 flex items-start gap-2.5 rounded-lg px-2 py-1.5", ENTER, card.fresh === item.id && FRESH)} style={rise(n)}>
+      <button
+        aria-label={`Выполнено: ${item.text}`}
+        className={cn(
+          "group/check mt-px flex size-6 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          PRESS
         )}
-      </div>
-      {adding && (
-        <form
-          className="px-2 py-1"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (text.trim()) onAdd?.(text.trim());
-            setText("");
-            setAdding(false);
-          }}
+        disabled={closing}
+        onClick={() => card.close(item.id)}
+        type="button"
+      >
+        <span
+          className={cn(
+            "flex size-[18px] items-center justify-center rounded-full border transition-colors duration-150",
+            closing ? "border-foreground bg-foreground text-background" : "border-foreground/25 text-transparent group-hover/check:border-foreground/60 group-hover/check:text-foreground/50"
+          )}
         >
-          {/* biome-ignore lint/a11y/noAutofocus: the field opens on the person's own press. */}
-          <Input aria-label={title} autoFocus className="h-8" onBlur={() => !text && setAdding(false)} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setAdding(false)} placeholder={placeholder} value={text} />
-        </form>
-      )}
-      {items.length > 0 ? (
+          <Check className="size-3" strokeWidth={2.5} />
+        </span>
+      </button>
+      <span className={cn("flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5 pt-0.5 transition-opacity duration-300", closing && "opacity-40")}>
+        <span className={cn("text-sm", closing && "line-through")}>{item.text}</span>
+        {item.meta && <span className={cn("text-xs tabular-nums", item.late ? "text-destructive font-medium" : "text-muted-foreground")}>{item.meta}</span>}
+      </span>
+    </li>
+  );
+};
+
+const Todos = ({ k, card, title = TITLE[k] }: { k: "them" | "me"; card: Card; title?: string }) => {
+  const items = card.list(k);
+  return (
+    <section className="flex flex-col gap-1.5">
+      <Heading count={items.length}>{title}</Heading>
+      {items.length ? (
         <ul className="flex flex-col">
           {items.map((i, n) => (
-            <Line item={i} key={i.id} n={n} onDone={onDone && (() => onDone(i.id))} />
+            <Todo card={card} item={i} key={i.id} n={n} />
           ))}
         </ul>
       ) : (
-        !adding && hint && <p className="text-muted-foreground px-2 py-1 text-sm">{hint}</p>
+        <p className="text-muted-foreground/70 py-1.5 text-sm">Ничего открытого</p>
       )}
     </section>
   );
 };
 
-const Chip = ({ icon: Icon, children }: { icon: typeof Users; children: React.ReactNode }) => (
-  <span className="bg-muted/60 text-foreground/80 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs">
-    <Icon className="text-muted-foreground size-3" />
-    {children}
-  </span>
-);
+const Known = ({ card }: { card: Card }) => {
+  const items = card.list("known");
+  if (!items.length) return null;
+  return (
+    <section className="flex flex-col gap-1.5">
+      <Heading>{TITLE.known}</Heading>
+      <ul className="flex flex-col">
+        {items.map((i, n) => (
+          <li className={cn("-mx-2 flex flex-wrap items-baseline gap-x-3 rounded-lg px-2 py-1.5 text-sm", ENTER, card.fresh === i.id && FRESH)} key={i.id} style={rise(n)}>
+            {i.text}
+            {i.meta && <span className="text-muted-foreground text-xs tabular-nums">{i.meta}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
 
-/** Кто это: имя и роль правятся нажатием; группы и проекты — ссылки на их карточки. */
-const Head = ({ card, projects = true }: { card: Card; projects?: boolean }) => {
+/** Хронология: дата в левом поле одной ширины, текст справа. */
+const History = ({ card }: { card: Card }) => {
+  const items = card.list("history");
+  if (!items.length) return null;
+  return (
+    <section className="flex flex-col gap-1.5">
+      <Heading>{TITLE.history}</Heading>
+      <ul className="flex flex-col">
+        {items.map((i, n) => (
+          <li className={cn("-mx-2 grid grid-cols-[3.5rem_1fr] items-baseline gap-3 rounded-lg px-2 py-1.5 text-sm", ENTER, card.fresh === i.id && FRESH)} key={i.id} style={rise(n)}>
+            <span className="text-muted-foreground text-xs tabular-nums">{i.meta}</span>
+            <span>{i.text}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
+
+/** Три числа вместо абзаца; линии вместо плашки. */
+const Now = ({ card }: { card: Card }) => {
+  const open = card.list("them").length + card.list("me").length;
+  const late = card.list("them").filter((i) => i.late).length;
+  const cells: [string, React.ReactNode][] = [
+    ["Последняя встреча", "4 дня назад"],
+    ["Один на один", "раз в 2 недели"],
+    ["Открыто", open ? <>{open}{late > 0 && <span className="text-destructive">, просрочено {late}</span>}</> : "нет"],
+  ];
+  return (
+    <dl className="grid grid-cols-3 divide-x border-y @max-md:grid-cols-1 @max-md:divide-x-0 @max-md:divide-y">
+      {cells.map(([label, value], i) => (
+        <div className={cn("flex flex-col gap-0.5 py-2.5 @max-md:flex-row @max-md:items-baseline @max-md:justify-between", i > 0 && "pl-4 @max-md:pl-0")} key={label}>
+          <dt className="text-muted-foreground text-xs">{label}</dt>
+          <dd className="text-sm font-medium tabular-nums">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+};
+
+const Head = ({ card }: { card: Card }) => {
   const { say } = useProto();
+  const phone = usePhone();
   const [editing, setEditing] = useState(false);
   const [role, setRole] = useState(PERSON.role);
-  const open = card.list("them", FROM_THEM).length;
+  const theirs = card.list("them").length;
+  const remind = (
+    <Button className={cn(PRESS, phone && "w-full")} onClick={() => say("Откроется новый чат с черновиком письма по её открытым обещаниям")} size={phone ? "default" : "sm"} variant="outline">
+      <Mail /> Напомнить об открытом
+    </Button>
+  );
   return (
-    <header className="flex flex-col gap-3">
-      <div className="flex items-start gap-3">
+    <header className="flex flex-col gap-4">
+      <div className="flex items-start gap-3.5">
         <span aria-hidden className="bg-muted text-muted-foreground flex size-11 shrink-0 items-center justify-center rounded-full text-xs font-medium">{PERSON.initials}</span>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h2 className="text-lg font-semibold tracking-tight">{PERSON.name}</h2>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h2 className="text-xl font-semibold tracking-tight">{PERSON.name}</h2>
           {editing ? (
             <form
               onSubmit={(e) => {
@@ -157,123 +232,109 @@ const Head = ({ card, projects = true }: { card: Card; projects?: boolean }) => 
               }}
             >
               {/* biome-ignore lint/a11y/noAutofocus: opened by the person's press. */}
-              <Input aria-label="Кто это" autoFocus className="mt-0.5 h-7 max-w-64" onBlur={() => setEditing(false)} onChange={(e) => setRole(e.target.value)} value={role} />
+              <input aria-label="Кто это" autoFocus className="border-foreground/30 w-56 border-b bg-transparent text-sm outline-none" onBlur={() => setEditing(false)} onChange={(e) => setRole(e.target.value)} value={role} />
             </form>
           ) : (
             <button className="text-muted-foreground hover:text-foreground group/role flex items-center gap-1.5 self-start text-sm transition-colors duration-150" onClick={() => setEditing(true)} type="button">
               {role || "Кто это?"}
-              <Pencil className="size-3 opacity-0 transition-opacity duration-150 group-hover/role:opacity-100" />
+              <Pencil className="size-3 opacity-0 transition-opacity duration-150 group-hover/role:opacity-60" />
             </button>
           )}
+          <p className="text-muted-foreground/80 mt-1 text-xs">{PERSON.tags.join(" · ")}</p>
         </div>
-        {open > 0 && (
-          <Button className={PRESS} onClick={() => say("Откроется новый чат: «Составь письмо Ирине Беловой по открытым обещаниям: …»")} size="sm" title="Новый чат с черновиком письма по всем её открытым обещаниям" variant="outline">
-            <Mail /> Напомнить об открытом · {open}
-          </Button>
-        )}
+        {theirs > 0 && !phone && remind}
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {PERSON.groups.map((g) => (
-          <Chip icon={Users} key={g}>{g}</Chip>
-        ))}
-        {projects && !card.empty && PROJECTS.map((p) => <Chip icon={FolderKanban} key={p}>{p}</Chip>)}
-      </div>
-      {!card.empty && (
-        // Что сейчас: то, ради чего карточку открывают перед разговором.
-        <p className="bg-muted/40 rounded-lg px-3 py-2 text-sm">
-          Виделись <span className="font-medium">4 дня назад</span>, один на один — раз в 2 недели.{" "}
-          <span className="text-destructive">Одно обещание просрочено.</span>
-        </p>
-      )}
+      {/* На телефоне кнопка — под шапкой, во всю ширину: рядом с именем ей не хватает места. */}
+      {theirs > 0 && phone && remind}
+      {!card.empty && <Now card={card} />}
     </header>
   );
 };
 
-const EMPTY_HINT = "Пока ничего. Запишите сами или расскажите в чате.";
-
-// ── Варианты ─────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** Всё подряд; добавление — одно поле внизу, словами. */
-export const OneColumn = () => {
-  const card = useCard();
+/** Тихая строка: нажал или начал печатать — поле; Enter записывает, раздел выбирается сам. */
+const QuickAdd = ({ card }: { card: Card }) => {
   const [text, setText] = useState("");
-  const send = () => {
-    const t = text.trim();
-    if (!t) return;
-    const [key, note] = sort(t);
-    card.add(key, t, note);
-    setText("");
-  };
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    // «N» — новая запись, как в списках дел; не мешает набору в других полях.
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.key.toLowerCase() !== "n" || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
+      e.preventDefault();
+      field.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   return (
-    <Shell area="memory" title="Память">
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 pt-20 pb-6 @max-md:pt-5">
-        <Head card={card} />
-        <Section items={card.list("them", FROM_THEM)} onDone={card.close} title="Ждёте от неё" />
-        <Section items={card.list("me", FROM_ME)} onDone={card.close} title="Вы обещали" />
-        <Section hint={card.empty ? EMPTY_HINT : undefined} items={card.list("known", KNOWN)} title="Известно" />
-        <Section items={card.list("history", HISTORY)} title="История" />
-      </div>
-      <div className="bg-background sticky bottom-0 mx-auto w-full max-w-2xl px-4 pt-2 pb-4">
-        <form
-          className="focus-within:ring-ring/20 flex items-end gap-1 rounded-3xl border p-1.5 pl-4 shadow-xs transition-shadow duration-150 focus-within:ring-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send();
-          }}
-        >
-          <input
-            aria-label="Записать об Ирине Беловой"
-            className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent py-1.5 text-sm outline-none"
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Записать об Ирине: «обещала отчёт к пятнице», «вчера виделись», «сильна в SQL»"
-            value={text}
-          />
-          <Button aria-label="Записать" className={cn("rounded-full", PRESS)} disabled={!text.trim()} size="icon" type="submit">
-            <ArrowUp />
-          </Button>
-        </form>
-      </div>
-    </Shell>
+    <form
+      className="group/add focus-within:border-foreground/30 -mx-2 flex items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 transition-colors duration-150 hover:bg-muted/40 focus-within:hover:bg-transparent"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const t = text.trim();
+        if (!t) return;
+        card.add(sort(t), t);
+        setText("");
+      }}
+    >
+      <span className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
+        <Plus className="size-4" />
+      </span>
+      <input
+        aria-label="Записать об Ирине Беловой"
+        className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
+        onChange={(e) => setText(e.target.value)}
+        placeholder={card.empty ? "Записать: кто это, что обещала, когда виделись" : "Записать: «обещала отчёт к пятнице», «вчера виделись»"}
+        ref={field}
+        value={text}
+      />
+      <kbd className={cn("text-muted-foreground/70 rounded border px-1.5 text-[10px] leading-5 transition-opacity duration-150 @max-md:hidden", text ? "opacity-100" : "group-focus-within/add:opacity-0")}>
+        {text ? "Enter" : "N"}
+      </kbd>
+    </form>
   );
 };
 
-/** Слева дела и история, справа — кто это; у каждого раздела свой «+». */
-export const WithSide = () => {
+const Page = ({ wide, children, card }: { wide?: boolean; children: React.ReactNode; card: Card }) => (
+  <Shell area="memory" title="Память">
+    <style>{CSS}</style>
+    <div className={cn("mx-auto flex w-full flex-col gap-7 px-4 pt-20 pb-10 @max-md:gap-6 @max-md:pt-5", wide ? "max-w-3xl" : "max-w-2xl")}>
+      <Head card={card} />
+      <QuickAdd card={card} />
+      {children}
+    </div>
+  </Shell>
+);
+
+// ── Варианты ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+export const Column = () => {
+  const card = useCard();
+  return (
+    <Page card={card}>
+      <Todos card={card} k="them" />
+      <Todos card={card} k="me" />
+      <Known card={card} />
+      <History card={card} />
+    </Page>
+  );
+};
+
+/** «Ждёте» и «обещали» рядом, ниже — известное и история рядом. */
+export const Balance = () => {
   const card = useCard();
   const phone = usePhone();
-  const about = (
-    <aside className={cn("flex shrink-0 flex-col gap-5", !phone && "w-64 border-l pl-6")}>
-      <Section hint="Что о ней стоит помнить" items={card.list("known", KNOWN)} onAdd={(t) => card.add("known", t, "Записано")} placeholder="Сильна в переговорах" title="Известно" />
-      {!card.empty && (
-        <section className="flex flex-col gap-1.5 px-2">
-          <h3 className="text-muted-foreground text-xs font-medium">Проекты</h3>
-          <div className="flex flex-wrap gap-1.5">
-            {PROJECTS.map((p) => (
-              <Chip icon={FolderKanban} key={p}>{p}</Chip>
-            ))}
-          </div>
-        </section>
-      )}
-      <section className="flex flex-col gap-1 px-2">
-        <h3 className="text-muted-foreground text-xs font-medium">Встречи один на один</h3>
-        <p className="text-sm">Раз в 2 недели</p>
-        <p className="text-muted-foreground text-xs">Правило для группы «Моя команда»</p>
-      </section>
-    </aside>
-  );
+  const two = cn("grid gap-x-10 gap-y-6", !phone && "grid-cols-2");
   return (
-    <Shell area="memory" title="Память">
-      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 pt-20 pb-8 @max-md:pt-5">
-        <Head card={card} projects={false} />
-        <div className={cn("flex gap-6", phone && "flex-col")}>
-          <div className="flex min-w-0 flex-1 flex-col gap-6">
-            <Section hint="Нет открытых" items={card.list("them", FROM_THEM)} onAdd={(t) => card.add("them", t, "Записано: обязательство")} onDone={card.close} placeholder="Прислать отчёт к пятнице" title="Ждёте от неё" />
-            <Section hint="Нет открытых" items={card.list("me", FROM_ME)} onAdd={(t) => card.add("me", t, "Записано: ваше обязательство")} onDone={card.close} placeholder="Согласовать бюджет до среды" title="Вы обещали" />
-            <Section hint="Встреч и разговоров пока нет" items={card.list("history", HISTORY)} onAdd={(t) => card.add("history", t, "Записано: событие")} placeholder="Вчера виделись, обсудили сроки" title="История" />
-          </div>
-          {about}
-        </div>
+    <Page card={card} wide>
+      <div className={two}>
+        <Todos card={card} k="them" />
+        <Todos card={card} k="me" />
       </div>
-    </Shell>
+      <div className={cn(two, "border-t pt-6")}>
+        <Known card={card} />
+        <History card={card} />
+      </div>
+    </Page>
   );
 };
