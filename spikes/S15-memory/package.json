@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "many": "node --env-file=../../.env --import tsx many.ts"
+    "many": "node --env-file=../../.env --import tsx many.ts",
+    "prompt-cache": "node --env-file=../../.env --import tsx cache-check.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",
