@@ -43,6 +43,17 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    # The memory's store tests (queue, undo, merging) need a database of their own: without one they are skipped.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: memory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v7
       # pnpm/setup@v1 requires pnpm 11; the repo pins pnpm 10 via packageManager.
@@ -61,6 +72,8 @@ jobs:
       - run: pnpm check
       - run: pnpm check-types
       - run: pnpm test
+        env:
+          MEMORY_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/memory_test
       # No `pnpm build` here: e2e builds the app inside the image, and a build error fails it there.
 
   # Side by side with checks, not after them: the image build is the long part of the whole pipeline.

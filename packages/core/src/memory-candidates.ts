@@ -1,4 +1,5 @@
 import type { MemoryEntity, MemoryRecord } from "./memory";
+import { fullNames } from "./memory-names";
 
 // What the «Память» model is shown of a person's memory (ARCH §19.8.3): not every card and promise, but the ones a
 // message may be about — named in it or in the chat before it, the groups, the cards of the last two weeks; the
@@ -95,6 +96,25 @@ export const sameWord = (a: string, b: string) => {
   return false;
 };
 
+/**
+ * Do two words name the same person: the same word declined, or a short form and its full name — «Оле» and «Ольга»,
+ * «Павлу» and «Павел», «Саша» and «Александру» (`fullNames`).
+ */
+export const sameName = (a: string, b: string) => {
+  if (sameWord(a, b)) {
+    return true;
+  }
+  const fa = fullNames(a);
+  const fb = fullNames(b);
+  if (fa.length === 0 && fb.length === 0) {
+    return false;
+  }
+  // A short form's full names against the other word, or against its full names: «Саша» and «Шура».
+  const as = fa.length > 0 ? fa : [a];
+  const bs = fb.length > 0 ? fb : [b];
+  return as.some((x) => bs.some((y) => x === y || sameWord(x, y)));
+};
+
 const anySame = (words: string[], said: string[]) =>
   words.some((w) => said.some((s) => sameWord(w, s)));
 
@@ -104,7 +124,9 @@ export const mentionedCards = (entities: MemoryEntity[], text: string) => {
   return entities.filter(
     (e) =>
       e.kind !== "self" &&
-      [e.name, ...e.aliases].some((name) => anySame(wordsOf(name), said))
+      [e.name, ...e.aliases].some((name) =>
+        wordsOf(name).some((w) => said.some((x) => sameName(w, x)))
+      )
   );
 };
 
@@ -152,7 +174,8 @@ const isOpen = (r: MemoryRecord) =>
   (r.status === "open" || r.status === "unconfirmed");
 
 /**
- * The cards the model is shown, at most `MAX_CANDIDATES`: named in the text (the message and the chat before it) by a
+ * The cards the model is shown, at most `MAX_CANDIDATES` — all of them while the memory has no more than that. In a
+ * bigger one: named in the text (the message and the chat before it) by a
  * name or an other name; every group; the cards of what was kept in the last two weeks, newest first; those whose role
  * shares a long word with the text («закупщик», «поставщик»). Cut in that order — the named ones are kept first.
  */
@@ -189,12 +212,16 @@ export const candidateCards = ({
     (e) => e.kind !== "self" && e.role && anySame(longWords(e.role), said)
   );
   const groups = entities.filter((e) => e.kind === "group");
+  const cards = entities.filter((e) => e.kind !== "self");
   return [
     ...new Set([
       ...mentionedCards(entities, text),
       ...groups,
       ...recent.slice(0, MAX_RECENT),
       ...byRole,
+      // A memory that fits whole is shown whole: the pick is for a big one, and a name the words do not catch
+      // («Лёха», «шеф») is still the model's to place.
+      ...(cards.length <= MAX_CANDIDATES ? cards : []),
     ]),
   ].slice(0, MAX_CANDIDATES);
 };
@@ -267,7 +294,7 @@ export const candidateCommitments = ({
 export const MAX_SAME = 3;
 
 /** Between two names a short word counts too: «Ли» is «Ли» (in a message it may be the particle «ли»). */
-const nameWord = (a: string, b: string) => a === b || sameWord(a, b);
+const nameWord = (a: string, b: string) => a === b || sameName(a, b);
 
 /** Every word of `a` is a word of `b`, declined or not: «Ольга» in «Ольга Ли», «Вектор» in «ООО «Вектор»». */
 const within = (a: string[], b: string[]) =>

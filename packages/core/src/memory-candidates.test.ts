@@ -6,6 +6,7 @@ import {
   candidateCards,
   candidateCommitments,
   likelySame,
+  mentionedCards,
 } from "./memory-candidates";
 
 const NOW = new Date("2026-11-09T09:00:00Z");
@@ -83,8 +84,47 @@ const CARDS = [
 ];
 
 const ids = (cards: { id: string }[]) => cards.map((c) => c.id);
+/** The pick for a text in a memory without records. */
+const pickIn = (entities: MemoryEntity[], text: string) =>
+  ids(candidateCards({ entities, now: NOW, records: [], text }));
 
 describe("the cards the «Память» model is shown (ARCH §19.8.3)", () => {
+  it("shows a memory of forty cards or fewer whole, the named ones first", () => {
+    const small = [
+      SELF,
+      card("olga", "Ольга Ли"),
+      card("pavel", "Павел Гуров"),
+      card("boss", "Виктор Ильин", "person", "шеф"),
+    ];
+    const found = candidateCards({
+      entities: small,
+      now: NOW,
+      records: [],
+      text: "Шеф просил позвонить Павлу",
+    });
+    expect(ids(found)).toEqual(["pavel", "olga", "boss"]);
+  });
+
+  it("knows a short name and a name that loses a vowel", () => {
+    expect(pickIn(CARDS, "Написал Павлу и Оле")).toEqual([
+      "olga",
+      "pavel",
+      "team",
+    ]);
+    const people = [
+      ...FILLER,
+      card("sasha", "Саша Котов"),
+      card("lev", "Лев Орлов"),
+      card("alex", "Александра Белова"),
+    ];
+    expect(pickIn(people, "Отправил Льву отчёт")).toEqual(["lev"]);
+    expect(pickIn(people, "Александр согласовал")).toEqual(["sasha", "alex"]);
+    expect(pickIn(people, "Шура согласовала")).toEqual(["sasha", "alex"]);
+    expect(pickIn(people, "Над этим работает отдел, люди любой темы")).toEqual(
+      []
+    );
+  });
+
   it("names one by a declined name, and every group, out of three hundred", () => {
     const found = candidateCards({
       entities: CARDS,
@@ -101,8 +141,7 @@ describe("the cards the «Память» model is shown (ARCH §19.8.3)", () => 
       card("maria", "Мария Орлова"),
       card("andrey", "Андрей Ковалёв"),
     ];
-    const named = (text: string) =>
-      ids(candidateCards({ entities, now: NOW, records: [], text }));
+    const named = (text: string) => ids(mentionedCards(entities, text));
     expect(named("Мы с Мариной договорились")).toEqual(["marina"]);
     expect(named("Марии нет на месте")).toEqual(["maria"]);
     expect(named("Созвонился с Андреем и Ковалёвым")).toEqual(["andrey"]);
@@ -266,6 +305,16 @@ describe("«Один человек?» (ARCH §19.8.5)", () => {
     expect(pairs([card("a", "Ольга Ли"), card("b", "Ольга Ли")])).toEqual([
       "a<b",
     ]);
+  });
+
+  it("offers a short name with its full one", () => {
+    expect(pairs([card("a", "Оля"), card("b", "Ольга Ли")])).toEqual(["b<a"]);
+    expect(
+      pairs([card("a", "Саша Котов"), card("b", "Александр Котов")])
+    ).toEqual(["a<b"]);
+    expect(
+      pairs([card("a", "Саша Котов"), card("b", "Алексей Котов")])
+    ).toEqual([]);
   });
 
   it("offers a surname with an initial or the names swapped", () => {

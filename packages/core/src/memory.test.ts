@@ -64,6 +64,9 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   beforeAll(async () => {
     process.env.DATABASE_URL = URL;
     process.env.SECRETS_KEY = randomBytes(32).toString("base64");
+    // The app's environment is read whole: what the store does not use still has to be there (CI has no .env).
+    process.env.BETTER_AUTH_SECRET ??= randomBytes(32).toString("base64");
+    process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
     await runMigrations(URL as string);
     const dbModule = await import("./db");
     ({ db } = dbModule.getDb());
