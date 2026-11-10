@@ -5,11 +5,14 @@ import { createGateway } from "@ai-sdk/gateway";
 import { generateText, Output } from "ai";
 
 import { extractionSchema, memoryInstructions, memoryPrompt } from "../../packages/core/src/memory-extract.ts";
+import { caseId, isMain, type EvalCase } from "./eval-case.ts";
 import { TIMEZONE, TODAY_ISO } from "./extract-cases.ts";
 import { sourceKey } from "./keys.ts";
 
-const MODELS = (process.env.MODELS ?? "google/gemini-3.5-flash").split(",");
-const gw = createGateway({ apiKey: sourceKey("gateway").key });
+// Run as `pnpm self`, the file calls the model itself; imported — by S15's eval.ts — it only gives its cases.
+const MAIN = isMain(import.meta.url);
+const MODELS = MAIN ? (process.env.MODELS ?? "google/gemini-3.5-flash").split(",") : [];
+const gw = createGateway({ apiKey: MAIN ? sourceKey("gateway").key : "" });
 
 const person = (ref: string, name: string, role: string) =>
   ({ aliases: [], id: ref, kind: "person", name, ref, role }) as const;
@@ -56,6 +59,17 @@ const cases: Case[] = [
     text: "Составь план развития для Марины на квартал",
   },
 ];
+
+/** The cases for `pnpm memory:eval` (S15). */
+export const evalCases = (): EvalCase[] =>
+  cases.map((c, i) => ({
+    id: caseId(i),
+    instructions: system,
+    kind: "write",
+    prompt: memoryPrompt(c.text),
+    score: (o) => ({ miss: c.check(o.items), tally: {} }),
+    text: c.text,
+  }));
 
 for (const id of MODELS) {
   let ok = 0;

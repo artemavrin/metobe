@@ -22,6 +22,7 @@ import {
   planWrite,
 } from "../../packages/core/src/memory-extract.ts";
 import type { KnownCard, OpenCommitment } from "../../packages/core/src/memory-extract.ts";
+import { caseId, isMain, type EvalCase } from "../S13-jev/eval-case.ts";
 import { TIMEZONE } from "../S13-jev/extract-cases.ts";
 import { sourceKey } from "../S13-jev/keys.ts";
 import { NOW, SELF, fillerCards, fillerPromises } from "./memory300.ts";
@@ -31,8 +32,6 @@ const DRY = Boolean(process.env.DRY);
 const NOKNOWN = Boolean(process.env.NOKNOWN);
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",").map(Number)) : null;
 const CONCURRENCY = Number(process.env.CONCURRENCY ?? 4);
-const gw = DRY ? null : createGateway({ apiKey: sourceKey("gateway").key });
-const KEY = DRY ? "" : sourceKey("gateway").key;
 
 // --- the memory -----------------------------------------------------------------------------------------------------
 
@@ -180,10 +179,10 @@ const cases: { text: string; expect: Expect; group: string }[] = [
 
 type Out = (typeof extractionSchema)["_output"];
 
-const shown = (text: string) => {
+const shown = (text: string, withKnown: boolean) => {
   const found = candidateCards({ entities, now: NOW, records, text });
   const open = candidateCommitments({ cards: found, now: NOW, records, selfId: SELF.id, text });
-  const knownRecords = NOKNOWN ? [] : candidateKnown({ cards: found, entities, now: NOW, records, selfId: SELF.id });
+  const knownRecords = withKnown ? candidateKnown({ cards: found, entities, now: NOW, records, selfId: SELF.id }) : [];
   const cardsShown: KnownCard[] = found.map((e) => ({
     aliases: e.aliases,
     id: e.id,
@@ -220,7 +219,7 @@ const judge = (c: (typeof cases)[number], out: Out, s: ReturnType<typeof shown>)
   let done: 0 | 1 = 0;
   let moved: 0 | 1 = 0;
   let movedOk: 0 | 1 = 0;
-  const raw = out.items.filter((i) => i.replaces).length;
+  const raw = out.items.filter((i) => i.replaces && i.replaces !== "none").length;
   if ("replaceFact" in e) {
     needed = 1;
     const hit = plan.records.some(
@@ -264,85 +263,113 @@ const pool = async <T,>(items: T[], size: number, run: (item: T) => Promise<void
   );
 };
 
-const credits = async () => {
-  if (!KEY) return null;
-  try {
-    const r = await fetch("https://ai-gateway.vercel.sh/v1/credits", { headers: { Authorization: `Bearer ${KEY}` } });
-    return Number(((await r.json()) as { total_used?: string | number }).total_used);
-  } catch {
-    return null;
-  }
-};
-
-const picked = cases.map((c, i) => ({ c, i: i + 1 })).filter(({ i }) => !ONLY || ONLY.has(i));
-const sizes = picked.map(({ c }) => {
-  const s = shown(c.text);
-  const inst = memoryInstructions({ cards: s.cards, commitments: s.commitments, known: s.knownRecords, sentAt: NOW, timeZone: TIMEZONE });
-  const bare = memoryInstructions({ cards: s.cards, commitments: s.commitments, sentAt: NOW, timeZone: TIMEZONE });
-  return { bare: bare.length, chars: inst.length, facts: s.knownRecords.filter((k) => k.kind === "fact").length, events: s.knownRecords.filter((k) => k.kind === "event").length, s };
-});
-const med = (xs: number[]) => xs.toSorted((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
-console.log(
-  JSON.stringify({
-    block_chars_p50: med(sizes.map((x) => x.chars - x.bare)),
-    cases: picked.length,
-    events_max: Math.max(...sizes.map((x) => x.events)),
-    facts_max: Math.max(...sizes.map((x) => x.facts)),
-    known_none: sizes.filter((x) => x.facts + x.events === 0).length,
-    mode: NOKNOWN ? "no block" : "with block",
-  })
-);
-// What the pick has to hold: the old record each case is about.
-for (const [n, { c, i }] of picked.entries()) {
-  const e = c.expect;
-  const old = "replaceFact" in e ? e.replaceFact : "replaceEvent" in e ? e.replaceEvent : "moveDue" in e ? e.moveDue : null;
-  const s = (sizes[n] as (typeof sizes)[number]).s;
-  const held = !old || s.knownRecords.some((k) => k.id === old) || s.commitments.some((k) => k.id === old);
-  if (!held) console.log(`  ✗ ${i}. pick lost ${old}: ${c.text}`);
-}
-if (DRY || !gw) process.exit(0);
-
-const before = await credits();
-const tally = { done: 0, moved: 0, movedOk: 0, needed: 0, raw: 0, refused: 0, wrong: 0 };
-const tokens: number[] = [];
-let cost = 0;
-await pool(picked, CONCURRENCY, async ({ c, i }) => {
-  const s = (sizes[picked.findIndex((p) => p.i === i)] as (typeof sizes)[number]).s;
-  try {
-    const r = await generateText({
+/**
+ * The cases for `pnpm memory:eval`. `known: false` — as before §19.9.3, with no block of current facts and events:
+ * then no replacement can be made, and the set shows only what the block costs.
+ */
+export const evalCases = ({ known: withKnown = true }: { known?: boolean } = {}): EvalCase[] =>
+  cases.map((c, i) => {
+    const s = shown(c.text, withKnown);
+    return {
+      id: caseId(i),
       instructions: memoryInstructions({ cards: s.cards, commitments: s.commitments, known: s.knownRecords, sentAt: NOW, timeZone: TIMEZONE }),
-      maxRetries: 2,
-      model: gw(MODEL),
-      output: Output.object({ schema: extractionSchema }),
+      kind: "write",
       prompt: memoryPrompt(c.text, []),
-      providerOptions: { gateway: { zeroDataRetention: true } },
-      reasoning: "low",
-    });
-    tokens.push(r.usage.inputTokens ?? 0);
-    cost += Number((r.providerMetadata?.gateway as { cost?: string } | undefined)?.cost ?? 0);
-    const v = judge(c, r.output, s);
-    for (const k of Object.keys(tally) as (keyof typeof tally)[]) tally[k] += v[k];
-    if (v.misses.length > 0) {
-      console.log(`  ✗ ${i}. ${c.text} → ${v.misses.join("; ")}`);
-      if (process.env.SHOW)
-        console.log(`      ${JSON.stringify({ items: r.output.items.map((x) => [x.kind, x.text, x.about, x.replaces]), moves: r.output.moves })}`);
+      score: (o) => {
+        const v = judge(c, o, s);
+        return {
+          miss: v.misses.length > 0 ? v.misses.join("; ") : null,
+          tally: { moved: [v.movedOk, v.moved], no_wrong_replace: [v.wrong === 0 ? 1 : 0, 1], replaced: [v.done, v.needed] },
+        };
+      },
+      text: c.text,
+    };
+  });
+
+// The run below is `pnpm run update`. Imported — by eval.ts — the file only gives its cases.
+if (isMain(import.meta.url)) {
+  const KEY = DRY ? "" : sourceKey("gateway").key;
+  const gw = DRY ? null : createGateway({ apiKey: KEY });
+  const credits = async () => {
+    if (!KEY) return null;
+    try {
+      const r = await fetch("https://ai-gateway.vercel.sh/v1/credits", { headers: { Authorization: `Bearer ${KEY}` } });
+      return Number(((await r.json()) as { total_used?: string | number }).total_used);
+    } catch {
+      return null;
     }
-  } catch (error) {
-    console.log(`  ! ${i}. ${c.text}: ${(error as Error).message.slice(0, 160)}`);
+  };
+
+  const picked = cases.map((c, i) => ({ c, i: i + 1 })).filter(({ i }) => !ONLY || ONLY.has(i));
+  const sizes = picked.map(({ c }) => {
+    const s = shown(c.text, !NOKNOWN);
+    const inst = memoryInstructions({ cards: s.cards, commitments: s.commitments, known: s.knownRecords, sentAt: NOW, timeZone: TIMEZONE });
+    const bare = memoryInstructions({ cards: s.cards, commitments: s.commitments, sentAt: NOW, timeZone: TIMEZONE });
+    return { bare: bare.length, chars: inst.length, facts: s.knownRecords.filter((k) => k.kind === "fact").length, events: s.knownRecords.filter((k) => k.kind === "event").length, s };
+  });
+  const med = (xs: number[]) => xs.toSorted((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
+  console.log(
+    JSON.stringify({
+      block_chars_p50: med(sizes.map((x) => x.chars - x.bare)),
+      cases: picked.length,
+      events_max: Math.max(...sizes.map((x) => x.events)),
+      facts_max: Math.max(...sizes.map((x) => x.facts)),
+      known_none: sizes.filter((x) => x.facts + x.events === 0).length,
+      mode: NOKNOWN ? "no block" : "with block",
+    })
+  );
+  // What the pick has to hold: the old record each case is about.
+  for (const [n, { c, i }] of picked.entries()) {
+    const e = c.expect;
+    const old = "replaceFact" in e ? e.replaceFact : "replaceEvent" in e ? e.replaceEvent : "moveDue" in e ? e.moveDue : null;
+    const s = (sizes[n] as (typeof sizes)[number]).s;
+    const held = !old || s.knownRecords.some((k) => k.id === old) || s.commitments.some((k) => k.id === old);
+    if (!held) console.log(`  ✗ ${i}. pick lost ${old}: ${c.text}`);
   }
-});
-const after = await credits();
-const sorted = tokens.toSorted((a, b) => a - b);
-console.log(
-  JSON.stringify({
-    balance_used: before !== null && after !== null ? `$${(after - before).toFixed(4)}` : "n/a",
-    cost_per_msg: `$${(cost / Math.max(1, tokens.length)).toFixed(4)}`,
-    deadlines_moved: pct(tally.movedOk, tally.moved),
-    input_tokens_max: sorted.at(-1),
-    input_tokens_p50: med(tokens),
-    model: MODEL,
-    refused_by_code: tally.refused,
-    replacements_needed_done: pct(tally.done, tally.needed),
-    replacements_wrong: tally.wrong,
-  })
-);
+  if (DRY || !gw) process.exit(0);
+
+  const before = await credits();
+  const tally = { done: 0, moved: 0, movedOk: 0, needed: 0, raw: 0, refused: 0, wrong: 0 };
+  const tokens: number[] = [];
+  let cost = 0;
+  await pool(picked, CONCURRENCY, async ({ c, i }) => {
+    const s = (sizes[picked.findIndex((p) => p.i === i)] as (typeof sizes)[number]).s;
+    try {
+      const r = await generateText({
+        instructions: memoryInstructions({ cards: s.cards, commitments: s.commitments, known: s.knownRecords, sentAt: NOW, timeZone: TIMEZONE }),
+        maxRetries: 2,
+        model: gw(MODEL),
+        output: Output.object({ schema: extractionSchema }),
+        prompt: memoryPrompt(c.text, []),
+        providerOptions: { gateway: { zeroDataRetention: true } },
+        reasoning: "low",
+      });
+      tokens.push(r.usage.inputTokens ?? 0);
+      cost += Number((r.providerMetadata?.gateway as { cost?: string } | undefined)?.cost ?? 0);
+      const v = judge(c, r.output, s);
+      for (const k of Object.keys(tally) as (keyof typeof tally)[]) tally[k] += v[k];
+      if (v.misses.length > 0) {
+        console.log(`  ✗ ${i}. ${c.text} → ${v.misses.join("; ")}`);
+        if (process.env.SHOW)
+          console.log(`      ${JSON.stringify({ items: r.output.items.map((x) => [x.kind, x.text, x.about, x.replaces]), moves: r.output.moves })}`);
+      }
+    } catch (error) {
+      console.log(`  ! ${i}. ${c.text}: ${(error as Error).message.slice(0, 160)}`);
+    }
+  });
+  const after = await credits();
+  const sorted = tokens.toSorted((a, b) => a - b);
+  console.log(
+    JSON.stringify({
+      balance_used: before !== null && after !== null ? `$${(after - before).toFixed(4)}` : "n/a",
+      cost_per_msg: `$${(cost / Math.max(1, tokens.length)).toFixed(4)}`,
+      deadlines_moved: pct(tally.movedOk, tally.moved),
+      input_tokens_max: sorted.at(-1),
+      input_tokens_p50: med(tokens),
+      model: MODEL,
+      refused_by_code: tally.refused,
+      replacements_needed_done: pct(tally.done, tally.needed),
+      replacements_wrong: tally.wrong,
+    })
+  );
+}

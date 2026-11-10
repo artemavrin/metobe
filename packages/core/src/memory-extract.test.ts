@@ -217,7 +217,7 @@ describe("the block of what a new item may replace (ARCH §19.9.3)", () => {
         known: [{ ...(KNOWN[1] as KnownRecord), entityIds: ["somebody"] }],
       })
     ).toContain("- f2: Андрей Ковалёв — менеджер по закупкам\n");
-    expect(text).toContain("put its ref in `replaces`");
+    expect(text).toContain("`replaces` is «none» for almost every item");
     expect(text).toContain("points at the same cards (about)");
   });
 
@@ -441,7 +441,11 @@ describe("planWrite", () => {
   it("drops a replacement the code cannot vouch for — the record stays beside the old one", () => {
     const refused = (items: Parameters<typeof plan>[0]["items"]) =>
       plan({ items }, SELF, KNOWN).records.map((r) => r.replaces);
-    // A ref that was not shown, a fact asked to replace an event, a card the two do not share.
+    // «none» — the model's way to say it replaces nothing; a ref that was not shown, a fact asked to replace an
+    // event, a card the two do not share.
+    expect(refused([item({ about: ["c1"], replaces: "none" })])).toEqual([
+      undefined,
+    ]);
     expect(refused([item({ about: ["c1"], replaces: "f9" })])).toEqual([
       undefined,
     ]);

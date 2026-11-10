@@ -1,0 +1,3 @@
+# Runs of `pnpm memory:eval`: only the baseline of a model is kept.
+results/eval/*/*.json
+!results/eval/*/baseline.json

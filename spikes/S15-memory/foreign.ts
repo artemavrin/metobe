@@ -11,6 +11,7 @@ import { generateText, Output } from "ai";
 
 import { extractionSchema, memoryInstructions, memoryPrompt, splitQuoted } from "../../packages/core/src/memory-extract.ts";
 import type { KnownCard } from "../../packages/core/src/memory-extract.ts";
+import { caseId, isMain, type EvalCase } from "../S13-jev/eval-case.ts";
 import { TIMEZONE, knownCards } from "../S13-jev/extract-cases.ts";
 import { sourceKey } from "../S13-jev/keys.ts";
 import { NOW } from "./memory300.ts";
@@ -18,12 +19,6 @@ import { NOW } from "./memory300.ts";
 const MODEL = process.env.MODEL ?? "google/gemini-3.5-flash";
 const RAW = Boolean(process.env.RAW);
 const RUNS = Number(process.env.RUNS ?? 1);
-const key = sourceKey("gateway").key;
-const gw = createGateway({ apiKey: key });
-const used = async () => {
-  const r = await fetch("https://ai-gateway.vercel.sh/v1/credits", { headers: { Authorization: `Bearer ${key}` } });
-  return Number(((await r.json()) as { total_used: string }).total_used);
-};
 
 const KIND: Record<string, KnownCard["kind"]> = { организация: "org", проект: "project", человек: "person" };
 const cards: KnownCard[] = Object.entries(knownCards).map(([id, line]) => {
@@ -32,8 +27,8 @@ const cards: KnownCard[] = Object.entries(knownCards).map(([id, line]) => {
   return { aliases: [], id, kind: KIND[kindWord] ?? "person", name, ref: id, role };
 });
 /** As the writer builds it: the rule on someone else's text only when the message has a quote, a letter or a forward. */
-const instructionsFor = (text: string) =>
-  memoryInstructions({ cards, quoted: !RAW && splitQuoted(text).quoted !== "", sentAt: NOW, timeZone: TIMEZONE });
+const instructionsFor = (text: string, raw = RAW) =>
+  memoryInstructions({ cards, quoted: !raw && splitQuoted(text).quoted !== "", sentAt: NOW, timeZone: TIMEZONE });
 
 interface Case {
   text: string;
@@ -129,39 +124,66 @@ const verdict = (c: Case, raw: Out) => {
   return { misses, wrongUser: wrong.length };
 };
 
-const before = await used();
-let ok = 0;
-let wrongUser = 0;
-for (let run = 0; run < RUNS; run += 1) {
-  const results = await Promise.all(
-    cases.map(async (c) => {
-      const r = await generateText({
-        instructions: instructionsFor(c.text),
-        maxRetries: 2,
-        model: gw(MODEL),
-        output: Output.object({ schema: extractionSchema }),
-        prompt: RAW ? `<message>\n${c.text}\n</message>` : memoryPrompt(c.text),
-        providerOptions: { gateway: { zeroDataRetention: true } },
-        reasoning: "low",
-      });
-      return { c, o: r.output, v: verdict(c, r.output) };
-    })
-  );
-  for (const { c, o, v } of results) {
-    wrongUser += v.wrongUser;
-    if (v.misses.length === 0) ok += 1;
-    else {
-      console.log(`  ✗ ${c.text.slice(0, 60).replaceAll("\n", " ")}… → ${v.misses.join("; ")}`);
-      if (process.env.SHOW) console.log(`      ${o.items.map((i) => `${i.kind} ${i.debtor ?? ""}→${i.creditor ?? ""}: ${i.text}`).join(" | ")}`);
+/** The cases for `pnpm memory:eval`, as the app sends them. */
+export const evalCases = (): EvalCase[] =>
+  cases.map((c, i) => ({
+    id: caseId(i),
+    instructions: instructionsFor(c.text, false),
+    kind: "write",
+    prompt: memoryPrompt(c.text),
+    score: (o) => {
+      const v = verdict(c, o);
+      return {
+        miss: v.misses.length > 0 ? v.misses.join("; ") : null,
+        tally: { authors_not_users: [v.wrongUser === 0 ? 1 : 0, 1] },
+      };
+    },
+    text: c.text.slice(0, 60).replaceAll("\n", " "),
+  }));
+
+// The run below is `pnpm foreign`. Imported — by eval.ts — the file only gives its cases.
+if (isMain(import.meta.url)) {
+  const key = sourceKey("gateway").key;
+  const gw = createGateway({ apiKey: key });
+  const used = async () => {
+    const r = await fetch("https://ai-gateway.vercel.sh/v1/credits", { headers: { Authorization: `Bearer ${key}` } });
+    return Number(((await r.json()) as { total_used: string }).total_used);
+  };
+
+  const before = await used();
+  let ok = 0;
+  let wrongUser = 0;
+  for (let run = 0; run < RUNS; run += 1) {
+    const results = await Promise.all(
+      cases.map(async (c) => {
+        const r = await generateText({
+          instructions: instructionsFor(c.text),
+          maxRetries: 2,
+          model: gw(MODEL),
+          output: Output.object({ schema: extractionSchema }),
+          prompt: RAW ? `<message>\n${c.text}\n</message>` : memoryPrompt(c.text),
+          providerOptions: { gateway: { zeroDataRetention: true } },
+          reasoning: "low",
+        });
+        return { c, o: r.output, v: verdict(c, r.output) };
+      })
+    );
+    for (const { c, o, v } of results) {
+      wrongUser += v.wrongUser;
+      if (v.misses.length === 0) ok += 1;
+      else {
+        console.log(`  ✗ ${c.text.slice(0, 60).replaceAll("\n", " ")}… → ${v.misses.join("; ")}`);
+        if (process.env.SHOW) console.log(`      ${o.items.map((i) => `${i.kind} ${i.debtor ?? ""}→${i.creditor ?? ""}: ${i.text}`).join(" | ")}`);
+      }
     }
   }
+  console.log(
+    JSON.stringify({
+      authors_promise_as_users: wrongUser,
+      mode: RAW ? "raw" : "app",
+      model: MODEL,
+      right: `${ok}/${cases.length * RUNS}`,
+      spent: `$${((await used()) - before).toFixed(3)}`,
+    })
+  );
 }
-console.log(
-  JSON.stringify({
-    authors_promise_as_users: wrongUser,
-    mode: RAW ? "raw" : "app",
-    model: MODEL,
-    right: `${ok}/${cases.length * RUNS}`,
-    spent: `$${((await used()) - before).toFixed(3)}`,
-  })
-);

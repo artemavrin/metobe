@@ -160,6 +160,14 @@ Current facts and coming events (ref: text):
 
 Готово: `pnpm memory:eval` на DeepSeek печатает сводку, совпадающую с отдельными запусками; `FAILED=1` перепрогоняет только упавшее; база Г1.1 сохранена для DeepSeek и Gemini 3.5 Flash из уже сделанных прогонов, без нового расхода (**проверить:** сохранились ли их выводы; если нет — один прогон на DeepSeek, около $0,3).
 
+**Сделано 2026-11-10** (ARCH §19.9.4, цифры — `spikes/S15-memory/README.md`, часть 4). Отличия от плана:
+
+- Прежние выводы не сохранились, база DeepSeek снята заново; база Gemini 3.5 Flash не снята (около $2).
+- `extract`, `ask` и `status` S13 идут из `many.ts` с памятью из восьми карточек, а не из своих скриптов: случаи и оценка там уже были.
+- Добавлены `ONLY`, `SHOW` и `NOKNOWN` (без блока известных фактов, для сравнения).
+- Первый же прогон нашёл на DeepSeek неверные замены Г1.3 — исправлено там же (§19.9.3).
+- Расход шага — $0,90 вместо $0,3: база снималась дважды (до и после правки правила замены), наборы с правилом — в два прогона.
+
 ---
 
 ## 5. И1 Вход памяти не зависит от источника
@@ -172,16 +180,20 @@ Current facts and coming events (ref: text):
 
 ```ts
 interface MemoryInput {
-  source: string;            // «chat», «answer», «mail», «meeting» — ядру всё равно, это метка
-  at: Date;                  // когда сказано; от него считаются «вчера» и порядок очереди
+  source: string; // «chat», «answer», «mail», «meeting» — ядру всё равно, это метка
+  at: Date; // когда сказано; от него считаются «вчера» и порядок очереди
   timeZone: string;
-  segments: Segment[];       // что читать
-  context: Segment[];        // что было раньше — только чтобы понять, не записывать
+  segments: Segment[]; // что читать
+  context: Segment[]; // что было раньше — только чтобы понять, не записывать
 }
 interface Segment {
-  speaker: { kind: "owner" } | { kind: "card"; id: string } | { kind: "named"; name: string; address?: string } | { kind: "assistant" };
-  voice: "own" | "quoted" | "retold";   // сказано самим говорящим, приведено чужое, пересказано со слов инструмента
-  at?: Date;                 // у реплики встречи — своё время
+  speaker:
+    | { kind: "owner" }
+    | { kind: "card"; id: string }
+    | { kind: "named"; name: string; address?: string }
+    | { kind: "assistant" };
+  voice: "own" | "quoted" | "retold"; // сказано самим говорящим, приведено чужое, пересказано со слов инструмента
+  at?: Date; // у реплики встречи — своё время
   text: string;
 }
 ```
@@ -228,9 +240,9 @@ interface Segment {
 ```ts
 interface MemorySource {
   kind: string;
-  load(ownerId: string, write: QueuedWrite): Promise<MemoryInput | null>;  // null — материала уже нет
-  where(ownerId: string, write: QueuedWrite): Promise<SourceLink>;          // «Откуда»: подпись, дата, ссылка
-  announce?(ownerId: string, write: QueuedWrite): Promise<void>;            // кому сказать, что память изменилась
+  load(ownerId: string, write: QueuedWrite): Promise<MemoryInput | null>; // null — материала уже нет
+  where(ownerId: string, write: QueuedWrite): Promise<SourceLink>; // «Откуда»: подпись, дата, ссылка
+  announce?(ownerId: string, write: QueuedWrite): Promise<void>; // кому сказать, что память изменилась
 }
 ```
 

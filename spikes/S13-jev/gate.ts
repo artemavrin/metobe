@@ -7,10 +7,13 @@ import { experimental_evaluate as evaluate } from "ai";
 
 import { GATE_QUESTIONS, GATE_SKIP, gateState, nothingToKeep } from "../../packages/core/src/memory-gate.ts";
 import { TODAY, exchange, gate } from "./cases.ts";
+import { caseId, isMain, type EvalCase } from "./eval-case.ts";
 import { sourceKey } from "./keys.ts";
 
-const MODELS = (process.env.MODELS ?? "typesafe-ai/jev-1.14.0,microsoft/microsoft-decision-1,baseten/mammoth-1").split(",");
-const gw = createGateway({ apiKey: sourceKey("gateway").key });
+// Run as `pnpm gate`, the file calls the model itself; imported — by S15's eval.ts — it only gives its cases.
+const MAIN = isMain(import.meta.url);
+const MODELS = MAIN ? (process.env.MODELS ?? "typesafe-ai/jev-1.14.0,microsoft/microsoft-decision-1,baseten/mammoth-1").split(",") : [];
+const gw = createGateway({ apiKey: MAIN ? sourceKey("gateway").key : "" });
 
 // Short replies that only make sense with the exchange before them — they have something to keep.
 const withContext = [
@@ -25,6 +28,25 @@ const cases = [
   ...gate.map((c) => ({ before: {}, keep: c.remember, text: c.text })),
   ...withContext,
 ];
+
+/**
+ * The cases for `pnpm memory:eval` (S15). A skipped message that had something to keep is the miss; a message read
+ * though there was nothing to keep only loses the saving.
+ */
+export const evalCases = (): EvalCase[] =>
+  cases.map((c, i) => ({
+    id: caseId(i),
+    kind: "gate",
+    score: (answers) => {
+      const skip = nothingToKeep(answers);
+      return {
+        miss: skip && c.keep ? "skipped what had something to keep" : null,
+        tally: c.keep ? { kept: [skip ? 0 : 1, 1] } : { skipped_nothing: [skip ? 1 : 0, 1] },
+      };
+    },
+    state: gateState(c.text, TODAY, exchange(c.before)),
+    text: c.text,
+  }));
 
 for (const id of MODELS) {
   let lost = 0;

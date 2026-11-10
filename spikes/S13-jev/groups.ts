@@ -6,11 +6,14 @@ import { generateText, Output } from "ai";
 
 import { extractionSchema, memoryInstructions, memoryPrompt, planWrite } from "../../packages/core/src/memory-extract.ts";
 import type { MemoryRecord } from "../../packages/core/src/memory.ts";
+import { caseId, isMain, type EvalCase } from "./eval-case.ts";
 import { TIMEZONE, TODAY_ISO } from "./extract-cases.ts";
 import { sourceKey } from "./keys.ts";
 
-const MODELS = (process.env.MODELS ?? "google/gemini-3.5-flash").split(",");
-const gw = createGateway({ apiKey: sourceKey("gateway").key });
+// Run as `pnpm groups`, the file calls the model itself; imported — by S15's eval.ts — it only gives its cases.
+const MAIN = isMain(import.meta.url);
+const MODELS = MAIN ? (process.env.MODELS ?? "google/gemini-3.5-flash").split(",") : [];
+const gw = createGateway({ apiKey: MAIN ? sourceKey("gateway").key : "" });
 const sentAt = new Date(`${TODAY_ISO}T09:00:00Z`);
 
 const person = (ref: string, name: string, role: string | null) => ({ aliases: [], id: ref, kind: "person" as const, name, ref, role });
@@ -42,6 +45,17 @@ const cases: { text: string; check: (p: Plan) => string | null }[] = [
   { text: "«Вектор» — наш поставщик оборудования, договор до конца года.", check: (p) => (p.entities.some((e) => e.kind === "group") || roles(p).some((r) => r.endsWith(":group")) ? `grouped: ${roles(p)}` : null) },
   { text: "Андрей Смирнов теперь тимлид бэкенда.", check: (p) => (roles(p).some((r) => r.endsWith(":group")) || p.ends.length ? `grouped: ${roles(p)} ends ${p.ends}` : null) },
 ];
+
+/** The cases for `pnpm memory:eval` (S15): judged on the app's own plan. */
+export const evalCases = (): EvalCase[] =>
+  cases.map((c, i) => ({
+    id: caseId(i),
+    instructions: memoryInstructions({ cards, sentAt, timeZone: TIMEZONE }),
+    kind: "write",
+    prompt: memoryPrompt(c.text),
+    score: (o) => ({ miss: c.check(planWrite(o, { cards, facts, selfId: "me", timeZone: TIMEZONE })), tally: {} }),
+    text: c.text,
+  }));
 
 for (const id of MODELS) {
   let ok = 0;

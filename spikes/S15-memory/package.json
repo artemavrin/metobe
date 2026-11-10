@@ -6,7 +6,8 @@
     "many": "node --env-file=../../.env --import tsx many.ts",
     "update": "node --env-file=../../.env --import tsx update.ts",
     "prompt-cache": "node --env-file=../../.env --import tsx cache-check.ts",
-    "foreign": "node --env-file=../../.env --import tsx foreign.ts"
+    "foreign": "node --env-file=../../.env --import tsx foreign.ts",
+    "memory:eval": "node --env-file=../../.env --import tsx eval.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",

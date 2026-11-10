@@ -8,11 +8,14 @@ import { generateText, Output } from "ai";
 import { extractionSchema, memoryInstructions, memoryPrompt } from "../../packages/core/src/memory-extract.ts";
 import type { ChatTurn } from "../../packages/core/src/memory-extract.ts";
 import { cards, exchange } from "./cases.ts";
+import { caseId, isMain, type EvalCase } from "./eval-case.ts";
 import { TIMEZONE, TODAY_ISO } from "./extract-cases.ts";
 import { sourceKey } from "./keys.ts";
 
-const MODELS = (process.env.MODELS ?? "google/gemini-3.5-flash").split(",");
-const gw = createGateway({ apiKey: sourceKey("gateway").key });
+// Run as `pnpm context`, the file calls the model itself; imported — by S15's eval.ts — it only gives its cases.
+const MAIN = isMain(import.meta.url);
+const MODELS = MAIN ? (process.env.MODELS ?? "google/gemini-3.5-flash").split(",") : [];
+const gw = createGateway({ apiKey: MAIN ? sourceKey("gateway").key : "" });
 
 const known = {
   ...Object.fromEntries(Object.entries(cards).filter(([k]) => k !== "new" && k !== "unclear" && !k.startsWith("andrey"))),
@@ -154,6 +157,17 @@ const verdict = (c: Case, o: Out) => {
   if (c.due && !o.items.some((i) => i.due?.date.startsWith(c.due as string))) return `due: ${o.items.map((i) => i.due?.date).join(", ")}`;
   return null;
 };
+
+/** The cases for `pnpm memory:eval` (S15). */
+export const evalCases = (): EvalCase[] =>
+  cases.map((c, i) => ({
+    id: caseId(i),
+    instructions: system,
+    kind: "write",
+    prompt: memoryPrompt(c.text, c.story ?? exchange(c.before)),
+    score: (o) => ({ miss: verdict(c, o), tally: {} }),
+    text: c.text,
+  }));
 
 for (const id of MODELS) {
   let ok = 0;

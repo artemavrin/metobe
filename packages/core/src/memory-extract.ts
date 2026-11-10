@@ -120,7 +120,7 @@ export const extractionSchema = z.object({
       replaces: z
         .string()
         .describe(
-          "The ref of the current fact or coming event this item replaces («f1», «e2»); empty when it replaces nothing or none are listed"
+          "«none» for almost every item; the ref of a listed current fact or coming event («f1», «e2») only when the message says that one is no longer true and this item is true instead"
         ),
     })
   ),
@@ -344,7 +344,7 @@ ${known
  * measured on, word for word.
  */
 const REPLACE_RULE = `
-- An item may replace one of the current facts or coming events above: put its ref in \`replaces\`. Replace only when the item says the same thing about the same subject and the old one is no longer true — a new stage of a project, a new position, a meeting moved or cancelled. A meeting that is moved is replaced by the new event with its new day; a cancelled one by an event «…отменена». The new item points at the same cards (about) as the one it replaces. Something added beside the old one («ещё и ведёт закупки») replaces nothing. When in doubt, replace nothing.`;
+- \`replaces\` is «none» for almost every item. Put there the ref of a current fact or coming event above only when the message says that one is no longer true and the item is what is true instead: a project moved to another stage, a person got another position or employer, a preference turned into another, a meeting was moved or cancelled. The test: if the old one and the item can both be true at once, it is «none» — one more duty («ещё ведёт код-ревью»), a habit or a preference of someone whose position is listed, a detail, one more meeting or one more customer stand beside the old ones. A meeting that is moved is replaced by the new event, with the new day in \`when\`; a cancelled one by an event «…отменена». The item points at the same cards (about) as the one it replaces. When in doubt, «none».`;
 
 /** Only with open commitments listed: the same exception as above. */
 const MOVE_RULE = `

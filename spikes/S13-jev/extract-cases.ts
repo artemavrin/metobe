@@ -32,6 +32,11 @@ export interface Expect {
   when?: When;
   due?: When;
   intervalDays?: number[];
+  /**
+   * The message says what the card's role already says. When the memory holds that role as a current fact and the
+   * writer is shown it (ARCH §19.9.3), saying nothing is right too: no second fact beside the first.
+   */
+  known?: boolean;
 }
 
 export interface ExtractCase {
@@ -49,7 +54,7 @@ export const extractCases: ExtractCase[] = [
     { kind: "event", about: ["vector"], when: day("2026-11-03") },
     { kind: "commitment", debtor: "vector", creditor: "user" },
   ] },
-  { text: "Игорь теперь руководит отделом продаж.", expect: [{ kind: ["fact", "event"], about: ["igor_belov"] }] },
+  { text: "Игорь теперь руководит отделом продаж.", expect: [{ kind: ["fact", "event"], about: ["igor_belov"], known: true }] },
   { text: "Проект «Склад 2.0» перешёл в тестирование.", expect: [{ kind: "fact", about: ["sklad"] }] },
   { text: "Напоминай мне про встречи один на один с каждым из моей команды раз в две недели.", expect: [{ kind: "rule", intervalDays: [14] }] },
   { text: "Если контрагент не отвечает больше пяти рабочих дней — подсвечивай это в плане.", expect: [{ kind: "rule", intervalDays: [5, 7] }] },
