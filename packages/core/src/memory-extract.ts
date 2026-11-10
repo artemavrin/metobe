@@ -205,7 +205,9 @@ const CONTEXT_ANSWER = 800;
 export const chatContext = (turns: ChatTurn[]) => {
   const kept: ChatTurn[] = [];
   let left = CONTEXT_CHARS;
-  for (const turn of turns.slice(-CONTEXT_TURNS).toReversed()) {
+  // From the near end.
+  // oxlint-disable-next-line unicorn/no-array-reverse -- a fresh array; toReversed is past the ES2022 target
+  for (const turn of turns.slice(-CONTEXT_TURNS).reverse()) {
     if (left <= 0) {
       break;
     }
@@ -215,7 +217,8 @@ export const chatContext = (turns: ChatTurn[]) => {
     kept.push({ role: turn.role, text });
     left -= text.length;
   }
-  return kept.toReversed();
+  // oxlint-disable-next-line unicorn/no-array-reverse -- built here; toReversed is past the ES2022 target
+  return kept.reverse();
 };
 
 /** A line that starts what was forwarded or copied from a letter: everything from it on is someone else's. */

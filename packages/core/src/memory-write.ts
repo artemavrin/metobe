@@ -146,7 +146,9 @@ const chatBefore = async (chatId: string, sentAt: Date) => {
     .where(and(eq(messages.chatId, chatId), lt(messages.createdAt, sentAt)))
     .orderBy(desc(messages.createdAt))
     .limit(CONTEXT_TURNS);
-  return rows.toReversed().flatMap((r): ChatTurn[] => {
+  // Oldest first.
+  // oxlint-disable-next-line unicorn/no-array-reverse -- a fresh array; toReversed is past the ES2022 target
+  return rows.reverse().flatMap((r): ChatTurn[] => {
     const text = textOf(r.parts);
     return text && (r.role === "user" || r.role === "assistant")
       ? [{ role: r.role, text }]
