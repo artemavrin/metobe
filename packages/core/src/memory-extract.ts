@@ -39,7 +39,7 @@ export const extractionSchema = z.object({
         about: z
           .string()
           .describe(
-            "Who it is to the user (a role, a company) if the message says so; for a thing — what kind of thing it is, in the user's word; empty if the message does not say — not what they did in the message"
+            "Who it is to the user (a role, a company) if the message says so; for a thing — its kind in one or two words, never its name («кот», «автобус», «оборудование»); empty if the message does not say — not what they did in the message"
           ),
       })
     )
@@ -366,7 +366,7 @@ ${known
  * kinds — cost the «о себе» set a sixth of its answers on DeepSeek (28 of 36 against 33 of 36 without it): the writer
  * grew careful with everything about the user. This short one costs none (33 of 36) and names every thing (16 of 16).
  */
-const THINGS_RULE = `- A pet, a vehicle, a machine or a device, a contract or a site, given a name or a number («Барсик», «Автобус 412», «Mac Studio»), is a new_entities item of kind thing; \`about\` is what it is, in the user's word («кот», «автобус»). A thing named in general or in passing («ноутбук», «отчёт») is not a card.
+const THINGS_RULE = `- A pet, a vehicle, a machine or a device, a contract or a site, given a name or a number («Барсик», «Автобус 412», «Mac Studio»), is a new_entities item of kind thing; \`about\` is what it is, in the user's word («кот», «автобус»). A thing named in general or in passing («ноутбук», «отчёт») is not a card. A thing always comes with an item about it, with its id in about.
 `;
 
 /**
@@ -552,6 +552,30 @@ type Ask = Extraction["asks"][number] & { ids: string[] };
 type Draft = MemoryWritePlan["drafts"][number];
 
 /** New cards by the model's id; one named exactly like a known card is that card (in `asKnown`). */
+/**
+ * The word for what a thing is (D42): «кот», «автобус». A model sometimes puts the name there, or a description
+ * («рабочая станция Mac Studio M3 Ultra на 256 гигов») — then the card has no type and waits among «Другое», where the
+ * person can name it; a wrong word would start a section of its own.
+ */
+const MAX_TYPE_WORDS = 3;
+export const kindWord = (about: string, name: string) => {
+  const word = about.trim().toLowerCase();
+  const own = normalize(name);
+  const said = normalize(word);
+  const words = word.split(/\s+/u).length;
+  // The kind inside the name is fine («автобус» in «Автобус 412»); the name inside the kind, or a long phrase, is not;
+  // several words that are part of the name are the name again.
+  if (
+    !word ||
+    words > MAX_TYPE_WORDS ||
+    said.includes(own) ||
+    (words > 1 && own.includes(said))
+  ) {
+    return null;
+  }
+  return word;
+};
+
 const freshCards = (
   extraction: Extraction,
   cards: KnownCard[],
@@ -567,23 +591,26 @@ const freshCards = (
   const fresh = new Map<string, Fresh>();
   for (const e of extraction.new_entities) {
     const name = e.name.trim();
+    // A thing with no id of its own gets one from its name: the card is still made, `linkThings` finds its records.
+    const id =
+      e.id || (e.kind === "thing" && name ? `new:${normalize(name)}` : "");
     // The id is the model's: «new_pavel» instead of «new:pavel» is still that card — only a clash with a known ref is not.
-    if (!(name && e.id) || known.has(e.id) || e.id === "user") {
+    if (!(name && id) || known.has(id) || id === "user") {
       continue;
     }
     const same = byName.get(normalize(name));
     if (same) {
-      asKnown.set(e.id, same);
+      asKnown.set(id, same);
       continue;
     }
     // A thing: «about» is what kind of thing it is, the card's type (D42); the other kinds — who it is to the user.
     const thing = e.kind === "thing";
-    fresh.set(e.id, {
+    fresh.set(id, {
       kind: ENTITY_KINDS[e.kind],
       name,
-      ref: e.id,
+      ref: id,
       role: thing ? null : e.about.trim() || null,
-      ...(thing ? { type: e.about.trim().toLowerCase() || null } : {}),
+      ...(thing ? { type: kindWord(e.about, name) } : {}),
     });
   }
   return fresh;

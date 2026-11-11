@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MemoryEntity, MemoryWritePlan } from "./memory";
-import { planWrite } from "./memory-extract";
+import { kindWord, planWrite } from "./memory-extract";
 import type { Extraction } from "./memory-extract";
 import {
   ownTypes,
@@ -75,6 +75,60 @@ describe("cards of the person's own types (D42)", () => {
         role: null,
         type: "кот",
       }),
+    ]);
+  });
+
+  it("takes the word for what a thing is, never its name or a description", () => {
+    expect(kindWord(" Кот ", "Барсик")).toBe("кот");
+    // The kind inside the name is fine; the name — or a phrase around it — is not a kind.
+    expect(kindWord("автобус", "Автобус 412")).toBe("автобус");
+    expect(kindWord("Mac Studio M3 Ultra", "Mac Studio M3 Ultra")).toBeNull();
+    expect(
+      kindWord("рабочая станция Mac Studio M3 Ultra", "Mac Studio M3 Ultra")
+    ).toBeNull();
+    expect(
+      kindWord("Mac Studio M3 Ultra", "Mac Studio M3 Ultra на 256 ГБ")
+    ).toBeNull();
+    expect(kindWord("очень длинное описание того, что это", "Х")).toBeNull();
+    expect(kindWord("", "Х")).toBeNull();
+  });
+
+  it("makes the card of a thing the writer left without an id, and links the record that names it", () => {
+    const plan = planWrite(
+      extraction({
+        items: [
+          {
+            about: ["", ""],
+            creditor: null,
+            debtor: null,
+            due: { date: "", precision: "none" },
+            important: false,
+            interval_days: 0,
+            kind: "fact",
+            replaces: "none",
+            role: null,
+            rule_kind: null,
+            text: "В компании есть Mac Studio M3 Ultra на 256 ГБ",
+            when: { date: "2026-11-11", precision: "day" },
+            working_days: false,
+          },
+        ],
+        new_entities: [
+          {
+            about: "оборудование",
+            id: "",
+            kind: "thing",
+            name: "Mac Studio M3 Ultra",
+          },
+        ],
+      }),
+      { cards: [], selfId: null, timeZone: ZONE }
+    );
+    expect(plan.entities).toEqual([
+      expect.objectContaining({ kind: "custom", type: "оборудование" }),
+    ]);
+    expect(plan.records[0]?.entities).toEqual([
+      { newRef: plan.entities[0]?.ref, role: "about" },
     ]);
   });
 

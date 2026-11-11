@@ -61,23 +61,24 @@ export const evalCases = (): EvalCase[] =>
       const found = named.length > 0;
       // The plan: a card nothing points at is not made — the code links a record that has the thing's name in its text.
       const plan = planWrite(o, { cards, selfId: "self", timeZone: TIMEZONE });
-      const linked = c.thing
-        ? plan.entities.some((e) => e.kind === "custom" && c.thing?.name.test(e.name) && c.thing.about.test(e.type ?? ""))
-        : false;
+      const made = c.thing ? plan.entities.filter((e) => e.kind === "custom" && c.thing?.name.test(e.name)) : [];
+      // Made, and with the right word for what it is: the card, and its type.
+      const linked = made.length > 0;
+      const typed = made.some((e) => c.thing?.about.test(e.type ?? ""));
       const builtIn = c.builtIn
         ? o.new_entities.some((e) => e.kind === c.builtIn?.kind && c.builtIn.name.test(e.name))
         : false;
       // The decision model sorts a thing the writer should not have named, so it is a cost, not a loss: counted apart.
       const extra = !c.thing && things.length > 0;
       const miss = [
-        c.thing && found && !linked && `thing ${named[0]?.id} made no card: ${o.items.map((i) => `${i.text.slice(0, 40)} → ${i.about.join(",")}`).join(" | ")}`,
+        c.thing && found && !linked && `thing ${named[0]?.id} (${named[0]?.about}) made no card: ${o.items.map((i) => `${i.text.slice(0, 40)} → ${i.about.join(",")}`).join(" | ")}`,
         c.thing && !found && `no thing ${c.thing.name}: ${o.new_entities.map((e) => `${e.kind} ${e.name} (${e.about})`).join(", ") || "none"}`,
         c.builtIn && !builtIn && `no ${c.builtIn.kind} ${c.builtIn.name}: ${o.new_entities.map((e) => `${e.kind} ${e.name}`).join(", ") || "none"}`,
       ].filter(Boolean);
       return {
         miss: miss.length > 0 ? miss.join("; ") : null,
         tally: {
-          ...(c.thing ? { thing_named: [found ? 1 : 0, 1] as [number, number], thing_linked: [linked ? 1 : 0, 1] as [number, number] } : {}),
+          ...(c.thing ? { thing_named: [found ? 1 : 0, 1] as [number, number], thing_made: [linked ? 1 : 0, 1] as [number, number], thing_typed: [typed ? 1 : 0, 1] as [number, number] } : {}),
           ...(c.builtIn ? { built_in_kept: [builtIn ? 1 : 0, 1] as [number, number] } : {}),
           ...(c.thing || c.builtIn ? {} : { no_extra_thing: [extra ? 0 : 1, 1] as [number, number] }),
         },
