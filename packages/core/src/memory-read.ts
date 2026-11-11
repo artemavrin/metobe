@@ -13,6 +13,7 @@ import { z } from "zod";
 import { listEntities, listRecords } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
 import { mentionedCards } from "./memory-candidates";
+import { day, lineOf } from "./memory-lines";
 import { memoryCard, searchMemory, viewsOf } from "./memory-page";
 
 // The chat reads the memory (ARCH §19.5, Б4): the cards a message mentions go to the model as a short block in front
@@ -50,61 +51,7 @@ const ID_LENGTH = 8;
 
 export const shortId = (id: string) => id.slice(0, ID_LENGTH);
 const tag = (e: { id: string }) => `[${shortId(e.id)}]`;
-const day = (d: Date | string | null, timeZone: string) =>
-  d
-    ? new Intl.DateTimeFormat("en-CA", {
-        day: "2-digit",
-        month: "2-digit",
-        timeZone,
-        year: "numeric",
-      }).format(new Date(d))
-    : null;
-
 const OPEN = new Set(["open", "unconfirmed"]);
-
-/**
- * A record's kind as the model reads it. The words it reads are the words it answers in: «commitment» and «fact» came
- * back to the user as «обязательство» and «запись» (`apps/cli/dev/memory-voice-check.ts`), so the block names things
- * the way a person would.
- */
-const SAID_AS: Record<MemoryRecord["kind"], string> = {
-  assessment: "the user's view",
-  commitment: "promise",
-  event: "happened",
-  fact: "known",
-  rule: "rule",
-};
-
-/** A record as the model reads it: its text and what goes with it, compact. */
-const lineOf = (
-  r: MemoryRecord | MemoryRecordView,
-  names: Map<string, Pick<MemoryEntity, "kind" | "name">>,
-  timeZone: string
-) => {
-  const ids = r.entities.map((e) => ("entityId" in e ? e.entityId : e.id));
-  const who = (role: string) => {
-    const at = r.entities.findIndex((e) => e.role === role);
-    const entity = at === -1 ? undefined : names.get(ids[at] ?? "");
-    if (!entity) {
-      return null;
-    }
-    return entity.kind === "self" ? "the user" : entity.name;
-  };
-  const notes = [
-    r.kind === "commitment" &&
-      `by ${who("debtor") ?? "?"} to ${who("creditor") ?? "?"}`,
-    r.status && r.status !== "open" && r.status,
-    r.important && "important",
-    r.dueAt && `due ${day(r.dueAt, timeZone)}`,
-    r.givenAt && `given ${day(r.givenAt, timeZone)}`,
-    r.occurredAt &&
-      `on ${day(r.occurredAt, timeZone)}${r.occurredPrecision && r.occurredPrecision !== "day" ? ` (${r.occurredPrecision})` : ""}`,
-    r.validFrom && `since ${day(r.validFrom, timeZone)}`,
-    r.validTo && `until ${day(r.validTo, timeZone)}`,
-    "supersededAt" in r && r.supersededAt && "replaced by a later message",
-  ].filter(Boolean);
-  return `${SAID_AS[r.kind]}: «${r.text}»${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
-};
 
 /** What the memory has about one card, in a few lines. */
 const cardBlock = (

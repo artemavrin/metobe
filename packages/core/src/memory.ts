@@ -21,6 +21,7 @@ import {
   memoryMerges,
   memoryRecordEntities,
   memoryRecords,
+  memorySummaries,
   memoryWrites,
 } from "@metobe/db/schema/memory";
 import {
@@ -123,6 +124,7 @@ const ENTITIES = "memory_entities";
 const RECORDS = "memory_records";
 const DRAFTS = "memory_drafts";
 const MERGES = "memory_merges";
+const SUMMARIES = "memory_summaries";
 const WRITES = "memory_writes";
 const BODY = "body";
 
@@ -2219,6 +2221,90 @@ export const movedCounts = async (ownerId: string) => {
     )
     .groupBy(memoryChanges.recordId);
   return new Map(rows.map((r) => [r.recordId, r.moves]));
+};
+
+// --- a card's «Кратко» (Г2.1) ---------------------------------------------------------------------------------------
+
+const summaryLine = z.object({
+  records: z.array(z.string()),
+  text: z.string(),
+});
+const summaryBody = z.object({
+  count: z.number(),
+  how: z.array(summaryLine),
+  now: z.array(summaryLine),
+  who: z.array(summaryLine),
+});
+export type SummaryBody = z.infer<typeof summaryBody>;
+
+/** What was written of a card: the sentences with the records they stand on, how many records there were, and when. */
+export interface StoredSummary extends SummaryBody {
+  builtAt: Date;
+  coversAt: Date;
+}
+
+/** Puts a card's «Кратко» in, in place of the one it had. `coversAt` — the newest record that went into it. */
+export const saveSummary = async (
+  ownerId: string,
+  entityId: string,
+  body: SummaryBody,
+  coversAt: Date
+) => {
+  const key = await dataKey(ownerId, true);
+  if (!key) {
+    throw new Error("memory: no data key");
+  }
+  const sealed = sealField(
+    JSON.stringify(body),
+    memoryAad(ownerId, SUMMARIES, entityId, BODY),
+    key
+  );
+  const now = new Date();
+  await getDb()
+    .db.insert(memorySummaries)
+    .values({ builtAt: now, coversAt, entityId, ownerId, sealed })
+    .onConflictDoUpdate({
+      set: { builtAt: now, coversAt, sealed },
+      target: memorySummaries.entityId,
+    });
+};
+
+/** A card's «Кратко» as it was written; null — none, or it cannot be opened. */
+export const loadSummary = async (
+  ownerId: string,
+  entityId: string
+): Promise<StoredSummary | null> => {
+  const key = await dataKey(ownerId, false);
+  if (!key) {
+    return null;
+  }
+  const [row] = await getDb()
+    .db.select()
+    .from(memorySummaries)
+    .where(
+      and(
+        eq(memorySummaries.entityId, entityId),
+        eq(memorySummaries.ownerId, ownerId)
+      )
+    )
+    .limit(1);
+  if (!row) {
+    return null;
+  }
+  try {
+    const body = summaryBody.parse(
+      JSON.parse(
+        openField(
+          row.sealed,
+          memoryAad(ownerId, SUMMARIES, entityId, BODY),
+          key
+        )
+      )
+    );
+    return { ...body, builtAt: row.builtAt, coversAt: row.coversAt };
+  } catch {
+    return null;
+  }
 };
 
 /** The key of «Оставить» in «Сверка»: the commitment stays open and out of it for a while. */

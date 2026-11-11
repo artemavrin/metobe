@@ -11,7 +11,8 @@
     "foreign": "node --env-file=../../.env --import tsx foreign.ts",
     "memory:eval": "node --env-file=../../.env --import tsx eval.ts",
     "types": "node --env-file=../../.env --import tsx types.ts",
-    "dates": "node --env-file=../../.env --import tsx dates.ts"
+    "dates": "node --env-file=../../.env --import tsx dates.ts",
+    "summary": "node --env-file=../../.env --import tsx summary.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",

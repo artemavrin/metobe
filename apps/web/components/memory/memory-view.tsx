@@ -35,9 +35,11 @@ import { TopBar } from "@/components/chat/top-bar";
 import {
   Avatar,
   Balance,
+  MeetingButton,
   Now,
   Reliability,
   Section,
+  Summary,
   byUrgency,
   sidesOf,
 } from "./card-parts";
@@ -450,6 +452,22 @@ const NoteLine = ({
   );
 };
 
+/** The card's «Кратко» is being written: the page looks again in a few seconds, up to ten times. */
+const useWhileBuilding = (building: boolean) => {
+  const { reread } = useMemoryStore();
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!building || tick >= 10) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setTick((n) => n + 1);
+      reread();
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [building, tick, reread]);
+};
+
 const CardView = ({
   data,
   onBack,
@@ -464,6 +482,7 @@ const CardView = ({
   const direction = useDirection();
   const { card, records } = data;
   const { note } = useActions();
+  useWhileBuilding(Boolean(data.summaryBuilding));
   // What a note just wrote (P22): lit up where it went.
   const [fresh, setFresh] = useState<string[]>([]);
   const commitments = records.filter((r) => r.kind === "commitment");
@@ -490,6 +509,7 @@ const CardView = ({
         <Header
           action={
             <div className="flex items-center gap-1.5">
+              <MeetingButton card={card} />
               {card.kind !== "project" &&
                 card.kind !== "custom" &&
                 open.length > 0 && (
@@ -527,6 +547,7 @@ const CardView = ({
           title={card.name}
         />
         <Now data={data} timeZone={timeZone} />
+        <Summary data={data} />
         <Reliability data={data} />
         {data.contact && <Contacts card={card} />}
         <NoteLine

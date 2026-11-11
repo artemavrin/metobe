@@ -5,13 +5,21 @@ import type {
   MemoryCardItem,
   MemoryRecordView,
 } from "@metobe/contracts/memory";
+import { Button } from "@metobe/ui/components/button";
 import { cn } from "@metobe/ui/lib/utils";
-import { Box, Building2, FolderKanban, Users } from "lucide-react";
-import { useTranslations } from "next-intl";
+import {
+  Box,
+  Building2,
+  CalendarClock,
+  FolderKanban,
+  Users,
+} from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import Link from "next/link";
 
 import { daysUntil } from "@/lib/memory-dates";
 
-import { MemoryRecordRow } from "./memory-record";
+import { MemoryRecordRow, PRESS } from "./memory-record";
 
 // The parts of a card that the «Память» page and an answer in the chat draw the same way (P22): the face, a section,
 // «что сейчас», «Баланс».
@@ -243,5 +251,77 @@ export const Reliability = ({ data }: { data: MemoryCard }) => {
       {line("reliabilityTheirs", reliability.theirs)}
       {line("reliabilityMine", reliability.mine)}
     </div>
+  );
+};
+
+/**
+ * The card's «Кратко» (Г2.1): who they are, how to talk to them, what matters now — three short lists the memory model
+ * wrote from the card's records. Shown only when there is something; while the model writes one, the page looks again in
+ * a few seconds (`onBuilding`).
+ */
+export const Summary = ({ data }: { data: MemoryCard }) => {
+  const t = useTranslations("memory");
+  const format = useFormatter();
+  const { summary } = data;
+  if (!summary) {
+    return null;
+  }
+  const lists = [
+    ["who", summary.who],
+    ["how", summary.how],
+    ["now", summary.now],
+  ] as const;
+  return (
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-medium">{t("summary")}</h3>
+        <span className="text-muted-foreground text-xs">
+          {t("summaryBuilt", {
+            date: format.dateTime(new Date(summary.builtAt), {
+              day: "numeric",
+              month: "short",
+            }),
+          })}
+        </span>
+      </div>
+      <dl className="flex flex-col gap-2">
+        {lists.map(([key, lines]) =>
+          lines.length > 0 ? (
+            <div
+              className="grid grid-cols-[7.5rem_1fr] gap-3 max-sm:grid-cols-1 max-sm:gap-0.5"
+              key={key}
+            >
+              <dt className="text-muted-foreground text-sm">
+                {t(`summary_${key}`)}
+              </dt>
+              <dd className="text-sm">{lines.map((l) => l.text).join(" ")}</dd>
+            </div>
+          ) : null
+        )}
+      </dl>
+    </section>
+  );
+};
+
+/** «Перед встречей» (Г2.1): a new chat with the request in its composer; the chat's model answers from the card. */
+export const MeetingButton = ({ card }: { card: MemoryCardItem }) => {
+  const t = useTranslations("memory");
+  if (card.kind !== "person" && card.kind !== "org") {
+    return null;
+  }
+  return (
+    <Button
+      className={PRESS}
+      nativeButton={false}
+      render={
+        <Link
+          href={`/?say=${encodeURIComponent(t("meetingAsk", { name: card.name }))}`}
+        />
+      }
+      size="sm"
+      variant="outline"
+    >
+      <CalendarClock /> <span className="max-sm:sr-only">{t("meeting")}</span>
+    </Button>
   );
 };

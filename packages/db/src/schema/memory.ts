@@ -374,3 +374,26 @@ export const memoryMerges = pgTable(
   },
   (table) => [index("memory_merges_owner").on(table.ownerId)]
 );
+
+/**
+ * A card's short account, written by the «Память» model from the card's records (Г2.1 «Кратко», ARCH §19.9): who they
+ * are, how to talk to them, what matters now — each sentence with the records it stands on. `sealed` is
+ * `{ who, how, now, count }`; `covers_at` — the newest record that went into it, so a newer one makes it stale.
+ */
+export const memorySummaries = pgTable(
+  "memory_summaries",
+  {
+    builtAt: timestamp("built_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    coversAt: timestamp("covers_at", { withTimezone: true }).notNull(),
+    entityId: uuid("entity_id")
+      .primaryKey()
+      .references(() => memoryEntities.id, { onDelete: "cascade" }),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sealed: text("sealed").notNull(),
+  },
+  (table) => [index("memory_summaries_owner").on(table.ownerId)]
+);

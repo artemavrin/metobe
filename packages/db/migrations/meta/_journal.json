@@ -400,6 +400,13 @@
       "when": 1794395570799,
       "tag": "0056_memory_date_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1794397774145,
+      "tag": "0057_memory_summaries",
+      "breakpoints": true
     }
   ]
 }
