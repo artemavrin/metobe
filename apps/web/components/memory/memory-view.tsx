@@ -1290,6 +1290,7 @@ const thingSections = (cards: MemoryCardItem[]) => {
 
 const CardList = ({
   overview,
+  stale,
   q,
   setQ,
   shown,
@@ -1299,6 +1300,7 @@ const CardList = ({
   onRule,
 }: {
   overview: MemoryOverview;
+  stale: number;
   q: string;
   setQ: (q: string) => void;
   shown: Pick | null;
@@ -1375,6 +1377,18 @@ const CardList = ({
           value={q}
         />
       </div>
+      {!q && stale > 0 && (
+        <Link
+          className="hover:bg-muted/50 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors duration-150"
+          href="/memory/review"
+        >
+          <MailCheck className="text-warning size-4 shrink-0" />
+          <span className="flex-1 text-sm font-medium">{t("reviewTitle")}</span>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {stale}
+          </span>
+        </Link>
+      )}
       {!q &&
         overview.questions.length > 0 &&
         item(
@@ -1461,10 +1475,13 @@ const Bar = () => {
 
 export const MemoryView = ({
   initial,
+  stale,
   timeZone,
   start,
 }: {
   initial: MemoryOverview;
+  /** Commitments open a long time: a way in to «Сверка» (Д2) while there are any. */
+  stale: number;
   timeZone: string;
   /** A card to open at once (`?card=`). */
   start?: string;
@@ -1571,6 +1588,7 @@ export const MemoryView = ({
   const list = (
     <CardList
       nothing={Boolean(found && found.records.length === 0)}
+      stale={stale}
       onNew={setMaking}
       onPick={setPick}
       onRule={() => setRuleOpen(true)}

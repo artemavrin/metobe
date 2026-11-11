@@ -1,4 +1,5 @@
 import type { MemoryOverview } from "@metobe/contracts/memory";
+import { memoryStale } from "@metobe/core/memory-due";
 import { memoryOverview } from "@metobe/core/memory-page";
 import { memoryStateFor } from "@metobe/core/memory-write";
 
@@ -32,9 +33,17 @@ const MemoryPage = async ({
         questions: [],
         rules: [],
       };
+  // «Давно открыто» (Д2): a way in to «Сверка» while there is something to sort out; a broken read leaves the list as it was.
+  const stale = state.on
+    ? await memoryStale(user.id, prefs.timeZone).then(
+        (rows) => rows.length,
+        () => 0
+      )
+    : 0;
   return (
     <MemoryView
       initial={initial}
+      stale={stale}
       start={typeof card === "string" ? card : undefined}
       timeZone={prefs.timeZone}
     />
