@@ -957,6 +957,8 @@ export const createWrite = async (
 const writeMaterial = z.object({
   /** The card it was typed on. */
   about: z.uuid().optional(),
+  /** Typed as a standing rule («Правила», P22): read as one — how or how often to remind, what to watch. */
+  intent: z.enum(["rule"]).optional(),
   text: z.string(),
 });
 export type WriteMaterial = z.infer<typeof writeMaterial>;

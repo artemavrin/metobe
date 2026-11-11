@@ -1129,6 +1129,28 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       fromChat: true,
     });
     expect(await page.memoryCard(cleo, self.id)).toBeNull();
+
+    // A card by hand («+» next to a section): made once; the same name again — that card, not a second one.
+    const group = await page.createCard(cleo, {
+      kind: "group",
+      name: "Подрядчики",
+    });
+    expect(group).toMatchObject({
+      card: { kind: "group", name: "Подрядчики", open: 0 },
+      existed: false,
+    });
+    const again = await page.createCard(cleo, {
+      kind: "org",
+      name: " подрядчики ",
+    });
+    expect(again).toMatchObject({ existed: true });
+    expect(again.card.id).toBe(group.card.id);
+    const thing = await page.createCard(cleo, {
+      kind: "custom",
+      name: "Автобус 9",
+      type: "автобус",
+    });
+    expect(thing.card).toMatchObject({ kind: "custom", type: "автобус" });
     expect(await page.memoryCard(bob, olga.id)).toBeNull();
 
     // Every word, any order, ё as е; done ones too.

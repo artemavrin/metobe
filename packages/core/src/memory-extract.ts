@@ -315,6 +315,12 @@ export const noteTurn = (card: {
   text: `What should I remember about ${card.name}${card.role ? ` (${card.role})` : ""}?`,
 });
 
+/** A rule typed on the «Правила» page: the question it answers, so a plain sentence is read as a standing rule. */
+export const RULE_TURN: ChatTurn = {
+  role: "assistant",
+  text: "What standing rule should I remember — how or how often to remind the user, or what to watch for?",
+};
+
 /**
  * What the model reads: the message, and before it the chat it follows (`chatContext`) — only to understand «он»,
  * «передумал», an answer to the assistant's question or a story told over a few messages (S13, part 5). A message with

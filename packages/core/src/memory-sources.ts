@@ -5,7 +5,7 @@ import { and, desc, eq, lt } from "drizzle-orm";
 import { getDb } from "./db";
 import { CHAT_SOURCE, NOTE_SOURCE, listEntities, materialOf } from "./memory";
 import type { QueuedWrite } from "./memory";
-import { CONTEXT_TURNS, noteTurn } from "./memory-extract";
+import { CONTEXT_TURNS, RULE_TURN, noteTurn } from "./memory-extract";
 import type { ChatTurn } from "./memory-extract";
 import { announceMemory } from "./task-events";
 
@@ -113,6 +113,17 @@ const chat: MemorySource = {
 
 // ── Note: typed on a card to be remembered (P22 «Записать…») ───────────────────────────────────────────────────────
 
+/** The turn before a note: the card it was typed on, or the question a rule answers. */
+const noteContext = (
+  intent: "rule" | undefined,
+  card: { name: string; role: string | null } | undefined
+) => {
+  if (intent === "rule") {
+    return [RULE_TURN];
+  }
+  return card ? [noteTurn(card)] : [];
+};
+
 const note: MemorySource = {
   load: async (ownerId, write) => {
     const material = await materialOf(ownerId, write.id);
@@ -126,7 +137,7 @@ const note: MemorySource = {
     return {
       about: card?.id,
       at: write.sentAt,
-      context: card ? [noteTurn(card)] : [],
+      context: noteContext(material.intent, card),
       text: material.text,
     };
   },

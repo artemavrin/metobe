@@ -18,6 +18,7 @@ import {
   CHAT_SOURCE,
   NOTE_SOURCE,
   commitmentCounts,
+  createEntity,
   listEntities,
   listQuestions,
   listRecords,
@@ -26,7 +27,7 @@ import {
   writeChats,
   writeStatus,
 } from "./memory";
-import type { MemoryEntity, MemoryRecord } from "./memory";
+import type { MemoryEntity, MemoryRecord, WriteMaterial } from "./memory";
 import { groupMembers } from "./memory-groups";
 import { queueMemoryWrite } from "./memory-queue";
 import { cardContact } from "./memory-today";
@@ -155,6 +156,35 @@ const withReplacedEvents = async (ownerId: string, entityId: string) => {
         writeOf.has(r.supersededBy) &&
         writeOf.get(r.supersededBy) !== r.writeId)
   );
+};
+
+/**
+ * A card made by hand («+» next to a section of the list, P22): a person, an organization, a project, a group or a
+ * thing of a kind the person names. One that already has the name (or another name of its) is not made twice: that
+ * one comes back, `existed`.
+ */
+export const createCard = async (
+  ownerId: string,
+  input: { kind: MemoryCardItem["kind"]; name: string; type?: string }
+): Promise<{ card: MemoryCardItem; existed: boolean }> => {
+  const name = input.name.trim();
+  const entities = await listEntities(ownerId);
+  const key = normalize(name);
+  const same = entities.find(
+    (e) => isCard(e) && [e.name, ...e.aliases].some((n) => normalize(n) === key)
+  );
+  const entity =
+    same ??
+    (await createEntity(ownerId, {
+      kind: input.kind,
+      name,
+      type: input.kind === "custom" ? input.type : undefined,
+    }));
+  const [card] = await cardItems(ownerId, [entity]);
+  if (!card) {
+    throw new Error("memory: the card was not made");
+  }
+  return { card, existed: Boolean(same) };
 };
 
 /** The groups the card is in now, then the projects its live records name — the most named first. */
@@ -357,24 +387,14 @@ const settled = async (
   return settled(ownerId, id, until);
 };
 
-/**
- * «Записать…» on a card (P22): the note goes through the memory's queue as any material — the writer picks what it is
- * and where it lies — and the page is told what came of it, if the queue gets to it in `NOTE_WAIT_MS`.
- */
-export const writeNote = async (
+const writeMaterial = async (
   ownerId: string,
-  cardId: string,
-  text: string,
+  material: WriteMaterial,
   timeZone: string
-): Promise<MemoryNoteResult | null> => {
-  const entities = await listEntities(ownerId);
-  const card = entities.find((e) => e.id === cardId);
-  if (!(card && isCard(card))) {
-    return null;
-  }
+): Promise<MemoryNoteResult> => {
   const writeId = await queueMemoryWrite({
     at: new Date(),
-    material: { about: cardId, text },
+    material,
     ownerId,
     source: NOTE_SOURCE,
     sourceKey: crypto.randomUUID(),
@@ -405,3 +425,25 @@ export const writeNote = async (
     records: await views(ownerId, records, await listEntities(ownerId)),
   };
 };
+
+/**
+ * «Записать…» on a card (P22): the note goes through the memory's queue as any material — the writer picks what it is
+ * and where it lies — and the page is told what came of it, if the queue gets to it in `NOTE_WAIT_MS`.
+ */
+export const writeNote = async (
+  ownerId: string,
+  cardId: string,
+  text: string,
+  timeZone: string
+): Promise<MemoryNoteResult | null> => {
+  const entities = await listEntities(ownerId);
+  const card = entities.find((e) => e.id === cardId);
+  if (!(card && isCard(card))) {
+    return null;
+  }
+  return writeMaterial(ownerId, { about: cardId, text }, timeZone);
+};
+
+/** A rule typed on the «Правила» page (P22): read like a note, as a standing rule. */
+export const writeRule = (ownerId: string, text: string, timeZone: string) =>
+  writeMaterial(ownerId, { intent: "rule", text }, timeZone);

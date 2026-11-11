@@ -505,18 +505,26 @@ const typing = (e: KeyboardEvent) => {
 };
 
 /**
- * «Записать…» (P22): a quiet line under the head — pressed, or «N» anywhere on the page, and it is a field; Enter
- * hands the note to the memory, which picks its section itself. What went in lights up where it lies.
+ * «Записать…» (P22): a quiet line — pressed, or «N» anywhere on the page, and it is a field; Enter hands the words to
+ * the memory, which picks what they are and where they lie. What went in lights up where it lies. On a card they are
+ * a note about it; on «Правила» — a rule.
  */
-const QuickAdd = ({
-  card,
+const NoteLine = ({
+  label,
+  placeholder,
+  send,
   onWritten,
+  focus = false,
 }: {
-  card: MemoryCardItem;
+  label: string;
+  placeholder: string;
+  /** Hands the words over; the records they made — none when nothing went in. */
+  send: (text: string) => Promise<MemoryRecordView[] | null>;
   onWritten: (ids: string[]) => void;
+  /** Opened by the press on a «+»: the field is ready at once. */
+  focus?: boolean;
 }) => {
   const t = useTranslations("memory");
-  const { note } = useActions();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
@@ -527,6 +535,9 @@ const QuickAdd = ({
     hint = "Enter";
   }
   useEffect(() => {
+    if (focus) {
+      field.current?.focus();
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== "n" || typing(e)) {
         return;
@@ -536,7 +547,7 @@ const QuickAdd = ({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [focus]);
   return (
     <form
       className="group/add focus-within:border-foreground/30 hover:bg-muted/40 flex items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 transition-colors duration-150 focus-within:hover:bg-transparent"
@@ -547,7 +558,7 @@ const QuickAdd = ({
           return;
         }
         setBusy(true);
-        const written = await note(card, said);
+        const written = await send(said);
         setBusy(false);
         // Nothing found or a failure: the words stay, to say it otherwise.
         if (written) {
@@ -564,12 +575,12 @@ const QuickAdd = ({
         )}
       </span>
       <input
-        aria-label={t("noteLabel", { name: card.name })}
+        aria-label={label}
         className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none disabled:opacity-60"
         disabled={busy}
         maxLength={2000}
         onChange={(e) => setText(e.target.value)}
-        placeholder={t("notePlaceholder")}
+        placeholder={placeholder}
         ref={field}
         value={text}
       />
@@ -659,6 +670,7 @@ const CardView = ({
   const format = useFormatter();
   const direction = useDirection();
   const { card, records } = data;
+  const { note } = useActions();
   // What a note just wrote (P22): lit up where it went.
   const [fresh, setFresh] = useState<string[]>([]);
   const commitments = records.filter((r) => r.kind === "commitment");
@@ -720,7 +732,12 @@ const CardView = ({
         />
         <Now data={data} timeZone={timeZone} />
         {data.contact && <Contacts card={card} />}
-        <QuickAdd card={card} onWritten={setFresh} />
+        <NoteLine
+          label={t("noteLabel", { name: card.name })}
+          onWritten={setFresh}
+          placeholder={t("notePlaceholder")}
+          send={(text) => note(card, text)}
+        />
         {card.kind === "group" && (
           <Section count={data.members?.length ?? 0} title={t("members")}>
             {data.members?.length ? (
@@ -970,24 +987,39 @@ const Me = ({
 const Rules = ({
   rules,
   onBack,
+  send,
+  focus,
 }: {
   rules: MemoryRecordView[];
   onBack?: () => void;
+  /** A rule in words (`POST /api/memory/rules`). */
+  send: (text: string) => Promise<MemoryRecordView[] | null>;
+  focus: boolean;
 }) => {
   const t = useTranslations("memory");
+  const [fresh, setFresh] = useState<string[]>([]);
   return (
-    <div className={cn("flex flex-col gap-4", ENTER)}>
-      <Header hint={t("rulesHint")} onBack={onBack} title={t("rules")} />
-      {rules.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("noRules")}</p>
-      ) : (
-        <ul className="flex flex-col">
-          {rules.map((r) => (
-            <MemoryRecordRow key={r.id} record={r} />
-          ))}
-        </ul>
-      )}
-    </div>
+    <FreshContext value={fresh}>
+      <div className={cn("flex flex-col gap-4", ENTER)}>
+        <Header hint={t("rulesHint")} onBack={onBack} title={t("rules")} />
+        <NoteLine
+          focus={focus}
+          label={t("ruleLabel")}
+          onWritten={setFresh}
+          placeholder={t("ruleAsk")}
+          send={send}
+        />
+        {rules.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t("noRules")}</p>
+        ) : (
+          <ul className="flex flex-col">
+            {rules.map((r) => (
+              <MemoryRecordRow key={r.id} record={r} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </FreshContext>
   );
 };
 
@@ -1162,8 +1194,72 @@ const useActionsOf = (
   reread: () => Promise<void>
 ): MemoryActions & {
   answer: (q: Question, body: object) => Promise<void>;
+  rule: (text: string) => Promise<MemoryRecordView[] | null>;
 } => {
   const t = useTranslations("memory");
+  /**
+   * A note or a rule in words goes to the memory, which picks what it is: the toast says where it lay (with «Отменить»),
+   * that nothing was found, or that it will be written later. The records it made — none when nothing went in.
+   */
+  const send = async (
+    url: string,
+    text: string,
+    section: (r: MemoryRecordView) => string
+  ): Promise<MemoryRecordView[] | null> => {
+    const response = await fetch(url, {
+      body: JSON.stringify({ text }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const result = response.ok
+      ? ((await response.json()) as MemoryNoteResult)
+      : null;
+    if (!result || result.status === "failed" || result.status === "off") {
+      toast.error(t("failed"));
+      return null;
+    }
+    if (result.status === "skipped") {
+      toast(t("noteNothing"));
+      return null;
+    }
+    if (result.status === "queued") {
+      toast(t("noteLater"));
+      return [];
+    }
+    await reread();
+    const [first] = result.records;
+    if (!first) {
+      toast(t("noteAsked"));
+      return [];
+    }
+    const { writeId } = result;
+    const words = {
+      count: result.records.length - 1,
+      section: section(first),
+      text: first.text,
+    };
+    toast(
+      result.records.length > 1
+        ? t("noteSavedMore", words)
+        : t("noteSaved", words),
+      writeId
+        ? {
+            action: {
+              label: t("undo"),
+              onClick: async () => {
+                await fetch(`/api/memory/writes/${writeId}/undo`, {
+                  method: "POST",
+                });
+                await reread();
+                toast(t("undone"));
+              },
+            },
+          }
+        : undefined
+    );
+    return result.records;
+  };
+
   return {
     answer: async (question, body) => {
       const response = await fetch(`/api/memory/questions/${question.id}`, {
@@ -1178,60 +1274,10 @@ const useActionsOf = (
       toast("dismiss" in body ? t("notRemembered") : t("answered"));
       await reread();
     },
-    note: async (card, text) => {
-      const response = await fetch(`/api/memory/cards/${card.id}/notes`, {
-        body: JSON.stringify({ text }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
-      const result = response.ok
-        ? ((await response.json()) as MemoryNoteResult)
-        : null;
-      if (!result || result.status === "failed" || result.status === "off") {
-        toast.error(t("failed"));
-        return null;
-      }
-      if (result.status === "skipped") {
-        toast(t("noteNothing"));
-        return null;
-      }
-      if (result.status === "queued") {
-        toast(t("noteLater"));
-        return [];
-      }
-      await reread();
-      const [first] = result.records;
-      if (!first) {
-        toast(t("noteAsked"));
-        return [];
-      }
-      const { writeId } = result;
-      const words = {
-        count: result.records.length - 1,
-        section: sectionOf(first, card.id, t),
-        text: first.text,
-      };
-      toast(
-        result.records.length > 1
-          ? t("noteSavedMore", words)
-          : t("noteSaved", words),
-        writeId
-          ? {
-              action: {
-                label: t("undo"),
-                onClick: async () => {
-                  await fetch(`/api/memory/writes/${writeId}/undo`, {
-                    method: "POST",
-                  });
-                  await reread();
-                  toast(t("undone"));
-                },
-              },
-            }
-          : undefined
-      );
-      return result.records;
-    },
+    note: (card, text) =>
+      send(`/api/memory/cards/${card.id}/notes`, text, (r) =>
+        sectionOf(r, card.id, t)
+      ),
     patch: async (id, patch, saved) => {
       const response = await fetch(`/api/memory/records/${id}`, {
         body: JSON.stringify(patch),
@@ -1279,6 +1325,7 @@ const useActionsOf = (
         },
       });
     },
+    rule: (text) => send("/api/memory/rules", text, () => t("rules")),
     timeZone,
   };
 };
@@ -1331,6 +1378,127 @@ const CardRow = ({ c }: { c: MemoryCardItem }) => {
 };
 
 /** The left column: search, «Не записано», cards by kind (open/overdue on the right), «Правила». */
+/** What a hand-made card is: its kind, and for a thing of the person's own kind — the word for what it is. */
+interface NewCardInput {
+  kind: MemoryCardItem["kind"];
+  name: string;
+  type?: string;
+}
+
+/** A heading of the list with a «+» that appears on hover (always on a touch screen). */
+const SectionHeading = ({
+  title,
+  label,
+  onAdd,
+}: {
+  title: string;
+  label: string;
+  onAdd: () => void;
+}) => (
+  <div className="group/head flex items-center justify-between ps-2">
+    <span className="text-muted-foreground py-1 text-xs">{title}</span>
+    <button
+      aria-label={label}
+      className="text-muted-foreground hover:text-foreground flex size-6 items-center justify-center rounded-md opacity-0 transition-[opacity,color] duration-150 group-hover/head:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60"
+      onClick={onAdd}
+      type="button"
+    >
+      <Plus className="size-3.5" />
+    </button>
+  </div>
+);
+
+/**
+ * A card by hand: the name, and for a thing of the person's own kind (no word for it given by the section) what it is.
+ * Enter makes it and opens it; Escape or leaving it empty closes it.
+ */
+const NewCard = ({
+  kind,
+  type,
+  onCreate,
+  onClose,
+}: {
+  kind: MemoryCardItem["kind"];
+  type?: string;
+  onCreate: (input: NewCardInput) => Promise<boolean>;
+  onClose: () => void;
+}) => {
+  const t = useTranslations("memory");
+  const [name, setName] = useState("");
+  const [word, setWord] = useState("");
+  const [busy, setBusy] = useState(false);
+  const wordField = useRef<HTMLInputElement>(null);
+  const askType = kind === "custom" && !type;
+  const submit = async () => {
+    const said = name.trim();
+    if (!said || busy) {
+      return;
+    }
+    setBusy(true);
+    const made = await onCreate({
+      kind,
+      name: said,
+      type: type ?? (word.trim() || undefined),
+    });
+    setBusy(false);
+    if (made) {
+      onClose();
+    }
+  };
+  return (
+    <form
+      className="flex flex-col gap-1.5 rounded-lg px-2 py-1.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <input
+        aria-label={t("newCardName")}
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- opened by the person's press on a «+»
+        autoFocus
+        className="border-foreground/30 border-b bg-transparent text-sm outline-none"
+        disabled={busy}
+        maxLength={200}
+        onBlur={(e) => {
+          // Leaving the line with nothing typed closes it.
+          if (!(name || word || e.relatedTarget === wordField.current)) {
+            onClose();
+          }
+        }}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            onClose();
+          }
+        }}
+        placeholder={t("newCardName")}
+        value={name}
+      />
+      {askType && (
+        <input
+          aria-label={t("typeLabel")}
+          className="border-foreground/30 border-b bg-transparent text-sm outline-none"
+          disabled={busy}
+          maxLength={60}
+          onChange={(e) => setWord(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              onClose();
+            }
+          }}
+          placeholder={t("typeAsk")}
+          ref={wordField}
+          value={word}
+        />
+      )}
+      <button className="sr-only" type="submit">
+        {t("newCardMake")}
+      </button>
+    </form>
+  );
+};
+
 /** A word as a heading: «автобус» — «Автобус». */
 const capitalized = (word: string) =>
   word.slice(0, 1).toLocaleUpperCase("ru") + word.slice(1);
@@ -1365,6 +1533,8 @@ const CardList = ({
   shown,
   onPick,
   nothing,
+  onCreate,
+  onRule,
 }: {
   overview: MemoryOverview;
   q: string;
@@ -1372,8 +1542,13 @@ const CardList = ({
   shown: Pick | null;
   onPick: (p: Pick) => void;
   nothing: boolean;
+  /** Makes a card by hand; false — it was not made. */
+  onCreate: (input: NewCardInput) => Promise<boolean>;
+  /** «+» next to «Правила»: the rules page with its line ready. */
+  onRule: () => void;
 }) => {
   const t = useTranslations("memory");
+  const [adding, setAdding] = useState<string | null>(null);
   const words = normalize(q).split(/\s+/u).filter(Boolean);
   const cards = overview.cards.filter((c) => matches(c, words));
   const things = thingSections(cards);
@@ -1391,6 +1566,43 @@ const CardList = ({
       {children}
     </button>
   );
+  /** A section of the list: its heading with «+» (while not searching), the form for a new card, its cards. */
+  const section = (
+    key: string,
+    title: string,
+    of: MemoryCardItem[],
+    made: { kind: MemoryCardItem["kind"]; type?: string }
+  ) => {
+    if (q && of.length === 0) {
+      return null;
+    }
+    return (
+      <div className="flex flex-col gap-0.5" key={key}>
+        {q ? (
+          <span className="text-muted-foreground px-2 pb-1 text-xs">
+            {title}
+          </span>
+        ) : (
+          <SectionHeading
+            label={t("newCardIn", { section: title })}
+            onAdd={() => setAdding(key)}
+            title={title}
+          />
+        )}
+        {adding === key && (
+          <NewCard
+            kind={made.kind}
+            onClose={() => setAdding(null)}
+            onCreate={onCreate}
+            type={made.type}
+          />
+        )}
+        {of.map((c) =>
+          item({ id: c.id, type: "card" }, c.id, <CardRow c={c} />)
+        )}
+      </div>
+    );
+  };
   return (
     <div className="flex flex-col gap-4">
       <div className="relative">
@@ -1430,53 +1642,44 @@ const CardList = ({
             </span>
           </>
         )}
-      {KINDS.map((kind) => {
-        const of = cards.filter((c) => c.kind === kind);
-        return (
-          of.length > 0 && (
-            <div className="flex flex-col gap-0.5" key={kind}>
-              <span className="text-muted-foreground px-2 pb-1 text-xs">
-                {t(`kinds.${kind}`)}
+      {KINDS.map((kind) =>
+        section(
+          kind,
+          t(`kinds.${kind}`),
+          cards.filter((c) => c.kind === kind),
+          { kind }
+        )
+      )}
+      {things.sections.map((one) =>
+        section(`type:${one.type}`, one.title, one.cards, {
+          kind: "custom",
+          type: one.type,
+        })
+      )}
+      {section("other", t("kinds.other"), things.other, { kind: "custom" })}
+      {!q && (
+        <div className="group/head relative">
+          {item(
+            { type: "rules" },
+            "rules",
+            <>
+              <ListChecks className="text-muted-foreground size-4 shrink-0" />
+              <span className="flex-1 text-sm">{t("rules")}</span>
+              <span className="text-muted-foreground me-7 text-xs tabular-nums">
+                {overview.rules.length}
               </span>
-              {of.map((c) =>
-                item({ id: c.id, type: "card" }, c.id, <CardRow c={c} />)
-              )}
-            </div>
-          )
-        );
-      })}
-      {things.sections.map((section) => (
-        <div className="flex flex-col gap-0.5" key={`type:${section.type}`}>
-          <span className="text-muted-foreground px-2 pb-1 text-xs">
-            {section.title}
-          </span>
-          {section.cards.map((c) =>
-            item({ id: c.id, type: "card" }, c.id, <CardRow c={c} />)
+            </>
           )}
-        </div>
-      ))}
-      {things.other.length > 0 && (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-muted-foreground px-2 pb-1 text-xs">
-            {t("kinds.other")}
-          </span>
-          {things.other.map((c) =>
-            item({ id: c.id, type: "card" }, c.id, <CardRow c={c} />)
-          )}
+          <button
+            aria-label={t("ruleAdd")}
+            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-[opacity,color] duration-150 group-hover/head:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60"
+            onClick={onRule}
+            type="button"
+          >
+            <Plus className="size-3.5" />
+          </button>
         </div>
       )}
-      {!q &&
-        item(
-          { type: "rules" },
-          "rules",
-          <>
-            <ListChecks className="text-muted-foreground size-4 shrink-0" />
-            <span className="flex-1 text-sm">{t("rules")}</span>
-            <span className="text-muted-foreground text-xs tabular-nums">
-              {overview.rules.length}
-            </span>
-          </>
-        )}
       {nothing && cards.length === 0 && (
         <p className="text-muted-foreground px-2 text-sm">
           {t("nothingFound")}
@@ -1513,6 +1716,8 @@ export const MemoryView = ({
     start ? { id: start, type: "card" } : null
   );
   const [q, setQ] = useState("");
+  // «+» next to «Правила»: the rules page opens with its line ready (counted: each press opens it anew).
+  const [ruling, setRuling] = useState(0);
   // On a wide screen the first card is open from the start; on a phone the list comes first.
   const [first] = initial.cards;
   const shown: Pick | null =
@@ -1520,6 +1725,29 @@ export const MemoryView = ({
   const cardId = shown?.type === "card" ? shown.id : null;
   const { card, found, overview, reread } = useMemoryData(initial, cardId, q);
   const actions = useActionsOf(timeZone, reread);
+  /** A card by hand: it comes back made (or found, if the name was there), the list is read again, the card opens. */
+  const create = async (input: NewCardInput) => {
+    const response = await fetch("/api/memory/cards", {
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      toast.error(t("failed"));
+      return false;
+    }
+    const made = (await response.json()) as {
+      card: MemoryCardItem;
+      existed: boolean;
+    };
+    if (made.existed) {
+      toast(t("cardExisted", { name: made.card.name }));
+    }
+    await reread();
+    setRuling(0);
+    setPick({ id: made.card.id, type: "card" });
+    return true;
+  };
 
   if (!overview.on) {
     return (
@@ -1576,7 +1804,15 @@ export const MemoryView = ({
         questions={overview.questions}
       />
     ),
-    rules: <Rules onBack={back} rules={overview.rules} />,
+    rules: (
+      <Rules
+        focus={ruling > 0}
+        key={ruling}
+        onBack={back}
+        rules={overview.rules}
+        send={actions.rule}
+      />
+    ),
   };
   const detail = shown ? details[shown.type] : null;
   // While searching, the records found stand over the card.
@@ -1584,7 +1820,15 @@ export const MemoryView = ({
   const list = (
     <CardList
       nothing={Boolean(found && found.records.length === 0)}
-      onPick={setPick}
+      onCreate={create}
+      onPick={(p) => {
+        setRuling(0);
+        setPick(p);
+      }}
+      onRule={() => {
+        setPick({ type: "rules" });
+        setRuling((n) => n + 1);
+      }}
       overview={overview}
       q={q}
       setQ={setQ}

@@ -264,6 +264,19 @@ export const memoryCardPatchSchema = z
     message: "nothing to change",
   });
 
+/** `POST /api/memory/cards` («+» next to a section of the list): a card by hand. */
+export const memoryCardCreateSchema = z.object({
+  kind: z.enum(["person", "org", "project", "group", "custom"]),
+  name: z.string().trim().min(1).max(200),
+  /** A thing of the person's own kind: what it is, as they say it («автобус»). */
+  type: z.string().trim().max(60).optional(),
+});
+
+/** `POST /api/memory/rules` («Правила»): a rule in words — the memory reads it like a note and makes a rule of it. */
+export const memoryRuleSchema = z.object({
+  text: z.string().trim().min(1).max(2000),
+});
+
 /** `POST /api/memory/cards/[id]/notes` (P22 «Записать…»): a note typed on the card; the memory picks its section. */
 export const memoryNoteSchema = z.object({
   text: z.string().trim().min(1).max(2000),
