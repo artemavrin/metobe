@@ -19,7 +19,7 @@ import { groupMembers } from "./memory-groups";
 // been («один на один раз в две недели»). Gathered by plain reads when the screen opens, without a model.
 
 /** Days in the person's zone: `2026-11-09`. */
-const dayKey = (at: Date, timeZone: string) =>
+export const dayKey = (at: Date, timeZone: string) =>
   new Intl.DateTimeFormat("en-CA", {
     day: "2-digit",
     month: "2-digit",
@@ -28,7 +28,7 @@ const dayKey = (at: Date, timeZone: string) =>
   }).format(at);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const daysBetween = (from: string, to: string) =>
+export const daysBetween = (from: string, to: string) =>
   Math.round(
     (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS
   );
@@ -165,7 +165,7 @@ const isDismissed = (
   (gone?.dueAt?.getTime() ?? null) === (r.dueAt?.getTime() ?? null);
 
 /** Who is on the other side: the debtor when the person is owed, the creditor when the person owes. */
-const sidesOf = (r: MemoryRecord, cards: Map<string, MemoryEntity>) => {
+export const sidesOf = (r: MemoryRecord, cards: Map<string, MemoryEntity>) => {
   const card = (role: "debtor" | "creditor") =>
     cards.get(r.entities.find((e) => e.role === role)?.entityId ?? "");
   const debtor = card("debtor");
@@ -179,7 +179,7 @@ const sidesOf = (r: MemoryRecord, cards: Map<string, MemoryEntity>) => {
   return { side: "between" as const, who: debtor };
 };
 
-const cardOf = (who: MemoryEntity | undefined) =>
+export const cardOf = (who: MemoryEntity | undefined) =>
   who && who.kind !== "self"
     ? { id: who.id, kind: who.kind, name: who.name }
     : null;

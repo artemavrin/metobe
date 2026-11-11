@@ -365,6 +365,46 @@ export interface MemorySuggestion {
   rhythm: { since: string | null; every: number } | null;
 }
 
+// --- «Сроки» (Д6, P27) and «Сверка» (Д2, P20) -----------------------------------------------------------------------
+
+/** An open commitment as a row of «Сроки» or «Сверка»: whose it is, to whom, and by when. */
+export interface MemoryPromiseRow {
+  id: string;
+  text: string;
+  side: "theirs" | "mine" | "between";
+  /** The other side: who owes, whom the person owes. */
+  who: { id: string; name: string; kind: MemoryEntityKind } | null;
+  dueAt: string | null;
+  status: MemoryStatus | null;
+  important: boolean;
+}
+
+/** One day of «Сроки»: `day` is `2026-11-11` in the person's zone, `offset` — days from today. */
+export interface MemoryDueDay {
+  day: string;
+  offset: number;
+  items: MemoryPromiseRow[];
+}
+
+/** `GET /api/memory/due`: what is past its day, the next days (today first, empty ones too), and how many have no day. */
+export interface MemoryDue {
+  today: string;
+  late: (MemoryPromiseRow & { days: number })[];
+  days: MemoryDueDay[];
+  /** Open with no deadline. */
+  none: number;
+  /** Open with a deadline beyond the days shown. */
+  later: number;
+}
+
+/** An open commitment nothing has happened to for a long time (`GET /api/memory/stale`). */
+export interface MemoryStaleRow extends MemoryPromiseRow {
+  /** When it was given, if known. */
+  givenAt: string | null;
+  /** Days without a change. */
+  quiet: number;
+}
+
 // --- merging cards (ARCH §19.8.5) -----------------------------------------------------------------------------------
 
 /** One side of «Один человек?». */

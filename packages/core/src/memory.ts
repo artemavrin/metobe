@@ -2103,6 +2103,67 @@ export const listDismissals = async (ownerId: string) => {
   return new Map(rows.map((r) => [r.key, r]));
 };
 
+/** When each record was last changed — a status, a deadline, «важно» (`memory_changes`); records never changed are absent. */
+export const lastChanges = async (ownerId: string) => {
+  const rows = await getDb()
+    .db.select({
+      at: sql<Date>`max(${memoryChanges.at})`.mapWith(
+        (v: string | Date) => new Date(v)
+      ),
+      recordId: memoryChanges.recordId,
+    })
+    .from(memoryChanges)
+    .where(eq(memoryChanges.ownerId, ownerId))
+    .groupBy(memoryChanges.recordId);
+  return new Map(rows.map((r) => [r.recordId, r.at]));
+};
+
+/** The key of «Оставить» in «Сверка»: the commitment stays open and out of it for a while. */
+export const keepKey = (recordId: string) => `stale:${recordId}`;
+
+/** «Оставить» in «Сверка» (В2.1): the commitment is not shown there for 30 days. False — it is not an open one of theirs. */
+export const keepOpen = async (ownerId: string, recordId: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ dueAt: memoryRecords.dueAt, status: memoryRecords.status })
+    .from(memoryRecords)
+    .where(
+      and(
+        eq(memoryRecords.id, recordId),
+        eq(memoryRecords.ownerId, ownerId),
+        eq(memoryRecords.kind, "commitment"),
+        isNull(memoryRecords.deletedAt)
+      )
+    )
+    .limit(1);
+  if (!row) {
+    return false;
+  }
+  const snapshot = { dueAt: row.dueAt, entityId: null, status: row.status };
+  await db
+    .insert(memoryDismissals)
+    .values({ ...snapshot, key: keepKey(recordId), ownerId, recordId })
+    .onConflictDoUpdate({
+      set: { ...snapshot, at: new Date() },
+      target: memoryDismissals.key,
+    });
+  return true;
+};
+
+/** «Вернуть» after «Оставить». */
+export const unkeepOpen = async (ownerId: string, recordId: string) => {
+  const rows = await getDb()
+    .db.delete(memoryDismissals)
+    .where(
+      and(
+        eq(memoryDismissals.ownerId, ownerId),
+        eq(memoryDismissals.key, keepKey(recordId))
+      )
+    )
+    .returning({ key: memoryDismissals.key });
+  return rows.length > 0;
+};
+
 // --- merging cards (ARCH §19.8.5) ----------------------------------------------------------------------------------
 
 /** What the kept card lacks it takes from the other one — its role and ways to reach them; what it has stays. */
