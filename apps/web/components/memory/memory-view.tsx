@@ -1406,6 +1406,15 @@ const CardList = ({
           </>
         )}
       {!q &&
+        item(
+          { type: "due" },
+          "due",
+          <>
+            <CalendarDays className="text-muted-foreground size-4 shrink-0" />
+            <span className="flex-1 text-sm">{t("due")}</span>
+          </>
+        )}
+      {!q &&
         overview.me.length > 0 &&
         item(
           { type: "me" },
@@ -1433,15 +1442,6 @@ const CardList = ({
         })
       )}
       {section("other", t("kinds.other"), things.other, { kind: "custom" })}
-      {!q &&
-        item(
-          { type: "due" },
-          "due",
-          <>
-            <CalendarDays className="text-muted-foreground size-4 shrink-0" />
-            <span className="flex-1 text-sm">{t("due")}</span>
-          </>
-        )}
       {!q && (
         <div className="group/head relative">
           {item(
@@ -1618,7 +1618,10 @@ export const MemoryView = ({
   );
   const wide = (
     <div className="flex min-h-0 flex-1">
-      <div className="w-72 shrink-0 overflow-y-auto border-r p-3">{list}</div>
+      {/* The divider thins out at both ends, like the sidebar's ring, instead of a hard line from edge to edge. */}
+      <div className="after:bg-border relative flex w-72 shrink-0 flex-col after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:[mask-image:linear-gradient(to_bottom,transparent,black_2rem,black_calc(100%-2rem),transparent)]">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">{list}</div>
+      </div>
       <div className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-8 px-6 pt-8 pb-16">
           {results ?? detail ?? (

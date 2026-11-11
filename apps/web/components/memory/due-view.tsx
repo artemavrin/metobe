@@ -3,12 +3,15 @@
 import type { MemoryDue } from "@metobe/contracts/memory";
 import { EventCalendar } from "@metobe/ui/components/reui/event-calendar/event-calendar";
 import { EventCalendarContent } from "@metobe/ui/components/reui/event-calendar/event-calendar-content";
+import { EventCalendarMonthView } from "@metobe/ui/components/reui/event-calendar/event-calendar-month-view";
 import { EventCalendarNav } from "@metobe/ui/components/reui/event-calendar/event-calendar-nav";
 import type {
   EventCalendarProposedUpdate,
   CalendarEvent,
 } from "@metobe/ui/components/reui/event-calendar/event-calendar-types";
 import { toast } from "@metobe/ui/components/sonner";
+import type { Locale } from "date-fns";
+import { format, isSameMonth, subMilliseconds } from "date-fns";
 import { enUS, ru } from "date-fns/locale";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -21,6 +24,7 @@ import { readJson } from "./use-memory-actions";
 // «Сроки» (Д6, P27, a calendar — ReUI's Event Calendar): every open commitment with a deadline stands on its day, a
 // whole-day bar; the ones past their day are red. Dragging one to another day moves its deadline (`PATCH` the record,
 // with «Вернуть»). A click opens the card of the other side. On a phone the agenda — a list by day — comes first.
+// A deadline has no hour, so the week is one tall row of days (the month grid over a week), not a time grid.
 
 interface Data {
   who: string | null;
@@ -36,6 +40,27 @@ const COLOR = {
 } as const;
 
 const DAY_MS = 86_400_000;
+
+/** The week as «9–15 ноября 2026» or «30 ноября – 6 декабря 2026»; the other views by their month. */
+const formatTitle = (
+  view: string,
+  {
+    date,
+    activeRange,
+    locale,
+  }: { date: Date; activeRange: { start: Date; end: Date }; locale?: Locale }
+) => {
+  const opts = { locale };
+  if (view !== "week") {
+    return format(date, "LLLL yyyy", opts);
+  }
+  const { start } = activeRange;
+  const end = subMilliseconds(activeRange.end, 1);
+  const last = format(end, "d MMMM yyyy", opts);
+  return isSameMonth(start, end)
+    ? `${format(start, "d", opts)}–${last}`
+    : `${format(start, "d MMMM", opts)} – ${last}`;
+};
 
 /** A commitment as an event: its day, the whole of it, in the person's zone. */
 const eventOf = (
@@ -118,6 +143,7 @@ export const DueView = ({
         monthTitle: "LLLL yyyy",
         moreDayHeader: "EEEE, d MMMM",
       },
+      functions: { formatTitle },
       labels: {
         allDay: t("calAllDay"),
         more: (count: number) => t("calMore", { count }),
@@ -127,7 +153,11 @@ export const DueView = ({
         selectView: t("calSelectView"),
         today: t("calToday"),
       },
-      viewNames: { agenda: t("calAgenda"), month: t("calMonth") },
+      viewNames: {
+        agenda: t("calAgenda"),
+        month: t("calMonth"),
+        week: t("calWeek"),
+      },
     }),
     [t]
   );
@@ -167,6 +197,7 @@ export const DueView = ({
     <div className="flex flex-col gap-4">
       <div className="h-[34rem] max-h-[75svh] overflow-hidden rounded-xl border">
         <EventCalendar<Data>
+          className="h-full"
           defaultInteractions={{ drag: true, resize: false, selectSlot: false }}
           defaultView={phone ? "agenda" : "month"}
           events={events}
@@ -181,11 +212,11 @@ export const DueView = ({
           onEventsChange={setEvents}
           onEventUpdate={move}
           timeZone={timeZone}
-          views={["month", "agenda"]}
+          views={["month", "week", "agenda"]}
           weekStartsOn={1}
         >
           <EventCalendarNav />
-          <EventCalendarContent />
+          <EventCalendarContent components={{ week: EventCalendarMonthView }} />
         </EventCalendar>
       </div>
       {data && (late > 0 || data.none > 0) && (

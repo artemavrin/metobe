@@ -2921,7 +2921,7 @@
     "reviewUndoLast": "Undo the last one",
     "reviewKeys": "Keys: 1 — done, 2 — still waiting, 3 — move, 4 — cancelled, Backspace — back.",
     "reviewRow": "Review",
-    "due": "Deadlines",
+    "due": "Calendar",
     "dueHint": "Promises by day: drag one to another day to move its deadline",
     "dueNone": "{count} with no deadline",
     "calToday": "Today",
@@ -2933,6 +2933,7 @@
     "calMonth": "Month",
     "calAgenda": "List",
     "dueLate": "{count} overdue",
-    "calAllDay": "All day"
+    "calAllDay": "All day",
+    "calWeek": "Week"
   }
 }
