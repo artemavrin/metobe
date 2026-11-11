@@ -28,6 +28,7 @@ import {
 } from "@metobe/ui/components/tooltip";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { BookUser, CalendarClock, SquarePen } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -62,9 +63,12 @@ import { ShareDialog } from "@/components/chat/share-dialog";
 import { SidebarResizer } from "@/components/chat/sidebar-resizer";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
 import { TopBarSlot } from "@/components/chat/top-bar";
+import { MemoryListLevel } from "@/components/memory/memory-list";
+import { MemoryStoreProvider } from "@/components/memory/memory-store";
 import { TaskDot } from "@/components/tasks/task-dot";
 import { useTaskEvents } from "@/components/tasks/use-task-events";
 import { groupChats } from "@/lib/chat-history";
+import { levelMotion } from "@/lib/level-motion";
 
 const NO_NEWS: WhatsNew = { latest: null, show: null };
 
@@ -273,6 +277,22 @@ const NewChat = () => {
 };
 
 /**
+ * On a memory page the sidebar goes one level in, to the memory's list (as the settings go into a list); the slide
+ * follows the way: in from the right, back to the left.
+ */
+const useMemoryLevel = (memory: boolean, pathname: string) => {
+  const reduce = Boolean(useReducedMotion());
+  const inMemory = memory && pathname.startsWith("/memory");
+  const [was, setWas] = useState(inMemory);
+  const [dir, setDir] = useState(1);
+  if (was !== inMemory) {
+    setWas(inMemory);
+    setDir(inMemory ? 1 : -1);
+  }
+  return { dir, inMemory, reduce };
+};
+
+/**
  * The chat's shell (P1 «Режимы»): a light floating sidebar with the user's chats by day, the chat beside it.
  * Settings are a place you visit: ⌘, opens them, and their own shell leads back here.
  */
@@ -284,6 +304,7 @@ export const ChatShell = ({
   user,
   sendKey,
   sidebarWidth = null,
+  timeZone = "UTC",
   whatsNew = NO_NEWS,
   children,
 }: {
@@ -300,6 +321,8 @@ export const ChatShell = ({
   sendKey: "enter" | "mod-enter";
   /** The sidebar's width as the person dragged it, in px; null — the default. */
   sidebarWidth?: number | null;
+  /** The person's zone, for the days of the memory's deadlines. */
+  timeZone?: string;
   /** «Что нового»: the window to open now, after an update, and the notes the account menu reads again. */
   whatsNew?: WhatsNew;
   children: ReactNode;
@@ -341,6 +364,7 @@ export const ChatShell = ({
     []
   );
   const pathname = usePathname();
+  const { dir, inMemory, reduce } = useMemoryLevel(memory, pathname);
   // The tasks the same way as the chats; on a page that does not look at tasks the shell asks for them itself.
   const [taskRows, setTaskRows] = useState(tasks);
   const [seenTasks, setSeenTasks] = useState(tasks);
@@ -423,91 +447,114 @@ export const ChatShell = ({
   useHotkey("Mod+,", () => router.push("/settings"), { ignoreInputs: false });
 
   return (
-    <ChatListContext.Provider value={touch}>
-      <ChatPrefsContext.Provider value={prefs}>
-        <CompactBridgeProvider value={compactBridge}>
-          <SidebarProvider
-            style={
-              barWidth
-                ? ({
-                    "--sidebar-width": `${barWidth}px`,
-                  } as React.CSSProperties)
-                : undefined
-            }
-          >
-            <Sidebar variant="floating">
-              <SidebarHeader>
-                <div className="flex h-8 items-center justify-between ps-2">
-                  <Brand />
-                  <NewChat />
-                </div>
-              </SidebarHeader>
-              <SidebarContent>
-                {/* The search on top, as everywhere; while it is searching its results take the place of tasks and chats. */}
-                <SidebarSearch admin={admin} chats={chats} memory={memory}>
-                  <Tasks tasks={taskRows} />
-                  {memory && <Memory />}
-                  <History chats={chats} ops={ops} />
-                </SidebarSearch>
-              </SidebarContent>
-              <SidebarFooter>
-                <AccountMenu
-                  whatsNew={
-                    notes
-                      ? {
-                          open: () => setWhatsNewOpen(true),
-                          version: notes.version,
-                        }
-                      : undefined
-                  }
-                  user={user}
-                />
-              </SidebarFooter>
-              <SidebarResizer onCommit={setBarWidth} width={barWidth} />
-            </Sidebar>
-            {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
-            <SidebarInset className="h-dvh min-h-0 overflow-hidden">
-              <header className="flex h-12 shrink-0 items-center gap-2 px-3">
-                <SidebarTrigger aria-label={t("openSidebar")} />
-                {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share.
-                    Any other page fills the bar itself, through <TopBar>. */}
-                {current ? (
-                  <ChatHeader chat={current} key={current.id} ops={ops} />
-                ) : (
-                  <div
-                    className="flex min-w-0 flex-1 items-center gap-2"
-                    ref={setTopBar}
-                  />
-                )}
-              </header>
-              <TopBarSlot value={current ? null : topBar}>
-                <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-              </TopBarSlot>
-            </SidebarInset>
-            {notes && whatsNewOpen && (
-              <WhatsNewDialog
-                admin={admin}
-                note={notes}
-                onOpenChange={setWhatsNewOpen}
-                open={whatsNewOpen}
-              />
-            )}
-            <ShareDialog
-              chat={sharing}
-              onOpenChange={(open) => {
-                if (!open) {
-                  setSharingId(null);
-                }
-              }}
-              onShared={(id, shared) =>
-                setChats((list) =>
-                  list.map((c) => (c.id === id ? { ...c, shared } : c))
-                )
+    <MemoryStoreProvider timeZone={timeZone}>
+      <ChatListContext.Provider value={touch}>
+        <ChatPrefsContext.Provider value={prefs}>
+          <CompactBridgeProvider value={compactBridge}>
+            <SidebarProvider
+              style={
+                barWidth
+                  ? ({
+                      "--sidebar-width": `${barWidth}px`,
+                    } as React.CSSProperties)
+                  : undefined
               }
-            />
-          </SidebarProvider>
-        </CompactBridgeProvider>
-      </ChatPrefsContext.Provider>
-    </ChatListContext.Provider>
+            >
+              <Sidebar variant="floating">
+                <div className="relative min-h-0 flex-1 overflow-hidden">
+                  <AnimatePresence custom={dir} initial={false}>
+                    <motion.div
+                      className="absolute inset-0 flex flex-col"
+                      custom={dir}
+                      key={inMemory ? "memory" : "chats"}
+                      {...levelMotion(reduce)}
+                    >
+                      {inMemory ? (
+                        <MemoryListLevel />
+                      ) : (
+                        <>
+                          <SidebarHeader>
+                            <div className="flex h-8 items-center justify-between ps-2">
+                              <Brand />
+                              <NewChat />
+                            </div>
+                          </SidebarHeader>
+                          <SidebarContent>
+                            {/* The search on top, as everywhere; while it is searching its results take the place of tasks and chats. */}
+                            <SidebarSearch
+                              admin={admin}
+                              chats={chats}
+                              memory={memory}
+                            >
+                              <Tasks tasks={taskRows} />
+                              {memory && <Memory />}
+                              <History chats={chats} ops={ops} />
+                            </SidebarSearch>
+                          </SidebarContent>
+                        </>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+                <SidebarFooter>
+                  <AccountMenu
+                    whatsNew={
+                      notes
+                        ? {
+                            open: () => setWhatsNewOpen(true),
+                            version: notes.version,
+                          }
+                        : undefined
+                    }
+                    user={user}
+                  />
+                </SidebarFooter>
+                <SidebarResizer onCommit={setBarWidth} width={barWidth} />
+              </Sidebar>
+              {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
+              <SidebarInset className="h-dvh min-h-0 overflow-hidden">
+                <header className="flex h-12 shrink-0 items-center gap-2 px-3">
+                  <SidebarTrigger aria-label={t("openSidebar")} />
+                  {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share.
+                    Any other page fills the bar itself, through <TopBar>. */}
+                  {current ? (
+                    <ChatHeader chat={current} key={current.id} ops={ops} />
+                  ) : (
+                    <div
+                      className="flex min-w-0 flex-1 items-center gap-2"
+                      ref={setTopBar}
+                    />
+                  )}
+                </header>
+                <TopBarSlot value={current ? null : topBar}>
+                  <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+                </TopBarSlot>
+              </SidebarInset>
+              {notes && whatsNewOpen && (
+                <WhatsNewDialog
+                  admin={admin}
+                  note={notes}
+                  onOpenChange={setWhatsNewOpen}
+                  open={whatsNewOpen}
+                />
+              )}
+              <ShareDialog
+                chat={sharing}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setSharingId(null);
+                  }
+                }}
+                onShared={(id, shared) =>
+                  setChats((list) =>
+                    list.map((c) => (c.id === id ? { ...c, shared } : c))
+                  )
+                }
+              />
+            </SidebarProvider>
+          </CompactBridgeProvider>
+        </ChatPrefsContext.Provider>
+      </ChatListContext.Provider>
+    </MemoryStoreProvider>
   );
 };

@@ -31,6 +31,7 @@ import type { ReactNode } from "react";
 
 import { SettingsListLevel } from "@/components/settings/settings-list";
 import { lastPage } from "@/lib/last-page";
+import { levelMotion } from "@/lib/level-motion";
 import type { SettingsLists } from "@/lib/settings-lists";
 import { findSection, SETTINGS_NAV } from "@/lib/settings-nav";
 import type { SettingsSectionId } from "@/lib/settings-nav";
@@ -157,28 +158,6 @@ const MobileBar = ({ lists }: { lists: SettingsLists }) => {
     </header>
   );
 };
-
-// Levels slide like a stack (P7 «Погружение»): forward — the menu leaves left and the list comes from the right;
-// back — mirrored; both overlap for a moment under a 2px blur so they read as one motion.
-const levelMotion = (reduce: boolean) => ({
-  animate: "center",
-  exit: "exit",
-  initial: "enter",
-  transition: { duration: 0.2, ease: [0.23, 1, 0.32, 1] as const },
-  variants: {
-    center: { filter: "blur(0px)", opacity: 1, transform: "translateX(0px)" },
-    enter: (dir: number) => ({
-      filter: reduce ? "blur(0px)" : "blur(2px)",
-      opacity: 0,
-      transform: `translateX(${reduce ? 0 : dir * 16}px)`,
-    }),
-    exit: (dir: number) => ({
-      filter: reduce ? "blur(0px)" : "blur(2px)",
-      opacity: 0,
-      transform: `translateX(${reduce ? 0 : -dir * 16}px)`,
-    }),
-  },
-});
 
 /** The menu column: on a wide window a part of it, on a phone the sheet the bar's button opens. */
 const Nav = ({

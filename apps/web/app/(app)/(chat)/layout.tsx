@@ -76,6 +76,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
       memory={memory}
       tasks={tasks}
       sidebarWidth={sidebarWidth}
+      timeZone={prefs.timeZone}
       sendKey={account?.sendKey === "mod-enter" ? "mod-enter" : "enter"}
       whatsNew={whatsNew}
       user={{

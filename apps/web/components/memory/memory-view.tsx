@@ -4,53 +4,32 @@ import type {
   ChatMemory,
   MemoryCard,
   MemoryCardItem,
-  MemoryDue,
   MemoryEntityKind,
-  MemoryOverview,
   MemoryRecordView,
-  MemorySearch,
 } from "@metobe/contracts/memory";
 import { Button } from "@metobe/ui/components/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@metobe/ui/components/dialog";
-import { Input } from "@metobe/ui/components/input";
-import { Toaster, toast } from "@metobe/ui/components/sonner";
-import { Textarea } from "@metobe/ui/components/textarea";
+import { Toaster } from "@metobe/ui/components/sonner";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
-import { useIsMobile } from "@metobe/ui/hooks/use-mobile";
 import { cn } from "@metobe/ui/lib/utils";
 import {
   ChevronDown,
-  CalendarDays,
   ChevronLeft,
-  CircleHelp,
-  ListChecks,
   LoaderCircle,
   Mail,
   MailCheck,
   Pencil,
   Phone,
   Plus,
-  Search,
-  UserRound,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { TopBar } from "@/components/chat/top-bar";
-import { lateByCard } from "@/lib/memory-late";
 
 import {
   Avatar,
@@ -61,6 +40,7 @@ import {
   sidesOf,
 } from "./card-parts";
 import { DueView } from "./due-view";
+import { MemoryRows, NewCardDialog, NewRuleDialog } from "./memory-list";
 import {
   ENTER,
   FreshContext,
@@ -72,48 +52,16 @@ import {
   shortDay,
   useDirection,
 } from "./memory-record";
-import { readJson, useActionsOf } from "./use-memory-actions";
+import { useMemoryStore } from "./memory-store";
 import type { T } from "./use-memory-actions";
 
 // The «Память» page (P16 «Карточки», D39): people, organizations and projects on the left with their open and overdue
 // commitments, «Не записано» and «Правила»; the card on the right — commitments (important first, then by deadline),
 // what is known with «Раньше», events, the closed ones folded. On a phone — the list, then the card.
 
-type Pick =
-  | { type: "card"; id: string }
-  | { type: "me" }
-  | { type: "questions" }
-  | { type: "due" }
-  | { type: "rules" };
-
-/** The pick lives in the address, so a reload or a shared link comes back to the same card: `?card=<id>` or `?view=…`. */
-const VIEWS = ["me", "questions", "due", "rules"] as const;
-
-const pickFromParams = (params: { get: (k: string) => string | null }) => {
-  const card = params.get("card");
-  if (card) {
-    return { id: card, type: "card" } satisfies Pick;
-  }
-  const view = VIEWS.find((v) => v === params.get("view"));
-  return view ? ({ type: view } satisfies Pick) : null;
-};
-
-const pickToSearch = (p: Pick | null) => {
-  if (!p) {
-    return window.location.pathname;
-  }
-  return p.type === "card"
-    ? `?card=${encodeURIComponent(p.id)}`
-    : `?view=${p.type}`;
-};
-
 type Question = ChatMemory["questions"][number];
 
-const KINDS = ["person", "group", "org", "project"] as const;
 const OPEN = new Set(["open", "unconfirmed"]);
-const SEARCH_DELAY_MS = 250;
-
-const normalize = (s: string) => s.toLocaleLowerCase("ru").replaceAll("ё", "е");
 
 /** «Раньше» and the closed ones: the history is there, folded out of the way. */
 const Folded = ({
@@ -929,601 +877,6 @@ const Empty = ({
   </div>
 );
 
-const searchUrl = (query: string) =>
-  `/api/memory/search?q=${encodeURIComponent(query)}`;
-
-/**
- * What the page reads: the list (from the page at first), the deadlines, the open card and what the search finds. After
- * a change `reread` reads everything open again. The deadlines are one state for the calendar and for the list's
- * «просрочено»: a deadline moved on the calendar is moved here first, then saved.
- */
-const useMemoryData = (
-  initial: MemoryOverview,
-  cardId: string | null,
-  q: string
-) => {
-  const [overview, setOverview] = useState(initial);
-  const [due, setDue] = useState<MemoryDue | null>(null);
-  const [card, setCard] = useState<MemoryCard | null>(null);
-  const [found, setFound] = useState<{ q: string; data: MemorySearch } | null>(
-    null
-  );
-  const query = q.trim();
-
-  useEffect(() => {
-    if (!cardId) {
-      return;
-    }
-    let live = true;
-    const read = async () => {
-      const data = await readJson<MemoryCard>(`/api/memory/cards/${cardId}`);
-      if (live) {
-        setCard(data);
-      }
-    };
-    read();
-    return () => {
-      live = false;
-    };
-  }, [cardId]);
-
-  const { on } = initial;
-  useEffect(() => {
-    if (!on) {
-      return;
-    }
-    let live = true;
-    const read = async () => {
-      const rows = await readJson<MemoryDue>("/api/memory/due");
-      if (live && rows) {
-        setDue(rows);
-      }
-    };
-    read();
-    return () => {
-      live = false;
-    };
-  }, [on]);
-
-  useEffect(() => {
-    if (!query) {
-      return;
-    }
-    let live = true;
-    const timer = setTimeout(async () => {
-      const data = await readJson<MemorySearch>(searchUrl(query));
-      if (live && data) {
-        setFound({ data, q: query });
-      }
-    }, SEARCH_DELAY_MS);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
-  const reread = async () => {
-    const [list, open, search, rows] = await Promise.all([
-      readJson<MemoryOverview>("/api/memory"),
-      cardId ? readJson<MemoryCard>(`/api/memory/cards/${cardId}`) : null,
-      query ? readJson<MemorySearch>(searchUrl(query)) : null,
-      readJson<MemoryDue>("/api/memory/due"),
-    ]);
-    if (list) {
-      setOverview(list);
-    }
-    if (rows) {
-      setDue(rows);
-    }
-    if (cardId) {
-      setCard(open);
-    }
-    if (search) {
-      setFound({ data: search, q: query });
-    }
-  };
-
-  return {
-    // A card read for another pick is not shown under this one.
-    card: card && card.card.id === cardId ? card : null,
-    due,
-    found: query && found?.q === query ? found.data : null,
-    overview,
-    reread,
-    setDue,
-  };
-};
-
-const matches = (c: MemoryCardItem, words: string[]) => {
-  const hay = normalize(
-    [c.name, c.role ?? "", c.type ?? "", ...c.aliases].join(" ")
-  );
-  return words.every((w) => hay.includes(w));
-};
-
-const samePick = (a: Pick | null, b: Pick) =>
-  a?.type === b.type &&
-  (b.type !== "card" || (a.type === "card" && a.id === b.id));
-
-/** Under a card's name in the list: who they are; for a thing of the person's own kind — what it is. */
-const caption = (c: MemoryCardItem) => (c.kind === "custom" ? c.type : c.role);
-
-const CardRow = ({ c }: { c: MemoryCardItem }) => {
-  const t = useTranslations("memory");
-  const counts = t("counts", { open: c.open, overdue: c.overdue });
-  return (
-    <>
-      <Avatar kind={c.kind} name={c.name} size="size-7" />
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm">{c.name}</span>
-        {caption(c) && (
-          <span className="text-muted-foreground truncate text-xs">
-            {caption(c)}
-          </span>
-        )}
-      </span>
-      {c.open > 0 && (
-        <span
-          className="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums"
-          title={counts}
-        >
-          {c.overdue > 0 && (
-            <span
-              aria-hidden
-              className="bg-destructive size-1.5 rounded-full"
-            />
-          )}
-          <span aria-hidden>{c.open}</span>
-          <span className="sr-only">{counts}</span>
-        </span>
-      )}
-    </>
-  );
-};
-
-/** The left column: search, «Не записано», cards by kind (open/overdue on the right), «Правила». */
-/** What a hand-made card is: its kind, and for a thing of the person's own kind — the word for what it is. */
-interface NewCardInput {
-  kind: MemoryCardItem["kind"];
-  name: string;
-  type?: string;
-}
-
-/** A heading of the list with a «+» that appears on hover (always on a touch screen). */
-const SectionHeading = ({
-  title,
-  label,
-  onAdd,
-}: {
-  title: string;
-  label: string;
-  onAdd: () => void;
-}) => (
-  <div className="group/head flex items-center justify-between ps-2">
-    <span className="text-muted-foreground py-1 text-xs">{title}</span>
-    <button
-      aria-label={label}
-      className="text-muted-foreground hover:text-foreground flex size-6 items-center justify-center rounded-md opacity-0 transition-[opacity,color] duration-150 group-hover/head:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60"
-      onClick={onAdd}
-      type="button"
-    >
-      <Plus className="size-3.5" />
-    </button>
-  </div>
-);
-
-/** Where a new card goes: its kind, the word for what it is (a thing in a section of its type), the dialog's title. */
-interface NewCardTarget {
-  kind: MemoryCardItem["kind"];
-  type?: string;
-  title: string;
-}
-
-/**
- * A card by hand, in a dialog (P22): the name, and for a thing of the person's own kind in no section of its type —
- * what it is, with the words the person already uses offered. Enter or «Создать» makes it and opens it.
- */
-const NewCardDialog = ({
-  target,
-  types,
-  onCreate,
-  onClose,
-}: {
-  target: NewCardTarget | null;
-  types: string[];
-  onCreate: (input: NewCardInput) => Promise<boolean>;
-  onClose: () => void;
-}) => {
-  const t = useTranslations("memory");
-  const [name, setName] = useState("");
-  const [word, setWord] = useState("");
-  const [busy, setBusy] = useState(false);
-  const askType = target?.kind === "custom" && !target.type;
-  const submit = async () => {
-    const said = name.trim();
-    if (!(target && said) || busy) {
-      return;
-    }
-    setBusy(true);
-    const made = await onCreate({
-      kind: target.kind,
-      name: said,
-      type: target.type ?? (word.trim() || undefined),
-    });
-    setBusy(false);
-    if (made) {
-      onClose();
-    }
-  };
-  return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (!open) {
-          onClose();
-        }
-      }}
-      onOpenChangeComplete={(open) => {
-        // The fields are blank the next time it opens.
-        if (!open) {
-          setName("");
-          setWord("");
-        }
-      }}
-      open={target !== null}
-    >
-      <DialogContent>
-        <form
-          className="grid gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{target?.title}</DialogTitle>
-          </DialogHeader>
-          <label className="grid gap-1.5 text-sm">
-            {t("newCardName")}
-            <Input
-              autoFocus
-              disabled={busy}
-              maxLength={200}
-              onChange={(e) => setName(e.target.value)}
-              value={name}
-            />
-          </label>
-          {askType && (
-            <label className="grid gap-1.5 text-sm">
-              {t("typeLabel")}
-              <Input
-                disabled={busy}
-                list="memory-types"
-                maxLength={60}
-                onChange={(e) => setWord(e.target.value)}
-                placeholder={t("typeAsk")}
-                value={word}
-              />
-              <datalist id="memory-types">
-                {types.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </datalist>
-            </label>
-          )}
-          <DialogFooter>
-            <Button
-              disabled={busy}
-              onClick={onClose}
-              type="button"
-              variant="outline"
-            >
-              {t("cancelNew")}
-            </Button>
-            <Button disabled={busy || !name.trim()} type="submit">
-              {t("newCardMake")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-/** A rule in words, in a dialog (P22): the memory reads it as a standing rule and picks its kind and period. */
-const NewRuleDialog = ({
-  open,
-  send,
-  onClose,
-}: {
-  open: boolean;
-  send: (text: string) => Promise<MemoryRecordView[] | null>;
-  onClose: () => void;
-}) => {
-  const t = useTranslations("memory");
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const submit = async () => {
-    if (!text.trim() || busy) {
-      return;
-    }
-    setBusy(true);
-    const written = await send(text.trim());
-    setBusy(false);
-    // Nothing found or a failure: the words stay, to say it otherwise.
-    if (written) {
-      setText("");
-      onClose();
-    }
-  };
-  return (
-    <Dialog
-      onOpenChange={(next) => {
-        if (!next) {
-          onClose();
-        }
-      }}
-      open={open}
-    >
-      <DialogContent>
-        <form
-          className="grid gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{t("ruleAdd")}</DialogTitle>
-            <DialogDescription>{t("ruleHow")}</DialogDescription>
-          </DialogHeader>
-          <Textarea
-            aria-label={t("ruleLabel")}
-            autoFocus
-            disabled={busy}
-            maxLength={2000}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              // ⌘/Ctrl + Enter sends from the field.
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            placeholder={t("ruleAsk")}
-            rows={3}
-            value={text}
-          />
-          <DialogFooter>
-            <Button
-              disabled={busy}
-              onClick={onClose}
-              type="button"
-              variant="outline"
-            >
-              {t("cancelNew")}
-            </Button>
-            <Button disabled={busy || !text.trim()} type="submit">
-              {t("newCardMake")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-/** A word as a heading: «автобус» — «Автобус». */
-const capitalized = (word: string) =>
-  word.slice(0, 1).toLocaleUpperCase("ru") + word.slice(1);
-
-/**
- * The person's own kinds of card (D42) as sections of the list: a kind with two cards or more is a section under its
- * own word; the lone ones and those of no known kind wait together under «Другое».
- */
-const thingSections = (cards: MemoryCardItem[]) => {
-  const by = new Map<string, MemoryCardItem[]>();
-  for (const c of cards) {
-    if (c.kind === "custom") {
-      by.set(c.type ?? "", [...(by.get(c.type ?? "") ?? []), c]);
-    }
-  }
-  const sections = [...by].filter(([type, of]) => type && of.length > 1);
-  const apart = new Set(sections.flatMap(([, of]) => of));
-  return {
-    other: cards.filter((c) => c.kind === "custom" && !apart.has(c)),
-    sections: sections.map(([type, of]) => ({
-      cards: of,
-      title: capitalized(type),
-      type,
-    })),
-  };
-};
-
-const CardList = ({
-  overview,
-  stale,
-  q,
-  setQ,
-  shown,
-  onPick,
-  nothing,
-  onNew,
-  onRule,
-}: {
-  overview: MemoryOverview;
-  stale: number;
-  q: string;
-  setQ: (q: string) => void;
-  shown: Pick | null;
-  onPick: (p: Pick) => void;
-  nothing: boolean;
-  /** «+» next to a section: the dialog for a new card there. */
-  onNew: (target: NewCardTarget) => void;
-  /** «+» next to «Правила»: the dialog for a new rule. */
-  onRule: () => void;
-}) => {
-  const t = useTranslations("memory");
-  const words = normalize(q).split(/\s+/u).filter(Boolean);
-  const cards = overview.cards.filter((c) => matches(c, words));
-  const things = thingSections(cards);
-  const item = (p: Pick, key: string, children: React.ReactNode) => (
-    <button
-      aria-current={samePick(shown, p) ? "true" : undefined}
-      className={cn(
-        "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors duration-150",
-        samePick(shown, p) ? "bg-muted" : "hover:bg-muted/50"
-      )}
-      key={key}
-      onClick={() => onPick(p)}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-  /** A section of the list: its heading with «+» (while not searching), the form for a new card, its cards. */
-  const section = (
-    key: string,
-    title: string,
-    of: MemoryCardItem[],
-    made: { kind: MemoryCardItem["kind"]; type?: string }
-  ) => {
-    if (q && of.length === 0) {
-      return null;
-    }
-    return (
-      <div className="flex flex-col gap-0.5" key={key}>
-        {q ? (
-          <span className="text-muted-foreground px-2 pb-1 text-xs">
-            {title}
-          </span>
-        ) : (
-          <SectionHeading
-            label={t("newCardIn", { section: title })}
-            onAdd={() =>
-              onNew({
-                kind: made.kind,
-                title: t("newCardIn", { section: title }),
-                type: made.type,
-              })
-            }
-            title={title}
-          />
-        )}
-        {of.map((c) =>
-          item({ id: c.id, type: "card" }, c.id, <CardRow c={c} />)
-        )}
-      </div>
-    );
-  };
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="relative">
-        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-        <Input
-          aria-label={t("searchLabel")}
-          className="pl-8"
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("search")}
-          type="search"
-          value={q}
-        />
-      </div>
-      {!q && stale > 0 && (
-        <Link
-          className="hover:bg-muted/50 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors duration-150"
-          href="/memory/review"
-        >
-          <MailCheck className="text-warning size-4 shrink-0" />
-          <span className="flex-1 text-sm font-medium">{t("reviewTitle")}</span>
-          <span className="text-muted-foreground text-xs tabular-nums">
-            {stale}
-          </span>
-        </Link>
-      )}
-      {!q &&
-        overview.questions.length > 0 &&
-        item(
-          { type: "questions" },
-          "questions",
-          <>
-            <CircleHelp className="text-warning size-4 shrink-0" />
-            <span className="flex-1 text-sm font-medium">{t("questions")}</span>
-            <span className="text-muted-foreground text-xs tabular-nums">
-              {overview.questions.length}
-            </span>
-          </>
-        )}
-      {!q &&
-        item(
-          { type: "due" },
-          "due",
-          <>
-            <CalendarDays className="text-muted-foreground size-4 shrink-0" />
-            <span className="flex-1 text-sm">{t("due")}</span>
-          </>
-        )}
-      {!q &&
-        overview.me.length > 0 &&
-        item(
-          { type: "me" },
-          "me",
-          <>
-            <UserRound className="text-muted-foreground size-4 shrink-0" />
-            <span className="flex-1 text-sm">{t("me")}</span>
-            <span className="text-muted-foreground text-xs tabular-nums">
-              {overview.me.length}
-            </span>
-          </>
-        )}
-      {KINDS.map((kind) =>
-        section(
-          kind,
-          t(`kinds.${kind}`),
-          cards.filter((c) => c.kind === kind),
-          { kind }
-        )
-      )}
-      {things.sections.map((one) =>
-        section(`type:${one.type}`, one.title, one.cards, {
-          kind: "custom",
-          type: one.type,
-        })
-      )}
-      {section("other", t("kinds.other"), things.other, { kind: "custom" })}
-      {!q && (
-        <div className="group/head relative">
-          {item(
-            { type: "rules" },
-            "rules",
-            <>
-              <ListChecks className="text-muted-foreground size-4 shrink-0" />
-              <span className="flex-1 text-sm">{t("rules")}</span>
-              <span className="text-muted-foreground me-7 text-xs tabular-nums">
-                {overview.rules.length}
-              </span>
-            </>
-          )}
-          <button
-            aria-label={t("ruleAdd")}
-            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-[opacity,color] duration-150 group-hover/head:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60"
-            onClick={onRule}
-            type="button"
-          >
-            <Plus className="size-3.5" />
-          </button>
-        </div>
-      )}
-      {nothing && cards.length === 0 && (
-        <p className="text-muted-foreground px-2 text-sm">
-          {t("nothingFound")}
-        </p>
-      )}
-    </div>
-  );
-};
-
 const Bar = () => {
   const t = useTranslations("memory");
   return (
@@ -1535,73 +888,36 @@ const Bar = () => {
   );
 };
 
-export const MemoryView = ({
-  initial,
-  stale,
-  timeZone,
-}: {
-  initial: MemoryOverview;
-  /** Commitments open a long time: a way in to «Сверка» (Д2) while there are any. */
-  stale: number;
-  timeZone: string;
-}) => {
+/**
+ * The page: what is picked in the list — a card, the calendar, «Обо мне», «Не записано», «Правила» — or what the search
+ * found. The list stands in the app's sidebar (`MemoryListLevel`), and on a phone with nothing picked, here. Both read
+ * the memory's store, so a change in one shows in the other.
+ */
+export const MemoryView = () => {
   const t = useTranslations("memory");
-  const phone = useIsMobile();
-  const pick = pickFromParams(useSearchParams());
-  const setPick = (p: Pick | null) =>
-    window.history.pushState(null, "", pickToSearch(p));
-  const [q, setQ] = useState("");
-  // «+» next to a section or «Правила»: the dialog of a new card or a new rule.
-  const [making, setMaking] = useState<NewCardTarget | null>(null);
-  const [ruleOpen, setRuleOpen] = useState(false);
-  // On a wide screen the first card is open from the start; on a phone the list comes first.
-  const [first] = initial.cards;
-  const shown: Pick | null =
-    pick ?? (phone || !first ? null : { id: first.id, type: "card" });
-  const cardId = shown?.type === "card" ? shown.id : null;
-  const { card, due, found, overview, reread, setDue } = useMemoryData(
-    initial,
-    cardId,
-    q
-  );
-  const actions = useActionsOf(timeZone, reread);
-  // The list's «просрочено» comes from the same deadlines as the calendar: a bar moved over today changes both.
-  const listed = useMemo(() => {
-    if (!due) {
-      return overview;
-    }
-    const late = lateByCard(due, timeZone);
-    return {
-      ...overview,
-      cards: overview.cards.map((c) => ({
-        ...c,
-        overdue: late.get(c.id) ?? 0,
-      })),
-    };
-  }, [due, overview, timeZone]);
-  /** A card by hand: it comes back made (or found, if the name was there), the list is read again, the card opens. */
-  const create = async (input: NewCardInput) => {
-    const response = await fetch("/api/memory/cards", {
-      body: JSON.stringify(input),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-    if (!response.ok) {
-      toast.error(t("failed"));
-      return false;
-    }
-    const made = (await response.json()) as {
-      card: MemoryCardItem;
-      existed: boolean;
-    };
-    if (made.existed) {
-      toast(t("cardExisted", { name: made.card.name }));
-    }
-    await reread();
-    setPick({ id: made.card.id, type: "card" });
-    return true;
-  };
+  const {
+    actions,
+    card,
+    create,
+    due,
+    found,
+    making,
+    overview,
+    phone,
+    reread,
+    ruleOpen,
+    setDue,
+    setMaking,
+    setPick,
+    setRuleOpen,
+    shown,
+    timeZone,
+  } = useMemoryStore();
 
+  // Not read yet: the sidebar shows its own bones.
+  if (!overview) {
+    return <Bar />;
+  }
   if (!overview.on) {
     return (
       <>
@@ -1672,52 +988,37 @@ export const MemoryView = ({
     rules: <Rules onBack={back} rules={overview.rules} send={actions.rule} />,
   };
   const detail = shown ? details[shown.type] : null;
-  // While searching, the records found stand over the card.
+  // While searching, the records found stand over the card (on a phone, under the list and its search).
   const results = found && <Found records={found.records} />;
-  const list = (
-    <CardList
-      nothing={Boolean(found && found.records.length === 0)}
-      stale={stale}
-      onNew={setMaking}
-      onPick={setPick}
-      onRule={() => setRuleOpen(true)}
-      overview={listed}
-      q={q}
-      setQ={setQ}
-      shown={shown}
-    />
-  );
-  const wide = (
-    <div className="flex min-h-0 flex-1">
-      {/* The divider thins out at both ends, like the sidebar's ring, instead of a hard line from edge to edge. */}
-      <div className="after:bg-border relative flex w-72 shrink-0 flex-col after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:[mask-image:linear-gradient(to_bottom,transparent,black_2rem,black_calc(100%-2rem),transparent)]">
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">{list}</div>
+  const phoneList = <MemoryRows inline />;
+  let content: React.ReactNode;
+  if (phone) {
+    content = results ? (
+      <div className="flex flex-col gap-6">
+        {phoneList}
+        {results}
       </div>
-      <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-3xl flex-col gap-8 px-6 pt-8 pb-16">
-          {results ?? detail ?? (
-            <p className="text-muted-foreground text-sm">{t("pick")}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-  const narrow = (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4">
-      {results ? (
-        <div className="flex flex-col gap-6">
-          {list}
-          {results}
-        </div>
-      ) : (
-        (detail ?? list)
-      )}
-    </div>
-  );
+    ) : (
+      (detail ?? phoneList)
+    );
+  } else {
+    content = results ?? detail ?? (
+      <p className="text-muted-foreground text-sm">{t("pick")}</p>
+    );
+  }
   return (
     <MemoryActionsContext.Provider value={actions}>
       <Bar />
-      {phone ? narrow : wide}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          className={cn(
+            "mx-auto flex max-w-3xl flex-col gap-8",
+            phone ? "p-4" : "px-6 pt-8 pb-16"
+          )}
+        >
+          {content}
+        </div>
+      </div>
       <NewCardDialog
         onClose={() => setMaking(null)}
         onCreate={create}
