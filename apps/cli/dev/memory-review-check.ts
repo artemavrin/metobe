@@ -13,6 +13,7 @@ import {
   listRecords,
 } from "@metobe/core/memory";
 import { memoryStale } from "@metobe/core/memory-due";
+import { localMidnight } from "@metobe/core/memory-extract";
 import { user } from "@metobe/db/schema/auth";
 
 const DAY = 86_400_000;
@@ -128,6 +129,26 @@ for (const s of seeds) {
 }
 const code = await createAuth().api.createVerificationOTP({
   body: { email, type: "sign-in" },
+});
+// A birthday two days ahead (born thirty years ago), and a weekly day — for «Не упустить» to show.
+const dayKeyOf = (ms: number) =>
+  new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+  }).format(new Date(ms));
+const ahead = dayKeyOf(now + 2 * DAY);
+const born = `${Number(ahead.slice(0, 4)) - 30}${ahead.slice(4)}`;
+await addRecord(id, {
+  entities: [{ entityId: olga.id, role: "subject" }],
+  kind: "rule",
+  occurred: {
+    at: localMidnight(born, "Europe/Moscow") as Date,
+    precision: "day",
+  },
+  rule: { days: 0, kind: "date", repeat: "year", workingDays: false },
+  text: "У Ольги Ли день рождения",
 });
 const changes = await lastChanges(id);
 const records = await listRecords(id);

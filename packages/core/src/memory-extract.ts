@@ -105,10 +105,10 @@ export const extractionSchema = z.object({
           "Rule only: the period or threshold in days («раз в две недели» — 14). 0 if it is not a rule or has no period"
         ),
       rule_kind: z
-        .enum(["rhythm", "wait", "other"])
+        .enum(["rhythm", "wait", "date", "other"])
         .nullable()
         .describe(
-          "Rule only: rhythm — how often the user wants to be in touch with someone; wait — how long a reply or result from others may take; other — anything else"
+          "Rule only: rhythm — how often the user wants to be in touch with someone; wait — how long a reply or result from others may take; date — a day that comes again (a birthday, a payment day, a weekly report); other — anything else"
         ),
       working_days: z
         .boolean()
@@ -121,6 +121,11 @@ export const extractionSchema = z.object({
         .string()
         .describe(
           "«none» for almost every item; the ref of a listed current fact or coming event («f1», «e2») only when the message says that one is no longer true and this item is true instead"
+        ),
+      repeat: z
+        .enum(["none", "year", "month", "week"])
+        .describe(
+          "Rule of kind date only: how often its day comes again — year (a birthday), month (the 20th of every month), week (every Friday). «none» for everything else"
         ),
     })
   ),
@@ -390,6 +395,15 @@ const MOVE_RULE = `
  * Only for a message with a quote, a letter or a forwarded message in it (ARCH §19.8.4): every other message keeps
  * the prompt S13 was measured on, word for word.
  */
+/** A message that may name a day which comes again: a birthday, a payment day, «каждую пятницу». */
+export const repeatsDate = (text: string) =>
+  /день рождени|родил(?:ся|ась)|днюх|именин|годовщин|кажд(?:ый|ую|ое|ые|ого|ой)(?![а-яё])|ежедневн|еженедельн|ежемесячн|ежегодн|раз в (?:год|месяц|неделю)|по (?:понедельникам|вторникам|средам|четвергам|пятницам)|birthday|every (?:day|week|month|year|monday|tuesday|wednesday|thursday|friday)|weekly|monthly|yearly|annual/iu.test(
+    text
+  );
+
+const REPEAT_RULE = `
+- The message names a day that comes again — a birthday, a payment day, «каждую пятницу», «двадцатого каждого месяца». Add a rule: kind rule, rule_kind date, the card it is about (or "user" for the user's own) in about, the day in when with precision day (a birthday — that day of the year; «каждую пятницу» — the nearest such day), and repeat: year for a birthday or anniversary, month for a day of every month, week for a weekday of every week. A date said only as a one-time event («встреча 14 ноября») is not a rule. A birthday is both: a fact for the person and this rule.`;
+
 const QUOTED_RULE = `
 - The message has someone else's text inside <quoted>: a letter, a forwarded message or a quote. It speaks in its author's voice: «я», «мы», «наша компания» there are the author, never the user. An author's promise is the author's commitment, to the user unless it names someone else; a request to the user is the user's commitment to the author. The user's own words are inside <user>. A long quoted text gives the few items that matter to the user, not one per sentence.`;
 
@@ -401,6 +415,7 @@ export const memoryInstructions = ({
   commitments = [],
   known = [],
   quoted = false,
+  repeating = false,
 }: {
   sentAt: Date;
   timeZone: string;
@@ -410,6 +425,8 @@ export const memoryInstructions = ({
   known?: KnownRecord[];
   /** The message has someone else's text in it (`splitQuoted`): the rule on it is added, and only then. */
   quoted?: boolean;
+  /** The message may name a day that comes again (`repeatsDate`): the rule on date rules is added, and only then. */
+  repeating?: boolean;
 }) => {
   const today = dayIn(sentAt, timeZone);
   const promises =
@@ -451,7 +468,7 @@ ${THINGS_RULE}- Refs: use a known card ref, "user", an id from new_entities or a
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
 - One item per thing: never the same item twice in other words, or once for each side of an agreement.
-- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}`;
+- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}${repeating ? REPEAT_RULE : ""}`;
 };
 
 /** Does the answer point at the user anywhere — then their own card has to exist before the plan is made. */
@@ -536,7 +553,16 @@ const normalize = (name: string) =>
 const MAX_RULE_DAYS = 366;
 
 /** A rule's period «Не упустить» can count by: rhythm or wait, a day to a year. */
-const ruleOf = (item: Item): Planned["rule"] => {
+const ruleOf = (
+  item: Item,
+  at: { at: Date; precision: string } | null
+): Planned["rule"] => {
+  // A day that comes again: it needs the day itself, and how often.
+  if (item.kind === "rule" && item.rule_kind === "date") {
+    return item.repeat !== "none" && at?.precision === "day"
+      ? { days: 0, kind: "date", repeat: item.repeat, workingDays: false }
+      : undefined;
+  }
   const days = Math.round(item.interval_days ?? 0);
   if (
     item.kind !== "rule" ||
@@ -551,6 +577,20 @@ const ruleOf = (item: Item): Planned["rule"] => {
     kind: item.rule_kind,
     workingDays: item.working_days === true,
   };
+};
+
+/** A rule's part of its record: what it counts by, and — a date rule — the day it stands on. */
+const ruleParts = (
+  item: Item,
+  at: { at: Date; precision: string } | null
+): Pick<Planned, "occurred" | "rule"> | undefined => {
+  const rule = ruleOf(item, at);
+  if (!rule) {
+    return undefined;
+  }
+  return rule.kind === "date" && at
+    ? { occurred: at as NonNullable<Planned["occurred"]>, rule }
+    : { rule };
 };
 
 type Fresh = MemoryWritePlan["entities"][number];
@@ -712,10 +752,7 @@ const toPlanned = (
   if (item.kind === "fact" && item.role?.trim()) {
     record.role = item.role.trim();
   }
-  const rule = ruleOf(item);
-  if (rule) {
-    record.rule = rule;
-  }
+  Object.assign(record, ruleParts(item, at));
   // The model's ref until `resolveReplaces` has checked it; then a record's id, or nothing.
   if ((item.kind === "fact" || item.kind === "event") && item.replaces.trim()) {
     record.replaces = item.replaces.trim();

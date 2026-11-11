@@ -51,8 +51,15 @@ export type MemoryStatus = (typeof memoryStatuses)[number];
  * («один на один с Андреем раз в две недели»); `wait` — how long a reply or result from others may take before it is
  * worth asking («ответа ждём пять рабочих дней»). Other rules have neither, and nothing counts days by them.
  */
-export const memoryRuleKinds = ["rhythm", "wait"] as const;
+export const memoryRuleKinds = ["rhythm", "wait", "date"] as const;
 export type MemoryRuleKind = (typeof memoryRuleKinds)[number];
+
+/**
+ * A `date` rule (ARCH §19.8.7): a day that comes again — «у Ольги день рождения 14 ноября» (`year`), «двадцатого платим
+ * аренду» (`month`), «отчёт каждую пятницу» (`week`). It counts no days: the day it stands on is the record's date.
+ */
+export const memoryRepeats = ["year", "month", "week"] as const;
+export type MemoryRepeat = (typeof memoryRepeats)[number];
 
 /** What of a commitment its history tracks; a text correction is a new version of the record instead. */
 export const memoryChangeFields = ["status", "due", "important"] as const;
@@ -343,6 +350,7 @@ export const memorySuggestionReasons = [
   "today",
   "tomorrow",
   "rhythm",
+  "date",
   "important",
 ] as const;
 export type MemorySuggestionReason = (typeof memorySuggestionReasons)[number];
@@ -356,7 +364,7 @@ export interface MemorySuggestion {
   key: string;
   /** The commitment's id, or the rule's. */
   id: string;
-  kind: "commitment" | "rhythm";
+  kind: "commitment" | "rhythm" | "date";
   reason: MemorySuggestionReason;
   /** Days past the deadline (`overdue`), of waiting (`waiting`), since the last contact (`rhythm`). */
   days: number;
@@ -371,6 +379,8 @@ export interface MemorySuggestion {
   important: boolean;
   /** A rhythm row: the last contact (null — none yet, counted from the rule) and the rule's period in days. */
   rhythm: { since: string | null; every: number } | null;
+  /** A `date` row (ARCH §19.8.7): the day it comes next, `yyyy-mm-dd` in the person's zone, and how it repeats. */
+  date?: { day: string; repeat: MemoryRepeat } | null;
 }
 
 // --- «Сроки» (Д6, P27) and «Сверка» (Д2, P20) -----------------------------------------------------------------------

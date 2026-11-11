@@ -9,6 +9,7 @@ import {
   noteTurn,
   onCard,
   planWrite,
+  repeatsDate,
   splitQuoted,
 } from "./memory-extract";
 import type {
@@ -55,6 +56,7 @@ const item = (
   important: false,
   interval_days: 0,
   kind: "fact",
+  repeat: "none",
   replaces: "",
   role: null,
   rule_kind: null,
@@ -869,6 +871,84 @@ describe("planWrite: groups (ARCH §19)", () => {
       { entityId: ANDREY, role: "about" },
       { newRef: "new_sales", role: "group" },
     ]);
+  });
+
+  it("keeps a day that comes again as a rule standing on its day (ARCH §19.8.7)", () => {
+    const { records } = plan({
+      items: [
+        item({
+          about: ["c1"],
+          kind: "rule",
+          repeat: "year",
+          rule_kind: "date",
+          text: "У Андрея Смирнова день рождения 14 ноября",
+          when: { date: "2026-11-14", precision: "day" },
+        }),
+        item({
+          kind: "rule",
+          repeat: "week",
+          rule_kind: "date",
+          text: "Отчёт каждую пятницу",
+          when: { date: "2026-11-13", precision: "day" },
+        }),
+        // No day, or no repeat, or only a month: it is not a day that comes again.
+        item({
+          kind: "rule",
+          repeat: "year",
+          rule_kind: "date",
+          text: "День рождения когда-то",
+        }),
+        item({
+          kind: "rule",
+          repeat: "none",
+          rule_kind: "date",
+          text: "Встреча 14 ноября",
+          when: { date: "2026-11-14", precision: "day" },
+        }),
+        item({
+          kind: "rule",
+          repeat: "month",
+          rule_kind: "date",
+          text: "Платим в ноябре",
+          when: { date: "2026-11-01", precision: "month" },
+        }),
+      ],
+    });
+    expect(
+      records.map((r) => [r.rule ?? null, r.occurred?.precision ?? null])
+    ).toEqual([
+      [{ days: 0, kind: "date", repeat: "year", workingDays: false }, "day"],
+      [{ days: 0, kind: "date", repeat: "week", workingDays: false }, "day"],
+      [null, null],
+      [null, null],
+      [null, null],
+    ]);
+  });
+
+  it("offers the rule on days that come again only to a message that may name one", () => {
+    const args = {
+      cards: [],
+      sentAt: new Date("2026-11-09T09:00:00Z"),
+      timeZone: "Europe/Moscow",
+    };
+    expect(memoryInstructions(args)).not.toContain("a day that comes again");
+    expect(memoryInstructions({ ...args, repeating: true })).toContain(
+      "a day that comes again"
+    );
+    for (const text of [
+      "У Ольги день рождения 14 ноября",
+      "Отчёт нужен каждую пятницу",
+      "Платим аренду раз в месяц",
+      "Stand-up every Monday",
+    ]) {
+      expect(repeatsDate(text)).toBe(true);
+    }
+    for (const text of [
+      "Ольга обещала договор к пятнице",
+      "Созвонились с Андреем вчера",
+    ]) {
+      expect(repeatsDate(text)).toBe(false);
+    }
   });
 
   it("keeps a group as a rule's subject, not its people", () => {

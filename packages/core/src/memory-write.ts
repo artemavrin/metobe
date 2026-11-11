@@ -33,6 +33,7 @@ import {
   mentionsUser,
   onCard,
   planWrite,
+  repeatsDate,
   splitQuoted,
 } from "./memory-extract";
 import type {
@@ -549,6 +550,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
         commitments,
         known,
         quoted: splitQuoted(text.slice(0, MAX_TEXT)).quoted !== "",
+        repeating: repeatsDate(text),
         sentAt: at,
         timeZone: job.timeZone,
       }),

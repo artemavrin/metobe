@@ -5,6 +5,7 @@ import type {
   MemoryEntityKind,
   MemoryPrecision,
   MemoryRecordKind,
+  MemoryRepeat,
   MemoryRole,
   MemoryRuleKind,
   MemoryStatus,
@@ -383,7 +384,13 @@ export interface MemoryRecordInput {
   /** A fact about who its card is now, in a few words: the card's line follows the newest one. */
   role?: string;
   /** Rules only: what «Не упустить» counts by it, every how many days, working ones or any (ARCH §19.6). */
-  rule?: { kind: MemoryRuleKind; days: number; workingDays: boolean };
+  rule?: {
+    kind: MemoryRuleKind;
+    days: number;
+    workingDays: boolean;
+    /** A `date` rule: how often its day (`occurred`) comes again. */
+    repeat?: MemoryRepeat;
+  };
 }
 
 export interface MemoryRecord {
@@ -402,7 +409,12 @@ export interface MemoryRecord {
   /** Set on a fact about who its card is now. */
   role: string | null;
   /** Set on a rule «Не упустить» counts days by. */
-  rule: { kind: MemoryRuleKind; days: number; workingDays: boolean } | null;
+  rule: {
+    kind: MemoryRuleKind;
+    days: number;
+    workingDays: boolean;
+    repeat?: MemoryRepeat;
+  } | null;
   doneAt: Date | null;
   /** The write that closed it (a fact's end, a commitment's status). */
   closedByWrite: string | null;
@@ -413,6 +425,27 @@ export interface MemoryRecord {
   deletedAt: Date | null;
   writeId: string | null;
 }
+
+/** A rule as the row keeps it: a period in days, or a `date` rule's repeat (days: 0). */
+const ruleOfRow = (
+  row: typeof memoryRecords.$inferSelect
+): MemoryRecord["rule"] => {
+  if (row.ruleKind === "date" && row.repeat) {
+    return {
+      days: 0,
+      kind: "date",
+      repeat: row.repeat,
+      workingDays: false,
+    };
+  }
+  return row.ruleKind && row.intervalDays
+    ? {
+        days: row.intervalDays,
+        kind: row.ruleKind,
+        workingDays: row.workingDays,
+      }
+    : null;
+};
 
 const toRecord = (
   row: typeof memoryRecords.$inferSelect,
@@ -438,14 +471,7 @@ const toRecord = (
     occurredPrecision: row.occurredPrecision,
     recordedAt: row.recordedAt,
     role: body.role ?? null,
-    rule:
-      row.ruleKind && row.intervalDays
-        ? {
-            days: row.intervalDays,
-            kind: row.ruleKind,
-            workingDays: row.workingDays,
-          }
-        : null,
+    rule: ruleOfRow(row),
     status: row.status,
     supersededAt: row.supersededAt,
     supersededBy: row.supersededBy,
@@ -524,15 +550,23 @@ const checkedText = (input: MemoryRecordInput) => {
   if (input.kind !== "commitment" && (input.status || input.important)) {
     throw new Error("memory: only a commitment has a status");
   }
-  if (input.rule && (input.kind !== "rule" || !(input.rule.days > 0))) {
-    throw new Error("memory: only a rule counts days, and more than none");
+  if (input.rule && input.kind !== "rule") {
+    throw new Error("memory: only a rule counts days");
+  }
+  if (input.rule?.kind === "date") {
+    if (!(input.rule.repeat && input.occurred)) {
+      throw new Error("memory: a date rule needs its day and how it repeats");
+    }
+  } else if (input.rule && !(input.rule.days > 0)) {
+    throw new Error("memory: a rule counts more than no days");
   }
   return text;
 };
 
 /** A rule's plain columns: what «Не упустить» counts by it, and every how many days. */
 const ruleColumns = (rule: MemoryRecordInput["rule"]) => ({
-  intervalDays: rule ? Math.round(rule.days) : null,
+  intervalDays: rule && rule.kind !== "date" ? Math.round(rule.days) : null,
+  repeat: rule?.kind === "date" ? (rule.repeat ?? null) : null,
   ruleKind: rule?.kind ?? null,
   workingDays: rule?.workingDays ?? false,
 });
@@ -2064,6 +2098,10 @@ export const recordContact = async (
 export const dismissalKey = (recordId: string, entityId?: string) =>
   entityId ? `${recordId}:${entityId}` : recordId;
 
+/** A `date` row's key (ARCH §19.8.7): the rule and the day it comes — taken away for that day only. */
+export const dateKey = (recordId: string, day: string) =>
+  `date:${recordId}:${day}`;
+
 /**
  * «Убрать» in «Не упустить» (P17). A commitment stays away while its deadline and status are as they are; a rhythm row
  * (`rhythm`) — while the last contact with its card is the one it had then (`since`): a new contact brings it back.
@@ -2071,7 +2109,9 @@ export const dismissalKey = (recordId: string, entityId?: string) =>
 export const dismissSuggestion = async (
   ownerId: string,
   recordId: string,
-  rhythm?: { entityId: string; since: Date | null }
+  rhythm?: { entityId: string; since: Date | null },
+  /** A `date` row: the day it was for. */
+  date?: string
 ) => {
   const { db } = getDb();
   const [row] = await db
@@ -2081,7 +2121,7 @@ export const dismissSuggestion = async (
       and(
         eq(memoryRecords.id, recordId),
         eq(memoryRecords.ownerId, ownerId),
-        eq(memoryRecords.kind, rhythm ? "rule" : "commitment"),
+        eq(memoryRecords.kind, rhythm || date ? "rule" : "commitment"),
         isNull(memoryRecords.deletedAt)
       )
     )
@@ -2089,14 +2129,23 @@ export const dismissSuggestion = async (
   if (!row) {
     return false;
   }
-  const snapshot = rhythm
-    ? { dueAt: rhythm.since, entityId: rhythm.entityId, status: null }
-    : { dueAt: row.dueAt, entityId: null, status: row.status };
+  let snapshot = {
+    dueAt: row.dueAt,
+    entityId: null as string | null,
+    status: row.status,
+  };
+  if (rhythm) {
+    snapshot = { dueAt: rhythm.since, entityId: rhythm.entityId, status: null };
+  } else if (date) {
+    snapshot = { dueAt: null, entityId: null, status: null };
+  }
   await db
     .insert(memoryDismissals)
     .values({
       ...snapshot,
-      key: dismissalKey(recordId, rhythm?.entityId),
+      key: date
+        ? dateKey(recordId, date)
+        : dismissalKey(recordId, rhythm?.entityId),
       ownerId,
       recordId,
     })
@@ -2111,14 +2160,18 @@ export const dismissSuggestion = async (
 export const undismissSuggestion = async (
   ownerId: string,
   recordId: string,
-  entityId?: string
+  entityId?: string,
+  date?: string
 ) => {
   const rows = await getDb()
     .db.delete(memoryDismissals)
     .where(
       and(
         eq(memoryDismissals.ownerId, ownerId),
-        eq(memoryDismissals.key, dismissalKey(recordId, entityId))
+        eq(
+          memoryDismissals.key,
+          date ? dateKey(recordId, date) : dismissalKey(recordId, entityId)
+        )
       )
     )
     .returning({ key: memoryDismissals.key });

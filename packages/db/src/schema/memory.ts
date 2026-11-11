@@ -5,6 +5,7 @@ import type {
   MemoryPrecision,
   MemoryRecordKind,
   MemoryRole,
+  MemoryRepeat,
   MemoryRuleKind,
   MemoryStatus,
   MemoryWriteStatus,
@@ -173,6 +174,8 @@ export const memoryRecords = pgTable(
     recordedAt: timestamp("recorded_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** A `date` rule: how often its day (`occurred_at`) comes again; null — not a `date` rule (ARCH §19.8.7). */
+    repeat: text("repeat").$type<MemoryRepeat>(),
     /** A rule «Не упустить» counts days by (ARCH §19.6); null — a rule it does not, or not a rule. */
     ruleKind: text("rule_kind").$type<MemoryRuleKind>(),
     /** `{ text }`, sealed. */
@@ -221,8 +224,11 @@ export const memoryRecords = pgTable(
       ),
       check(
         "memory_records_rule",
-        sql`(${table.ruleKind} is null or (${table.kind} = 'rule' and ${table.ruleKind} in ('rhythm', 'wait') and ${table.intervalDays} > 0))
-          and (${table.intervalDays} is null or ${table.kind} = 'rule')`
+        sql`(${table.ruleKind} is null or (${table.kind} = 'rule' and (
+            (${table.ruleKind} in ('rhythm', 'wait') and ${table.intervalDays} > 0)
+            or (${table.ruleKind} = 'date' and ${table.intervalDays} is null and ${table.repeat} in ('year', 'month', 'week') and ${table.occurredAt} is not null))))
+          and (${table.intervalDays} is null or ${table.kind} = 'rule')
+          and (${table.repeat} is null or ${table.ruleKind} = 'date')`
       ),
     ];
   }

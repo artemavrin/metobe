@@ -5,6 +5,7 @@ import type {
 } from "@metobe/contracts/memory";
 
 import {
+  dateKey,
   dismissalKey,
   listDismissals,
   listEntities,
@@ -12,6 +13,7 @@ import {
 } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
 import { groupMembers } from "./memory-groups";
+import { REACH, nextRepeat } from "./memory-repeat";
 
 // «Не упустить» on the new chat screen (ARCH §19.6, P17): open commitments that need the person now — past their day,
 // due today or tomorrow, said to be done by someone else, marked important, or waiting for others longer than a rule
@@ -34,6 +36,7 @@ export const daysBetween = (from: string, to: string) =>
   );
 
 const ORDER: Record<MemorySuggestionReason, number> = {
+  date: 3.5,
   important: 6,
   overdue: 0,
   rhythm: 5,
@@ -270,6 +273,50 @@ const rhythmRows = (
 };
 
 /**
+ * Days that come again, near enough to say so (ARCH §19.8.7): a birthday three days before, a monthly or weekly day
+ * today and tomorrow. «Уже сделано» (`date:<id>:<day>`) keeps the day away until the next one.
+ */
+const dateRows = (
+  rules: MemoryRecord[],
+  cards: Map<string, MemoryEntity>,
+  dismissed: Awaited<ReturnType<typeof listDismissals>>,
+  { timeZone, today }: { timeZone: string; today: string }
+): MemorySuggestion[] => {
+  const self = new Set(
+    [...cards.values()].filter((e) => e.kind === "self").map((e) => e.id)
+  );
+  return rules.flatMap((r): MemorySuggestion[] => {
+    const repeat = r.rule?.kind === "date" ? r.rule.repeat : undefined;
+    if (!(repeat && r.occurredAt)) {
+      return [];
+    }
+    const day = nextRepeat(dayKey(r.occurredAt, timeZone), repeat, today);
+    const ahead = daysBetween(today, day);
+    if (ahead > REACH[repeat] || dismissed.has(dateKey(r.id, day))) {
+      return [];
+    }
+    const [subject] = subjectsOf(r, self);
+    return [
+      {
+        date: { day, repeat },
+        days: ahead,
+        dueAt: null,
+        id: r.id,
+        important: false,
+        key: dateKey(r.id, day),
+        kind: "date",
+        reason: "date",
+        rhythm: null,
+        side: "mine",
+        status: null,
+        text: r.text,
+        who: cardOf(subject ? cards.get(subject) : undefined),
+      },
+    ];
+  });
+};
+
+/**
  * A card's «что сейчас» (P22): the last contact with it — the latest event it took part in, up to now — and how often a
  * rhythm rule wants one, in days (its own rule, or its group's). `events` — the card's own events.
  */
@@ -362,6 +409,7 @@ export const todaySuggestions = async (
     ];
   });
   rows.push(
+    ...dateRows(rules, cards, dismissed, { timeZone, today }),
     ...rhythmRows(rules, events, cards, dismissed, {
       expand,
       now,
@@ -374,7 +422,7 @@ export const todaySuggestions = async (
     (a, b) =>
       Number(b.important) - Number(a.important) ||
       ORDER[a.reason] - ORDER[b.reason] ||
-      b.days - a.days ||
+      (a.reason === "date" ? a.days - b.days : b.days - a.days) ||
       (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999")
   );
 };

@@ -2844,7 +2844,8 @@
         "tomorrow": "tomorrow",
         "important": "important",
         "waiting": "waiting {days} d",
-        "rhythm": "{days} d since"
+        "rhythm": "{days} d since",
+        "date": "{days, plural, =0 {today} =1 {tomorrow} other {in # d}}"
       },
       "done": "Already done",
       "open": "Open in memory",
@@ -2857,7 +2858,9 @@
       "askMeet": "Write a short message to set up a meeting. To: {name}.{since, select, none { We have not met yet.} other { We last met on {since}.}} I want to meet at least every {every} days.",
       "contacted": "Already done",
       "contactText": "Contact: {name}",
-      "savedContact": "Contact noted: {name}"
+      "savedContact": "Contact noted: {name}",
+      "askBirthday": "Write a short, warm greeting. To: {name}. Occasion: {text}.",
+      "askDate": "Help me get ready: {text}. Where do I start?"
     },
     "members": "Members",
     "noMembers": "No members yet. Add them with a message in the chat: «Pavel is on my team».",

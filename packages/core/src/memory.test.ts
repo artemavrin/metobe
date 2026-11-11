@@ -66,6 +66,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   const fern = `memory-test-${randomBytes(4).toString("hex")}`;
   /** Merging cards (§19.8.5): a memory of its own, so «Не упустить» is exact. */
   const gwen = `memory-test-${randomBytes(4).toString("hex")}`;
+  /** Days that come again (§19.8.7): a memory of its own, so «Не упустить» is exact. */
+  const hana = `memory-test-${randomBytes(4).toString("hex")}`;
 
   const recordIds = async (
     owner: string,
@@ -97,7 +99,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     await db.insert(user).values(
-      [ana, bob, cleo, dana, ella, fern, gwen].map((id) => ({
+      [ana, bob, cleo, dana, ella, fern, gwen, hana].map((id) => ({
         email: `${id}@example.test`,
         id,
         name: id,
@@ -108,7 +110,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
   afterAll(async () => {
     await db
       ?.delete(user)
-      .where(inArray(user.id, [ana, bob, cleo, dana, ella, fern, gwen]));
+      .where(inArray(user.id, [ana, bob, cleo, dana, ella, fern, gwen, hana]));
   });
 
   it("keeps texts and names sealed, and reads them back", async () => {
@@ -1567,6 +1569,102 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     const now = await names();
     expect(now).toEqual(expect.arrayContaining(["Лена Котова", "Паша Дым"]));
     expect(now).not.toContain("Олег Лис");
+  });
+
+  it("shows a day that comes again near its day, and keeps it away until the next one (ARCH §19.8.7)", async () => {
+    const today: typeof MemoryTodayModule = await import("./memory-today");
+    const olga = await memory.createEntity(hana, {
+      kind: "person",
+      name: "Ольга Ли",
+    });
+    const birthday = await memory.addRecord(hana, {
+      entities: [{ entityId: olga.id, role: "subject" }],
+      kind: "rule",
+      occurred: { at: new Date("1985-11-14T00:00:00+03:00"), precision: "day" },
+      rule: { days: 0, kind: "date", repeat: "year", workingDays: false },
+      text: "У Ольги день рождения 14 ноября",
+    });
+    // It comes back as the rule it is, a year's, with its day.
+    const [kept] = await memory.listRecords(hana, { kinds: ["rule"] });
+    expect(kept?.rule).toEqual({
+      days: 0,
+      kind: "date",
+      repeat: "year",
+      workingDays: false,
+    });
+    const rows = async (at: string) => {
+      const list = await today.todaySuggestions(
+        hana,
+        "Europe/Moscow",
+        new Date(at)
+      );
+      return list
+        .filter((s) => s.id === birthday.id)
+        .map((s) => [s.reason, s.date?.day, s.days, s.who?.name]);
+    };
+    // Three days ahead: shown; four: not yet.
+    expect(await rows("2026-11-11T09:00:00Z")).toEqual([
+      ["date", "2026-11-14", 3, "Ольга Ли"],
+    ]);
+    expect(await rows("2026-11-10T09:00:00Z")).toEqual([]);
+    // «Уже сделано» keeps this year's day away, and next year's comes back.
+    expect(
+      await memory.dismissSuggestion(hana, birthday.id, undefined, "2026-11-14")
+    ).toBe(true);
+    expect(await rows("2026-11-11T09:00:00Z")).toEqual([]);
+    expect(await rows("2027-11-11T09:00:00Z")).toHaveLength(1);
+    expect(
+      await memory.undismissSuggestion(
+        hana,
+        birthday.id,
+        undefined,
+        "2026-11-14"
+      )
+    ).toBe(true);
+    expect(await rows("2026-11-11T09:00:00Z")).toHaveLength(1);
+    // A weekly day shows the day before and the day itself, not earlier.
+    const report = await memory.addRecord(hana, {
+      entities: [],
+      kind: "rule",
+      occurred: { at: new Date("2026-11-06T00:00:00+03:00"), precision: "day" },
+      rule: { days: 0, kind: "date", repeat: "week", workingDays: false },
+      text: "Отчёт каждую пятницу",
+    });
+    const week = async (at: string) => {
+      const list = await today.todaySuggestions(
+        hana,
+        "Europe/Moscow",
+        new Date(at)
+      );
+      return list.filter((s) => s.id === report.id).map((s) => s.days);
+    };
+    // 13 November 2026 is a Friday.
+    expect(await week("2026-11-11T09:00:00Z")).toEqual([]);
+    expect(await week("2026-11-12T09:00:00Z")).toEqual([1]);
+    expect(await week("2026-11-13T09:00:00Z")).toEqual([0]);
+  });
+
+  it("does not take a date rule without its day or its repeat (ARCH §19.8.7)", async () => {
+    await expect(
+      memory.addRecord(hana, {
+        entities: [],
+        kind: "rule",
+        rule: { days: 0, kind: "date", repeat: "year", workingDays: false },
+        text: "день рождения без дня",
+      })
+    ).rejects.toThrow();
+    await expect(
+      memory.addRecord(hana, {
+        entities: [],
+        kind: "rule",
+        occurred: {
+          at: new Date("2026-11-14T00:00:00+03:00"),
+          precision: "day",
+        },
+        rule: { days: 0, kind: "date", workingDays: false },
+        text: "день без повтора",
+      })
+    ).rejects.toThrow();
   });
 
   it("merges two cards into one and takes it back as it was (ARCH §19.8.5)", async () => {

@@ -114,6 +114,11 @@ const usePrompt = (timeZone: string) => {
         })
       : null;
     const name = s.who?.name ?? null;
+    if (s.date) {
+      return s.date.repeat === "year" && name
+        ? t("askBirthday", { name, text: s.text })
+        : t("askDate", { text: s.text });
+    }
     if (s.rhythm) {
       return t("askMeet", {
         every: s.rhythm.every,
@@ -279,6 +284,39 @@ const RhythmMenu = ({
   );
 };
 
+/** A day that comes again (ARCH §19.8.7): «Уже сделано» keeps it away until the next one; the card, if it is about one. */
+const DateMenu = ({ s, act }: { s: Item; act: ReturnType<typeof useAct> }) => {
+  const today = useTranslations("memory.forToday");
+  const day = s.date?.day;
+  if (!day) {
+    return null;
+  }
+  const dismiss = `/api/memory/records/${s.id}/dismiss`;
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () => send(dismiss, "POST", { date: day }),
+              today("dismissed"),
+              () => send(`${dismiss}?date=${day}`, "DELETE")
+            )
+          }
+        >
+          <Check /> {today("done")}
+        </DropdownMenuItem>
+        {s.who && (
+          <DropdownMenuItem render={<Link href={`/memory?card=${s.who.id}`} />}>
+            <BookUser /> {today("open")}
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 const Menu = ({
   s,
   timeZone,
@@ -296,6 +334,9 @@ const Menu = ({
   const said = s.status === "unconfirmed";
   const act = useAct(onGone, onBack);
   const record = `/api/memory/records/${s.id}`;
+  if (s.date) {
+    return <DateMenu act={act} s={s} />;
+  }
   if (s.rhythm) {
     return <RhythmMenu act={act} s={s} />;
   }
