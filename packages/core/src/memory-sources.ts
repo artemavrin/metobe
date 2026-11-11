@@ -24,6 +24,8 @@ export interface MemoryInput {
   context: ChatTurn[];
   /** The card it was written about (a note typed on it): a record naming no one else lies on that card. */
   about?: string;
+  /** Cards the person named with `@` (Д4), by id: they are among the candidates whatever the words say. */
+  named?: string[];
 }
 
 export interface MemorySource {
@@ -82,6 +84,7 @@ const chat: MemorySource = {
     const [message] = await getDb()
       .db.select({
         createdAt: messages.createdAt,
+        metadata: messages.metadata,
         parts: messages.parts,
         role: messages.role,
       })
@@ -98,6 +101,7 @@ const chat: MemorySource = {
     return {
       at: message.createdAt,
       context: await chatBefore(write.chatId, message.createdAt),
+      named: message.metadata?.cards?.map((c) => c.id),
       text,
     };
   },

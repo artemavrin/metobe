@@ -203,12 +203,15 @@ const chatMemoryOf = async (
     return { brief: "", tools: {} };
   }
   const text = message ? textOf(message) : "";
-  const brief = await memoryBrief(userId, text, timeZone).catch(
-    (error: unknown) => {
-      console.error("memory: could not read for the chat", error);
-      return "";
-    }
-  );
+  const brief = await memoryBrief(
+    userId,
+    text,
+    timeZone,
+    message?.metadata?.cards?.map((c) => c.id)
+  ).catch((error: unknown) => {
+    console.error("memory: could not read for the chat", error);
+    return "";
+  });
   return {
     brief,
     tools: {

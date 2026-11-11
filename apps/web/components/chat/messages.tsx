@@ -343,7 +343,7 @@ const Mentioned = ({
   skills,
 }: {
   text: string;
-  mentions: { title: string; logo: string | null }[];
+  mentions: { title: string; logo: string | null; card?: boolean }[];
   skills: string[];
 }) =>
   // Read the way the chat reads them: what shows as a badge is what gives the model its tools and skills.
@@ -361,6 +361,7 @@ const Mentioned = ({
         <TokenBadge
           // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
           key={`m${i}:${j}`}
+          kind={piece.card ? "card" : undefined}
           label={piece.title}
           logo={piece.logo ?? undefined}
         />
@@ -473,7 +474,18 @@ export const UserMessage = ({
             {text && (
               <Bubble align="end" variant="muted">
                 <BubbleContent className="rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap">
-                  <Mentioned mentions={mentions} skills={skills} text={text} />
+                  <Mentioned
+                    mentions={[
+                      ...mentions,
+                      ...(message.metadata?.cards ?? []).map((c) => ({
+                        card: true,
+                        logo: null,
+                        title: c.name,
+                      })),
+                    ]}
+                    skills={skills}
+                    text={text}
+                  />
                 </BubbleContent>
               </Bubble>
             )}

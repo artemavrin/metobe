@@ -200,7 +200,9 @@
       "checking": "Checking…",
       "retry": "Try again",
       "show": "Show",
-      "hide": "Hide"
+      "hide": "Hide",
+      "memory": "Memory",
+      "cardOpen": "{count} open"
     },
     "add": {
       "label": "Add",

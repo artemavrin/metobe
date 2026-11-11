@@ -160,10 +160,17 @@ const selfLines = (self: MemoryEntity | undefined, records: MemoryRecord[]) =>
 export const memoryBrief = async (
   ownerId: string,
   text: string,
-  timeZone: string
+  timeZone: string,
+  /** Cards the person named with `@` (Д4), by id: they come first, whatever the words say. */
+  named: string[] = []
 ) => {
   const entities = await listEntities(ownerId);
-  const cards = mentionedCards(entities, text).slice(0, MAX_CARDS);
+  const cards = [
+    ...new Set([
+      ...entities.filter((e) => e.kind !== "self" && named.includes(e.id)),
+      ...mentionedCards(entities, text),
+    ]),
+  ].slice(0, MAX_CARDS);
   const self = entities.find((e) => e.kind === "self");
   if (cards.length === 0 && !self) {
     return "";

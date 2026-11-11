@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@metobe/ui/lib/utils";
-import { Plug, Sparkles, X } from "lucide-react";
+import { BookUser, Plug, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useRef } from "react";
 
 // The composer's text field (P2 «Щелчок»): type `@`, pick a server — or `/`, a skill — and its badge sits exactly where
@@ -14,7 +14,8 @@ export interface Token {
   id: string;
   label: string;
   logo?: string;
-  kind?: "skill";
+  /** A skill (`/name`) or a card of the memory (`@Name`); none — an MCP server. */
+  kind?: "skill" | "card";
 }
 export type Segment = string | Token;
 
@@ -50,15 +51,16 @@ export const TokenBadge = ({
 }: {
   label: string;
   logo?: string;
-  kind?: "skill";
+  kind?: "skill" | "card";
 }) => (
   <span className={TOKEN_CLASS}>
     {kind === "skill" && <Sparkles />}
-    {kind !== "skill" && logo && (
+    {kind === "card" && <BookUser />}
+    {!kind && logo && (
       // oxlint-disable-next-line nextjs/no-img-element -- a tiny data URL picture; next/image adds nothing here
       <img alt="" className="size-3.5 rounded-[3px]" src={logo} />
     )}
-    {kind !== "skill" && !logo && <Plug />}
+    {!kind && !logo && <Plug />}
     {label}
   </span>
 );
@@ -79,6 +81,9 @@ const IconTemplates = ({
     <span data-icon="plug">
       <Plug />
     </span>
+    <span data-icon="card">
+      <BookUser />
+    </span>
     <span data-icon="skill">
       <Sparkles />
     </span>
@@ -94,13 +99,12 @@ const makeBadge = (
   removeLabel: string
 ) => {
   const plug =
-    templates?.querySelector(
-      t.kind === "skill" ? '[data-icon="skill"]' : '[data-icon="plug"]'
-    )?.innerHTML ?? "";
+    templates?.querySelector(`[data-icon="${t.kind ?? "plug"}"]`)?.innerHTML ??
+    "";
   const remove =
     templates?.querySelector('[data-icon="remove"]')?.innerHTML ?? "×";
   const icon =
-    t.logo && t.kind !== "skill"
+    t.logo && !t.kind
       ? `<img alt="" class="size-3.5 rounded-[3px]" src="${esc(t.logo)}">`
       : plug;
   const el = document.createElement("span");
@@ -167,7 +171,10 @@ const read = (root: HTMLElement): Segment[] => {
       } else if (child instanceof HTMLElement && "token" in child.dataset) {
         out.push({
           id: child.dataset.id ?? "",
-          kind: child.dataset.kind === "skill" ? "skill" : undefined,
+          kind:
+            child.dataset.kind === "skill" || child.dataset.kind === "card"
+              ? child.dataset.kind
+              : undefined,
           label: child.dataset.label ?? "",
           logo: child.dataset.logo,
         });

@@ -793,10 +793,18 @@ export const ChatView = ({
   );
   const dragging = useFileDrop(dropFiles);
   // A mention is the `@Name` in the text: the server reads the thread's questions for the servers to use.
-  const send = (text: string, files: FileUIPart[] = []) => {
+  const send = (
+    text: string,
+    files: FileUIPart[] = [],
+    cards: { id: string; name: string }[] = []
+  ) => {
     const message: ChatMessage = {
       id: uuid(),
-      metadata: { ...stamp(), modelId: model.id },
+      metadata: {
+        ...stamp(),
+        modelId: model.id,
+        ...(cards.length > 0 ? { cards } : {}),
+      },
       parts: [...(text ? [{ text, type: "text" as const }] : []), ...files],
       role: "user",
     };

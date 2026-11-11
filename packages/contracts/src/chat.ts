@@ -23,6 +23,11 @@ import type {
  * first word, as the server measured it.
  */
 export const chatMessageMetadataSchema = z.object({
+  /** The memory's cards the question mentions with `@` (Д4), by id: the chat reads exactly those, not whoever shares a name. */
+  cards: z
+    .array(z.object({ id: z.uuid(), name: z.string().max(200) }))
+    .max(10)
+    .optional(),
   createdAt: z.iso.datetime().optional(),
   modelId: z.uuid().optional(),
   reasoningMs: z.number().int().nonnegative().optional(),

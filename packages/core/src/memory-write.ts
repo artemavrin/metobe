@@ -511,6 +511,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   const said = [text, ...chatContext(before).map((t) => t.text)].join("\n");
   const found = candidateCards({
     entities,
+    named: input.named,
     now: at,
     records,
     text: said,

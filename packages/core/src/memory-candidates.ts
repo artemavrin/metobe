@@ -185,11 +185,14 @@ export const candidateCards = ({
   records,
   text,
   now = new Date(),
+  named = [],
 }: {
   entities: MemoryEntity[];
   records: MemoryRecord[];
   text: string;
   now?: Date;
+  /** Cards the person named with `@` (Д4), by id: they lead, whatever the words say. */
+  named?: string[];
 }) => {
   const byId = new Map(entities.map((e) => [e.id, e]));
   const since = now.getTime() - RECENT_DAYS * DAY_MS;
@@ -216,6 +219,7 @@ export const candidateCards = ({
   const cards = entities.filter((e) => e.kind !== "self");
   return [
     ...new Set([
+      ...entities.filter((e) => e.kind !== "self" && named.includes(e.id)),
       ...mentionedCards(entities, text),
       ...groups,
       ...recent.slice(0, MAX_RECENT),

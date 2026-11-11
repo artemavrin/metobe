@@ -1,7 +1,9 @@
 "use client";
 
+import type { MemoryCardItem } from "@metobe/contracts/memory";
 import type { ChatServer } from "@metobe/core/mcp";
 import { cn } from "@metobe/ui/lib/utils";
+import { Building2, FolderKanban, UserRound, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRef } from "react";
 
@@ -9,6 +11,24 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useListHighlight } from "@/components/chat/picker/motion";
 import type { NavSource } from "@/components/chat/picker/motion";
 import type { Trigger } from "@/components/chat/token-editor";
+
+/** What the memory card is drawn with in the menu. */
+const CARD_ICON = {
+  custom: UserRound,
+  group: Users,
+  org: Building2,
+  person: UserRound,
+  project: FolderKanban,
+} as const;
+
+/** What the card's line says under its name: who they are, and what is open with them. */
+const cardHint = (card: MemoryCardItem, open: (count: number) => string) =>
+  [
+    card.kind === "custom" ? card.type : card.role,
+    card.open > 0 && open(card.open),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
 /**
  * The `@` menu at the caret (P2 «Щелчок»): the servers the user may mention, the highlight travelling with the arrows.
@@ -18,18 +38,23 @@ import type { Trigger } from "@/components/chat/token-editor";
 export const MentionMenu = ({
   trigger,
   items,
+  cards,
   active,
   box,
   nav,
   onPick,
+  onPickCard,
   onHover,
 }: {
   trigger: Trigger;
   items: ChatServer[];
+  /** The memory's cards the query fits (P26 «Одно меню»): after the servers, in the same list. */
+  cards: MemoryCardItem[];
   active: number;
   box: DOMRect;
   nav: React.RefObject<NavSource>;
   onPick: (server: ChatServer) => void;
+  onPickCard: (card: MemoryCardItem) => void;
   onHover: (i: number) => void;
 }) => {
   const t = useTranslations("chat.mcp");
@@ -49,10 +74,12 @@ export const MentionMenu = ({
         ),
       }}
     >
-      <p className="text-muted-foreground px-2 pt-1 pb-1.5 text-[11px] font-medium tracking-wide uppercase">
-        {t("menu")}
-      </p>
-      {items.length === 0 && (
+      {(items.length > 0 || cards.length === 0) && (
+        <p className="text-muted-foreground px-2 pt-1 pb-1.5 text-[11px] font-medium tracking-wide uppercase">
+          {t("menu")}
+        </p>
+      )}
+      {items.length === 0 && cards.length === 0 && (
         <p className="text-muted-foreground px-2 py-3 text-sm">{t("none")}</p>
       )}
       <div className="relative" ref={list}>
@@ -112,6 +139,54 @@ export const MentionMenu = ({
                 >
                   {hint}
                 </span>
+              </span>
+            </button>
+          );
+        })}
+        {cards.length > 0 && (
+          <p
+            className={cn(
+              "text-muted-foreground px-2 pb-1.5 text-[11px] font-medium tracking-wide uppercase",
+              items.length > 0 ? "pt-2.5" : "pt-1"
+            )}
+          >
+            {t("memory")}
+          </p>
+        )}
+        {cards.map((card, n) => {
+          const i = items.length + n;
+          const Icon = CARD_ICON[card.kind];
+          const hint = cardHint(card, (count) => t("cardOpen", { count }));
+          return (
+            <button
+              aria-selected={i === active}
+              className="relative z-[1] flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm"
+              id={`mention-${card.id}`}
+              key={card.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPickCard(card);
+              }}
+              onPointerMove={() => {
+                if (i !== active) {
+                  nav.current = "step";
+                  onHover(i);
+                }
+              }}
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an option of the caret menu above, with a picture and a hint
+              role="option"
+              type="button"
+            >
+              <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full">
+                <Icon className="size-3.5" />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate">{card.name}</span>
+                {hint && (
+                  <span className="text-muted-foreground truncate text-xs">
+                    {hint}
+                  </span>
+                )}
               </span>
             </button>
           );

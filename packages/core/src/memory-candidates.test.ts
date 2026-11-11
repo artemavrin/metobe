@@ -94,6 +94,19 @@ const pickIn = (entities: MemoryEntity[], text: string) =>
   ids(candidateCards({ entities, now: NOW, records: [], text }));
 
 describe("the cards the «Память» model is shown (ARCH §19.8.3)", () => {
+  it("puts a card named with @ first, whatever the words say", () => {
+    const found = candidateCards({
+      entities: [card("a", "Андрей Петров"), card("b", "Андрей Седов"), SELF],
+      named: ["b", SELF.id],
+      now: NOW,
+      records: [],
+      text: "что ему ответить про договор",
+    });
+    expect(found.map((e) => e.id)[0]).toBe("b");
+    // Naming the person's own card does not make it a candidate.
+    expect(found.some((e) => e.id === SELF.id)).toBe(false);
+  });
+
   it("shows a memory of forty cards or fewer whole, the named ones first", () => {
     const small = [
       SELF,
