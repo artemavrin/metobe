@@ -29,7 +29,7 @@ const updates = setInterval(releases, 60 * 60_000);
 
 // The morning digests and the reminders people asked for (D43): each minute, whatever's time has come. One run at a time.
 let digesting = false;
-const digests = setInterval(async () => {
+const notifyTick = async () => {
   if (digesting) {
     return;
   }
@@ -37,10 +37,15 @@ const digests = setInterval(async () => {
   try {
     await sendDueDigests();
     await sendDueReminders();
+  } catch (error) {
+    console.error("worker: notify tick", error);
   } finally {
     digesting = false;
   }
-}, 60_000);
+};
+const digests = setInterval(notifyTick, 60_000);
+// A restart must not push a reminder a minute on: the first run is at once.
+void notifyTick();
 
 // Periodic tasks (ARCH §16): the minute tick and the runs, through BullMQ on REDIS_URL.
 let stopTasks: (() => Promise<void>) | null = null;
