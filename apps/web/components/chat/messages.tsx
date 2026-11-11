@@ -50,7 +50,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
-import { useContext, useEffect, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import type { Components } from "streamdown";
 
@@ -69,6 +69,7 @@ import {
   kindOfMedia,
   useAttachments,
 } from "@/components/chat/attachments";
+import { CardPeek } from "@/components/chat/card-peek";
 import { ConnectRequest } from "@/components/chat/connect-request";
 import { SecretNote } from "@/components/chat/secret-note";
 import { ThoughtWindow } from "@/components/chat/thought-window";
@@ -343,7 +344,12 @@ const Mentioned = ({
   skills,
 }: {
   text: string;
-  mentions: { title: string; logo: string | null; card?: boolean }[];
+  mentions: {
+    title: string;
+    logo: string | null;
+    card?: boolean;
+    id?: string;
+  }[];
   skills: string[];
 }) =>
   // Read the way the chat reads them: what shows as a badge is what gives the model its tools and skills.
@@ -354,19 +360,27 @@ const Mentioned = ({
         <TokenBadge key={`s${i}`} kind="skill" label={part.skill} />,
       ];
     }
-    return splitMentions(part, mentions).map((piece, j) =>
-      typeof piece === "string" ? (
-        piece
-      ) : (
+    return splitMentions(part, mentions).map((piece, j) => {
+      if (typeof piece === "string") {
+        return piece;
+      }
+      const badge = (
         <TokenBadge
-          // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
-          key={`m${i}:${j}`}
           kind={piece.card ? "card" : undefined}
           label={piece.title}
           logo={piece.logo ?? undefined}
         />
-      )
-    );
+      );
+      // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
+      const key = `m${i}:${j}`;
+      return piece.card && piece.id ? (
+        <CardPeek id={piece.id} key={key}>
+          {badge}
+        </CardPeek>
+      ) : (
+        <Fragment key={key}>{badge}</Fragment>
+      );
+    });
   });
 
 /** The user's message: a bubble on the right that rises in when it goes; its time, copy and edit under it. */
@@ -479,6 +493,7 @@ export const UserMessage = ({
                       ...mentions,
                       ...(message.metadata?.cards ?? []).map((c) => ({
                         card: true,
+                        id: c.id,
                         logo: null,
                         title: c.name,
                       })),

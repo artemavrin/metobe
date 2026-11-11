@@ -202,7 +202,10 @@
       "show": "Показать",
       "hide": "Скрыть",
       "memory": "Память",
-      "cardOpen": "открыто {count}"
+      "cardOpen": "открыто {count}",
+      "peekGone": "Карточки больше нет",
+      "peekLoading": "Загружается…",
+      "peekLast": "Последний контакт: {date}"
     },
     "add": {
       "label": "Добавить",

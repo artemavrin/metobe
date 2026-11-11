@@ -202,7 +202,10 @@
       "show": "Show",
       "hide": "Hide",
       "memory": "Memory",
-      "cardOpen": "{count} open"
+      "cardOpen": "{count} open",
+      "peekGone": "The card is gone",
+      "peekLoading": "Loading…",
+      "peekLast": "Last contact: {date}"
     },
     "add": {
       "label": "Add",
