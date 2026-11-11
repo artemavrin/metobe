@@ -1,8 +1,16 @@
 "use client";
 
 import { Button } from "@metobe/ui/components/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@metobe/ui/components/dropdown-menu";
+import { TimePicker } from "@metobe/ui/components/reui/time-picker";
 import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
+import { Ellipsis, Send, Unlink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
@@ -10,6 +18,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Row, Rows } from "@/components/settings/rows";
 
 import {
+  saveDigest,
   saveNotify,
   startTelegram,
   telegramStatus,
@@ -24,14 +33,24 @@ interface Channel {
 }
 
 const POLL_MS = 3000;
+/** The time a digest starts at when the person turns it on. */
+const DEFAULT_DIGEST = "09:00";
 
-/** Telegram (D43): bind a chat with a link to the bot; while it waits for «Start», the state is asked every few seconds. */
+/**
+ * Telegram (D43) in one row: not bound — «Привязать»; waiting for «Start» in the bot — the link and «Отмена»; bound —
+ * the chat and a switch for sending, with «Проверить» and «Отвязать» in the menu. While it waits, the state is asked
+ * every few seconds.
+ */
 const TelegramRow = ({
   channel,
   onChannel,
+  via,
+  onVia,
 }: {
   channel: Channel | null;
   onChannel: (channel: Channel | null) => void;
+  via: boolean;
+  onVia: (on: boolean) => void;
 }) => {
   const t = useTranslations("settings.notifications");
   const [link, setLink] = useState<string | null>(null);
@@ -96,23 +115,34 @@ const TelegramRow = ({
       <div className="flex items-center gap-2">
         {channel?.status === "active" && (
           <>
-            <Button
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    aria-label={t("more")}
+                    disabled={pending}
+                    size="icon-sm"
+                    variant="ghost"
+                  />
+                }
+              >
+                {pending ? <Spinner /> : <Ellipsis />}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={check}>
+                  <Send /> {t("test")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={unlink}>
+                  <Unlink /> {t("unlink")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Switch
+              aria-label={t("viaTelegram")}
+              checked={via}
               disabled={pending}
-              onClick={check}
-              size="sm"
-              variant="outline"
-            >
-              {pending && <Spinner />}
-              {t("test")}
-            </Button>
-            <Button
-              disabled={pending}
-              onClick={unlink}
-              size="sm"
-              variant="ghost"
-            >
-              {t("unlink")}
-            </Button>
+              onCheckedChange={onVia}
+            />
           </>
         )}
         {waiting && link && (
@@ -148,18 +178,82 @@ const TelegramRow = ({
   );
 };
 
-/** Where Metobe tells the person (D43): the mail, and — while the installation has a bot — a Telegram chat. */
+/** The morning digest of «Не упустить»: a switch and the time it comes at — always in sight, off or on. */
+const DigestRow = ({ initial }: { initial: string | null }) => {
+  const t = useTranslations("settings.notifications");
+  const [time, setTime] = useState(initial ?? DEFAULT_DIGEST);
+  const [on, setOn] = useState(initial !== null);
+  const [pending, start] = useTransition();
+
+  const save = (next: { time: string; on: boolean }) => {
+    setTime(next.time);
+    setOn(next.on);
+    start(async () => {
+      const result = await saveDigest(next.on ? next.time : null);
+      if (!result.ok) {
+        setTime(initial ?? DEFAULT_DIGEST);
+        setOn(initial !== null);
+      }
+    });
+  };
+
+  return (
+    <Row hint={t("digestHint")} label={t("digest")}>
+      <div className="flex items-center gap-2">
+        <TimePicker
+          aria-label={t("digestTime")}
+          className="w-28"
+          disabled={pending || !on}
+          hourCycle={24}
+          i18n={{
+            labels: {
+              clear: t("timeClear"),
+              confirm: t("timeOk"),
+              hour: t("timeHour"),
+              minute: t("timeMinute"),
+              now: t("timeNow"),
+              openPicker: t("digestTime"),
+              panelLabel: t("digestTime"),
+              placeholder: t("timePlaceholder"),
+            },
+          }}
+          minuteStep={5}
+          onValueChange={(next) => {
+            if (next) {
+              save({ on, time: next });
+            }
+          }}
+          value={time}
+        />
+        <Switch
+          aria-label={t("digest")}
+          checked={on}
+          disabled={pending}
+          onCheckedChange={(next) => save({ on: next, time })}
+        />
+      </div>
+    </Row>
+  );
+};
+
+/** Where Metobe tells the person (D43): the mail, the morning digest, and — while the installation has a bot — Telegram. */
 export const NotificationsForm = ({
   channel: initial,
   telegram: botOn,
   email: initialEmail,
   viaTelegram: initialVia,
+  digest,
+  memory,
 }: {
   channel: Channel | null;
   /** The installation has a bot: Telegram is offered. */
   telegram: boolean;
   email: boolean;
   viaTelegram: boolean;
+  /** The digest's time, `09:00`; null — off. */
+  digest: string | null;
+  /** The service has a «Память» model: there is a digest to send. */
+  memory: boolean;
 }) => {
   const t = useTranslations("settings.notifications");
   const [channel, setChannel] = useState<Channel | null>(initial);
@@ -189,17 +283,15 @@ export const NotificationsForm = ({
           onCheckedChange={(next) => choose({ email: next })}
         />
       </Row>
-      {botOn && <TelegramRow channel={channel} onChannel={setChannel} />}
-      {botOn && channel?.status === "active" && (
-        <Row hint={t("viaTelegramHint")} label={t("viaTelegram")}>
-          <Switch
-            aria-label={t("viaTelegram")}
-            checked={viaTelegram}
-            disabled={pending}
-            onCheckedChange={(next) => choose({ telegram: next })}
-          />
-        </Row>
+      {botOn && (
+        <TelegramRow
+          channel={channel}
+          onChannel={setChannel}
+          onVia={(on) => choose({ telegram: on })}
+          via={viaTelegram}
+        />
       )}
+      {memory && <DigestRow initial={digest} />}
     </Rows>
   );
 };

@@ -898,7 +898,17 @@
       "email": "Email",
       "emailHint": "Metobe's notifications — task results and more — come to the account's address.",
       "viaTelegram": "Send to Telegram",
-      "viaTelegramHint": "Turn off to stop messages to this chat without unlinking it."
+      "viaTelegramHint": "Turn off to stop messages to this chat without unlinking it.",
+      "digest": "«Don't miss» digest",
+      "digestHint": "Once a day at this time: what is overdue, due today, or awaited from others. It comes only when something is new.",
+      "digestTime": "Digest time",
+      "more": "Channel actions",
+      "timeClear": "Clear",
+      "timeOk": "OK",
+      "timeHour": "Hour",
+      "timeMinute": "Minute",
+      "timeNow": "Now",
+      "timePlaceholder": "Time"
     }
   },
   "sources": {
@@ -2996,5 +3006,14 @@
     "invalid": "The code did not fit or has expired. Make a new link in the Metobe settings.",
     "taken": "This Telegram is already linked to another Metobe account. Unlink it there or use another Telegram.",
     "test": "Connection check: Metobe notifications arrive here."
+  },
+  "digest": {
+    "name": "Don't miss",
+    "label": "Digest",
+    "heading": "{count, plural, one {# item} other {# items}}",
+    "open": "Open Metobe",
+    "off": "Digest settings",
+    "why": "This digest came because it is on in the notification settings.",
+    "more": "And {count} more — in Metobe."
   }
 }

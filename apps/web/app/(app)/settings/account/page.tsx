@@ -1,9 +1,4 @@
 import { getAccount } from "@metobe/core/account";
-import {
-  notifyPrefs,
-  telegramAvailable,
-  telegramChannel,
-} from "@metobe/core/channels";
 import { isMailConfigured } from "@metobe/core/mail";
 import { memoryStateFor } from "@metobe/core/memory-write";
 import { getTranslations } from "next-intl/server";
@@ -20,7 +15,7 @@ import { DataForm, DangerForm } from "./data-form";
 import { AccountHeader } from "./header";
 import { MemoryForm } from "./memory-form";
 import { ModelForm } from "./model-form";
-import { NotificationsForm } from "./notifications-form";
+import { NotificationsSection } from "./notifications-section";
 import { RegionForm } from "./region-form";
 import { Sessions } from "./sessions";
 import { ThemePicker } from "./theme-picker";
@@ -36,29 +31,23 @@ const AccountPage = async () => {
     tAppearance,
     tModel,
     tMemory,
-    tNotify,
     current,
     all,
     account,
     prefs,
     mailOn,
     memory,
-    channel,
-    notify,
   ] = await Promise.all([
     getTranslations("data"),
     getTranslations("settings.appearance"),
     getTranslations("personalization"),
     getTranslations("memory"),
-    getTranslations("settings.notifications"),
     getAuth().api.getSession({ headers: requestHeaders }),
     getAuth().api.listSessions({ headers: requestHeaders }),
     user ? getAccount(user.id) : null,
     getPrefs(),
     isMailConfigured(),
     user ? memoryStateFor(user.id) : null,
-    user && telegramAvailable() ? telegramChannel(user.id) : null,
-    user ? notifyPrefs(user.id) : null,
   ]);
   if (!user) {
     return null;
@@ -94,14 +83,10 @@ const AccountPage = async () => {
           </Section>
         </div>
       )}
-      <Section title={tNotify("title")}>
-        <NotificationsForm
-          channel={channel}
-          email={notify?.email ?? true}
-          telegram={telegramAvailable()}
-          viaTelegram={notify?.telegram ?? true}
-        />
-      </Section>
+      <NotificationsSection
+        memory={Boolean(memory?.service)}
+        userId={user.id}
+      />
       <Sessions
         currentToken={current?.session.token ?? ""}
         sessions={all

@@ -1,4 +1,5 @@
 import { checkHealth } from "@metobe/core/health";
+import { sendDueDigests } from "@metobe/core/memory-digest";
 import { startMemoryWorker } from "@metobe/core/memory-queue";
 import { ensureSecretsCanary } from "@metobe/core/secrets";
 import { startTasksWorker } from "@metobe/core/tasks-worker";
@@ -25,6 +26,20 @@ const releases = async () => {
 };
 const updates = setInterval(releases, 60 * 60_000);
 
+// The morning digests (D43): each minute, whoever's chosen time has come. One run at a time.
+let digesting = false;
+const digests = setInterval(async () => {
+  if (digesting) {
+    return;
+  }
+  digesting = true;
+  try {
+    await sendDueDigests();
+  } finally {
+    digesting = false;
+  }
+}, 60_000);
+
 // Periodic tasks (ARCH §16): the minute tick and the runs, through BullMQ on REDIS_URL.
 let stopTasks: (() => Promise<void>) | null = null;
 // The memory's silent writer (ARCH §19.4), on the same Redis; it reads nothing while no model holds the job.
@@ -35,6 +50,7 @@ let stopTelegram: (() => void) | null = null;
 const shutdown = async () => {
   clearInterval(keepAlive);
   clearInterval(updates);
+  clearInterval(digests);
   console.log("worker stopping");
   // A run in progress is let go: its job comes back to the queue and runs again on the next start.
   stopTelegram?.();

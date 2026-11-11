@@ -8,6 +8,7 @@ import {
   telegramChannel,
   unlinkTelegram,
 } from "@metobe/core/channels";
+import { setDigestTime } from "@metobe/core/memory-digest";
 import { TelegramError, sendTelegram } from "@metobe/core/telegram";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
@@ -77,4 +78,13 @@ export const saveNotify = async (prefs: {
   }
   await setNotifyPrefs(s.user.id, prefs);
   return { ok: true as const };
+};
+
+/** The morning digest of «Не упустить»: its time (`09:00`), or null — off. */
+export const saveDigest = async (time: string | null) => {
+  const s = await session();
+  if (!s) {
+    return { ok: false as const };
+  }
+  return { ok: await setDigestTime(s.user.id, time) };
 };
