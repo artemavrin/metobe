@@ -40,6 +40,7 @@ import {
   useOAuthWindow,
 } from "@/components/mcp/oauth-window";
 import { useHotkeyLabel } from "@/lib/hotkey-label";
+import { tokenizePaste } from "@/lib/paste-tokens";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
@@ -273,11 +274,17 @@ const textOf = (handle: EditorHandle | null) =>
     .join("")
     .trim();
 
-/** The memory's cards the draft mentions, as the chat gets them. */
-const cardsOf = (handle: EditorHandle | null) =>
-  (handle?.tokens() ?? [])
-    .filter((x) => x.kind === "card")
-    .map((x) => ({ id: x.id, name: x.label }));
+/** The memory's cards the draft mentions, as the chat gets them — each once, however often it is named. */
+const cardsOf = (handle: EditorHandle | null) => {
+  const seen = new Set<string>();
+  return (handle?.tokens() ?? []).flatMap((x) => {
+    if (x.kind !== "card" || seen.has(x.id)) {
+      return [];
+    }
+    seen.add(x.id);
+    return [{ id: x.id, name: x.label }];
+  });
+};
 
 export const Composer = ({
   model,
@@ -337,7 +344,7 @@ export const Composer = ({
   } | null>(null);
   const [active, setActive] = useState(0);
   const [connecting, setConnecting] = useState<ChatServer | null>(null);
-  const memoryCards = useMemoryCards(isAt(trigger));
+  const { cards: memoryCards, load: loadCards } = useMemoryCards(isAt(trigger));
   const { cardItems, items, skillItems, menuSize } = menuOf(
     trigger,
     servers,
@@ -507,6 +514,21 @@ export const Composer = ({
     oauth.start(server, (returnTo) =>
       connectServer({ catalogId: server.id, returnTo })
     );
+  };
+
+  /**
+   * A pasted text, read as typed: the servers (connected ones, as the menu inserts them), the skills and the memory's
+   * cards it names become badges. The cards are read first, if a name might be one.
+   */
+  const tokenize = async (text: string) => {
+    const cards = text.includes("@") ? await loadCards() : [];
+    return tokenizePaste(text, {
+      cards: cards.map((c) => ({ id: c.id, kind: "card", label: c.name })),
+      servers: servers
+        .filter((s) => s.signIn === "ready")
+        .map((s) => ({ id: s.id, label: s.title, logo: s.logo ?? undefined })),
+      skills: skills.map((k) => ({ id: k.id, kind: "skill", label: k.name })),
+    });
   };
 
   /** Enter or Tab in the `@` menu picks the highlighted server or card. */
@@ -724,6 +746,7 @@ export const Composer = ({
                   return false;
                 }}
                 onSubmit={submit}
+                tokenize={tokenize}
                 onTrigger={onTrigger}
                 // The phone's line is short: a shorter prompt fits beside the model.
                 placeholder={
