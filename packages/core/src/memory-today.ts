@@ -10,6 +10,7 @@ import {
   listDismissals,
   listEntities,
   listRecords,
+  writeChats,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
 import { groupMembers } from "./memory-groups";
@@ -346,6 +347,35 @@ export const cardContact = async (
   };
 };
 
+/** What a reminder to the other side needs of a promise: when it was given, and where to write to them. */
+const reminderOf = (r: MemoryRecord, who: MemoryEntity | undefined) => ({
+  email: who?.email ?? null,
+  givenAt: r.givenAt?.toISOString() ?? null,
+});
+
+/** Where each promise was said: the chat of the message that put it in, for a reminder to point back to. */
+const attachChats = async (
+  ownerId: string,
+  records: MemoryRecord[],
+  rows: MemorySuggestion[]
+) => {
+  const writes = await writeChats(
+    ownerId,
+    records.flatMap((r) => (r.writeId ? [r.writeId] : []))
+  );
+  const chatOf = new Map(
+    records.map((r) => [
+      r.id,
+      (r.writeId && writes.get(r.writeId)?.chatId) || null,
+    ])
+  );
+  for (const row of rows) {
+    if (row.kind === "commitment") {
+      row.chatId = chatOf.get(row.id) ?? null;
+    }
+  }
+};
+
 /** The rows, «важно» first, then past due (the longest first), said done, today, tomorrow, the rest important. */
 export const todaySuggestions = async (
   ownerId: string,
@@ -395,6 +425,7 @@ export const todaySuggestions = async (
       {
         days: reason === "waiting" ? (waited ?? 0) : Math.max(0, -(days ?? 0)),
         dueAt: r.dueAt?.toISOString() ?? null,
+        ...reminderOf(r, who),
         id: r.id,
         important: r.important,
         key: r.id,
@@ -408,6 +439,7 @@ export const todaySuggestions = async (
       },
     ];
   });
+  await attachChats(ownerId, records, rows);
   rows.push(
     ...dateRows(rules, cards, dismissed, { timeZone, today }),
     ...rhythmRows(rules, events, cards, dismissed, {

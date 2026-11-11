@@ -420,6 +420,10 @@ export interface MemorySuggestion {
   important: boolean;
   /** A rhythm row: the last contact (null — none yet, counted from the rule) and the rule's period in days. */
   rhythm: { since: string | null; every: number } | null;
+  /** A commitment row (Г2.4): when it was given (ISO), the other side's address, and the chat it was said in. */
+  givenAt?: string | null;
+  email?: string | null;
+  chatId?: string | null;
   /** A `date` row (ARCH §19.8.7): the day it comes next, `yyyy-mm-dd` in the person's zone, and how it repeats. */
   date?: { day: string; repeat: MemoryRepeat } | null;
 }
