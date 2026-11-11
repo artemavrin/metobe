@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@metobe/ui/components/tooltip";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { BookUser, CalendarClock, SquarePen } from "lucide-react";
+import { BookUser, CalendarClock, ChevronRight, SquarePen } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
@@ -66,6 +66,8 @@ import { TopBarSlot } from "@/components/chat/top-bar";
 import { MemoryListLevel } from "@/components/memory/memory-list";
 import { MemoryStoreProvider } from "@/components/memory/memory-store";
 import { TaskDot } from "@/components/tasks/task-dot";
+import { TasksListLevel } from "@/components/tasks/task-level";
+import type { SidebarTask } from "@/components/tasks/task-level";
 import { useTaskEvents } from "@/components/tasks/use-task-events";
 import { groupChats } from "@/lib/chat-history";
 import { levelMotion } from "@/lib/level-motion";
@@ -158,13 +160,6 @@ const History = ({ chats, ops }: { chats: ChatItem[]; ops: ChatOps }) => {
 /** A task in the sidebar: the ones that wait for the person (a result not seen, a question, an action), and the open one. */
 const NO_TASKS: SidebarTask[] = [];
 
-export interface SidebarTask {
-  id: string;
-  name: string;
-  color: string;
-  waiting: boolean;
-}
-
 /**
  * «Задачи» and under it only the tasks that wait for the person, each with a dot, plus the one open now (D24). Seen
  * to, a task leaves the list; all of them are on the «Задачи» page.
@@ -189,6 +184,7 @@ const Tasks = ({ tasks }: { tasks: SidebarTask[] }) => {
             >
               <CalendarClock />
               <span>{t("nav")}</span>
+              <ChevronRight className="text-muted-foreground ml-auto size-3.5" />
             </SidebarMenuButton>
             {shown.length > 0 && (
               <SidebarMenuSub>
@@ -235,6 +231,7 @@ const Memory = () => {
             >
               <BookUser />
               <span>{t("nav")}</span>
+              <ChevronRight className="text-muted-foreground ml-auto size-3.5" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -276,20 +273,27 @@ const NewChat = () => {
   );
 };
 
+type Level = "chats" | "memory" | "tasks";
+
 /**
- * On a memory page the sidebar goes one level in, to the memory's list (as the settings go into a list); the slide
- * follows the way: in from the right, back to the left.
+ * On a memory or a task page the sidebar goes one level in, to that section's list (as the settings go into a list); the
+ * slide follows the way: in from the right, back to the left.
  */
-const useMemoryLevel = (memory: boolean, pathname: string) => {
+const useSidebarLevel = (memory: boolean, pathname: string) => {
   const reduce = Boolean(useReducedMotion());
-  const inMemory = memory && pathname.startsWith("/memory");
-  const [was, setWas] = useState(inMemory);
-  const [dir, setDir] = useState(1);
-  if (was !== inMemory) {
-    setWas(inMemory);
-    setDir(inMemory ? 1 : -1);
+  let level: Level = "chats";
+  if (memory && pathname.startsWith("/memory")) {
+    level = "memory";
+  } else if (pathname.startsWith("/tasks")) {
+    level = "tasks";
   }
-  return { dir, inMemory, reduce };
+  const [was, setWas] = useState(level);
+  const [dir, setDir] = useState(1);
+  if (was !== level) {
+    setWas(level);
+    setDir(level === "chats" ? -1 : 1);
+  }
+  return { dir, level, reduce };
 };
 
 /**
@@ -364,7 +368,7 @@ export const ChatShell = ({
     []
   );
   const pathname = usePathname();
-  const { dir, inMemory, reduce } = useMemoryLevel(memory, pathname);
+  const { dir, level, reduce } = useSidebarLevel(memory, pathname);
   // The tasks the same way as the chats; on a page that does not look at tasks the shell asks for them itself.
   const [taskRows, setTaskRows] = useState(tasks);
   const [seenTasks, setSeenTasks] = useState(tasks);
@@ -466,12 +470,12 @@ export const ChatShell = ({
                     <motion.div
                       className="absolute inset-0 flex flex-col"
                       custom={dir}
-                      key={inMemory ? "memory" : "chats"}
+                      key={level}
                       {...levelMotion(reduce)}
                     >
-                      {inMemory ? (
-                        <MemoryListLevel />
-                      ) : (
+                      {level === "memory" && <MemoryListLevel />}
+                      {level === "tasks" && <TasksListLevel tasks={taskRows} />}
+                      {level === "chats" && (
                         <>
                           <SidebarHeader>
                             <div className="flex h-8 items-center justify-between ps-2">

@@ -2666,6 +2666,10 @@
       }
     },
     "list": {
+      "search": "Search",
+      "overview": "Overview",
+      "waitingGroup": "Waiting for you",
+      "meta": "{count, plural, one {# task} other {# tasks}}{waiting, plural, =0 {} other { · # waiting for you}}",
       "andMore": "and {count} more",
       "selectAll": "Select all",
       "select": "Select",

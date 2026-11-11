@@ -44,7 +44,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
     getAccount(user.id),
     admin ? availableUpdate() : null,
     getWhatsNew(user.id),
-    listSidebarTasks(user.id),
+    listSidebarTasks(user.id, prefs.locale === "en" ? "en" : "ru"),
     isMemoryOnFor(user.id),
   ]);
   // The pinned first, the latest pinned on top of them; the rest keep the order of their last message.

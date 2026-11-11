@@ -2660,6 +2660,10 @@
       }
     },
     "list": {
+      "search": "Поиск",
+      "overview": "Обзор",
+      "waitingGroup": "Ждут вас",
+      "meta": "{count, plural, one {# задание} few {# задания} many {# заданий} other {# задания}}{waiting, plural, =0 {} other { · ждут вас #}}",
       "andMore": "и ещё {count}",
       "selectAll": "Выбрать все",
       "select": "Выбрать",
