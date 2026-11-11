@@ -118,7 +118,10 @@ export const SidebarResizer = ({
       aria-valuemax={SIDEBAR_MAX}
       aria-valuemin={SIDEBAR_MIN}
       aria-valuenow={width ?? SIDEBAR_DEFAULT}
-      className="group/resize absolute inset-y-0 -right-1 z-20 flex w-3 cursor-col-resize touch-none justify-start outline-none max-md:hidden"
+      // Laid over the sidebar's own edge (same top, bottom and radius as its inner box): the border it shows follows the
+      // rounded corners like the sidebar's ring does, instead of a straight line sticking out past them. The `after:`
+      // strip carries the hit area on into the gutter; it belongs to this element, so the pointer events are its own.
+      className="group/resize hover:border-foreground/20 focus-visible:border-ring active:border-foreground/35 absolute top-2 right-[7px] bottom-2 z-20 w-2 cursor-col-resize touch-none rounded-r-lg border-r-2 border-transparent transition-colors duration-150 outline-none after:absolute after:inset-y-0 after:left-full after:w-2.5 max-md:hidden"
       onDoubleClick={reset}
       onKeyDown={key}
       onPointerCancel={up}
@@ -132,8 +135,6 @@ export const SidebarResizer = ({
       tabIndex={0}
     >
       <style>{NO_TRANSITION}</style>
-      {/* Hugs the sidebar's edge like a thicker border; only while it is wanted, so the edge stays calm. */}
-      <span className="bg-foreground/0 group-hover/resize:bg-foreground/20 group-focus-visible/resize:bg-ring group-active/resize:bg-foreground/35 my-3 w-0.5 rounded-full transition-colors duration-150" />
     </div>
   );
 };
