@@ -2826,6 +2826,10 @@
       "list_cards": "Карточки из памяти"
     },
     "forToday": {
+      "review": "Сверка: давно открыто {count}",
+      "reviewWhy": "разобрать",
+      "reviewOpen": "Разобрать",
+      "reviewDismissed": "Сверка убрана до понедельника",
       "title": "Не упустить",
       "why": {
         "overdue": "просрочено на {days} дн.",

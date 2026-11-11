@@ -2152,6 +2152,31 @@ export const lastChanges = async (ownerId: string) => {
 /** The key of «Оставить» in «Сверка»: the commitment stays open and out of it for a while. */
 export const keepKey = (recordId: string) => `stale:${recordId}`;
 
+/** «Убрать» on the «Сверка» row of «Не упустить»: the row stays away for the rest of the week that starts on `week`. */
+export const reviewKey = (week: string) => `review:${week}`;
+
+export const dismissReview = async (ownerId: string, week: string) => {
+  await getDb()
+    .db.insert(memoryDismissals)
+    .values({ key: reviewKey(week), ownerId })
+    .onConflictDoUpdate({
+      set: { at: new Date() },
+      target: memoryDismissals.key,
+    });
+};
+
+/** «Вернуть» after it. */
+export const undismissReview = async (ownerId: string, week: string) => {
+  await getDb()
+    .db.delete(memoryDismissals)
+    .where(
+      and(
+        eq(memoryDismissals.ownerId, ownerId),
+        eq(memoryDismissals.key, reviewKey(week))
+      )
+    );
+};
+
 /** «Оставить» in «Сверка» (В2.1): the commitment is not shown there for 30 days. False — it is not an open one of theirs. */
 export const keepOpen = async (ownerId: string, recordId: string) => {
   const { db } = getDb();

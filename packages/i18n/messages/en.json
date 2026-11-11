@@ -2832,6 +2832,10 @@
       "list_cards": "Cards from memory"
     },
     "forToday": {
+      "review": "Review: {count} open for a long time",
+      "reviewWhy": "sort out",
+      "reviewOpen": "Sort out",
+      "reviewDismissed": "Review put away until Monday",
       "title": "Don't miss",
       "why": {
         "overdue": "{days} d overdue",

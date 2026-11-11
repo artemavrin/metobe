@@ -23,6 +23,8 @@ export interface WelcomeData {
   mailboxes: string[];
   /** «На сегодня» from the memory (P17): empty — no section. */
   suggestions?: MemorySuggestion[];
+  /** How many promises have been open a long time: the «Сверка» row of «Не упустить». */
+  review?: number;
   /** The person's zone: «завтра» and «в понедельник» are counted in it. */
   timeZone?: string;
   /** A request another page put into the address (`/?say=`, «Сверка» on the «Память» page): it waits in the composer. */
@@ -132,9 +134,11 @@ export const Welcome = ({
           </h1>
           <LineOfDay />
         </div>
-        {data.suggestions && data.suggestions.length > 0 && (
+        {((data.suggestions && data.suggestions.length > 0) ||
+          (data.review ?? 0) > 0) && (
           <TodayRows
-            items={data.suggestions}
+            items={data.suggestions ?? []}
+            review={data.review ?? 0}
             put={(text) => composer.current?.say(text)}
             timeZone={data.timeZone ?? "UTC"}
           />

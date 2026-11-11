@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { MemoryEntity, MemoryRecord } from "./memory";
-import { scheduleOf, staleOf } from "./memory-due";
+import { scheduleOf, staleOf, weekStart } from "./memory-due";
 
 vi.mock("server-only", () => ({}));
 vi.mock("./memory", () => ({}));
@@ -202,5 +202,16 @@ describe("staleOf", () => {
       TZ
     );
     expect(rows.map((r) => r.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("weekStart", () => {
+  it("is the Monday of the week, in the person's zone", () => {
+    // 11 Nov 2026 is a Wednesday.
+    expect(weekStart(new Date("2026-11-11T09:00:00Z"), TZ)).toBe("2026-11-09");
+    expect(weekStart(new Date("2026-11-09T09:00:00Z"), TZ)).toBe("2026-11-09");
+    // Sunday evening there, still that week; a minute after midnight is the next.
+    expect(weekStart(new Date("2026-11-15T20:59:00Z"), TZ)).toBe("2026-11-09");
+    expect(weekStart(new Date("2026-11-15T21:01:00Z"), TZ)).toBe("2026-11-16");
   });
 });

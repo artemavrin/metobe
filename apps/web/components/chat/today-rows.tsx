@@ -23,6 +23,7 @@ import {
   CircleCheck,
   Ellipsis,
   FolderKanban,
+  MailCheck,
   Star,
   Users,
   X,
@@ -361,13 +362,51 @@ const Menu = ({
   );
 };
 
+/** The «Сверка» row's menu: open it, or put it away until Monday (`POST /api/memory/review/dismiss`, «Вернуть» undoes). */
+const ReviewMenu = ({
+  onGone,
+  onBack,
+}: {
+  onGone: () => void;
+  onBack: () => void;
+}) => {
+  const today = useTranslations("memory.forToday");
+  const act = useAct(onGone, onBack);
+  const url = "/api/memory/review/dismiss";
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem render={<Link href="/memory/review" />}>
+          <MailCheck /> {today("reviewOpen")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () => send(url, "POST"),
+              today("reviewDismissed"),
+              () => send(url, "DELETE")
+            )
+          }
+        >
+          <X /> {today("dismiss")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 /** The section, or nothing once every row is gone. `put` — the composer takes the request. */
 export const TodayRows = ({
   items,
+  review = 0,
   timeZone,
   put,
 }: {
   items: Item[];
+  /** Promises open a long time: the «Сверка» row after the others, while there are any and it is not put away. */
+  review?: number;
   timeZone: string;
   put: (text: string) => void;
 }) => {
@@ -375,8 +414,10 @@ export const TodayRows = ({
   const prompt = usePrompt(timeZone);
   const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
   const [all, setAll] = useState(false);
+  const [reviewGone, setReviewGone] = useState(false);
   const left = items.filter((s) => !gone.has(s.key));
-  if (left.length === 0) {
+  const reviewing = review > 0 && !reviewGone;
+  if (left.length === 0 && !reviewing) {
     return null;
   }
   const shown = all ? left : left.slice(0, FIRST);
@@ -423,6 +464,30 @@ export const TodayRows = ({
           >
             <ChevronDown className="size-3.5" /> {t("more", { count: more })}
           </button>
+        )}
+        {reviewing && (
+          <div className={cn("group relative", ENTER)}>
+            <Link className={ROW} href="/memory/review">
+              <span
+                aria-hidden
+                className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full"
+              >
+                <MailCheck className="size-3" />
+              </span>
+              <span className="flex min-w-0 flex-1 items-center gap-3 max-sm:flex-col max-sm:items-start max-sm:gap-0.5">
+                <span className="min-w-0 flex-1 sm:truncate">
+                  {t("review", { count: review })}
+                </span>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {t("reviewWhy")}
+                </span>
+              </span>
+            </Link>
+            <ReviewMenu
+              onBack={() => setReviewGone(false)}
+              onGone={() => setReviewGone(true)}
+            />
+          </div>
         )}
       </div>
     </section>

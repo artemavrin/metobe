@@ -1,6 +1,7 @@
 import { getLastModelIds, listChats } from "@metobe/core/chat";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers } from "@metobe/core/mcp";
+import { reviewCount } from "@metobe/core/memory-due";
 import { todaySuggestions } from "@metobe/core/memory-today";
 import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { skillsForChat } from "@metobe/core/skills";
@@ -31,7 +32,7 @@ const NewChatPage = async ({
   if (!user) {
     return null;
   }
-  const [picker, last, servers, chats, boxes, skills, today] =
+  const [picker, last, servers, chats, boxes, skills, today, review] =
     await Promise.all([
       getPickerData(user.id),
       getLastModelIds(user.id),
@@ -49,6 +50,14 @@ const NewChatPage = async ({
               }
             )
           : [])(),
+      // «Сверка» (В2.1): how many promises have been open a long time; a broken read leaves the row out.
+      (async () =>
+        (await isMemoryOnFor(user.id))
+          ? reviewCount(user.id, prefs.timeZone).catch((error: unknown) => {
+              console.error("memory: could not count «Сверка»", error);
+              return 0;
+            })
+          : 0)(),
     ]);
   const model = pickModel(picker.models, [...last, picker.favorites[0]]);
   // The layout shows «not ready» when chat has no model; a page without one never renders.
@@ -81,6 +90,7 @@ const NewChatPage = async ({
             name,
           }),
           mailboxes: boxes.map((b) => b.address),
+          review,
           say: typeof say === "string" ? say.slice(0, 4000) : undefined,
           suggestions: today,
           timeZone: prefs.timeZone,

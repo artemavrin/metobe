@@ -11,6 +11,7 @@ import {
   listDismissals,
   listEntities,
   listRecords,
+  reviewKey,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
 import { cardOf, dayKey, daysBetween, sidesOf } from "./memory-today";
@@ -166,4 +167,28 @@ export const memoryStale = async (
     now,
     timeZone
   );
+};
+
+/** The Monday of the week a moment falls in, in the person's zone: `2026-11-09`. «Сверку» is put away for a week by it. */
+export const weekStart = (now: Date, timeZone: string) => {
+  const [year, month, day] = dayKey(now, timeZone).split("-").map(Number);
+  const date = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1));
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+  return date.toISOString().slice(0, 10);
+};
+
+/**
+ * How many long-open promises the «Сверка» row of «Не упустить» stands for (ARCH §19.8.6): those of `memoryStale`,
+ * none once the person put the row away for this week.
+ */
+export const reviewCount = async (
+  ownerId: string,
+  timeZone: string,
+  now = new Date()
+) => {
+  const [rows, dismissed] = await Promise.all([
+    memoryStale(ownerId, timeZone, now),
+    listDismissals(ownerId),
+  ]);
+  return dismissed.has(reviewKey(weekStart(now, timeZone))) ? 0 : rows.length;
 };
