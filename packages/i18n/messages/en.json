@@ -719,7 +719,7 @@
         "answer": "Answer"
       },
       "meta": "{schedule} · run {when}",
-      "why": "This letter came because email notifications are on for the task «{task}».",
+      "why": "This letter came because notifications are on for the task «{task}».",
       "off": "Turn off for this task",
       "failed": "Failure: {error}"
     },
@@ -894,7 +894,11 @@
       "unlink": "Unlink",
       "testSent": "Message sent, check Telegram.",
       "testFailed": "Could not send a message to Telegram.",
-      "linkFailed": "Could not make the link. Try again."
+      "linkFailed": "Could not make the link. Try again.",
+      "email": "Email",
+      "emailHint": "Metobe's notifications — task results and more — come to the account's address.",
+      "viaTelegram": "Send to Telegram",
+      "viaTelegramHint": "Turn off to stop messages to this chat without unlinking it."
     }
   },
   "sources": {
@@ -2637,7 +2641,7 @@
     "retry": "Run again",
     "cancelled": "Run cancelled",
     "failed": "Failed: {error}",
-    "mailLabel": "Email notifications for this task",
+    "mailLabel": "Notifications for this task",
     "actionFailed": "That did not work. Try again.",
     "answerFailed": "Could not load the run's answer.",
     "notFound": "Task not found",
@@ -2653,7 +2657,7 @@
       "whereChanges": "Only when something changes",
       "whereAlways": "After every run",
       "wherePage": "on the task's page",
-      "whereMail": "on the task's page and by email",
+      "whereMail": "on the task's page and in notifications",
       "nameLabel": "Task name",
       "colorLabel": "Task colour",
       "color": "Colour {n}",

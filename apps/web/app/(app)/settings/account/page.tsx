@@ -1,5 +1,9 @@
 import { getAccount } from "@metobe/core/account";
-import { telegramAvailable, telegramChannel } from "@metobe/core/channels";
+import {
+  notifyPrefs,
+  telegramAvailable,
+  telegramChannel,
+} from "@metobe/core/channels";
 import { isMailConfigured } from "@metobe/core/mail";
 import { memoryStateFor } from "@metobe/core/memory-write";
 import { getTranslations } from "next-intl/server";
@@ -40,6 +44,7 @@ const AccountPage = async () => {
     mailOn,
     memory,
     channel,
+    notify,
   ] = await Promise.all([
     getTranslations("data"),
     getTranslations("settings.appearance"),
@@ -53,6 +58,7 @@ const AccountPage = async () => {
     isMailConfigured(),
     user ? memoryStateFor(user.id) : null,
     user && telegramAvailable() ? telegramChannel(user.id) : null,
+    user ? notifyPrefs(user.id) : null,
   ]);
   if (!user) {
     return null;
@@ -88,12 +94,14 @@ const AccountPage = async () => {
           </Section>
         </div>
       )}
-      {/* Only while the installation has a bot: without one there is nothing to bind (D43). */}
-      {telegramAvailable() && (
-        <Section title={tNotify("title")}>
-          <NotificationsForm channel={channel} />
-        </Section>
-      )}
+      <Section title={tNotify("title")}>
+        <NotificationsForm
+          channel={channel}
+          email={notify?.email ?? true}
+          telegram={telegramAvailable()}
+          viaTelegram={notify?.telegram ?? true}
+        />
+      </Section>
       <Sessions
         currentToken={current?.session.token ?? ""}
         sessions={all

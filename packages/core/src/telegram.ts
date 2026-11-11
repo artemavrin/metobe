@@ -94,9 +94,6 @@ export interface TelegramUpdate {
   };
 }
 
-export const escapeHtml = (text: string) =>
-  text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-
 /** A message to a chat; `html` is Telegram's HTML subset, already escaped. 403 — the person blocked the bot. */
 export const sendTelegram = async (
   chatId: string,

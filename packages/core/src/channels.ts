@@ -183,3 +183,26 @@ export const markTelegramError = async (userId: string, message: string) => {
       and(eq(userChannels.userId, userId), eq(userChannels.kind, "telegram"))
     );
 };
+
+/** Where the person wants to be told: the mail, the bound Telegram chat. */
+export const notifyPrefs = async (userId: string) => {
+  const [row] = await getDb()
+    .db.select({ email: user.notifyEmail, telegram: user.notifyTelegram })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  return { email: row?.email ?? true, telegram: row?.telegram ?? true };
+};
+
+export const setNotifyPrefs = async (
+  userId: string,
+  prefs: { email?: boolean; telegram?: boolean }
+) => {
+  const set = {
+    ...(prefs.email === undefined ? {} : { notifyEmail: prefs.email }),
+    ...(prefs.telegram === undefined ? {} : { notifyTelegram: prefs.telegram }),
+  };
+  if (Object.keys(set).length > 0) {
+    await getDb().db.update(user).set(set).where(eq(user.id, userId));
+  }
+};

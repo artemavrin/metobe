@@ -3,6 +3,7 @@
 import {
   activeTelegramChat,
   markTelegramError,
+  setNotifyPrefs,
   startTelegramLink,
   telegramChannel,
   unlinkTelegram,
@@ -63,4 +64,17 @@ export const testTelegram = async () => {
     }
     return { blocked, ok: false as const };
   }
+};
+
+/** The switches: tell by mail, tell in Telegram (it needs a bound chat to do anything). */
+export const saveNotify = async (prefs: {
+  email?: boolean;
+  telegram?: boolean;
+}) => {
+  const s = await session();
+  if (!s) {
+    return { ok: false as const };
+  }
+  await setNotifyPrefs(s.user.id, prefs);
+  return { ok: true as const };
 };
