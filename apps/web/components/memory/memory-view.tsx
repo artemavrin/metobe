@@ -30,6 +30,7 @@ import { useIsMobile } from "@metobe/ui/hooks/use-mobile";
 import { cn } from "@metobe/ui/lib/utils";
 import {
   ChevronDown,
+  CalendarDays,
   ChevronLeft,
   CircleHelp,
   ListChecks,
@@ -56,6 +57,7 @@ import {
   byUrgency,
   sidesOf,
 } from "./card-parts";
+import { DueView } from "./due-view";
 import {
   ENTER,
   FreshContext,
@@ -78,6 +80,7 @@ type Pick =
   | { type: "card"; id: string }
   | { type: "me" }
   | { type: "questions" }
+  | { type: "due" }
   | { type: "rules" };
 
 type Question = ChatMemory["questions"][number];
@@ -1430,6 +1433,15 @@ const CardList = ({
         })
       )}
       {section("other", t("kinds.other"), things.other, { kind: "custom" })}
+      {!q &&
+        item(
+          { type: "due" },
+          "due",
+          <>
+            <CalendarDays className="text-muted-foreground size-4 shrink-0" />
+            <span className="flex-1 text-sm">{t("due")}</span>
+          </>
+        )}
       {!q && (
         <div className="group/head relative">
           {item(
@@ -1571,6 +1583,12 @@ export const MemoryView = ({
         onBack={back}
         timeZone={timeZone}
       />
+    ),
+    due: (
+      <div className={cn("flex flex-col gap-4", ENTER)}>
+        <Header hint={t("dueHint")} onBack={back} title={t("due")} />
+        <DueView phone={phone} timeZone={timeZone} />
+      </div>
     ),
     me: <Me onBack={back} records={overview.me} timeZone={timeZone} />,
     questions: (

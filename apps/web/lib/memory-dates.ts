@@ -25,6 +25,9 @@ export const daysUntil = (at: Date, now: Date, timeZone: string) =>
 const midnight = (key: string, timeZone: string) =>
   localMidnight(key, timeZone) as Date;
 
+/** A day's midnight in a zone — a deadline's moment. */
+export const localMidnightOf = midnight;
+
 /**
  * «Перенести срок»: tomorrow, the day after, next Monday (a week on, when today is Monday) and a week on — each the
  * day's midnight in the zone.

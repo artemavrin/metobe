@@ -58,6 +58,34 @@ const now = Date.now();
 const seeds = [
   {
     by: olga.id,
+    days: 5,
+    due: now + 2 * DAY,
+    text: "Прислать смету на склад",
+    to: selfId,
+  },
+  {
+    by: selfId,
+    days: 3,
+    due: now + 5 * DAY,
+    text: "Подготовить отчёт по закупкам",
+    to: olga.id,
+  },
+  {
+    by: olga.id,
+    days: 2,
+    due: now + 9 * DAY,
+    text: "Согласовать график дежурств",
+    to: selfId,
+  },
+  {
+    by: selfId,
+    days: 1,
+    due: now + 9 * DAY,
+    text: "Выслать акт сверки",
+    to: olga.id,
+  },
+  {
+    by: olga.id,
     days: 52,
     due: now - 44 * DAY,
     text: "Прислать договор на проверку",

@@ -19,8 +19,6 @@ import { cardOf, dayKey, daysBetween, sidesOf } from "./memory-today";
 // what is ahead, day by day, and what has been open a long time with nothing happening to it. Plain reads, no model.
 // The picking is functions without a base (`scheduleOf`, `staleOf`); the two at the bottom read and call them.
 
-/** Days shown ahead of today: the next two weeks. */
-export const DUE_DAYS = 14;
 /** «Давно открыто»: no change, and given, this many days ago (ARCH §19.8.6); «Оставить» hides it as long. */
 export const STALE_DAYS = 30;
 
@@ -48,9 +46,8 @@ const byImportance = (a: MemoryPromiseRow, b: MemoryPromiseRow) =>
   a.text.localeCompare(b.text);
 
 /**
- * The open commitments by day in the person's zone: past their day (the longest first), each of the next `DUE_DAYS`
- * days (today first, empty ones too — the screen draws a column for each), and the counts of those with no day and
- * those beyond the days shown.
+ * The open commitments for a calendar: each with a deadline, the nearest first, and the number of those with none.
+ * What day a deadline falls on is the screen's to say, in the person's zone.
  */
 export const scheduleOf = (
   records: MemoryRecord[],
@@ -58,40 +55,21 @@ export const scheduleOf = (
   now: Date,
   timeZone: string
 ): MemoryDue => {
-  const today = dayKey(now, timeZone);
-  const late: MemoryDue["late"] = [];
-  const days = Array.from({ length: DUE_DAYS }, (_, offset) => ({
-    day: dayKey(
-      new Date(Date.parse(`${today}T12:00:00Z`) + offset * 86_400_000),
-      "UTC"
-    ),
-    items: [] as MemoryPromiseRow[],
-    offset,
-  }));
+  const rows: MemoryDue["rows"] = [];
   let none = 0;
-  let later = 0;
   for (const r of records) {
     if (r.kind !== "commitment" || !OPEN.has(r.status ?? "") || r.deletedAt) {
       continue;
     }
-    if (!r.dueAt) {
-      none += 1;
-      continue;
-    }
-    const offset = daysBetween(today, dayKey(r.dueAt, timeZone));
-    if (offset < 0) {
-      late.push({ ...rowOf(r, cards), days: -offset });
-    } else if (offset < DUE_DAYS) {
-      days[offset]?.items.push(rowOf(r, cards));
+    if (r.dueAt) {
+      rows.push({ ...rowOf(r, cards), dueAt: r.dueAt.toISOString() });
     } else {
-      later += 1;
+      none += 1;
     }
   }
-  for (const day of days) {
-    day.items.sort(byImportance);
-  }
-  late.sort((a, b) => b.days - a.days || byImportance(a, b));
-  return { days, late, later, none, today };
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own array; toSorted is past the ES2022 target
+  rows.sort(byImportance);
+  return { none, rows, today: dayKey(now, timeZone) };
 };
 
 /**

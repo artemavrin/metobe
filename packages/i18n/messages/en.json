@@ -2932,6 +2932,7 @@
     "calSelectView": "View",
     "calMonth": "Month",
     "calAgenda": "List",
-    "dueLate": "{count} overdue"
+    "dueLate": "{count} overdue",
+    "calAllDay": "All day"
   }
 }

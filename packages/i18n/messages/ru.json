@@ -2926,6 +2926,7 @@
     "calSelectView": "Вид",
     "calMonth": "Месяц",
     "calAgenda": "Список",
-    "dueLate": "просрочено: {count}"
+    "dueLate": "просрочено: {count}",
+    "calAllDay": "Весь день"
   }
 }

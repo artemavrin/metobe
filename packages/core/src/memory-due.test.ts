@@ -38,45 +38,28 @@ const promise = (id: string, over: Partial<MemoryRecord> = {}) =>
 const at = (iso: string) => new Date(iso);
 
 describe("scheduleOf", () => {
-  it("puts commitments by day in the person's zone, the day edge included", () => {
-    // 22:30 UTC on the 11th is already the 12th in Moscow.
-    const { days, today } = scheduleOf(
-      [promise("a", { dueAt: at("2026-11-11T22:30:00Z") })],
-      CARDS,
-      NOW,
-      TZ
-    );
-    expect(today).toBe("2026-11-11");
-    expect(days).toHaveLength(14);
-    expect(days[0]?.items).toHaveLength(0);
-    expect(days[1]?.day).toBe("2026-11-12");
-    expect(days[1]?.items.map((i) => i.id)).toEqual(["a"]);
-  });
-
-  it("counts the past, the far and the dateless apart", () => {
+  it("takes the open ones with a deadline, the nearest first, and counts the dateless", () => {
     const s = scheduleOf(
       [
-        promise("old", { dueAt: at("2026-11-01T09:00:00Z") }),
-        promise("older", { dueAt: at("2026-10-20T09:00:00Z") }),
         promise("far", { dueAt: at("2026-12-30T09:00:00Z") }),
+        promise("old", { dueAt: at("2026-10-20T09:00:00Z") }),
+        promise("soon", { dueAt: at("2026-11-12T09:00:00Z") }),
         promise("none"),
-        promise("done", { status: "done" }),
+        promise("none2"),
+        promise("done", { dueAt: at("2026-11-13T09:00:00Z"), status: "done" }),
       ],
       CARDS,
       NOW,
       TZ
     );
-    expect(s.late.map((i) => [i.id, i.days])).toEqual([
-      ["older", 22],
-      ["old", 10],
-    ]);
-    expect(s.later).toBe(1);
-    expect(s.none).toBe(1);
+    expect(s.rows.map((r) => r.id)).toEqual(["old", "soon", "far"]);
+    expect(s.none).toBe(2);
+    expect(s.today).toBe("2026-11-11");
   });
 
-  it("puts the important one first within a day, and reads the sides", () => {
+  it("puts the important one first and reads the sides", () => {
     const due = at("2026-11-13T09:00:00Z");
-    const { days } = scheduleOf(
+    const { rows } = scheduleOf(
       [
         promise("plain", { dueAt: due }),
         promise("urgent", {
@@ -92,15 +75,15 @@ describe("scheduleOf", () => {
       NOW,
       TZ
     );
-    const day = days[2]?.items ?? [];
-    expect(day.map((i) => i.id)).toEqual(["urgent", "plain"]);
-    expect(day[0]?.side).toBe("mine");
-    expect(day[1]?.side).toBe("theirs");
-    expect(day[1]?.who?.name).toBe("Ольга Ли");
+    expect(rows.map((i) => i.id)).toEqual(["urgent", "plain"]);
+    expect(rows[0]?.side).toBe("mine");
+    expect(rows[1]?.side).toBe("theirs");
+    expect(rows[1]?.who?.name).toBe("Ольга Ли");
   });
 
-  it("shows «ждёт проверки», not the closed ones", () => {
-    const { days } = scheduleOf(
+  it("shows «ждёт проверки», not the closed ones, and takes today in the person's zone", () => {
+    // 22:30 UTC on the 11th is already the 12th in Moscow.
+    const s = scheduleOf(
       [
         promise("wait", {
           dueAt: at("2026-11-12T09:00:00Z"),
@@ -112,10 +95,11 @@ describe("scheduleOf", () => {
         }),
       ],
       CARDS,
-      NOW,
+      at("2026-11-11T22:30:00Z"),
       TZ
     );
-    expect(days[1]?.items.map((i) => i.id)).toEqual(["wait"]);
+    expect(s.rows.map((i) => i.id)).toEqual(["wait"]);
+    expect(s.today).toBe("2026-11-12");
   });
 });
 

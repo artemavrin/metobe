@@ -379,22 +379,14 @@ export interface MemoryPromiseRow {
   important: boolean;
 }
 
-/** One day of «Сроки»: `day` is `2026-11-11` in the person's zone, `offset` — days from today. */
-export interface MemoryDueDay {
-  day: string;
-  offset: number;
-  items: MemoryPromiseRow[];
-}
-
-/** `GET /api/memory/due`: what is past its day, the next days (today first, empty ones too), and how many have no day. */
+/** `GET /api/memory/due` (Д6, P27 «Календарь»): every open commitment with a deadline, to put on a calendar, and how many have none. */
 export interface MemoryDue {
+  /** Today in the person's zone, `2026-11-11`. */
   today: string;
-  late: (MemoryPromiseRow & { days: number })[];
-  days: MemoryDueDay[];
+  /** Open commitments with a deadline, the nearest first; past ones too — the calendar shows them red. */
+  rows: (MemoryPromiseRow & { dueAt: string })[];
   /** Open with no deadline. */
   none: number;
-  /** Open with a deadline beyond the days shown. */
-  later: number;
 }
 
 /** An open commitment nothing has happened to for a long time (`GET /api/memory/stale`). */
