@@ -44,6 +44,7 @@ import {
 import { filesOf } from "./files";
 import { listMailboxes } from "./mailboxes";
 import { listChatServers, toolsForUser } from "./mcp";
+import { taskMemory } from "./memory-task";
 import { getPersonalPolicy } from "./personal";
 import { skillsByIds, skillsForChat } from "./skills";
 import { sendRunLetter } from "./task-mail";
@@ -152,7 +153,7 @@ const toolsFor = async (
   if (model.capabilities.tools === false) {
     return { note: STYLE_NOTE, tools: { [REPORT]: report } as ToolSet };
   }
-  const [chatServers, ownBoxes, personal, web, owned, picked] =
+  const [chatServers, ownBoxes, personal, web, owned, picked, memory] =
     await Promise.all([
       listChatServers(task.ownerId),
       listMailboxes(task.ownerId),
@@ -160,6 +161,7 @@ const toolsFor = async (
       webToolsOn(),
       skillsForChat(task.ownerId),
       skillsByIds(task.ownerId, snapshot.skillIds ?? []),
+      taskMemory(task.ownerId, snapshot.instructions, snapshot.timezone),
     ]);
   // The task's skills are picked for every run, as `/name` picks them in a chat; the rest are offered by description.
   // A run writes no skills of its own.
@@ -199,6 +201,7 @@ const toolsFor = async (
         }
       : {}),
     [TIME_TOOL]: timeTool(snapshot.timezone),
+    ...memory.tools,
     ...skillTools,
     ...(hasFiles
       ? { [READ_ATTACHMENT]: readAttachmentTool(task.ownerId, chatId) }
@@ -216,6 +219,7 @@ const toolsFor = async (
       STYLE_NOTE,
       hasFiles ? ATTACHMENT_NOTE : "",
       skilled.note,
+      memory.note,
       servicesNote(servers),
     ]
       .filter(Boolean)
