@@ -269,6 +269,36 @@ const rhythmRows = (
   );
 };
 
+/**
+ * A card's «что сейчас» (P22): the last contact with it — the latest event it took part in, up to now — and how often a
+ * rhythm rule wants one, in days (its own rule, or its group's). `events` — the card's own events.
+ */
+export const cardContact = async (
+  ownerId: string,
+  cardId: string,
+  events: MemoryRecord[],
+  entities: MemoryEntity[],
+  now = new Date()
+) => {
+  const [rules, facts] = await Promise.all([
+    listRecords(ownerId, { kinds: ["rule"] }),
+    listRecords(ownerId, { kinds: ["fact"] }),
+  ]);
+  const kinds = new Map(entities.map((e) => [e.id, e.kind]));
+  const self = new Set(
+    entities.filter((e) => e.kind === "self").map((e) => e.id)
+  );
+  const members = groupMembers(facts, now);
+  const expand = (card: string) =>
+    kinds.get(card) === "group" ? [...(members.get(card) ?? [])] : null;
+  const rule = rulesByCard(rules, "rhythm", self, expand).get(cardId)?.rule;
+  const live = events.filter((e) => e.kind === "event" && !e.supersededAt);
+  return {
+    every: rule?.days ?? null,
+    last: lastContacts(live, now).get(cardId) ?? null,
+  };
+};
+
 /** The rows, «важно» first, then past due (the longest first), said done, today, tomorrow, the rest important. */
 export const todaySuggestions = async (
   ownerId: string,

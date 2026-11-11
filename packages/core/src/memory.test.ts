@@ -4,7 +4,11 @@ import type { Db } from "@metobe/db/client";
 import { runMigrations } from "@metobe/db/migrate";
 import { user } from "@metobe/db/schema/auth";
 import { chats, messages } from "@metobe/db/schema/chat";
-import { memoryKeys, memoryRecords } from "@metobe/db/schema/memory";
+import {
+  memoryKeys,
+  memoryRecords,
+  memoryWrites,
+} from "@metobe/db/schema/memory";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -838,6 +842,28 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       await memory.markWrite(gwen, said.id, "skipped");
     });
 
+    it("keeps a note's words on its write, sealed, and gives them to the owner only (P22)", async () => {
+      const words = "обещала прислать план работ к пятнице";
+      const note = await memory.createWrite(gwen, {
+        material: { about: crypto.randomUUID(), text: words },
+        source: memory.NOTE_SOURCE,
+        sourceKey: crypto.randomUUID(),
+      });
+      const [row] = await db
+        .select({ sealed: memoryWrites.sealed })
+        .from(memoryWrites)
+        .where(eq(memoryWrites.id, note.id));
+      expect(row?.sealed).toBeTruthy();
+      expect(row?.sealed).not.toContain("пятниц");
+      expect(await memory.materialOf(gwen, note.id)).toMatchObject({
+        text: words,
+      });
+      expect(await memory.materialOf(ana, note.id)).toBeNull();
+      expect(await memory.writeStatus(gwen, note.id)).toBe("queued");
+      expect(await memory.writeStatus(ana, note.id)).toBeNull();
+      await memory.markWrite(gwen, note.id, "skipped");
+    });
+
     /** A write with one question: «Какой Андрей?» between two new cards. */
     const ask = async () => {
       const made = await chatWrite(ana, {
@@ -1074,7 +1100,16 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       text: "Встреча один на один раз в две недели",
     });
 
+    // What the person told about themselves is «Обо мне»; promises they owe are not.
+    const mine = await memory.addRecord(cleo, {
+      entities: [{ entityId: self.id, role: "about" }],
+      kind: "fact",
+      text: "У нас есть Mac Studio на 256 ГБ",
+    });
     const overview = await page.memoryOverview(cleo);
+    expect(overview.me.map((r) => r.id)).toEqual([mine.id]);
+    // Taken away again: the chat's block below is about the cards a message mentions.
+    await memory.deleteRecord(cleo, mine.id);
     // The person's own card is not in the list.
     expect(overview.cards).toEqual([
       expect.objectContaining({ id: olga.id, open: 2, overdue: 1 }),
@@ -1137,7 +1172,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       `- Ольга Ли [${read.shortId(olga.id)}] (person; менеджер «Альфа-Логистики»)`
     );
     expect(brief).toContain(
-      "commitment: «Ольга Ли пришлёт акт» (Ольга Ли owes the user, due"
+      "promise: «Ольга Ли пришлёт акт» (by Ольга Ли to the user, due"
     );
     // Closed ones stay out of the block; a message about no one has none.
     expect(brief).not.toContain("прислала счёт");
@@ -1154,11 +1189,11 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     };
     expect(
       await run(read.LIST_COMMITMENTS, { overdueOnly: true })
-    ).toMatchObject({ commitments: [] });
+    ).toMatchObject({ promises: [] });
     const all = (await run(read.LIST_COMMITMENTS, {})) as {
-      commitments: string[];
+      promises: string[];
     };
-    expect(all.commitments).toHaveLength(1);
+    expect(all.promises).toHaveLength(1);
     expect(await run(read.MEMORY_CARD, { name: "Ольгу" })).toMatchObject({
       found: true,
       name: "Ольга Ли",

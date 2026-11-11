@@ -19,6 +19,7 @@ export const GET = async () => {
   if (!state.on) {
     return Response.json({
       cards: [],
+      me: [],
       off: state.service ? "person" : "service",
       on: false,
       questions: [],

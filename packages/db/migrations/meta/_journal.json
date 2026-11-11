@@ -365,6 +365,13 @@
       "when": 1794308642636,
       "tag": "0051_memory_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794371463247,
+      "tag": "0052_memory_notes",
+      "breakpoints": true
     }
   ]
 }

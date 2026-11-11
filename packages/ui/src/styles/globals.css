@@ -186,6 +186,19 @@
   }
 }
 
+/* What was just written fades in its place (a note on a memory card): the eye finds where it went. */
+@theme {
+  --animate-fresh: fresh 1400ms ease-out;
+  @keyframes fresh {
+    from {
+      background-color: color-mix(in oklab, var(--primary) 12%, transparent);
+    }
+    to {
+      background-color: transparent;
+    }
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

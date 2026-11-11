@@ -121,6 +121,7 @@ const ENTITIES = "memory_entities";
 const RECORDS = "memory_records";
 const DRAFTS = "memory_drafts";
 const MERGES = "memory_merges";
+const WRITES = "memory_writes";
 const BODY = "body";
 
 // --- entities ----------------------------------------------------------------------------------------------------
@@ -864,6 +865,8 @@ export const listRecords = async (
  * what to show under which message.
  */
 export const CHAT_SOURCE = "chat";
+/** A note typed on a card (P22 «Записать…»): the write keeps its text itself. */
+export const NOTE_SOURCE = "note";
 
 /**
  * One row per material looked at — a chat's message today (ARCH §19.9.5). The same material again is the same write —
@@ -880,12 +883,29 @@ export const createWrite = async (
     /** When it was said: the queue's order (ARCH §19.8.1); now, if not given. */
     sentAt?: Date;
     timeZone?: string;
+    /** The material itself, for a source with no store of its own (a note typed on a card); sealed. */
+    material?: WriteMaterial;
   }
 ) => {
   const { db } = getDb();
+  const { material, ...row } = input;
+  const id = crypto.randomUUID();
+  const key = material ? await dataKey(ownerId, true) : null;
   const [made] = await db
     .insert(memoryWrites)
-    .values({ ...input, id: crypto.randomUUID(), ownerId })
+    .values({
+      ...row,
+      id,
+      ownerId,
+      sealed:
+        material && key
+          ? sealField(
+              JSON.stringify(material),
+              memoryAad(ownerId, WRITES, id, BODY),
+              key
+            )
+          : null,
+    })
     .onConflictDoNothing()
     .returning();
   if (made) {
@@ -906,6 +926,44 @@ export const createWrite = async (
     throw new Error("memory: the write was not saved");
   }
   return { created: false, id: existing.id, status: existing.status };
+};
+
+const writeMaterial = z.object({
+  /** The card it was typed on. */
+  about: z.uuid().optional(),
+  text: z.string(),
+});
+export type WriteMaterial = z.infer<typeof writeMaterial>;
+
+/** The material a write keeps itself (`createWrite`'s `material`); null — none, or not the owner's. */
+export const materialOf = async (
+  ownerId: string,
+  writeId: string
+): Promise<WriteMaterial | null> => {
+  const [row] = await getDb()
+    .db.select({ sealed: memoryWrites.sealed })
+    .from(memoryWrites)
+    .where(and(eq(memoryWrites.id, writeId), eq(memoryWrites.ownerId, ownerId)))
+    .limit(1);
+  const key = row?.sealed ? await dataKey(ownerId, false) : null;
+  if (!(row?.sealed && key)) {
+    return null;
+  }
+  return writeMaterial.parse(
+    JSON.parse(
+      openField(row.sealed, memoryAad(ownerId, WRITES, writeId, BODY), key)
+    )
+  );
+};
+
+/** Where a write is: `queued` until the queue reads it; null — no such write of the owner's. */
+export const writeStatus = async (ownerId: string, id: string) => {
+  const [row] = await getDb()
+    .db.select({ status: memoryWrites.status })
+    .from(memoryWrites)
+    .where(and(eq(memoryWrites.id, id), eq(memoryWrites.ownerId, ownerId)))
+    .limit(1);
+  return row?.status ?? null;
 };
 
 /** Material waiting to be read: the next of a person's queue. */

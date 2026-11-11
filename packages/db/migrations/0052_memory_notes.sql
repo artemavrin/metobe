@@ -1,0 +1,1 @@
+ALTER TABLE "memory_writes" ADD COLUMN "sealed" text;

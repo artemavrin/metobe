@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  MemoryCardItem,
   MemoryRecordSource,
   MemoryRecordView,
   MemoryStatus,
@@ -21,7 +22,6 @@ import { cn } from "@metobe/ui/lib/utils";
 import {
   CalendarClock,
   Check,
-  CircleCheck,
   Ellipsis,
   Pencil,
   Quote,
@@ -57,11 +57,21 @@ export interface MemoryActions {
   /** `saved` — the toast's key in `memory`. */
   patch: (id: string, patch: RecordPatch, saved: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  /** A card's role, by hand (P22: in place under the name); null — none. */
+  patchCard: (id: string, patch: { role: string | null }) => Promise<void>;
+  /** «Записать…» on a card (P22); the records it wrote — none when nothing went in yet. */
+  note: (
+    card: MemoryCardItem,
+    text: string
+  ) => Promise<MemoryRecordView[] | null>;
 }
 
 export const MemoryActionsContext = createContext<MemoryActions | null>(null);
 
-const useActions = () => {
+/** Records just written by a note on the card (P22): they light up where they went. */
+export const FreshContext = createContext<string[]>([]);
+
+export const useActions = () => {
   const actions = use(MemoryActionsContext);
   if (!actions) {
     throw new Error("memory: a record outside the page");
@@ -113,7 +123,7 @@ const DueWords = ({ due }: { due: string }) => {
     );
   }
   if (days === 0) {
-    return <span className="text-foreground">{t("today")}</span>;
+    return <span className="text-warning">{t("today")}</span>;
   }
   if (days === 1) {
     return <>{t("tomorrow")}</>;
@@ -206,6 +216,11 @@ const Source = ({ id, fromChat }: { id: string; fromChat: boolean }) => {
     origin = t("said", {
       chat: source.chat.title,
       date: day(source.saidAt ?? source.recordedAt),
+      said: source.said,
+    });
+  } else if (source.note && source.said) {
+    origin = t("saidOnCard", {
+      date: day(source.recordedAt),
       said: source.said,
     });
   } else if (fromChat) {
@@ -365,7 +380,8 @@ const RecordMenu = ({
         render={
           <Button
             aria-label={t("more")}
-            className="opacity-60 group-hover:opacity-100"
+            // Seen on hover or focus where there is hover; on a touch screen — always.
+            className="group-hover:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 data-[popup-open]:opacity-100 [@media(hover:hover)]:opacity-0"
             size="icon-xs"
             variant="ghost"
           />
@@ -393,24 +409,43 @@ const RecordMenu = ({
   );
 };
 
-/** «Выполнено» on an open commitment, «Подтвердить» on one someone else said is done. */
+/**
+ * The circle in front of an open commitment, as in a to-do list (P22): a press settles it — «Выполнено», or
+ * «Подтвердить» on one someone else said is done (a dashed circle). It fills at once; the list follows the server.
+ */
 const Settle = ({ record: r }: { record: MemoryRecordView }) => {
   const t = useTranslations("memory");
   const { patch } = useActions();
+  const [pressed, setPressed] = useState(false);
   const said = r.status === "unconfirmed";
   return (
-    <Button
+    <button
       aria-label={said ? t("confirm") : t("done")}
-      className={cn("opacity-70 group-hover:opacity-100", PRESS)}
-      onClick={() =>
-        patch(r.id, { status: "done" }, said ? "savedConfirmed" : "savedDone")
-      }
-      size="icon-xs"
+      className={cn(
+        "group/check focus-visible:ring-ring/50 mt-px flex size-6 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-3",
+        PRESS
+      )}
+      disabled={pressed}
+      onClick={() => {
+        setPressed(true);
+        patch(r.id, { status: "done" }, said ? "savedConfirmed" : "savedDone");
+      }}
       title={said ? t("confirm") : t("done")}
-      variant="ghost"
+      type="button"
     >
-      {said ? <CircleCheck /> : <Check />}
-    </Button>
+      <span
+        className={cn(
+          "flex size-[18px] items-center justify-center rounded-full border transition-colors duration-150",
+          pressed
+            ? "border-foreground bg-foreground text-background"
+            : "group-hover/check:border-foreground/60 group-hover/check:text-foreground/50 text-transparent",
+          !pressed &&
+            (said ? "border-warning border-dashed" : "border-foreground/25")
+        )}
+      >
+        <Check className="size-3" strokeWidth={2.5} />
+      </span>
+    </button>
   );
 };
 
@@ -418,10 +453,13 @@ const RecordText = ({
   record: r,
   lead,
   muted,
+  side,
 }: {
   record: MemoryRecordView;
   lead?: string | null;
   muted?: boolean;
+  /** The date or the deadline: right after the text, not across the row from it (P22). */
+  side?: React.ReactNode;
 }) => {
   const t = useTranslations("memory");
   const said = r.status === "unconfirmed";
@@ -430,14 +468,12 @@ const RecordText = ({
     .join(" · ");
   return (
     <>
+      {/* A commitment's deadline joins the line over the text («Обещано вам · сегодня»): short, so it never wraps,
+          and in the same place on every row. */}
       {over && (
-        <span
-          className={cn(
-            "text-muted-foreground text-xs",
-            said && "text-warning"
-          )}
-        >
-          {over}
+        <span className="text-muted-foreground text-xs tabular-nums">
+          <span className={cn(said && "text-warning")}>{over}</span>
+          {side && <> · {side}</>}
         </span>
       )}
       <span
@@ -457,6 +493,15 @@ const RecordText = ({
         {r.kind === "assessment" && (
           <span className="text-muted-foreground"> · {t("assessment")}</span>
         )}
+        {/* No line over it: the date goes after the last word, in the line, and wraps with it. */}
+        {side && !over && (
+          <>
+            {" "}
+            <span className="text-muted-foreground ms-1 inline-block text-xs whitespace-nowrap tabular-nums">
+              {side}
+            </span>
+          </>
+        )}
       </span>
     </>
   );
@@ -471,12 +516,16 @@ export const MemoryRecordRow = ({
   lead,
   meta,
   muted,
+  dated,
 }: {
   record: MemoryRecordView;
   lead?: string | null;
   meta?: string | null;
   muted?: boolean;
+  /** The date in a column of its own in front of the text: a chronology (P22). */
+  dated?: boolean;
 }) => {
+  const fresh = use(FreshContext).includes(r.id);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const live = r.kind === "commitment" && OPEN.has(r.status as MemoryStatus);
@@ -484,28 +533,37 @@ export const MemoryRecordRow = ({
   return (
     <li
       className={cn(
-        "group hover:bg-muted/40 flex flex-col gap-1.5 rounded-lg px-2 py-2",
-        ENTER
+        "group hover:bg-muted/40 flex flex-col gap-1.5 rounded-lg px-2 py-1.5",
+        ENTER,
+        fresh && "animate-fresh motion-reduce:animate-none"
       )}
     >
       {editing ? (
         <EditForm onDone={() => setEditing(false)} record={r} />
       ) : (
-        <div className="flex items-start gap-2">
-          <button
-            aria-expanded={open}
-            className="flex min-w-0 flex-1 flex-col text-left"
-            onClick={() => setOpen((o) => !o)}
-            type="button"
-          >
-            <RecordText lead={lead} muted={muted} record={r} />
-          </button>
-          {side && (
-            <span className="text-muted-foreground shrink-0 pt-0.5 text-xs tabular-nums">
+        <div className="flex items-start gap-2.5">
+          {live && <Settle record={r} />}
+          {dated && (
+            <span className="text-muted-foreground w-16 shrink-0 pt-0.5 text-xs tabular-nums">
               {side}
             </span>
           )}
-          {live && <Settle record={r} />}
+          <button
+            aria-expanded={open}
+            className={cn(
+              "flex min-w-0 flex-1 flex-col text-left",
+              live && "pt-0.5"
+            )}
+            onClick={() => setOpen((o) => !o)}
+            type="button"
+          >
+            <RecordText
+              lead={lead}
+              muted={muted}
+              record={r}
+              side={dated ? null : side}
+            />
+          </button>
           <RecordMenu
             onEdit={() => setEditing(true)}
             onSource={() => setOpen((o) => !o)}

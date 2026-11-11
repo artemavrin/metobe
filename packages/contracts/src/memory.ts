@@ -176,6 +176,8 @@ export interface MemoryOverview {
   /** «Не записано»: the open questions (P18), answered with `POST /api/memory/questions/[id]`. */
   questions: ChatMemory["questions"];
   rules: MemoryRecordView[];
+  /** What the person told about themselves — goals, work, what they have, how they like it done: «Обо мне». */
+  me: MemoryRecordView[];
 }
 
 /** `GET /api/memory/cards/[id]`. */
@@ -184,6 +186,13 @@ export interface MemoryCard {
   records: MemoryRecordView[];
   /** A group's people now (who joined and has not left), for «Участники». */
   members?: { id: string; name: string; kind: MemoryEntityKind }[];
+  /**
+   * A person's or an organization's «что сейчас» (P22): the last event with them (ISO, null — none yet) and how often
+   * a rhythm rule wants one, in days (null — no rule).
+   */
+  contact?: { last: string | null; every: number | null };
+  /** The groups a person is in now and the projects their records name, for the line under the role. */
+  links?: { id: string; name: string; kind: "group" | "project" }[];
 }
 
 /** `GET /api/memory/search?q=`: cards by name and records by text; done and cancelled ones too. */
@@ -198,6 +207,8 @@ export interface MemoryRecordSource {
   chat: { id: string; title: string } | null;
   said: string | null;
   saidAt: string | null;
+  /** `said` is a note typed on a card (P22 «Записать…»), not a chat's message. */
+  note: boolean;
   recordedAt: string;
   /** Earlier texts, newest first. */
   versions: { text: string; recordedAt: string }[];
@@ -236,6 +247,22 @@ export const memoryCardPatchSchema = z
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: "nothing to change",
   });
+
+/** `POST /api/memory/cards/[id]/notes` (P22 «Записать…»): a note typed on the card; the memory picks its section. */
+export const memoryNoteSchema = z.object({
+  text: z.string().trim().min(1).max(2000),
+});
+
+/**
+ * What became of a note: `done` — `records` went in (with «Отменить» by `writeId`), or `asked` — a question waits in
+ * «Не записано»; `skipped` — nothing to keep; `queued` — not read yet, it will be; `off` — the memory is off.
+ */
+export interface MemoryNoteResult {
+  writeId: string | null;
+  status: "done" | "skipped" | "queued" | "failed" | "off";
+  records: MemoryRecordView[];
+  asked: boolean;
+}
 
 // --- «На сегодня» (P17) ---------------------------------------------------------------------------------------------
 

@@ -3,9 +3,9 @@ import { messages } from "@metobe/db/schema/chat";
 import { and, desc, eq, lt } from "drizzle-orm";
 
 import { getDb } from "./db";
-import { CHAT_SOURCE } from "./memory";
+import { CHAT_SOURCE, NOTE_SOURCE, listEntities, materialOf } from "./memory";
 import type { QueuedWrite } from "./memory";
-import { CONTEXT_TURNS } from "./memory-extract";
+import { CONTEXT_TURNS, noteTurn } from "./memory-extract";
 import type { ChatTurn } from "./memory-extract";
 import { announceMemory } from "./task-events";
 
@@ -22,6 +22,8 @@ export interface MemoryInput {
   text: string;
   /** What was said before it, oldest first — to understand the text, never to record again. */
   context: ChatTurn[];
+  /** The card it was written about (a note typed on it): a record naming no one else lies on that card. */
+  about?: string;
 }
 
 export interface MemorySource {
@@ -31,6 +33,8 @@ export interface MemorySource {
   saidAt?: (sourceKey: string) => Promise<Date | undefined>;
   /** A write changed the memory: whoever shows the material shows «Запомнено» or asks its question. */
   announce?: (ownerId: string, write: QueuedWrite) => Promise<void>;
+  /** Written to be remembered: the decision model is not asked whether there is anything to keep (Б2b). */
+  meant?: boolean;
 }
 
 // ── Chat: the material is a message the person sent ────────────────────────────────────────────────────────────────
@@ -107,7 +111,32 @@ const chat: MemorySource = {
   },
 };
 
-const SOURCES: Record<string, MemorySource> = { [CHAT_SOURCE]: chat };
+// ── Note: typed on a card to be remembered (P22 «Записать…») ───────────────────────────────────────────────────────
+
+const note: MemorySource = {
+  load: async (ownerId, write) => {
+    const material = await materialOf(ownerId, write.id);
+    if (!material?.text.trim()) {
+      return null;
+    }
+    // The card it was typed on — as it is called now — comes before it, as the question it answers: «обещал к
+    // пятнице» is about them. Deleted or merged away since — the note is read as it is.
+    const cards = material.about ? await listEntities(ownerId) : [];
+    const card = cards.find((e) => e.id === material.about);
+    return {
+      about: card?.id,
+      at: write.sentAt,
+      context: card ? [noteTurn(card)] : [],
+      text: material.text,
+    };
+  },
+  meant: true,
+};
+
+const SOURCES: Record<string, MemorySource> = {
+  [CHAT_SOURCE]: chat,
+  [NOTE_SOURCE]: note,
+};
 
 /** The adapter of a source; none — material of a source this build does not know. */
 export const memorySource = (kind: string): MemorySource | undefined =>

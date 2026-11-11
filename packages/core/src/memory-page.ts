@@ -1,7 +1,10 @@
 import "server-only";
+import { setTimeout as sleep } from "node:timers/promises";
+
 import type {
   MemoryCard,
   MemoryCardItem,
+  MemoryNoteResult,
   MemoryOverview,
   MemoryRecordSource,
   MemoryRecordView,
@@ -13,15 +16,20 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "./db";
 import {
   CHAT_SOURCE,
+  NOTE_SOURCE,
   commitmentCounts,
   listEntities,
   listQuestions,
   listRecords,
+  materialOf,
   recordHistory,
   writeChats,
+  writeStatus,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
 import { groupMembers } from "./memory-groups";
+import { queueMemoryWrite } from "./memory-queue";
+import { cardContact } from "./memory-today";
 
 // The «Память» page (ARCH §19, P16), put together from the store: the list of cards, a card, search and «Откуда».
 // Owner checks stay in core/memory.ts; here — what the page shows. The memory is a person's thousands of records,
@@ -73,7 +81,7 @@ const views = async (
           ? [{ id: e.id, kind: e.kind, name: e.name, role: l.role }]
           : [];
       }),
-      fromChat: Boolean(r.writeId),
+      fromChat: origin?.source === CHAT_SOURCE,
       givenAt: iso(r.givenAt),
       id: r.id,
       important: r.important,
@@ -95,13 +103,25 @@ export const memoryOverview = async (
   ownerId: string
 ): Promise<Omit<MemoryOverview, "on">> => {
   const entities = await listEntities(ownerId);
-  const [cards, questions, rules] = await Promise.all([
+  const self = entities.find((e) => e.kind === "self");
+  const [cards, questions, rules, mine] = await Promise.all([
     cardItems(ownerId, entities),
     listQuestions(ownerId),
     listRecords(ownerId, { kinds: ["rule"] }),
+    self
+      ? listRecords(ownerId, {
+          entityId: self.id,
+          kinds: ["fact", "assessment"],
+        })
+      : [],
   ]);
+  // «Обо мне»: what is about the person themselves, not what others say of them or what they owe.
+  const about = mine.filter((r) =>
+    r.entities.some((l) => l.entityId === self?.id && l.role === "about")
+  );
   return {
     cards,
+    me: await views(ownerId, about, entities),
     questions: questions.map((q) => ({
       candidates: q.candidates,
       id: q.id,
@@ -134,6 +154,40 @@ const withReplacedEvents = async (ownerId: string, entityId: string) => {
   );
 };
 
+/** The groups the card is in now, then the projects its live records name — the most named first. */
+const linksOf = (
+  id: string,
+  records: MemoryRecord[],
+  entities: MemoryEntity[]
+): NonNullable<MemoryCard["links"]> => {
+  const byId = new Map(entities.map((e) => [e.id, e]));
+  const groups = [...groupMembers(records)]
+    .filter(([, people]) => people.has(id))
+    .flatMap(([groupId]) => {
+      const e = byId.get(groupId);
+      return e ? [{ id: e.id, kind: "group" as const, name: e.name }] : [];
+    });
+  const named = new Map<string, number>();
+  for (const r of records) {
+    if (r.supersededAt) {
+      continue;
+    }
+    for (const { entityId } of r.entities) {
+      if (byId.get(entityId)?.kind === "project") {
+        named.set(entityId, (named.get(entityId) ?? 0) + 1);
+      }
+    }
+  }
+  const projects = [...named]
+    // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own array
+    .sort((a, b) => b[1] - a[1])
+    .flatMap(([projectId]) => {
+      const e = byId.get(projectId);
+      return e ? [{ id: e.id, kind: "project" as const, name: e.name }] : [];
+    });
+  return [...groups, ...projects];
+};
+
 /** One card with all it takes part in; null — not the owner's, or the person's own. */
 export const memoryCard = async (
   ownerId: string,
@@ -153,6 +207,14 @@ export const memoryCard = async (
     return null;
   }
   const view = { card, records: await views(ownerId, records, entities) };
+  if (entity.kind === "person" || entity.kind === "org") {
+    const contact = await cardContact(ownerId, id, records, entities);
+    return {
+      ...view,
+      contact: { every: contact.every, last: iso(contact.last) },
+      links: linksOf(id, records, entities),
+    };
+  }
   if (entity.kind !== "group") {
     return view;
   }
@@ -247,6 +309,12 @@ export const recordSource = async (
       saidAt = row.createdAt.toISOString();
     }
   }
+  // A note typed on a card: the write keeps its words.
+  const note = origin?.source === NOTE_SOURCE && record.writeId;
+  if (note) {
+    const material = await materialOf(ownerId, note);
+    said = material?.text ?? null;
+  }
   return {
     changes: history.changes.map((c) => ({
       after: c.after,
@@ -257,6 +325,7 @@ export const recordSource = async (
       field: c.field,
     })),
     chat,
+    note: Boolean(note && said),
     recordedAt: record.recordedAt.toISOString(),
     said,
     saidAt,
@@ -264,5 +333,72 @@ export const recordSource = async (
       recordedAt: v.recordedAt.toISOString(),
       text: v.text,
     })),
+  };
+};
+
+/** How long a note waits for the queue: one read is a few seconds; a longer queue — the page says it will be written. */
+const NOTE_WAIT_MS = 20_000;
+const NOTE_POLL_MS = 400;
+
+/** The write's status once the queue has read it, or `queued` still at `until`. */
+const settled = async (
+  ownerId: string,
+  id: string,
+  until: number
+): Promise<string | null> => {
+  const status = await writeStatus(ownerId, id);
+  if (status !== "queued" || Date.now() >= until) {
+    return status;
+  }
+  await sleep(NOTE_POLL_MS);
+  return settled(ownerId, id, until);
+};
+
+/**
+ * «Записать…» on a card (P22): the note goes through the memory's queue as any material — the writer picks what it is
+ * and where it lies — and the page is told what came of it, if the queue gets to it in `NOTE_WAIT_MS`.
+ */
+export const writeNote = async (
+  ownerId: string,
+  cardId: string,
+  text: string,
+  timeZone: string
+): Promise<MemoryNoteResult | null> => {
+  const entities = await listEntities(ownerId);
+  const card = entities.find((e) => e.id === cardId);
+  if (!(card && isCard(card))) {
+    return null;
+  }
+  const writeId = await queueMemoryWrite({
+    at: new Date(),
+    material: { about: cardId, text },
+    ownerId,
+    source: NOTE_SOURCE,
+    sourceKey: crypto.randomUUID(),
+    timeZone,
+  });
+  const result = (status: MemoryNoteResult["status"]): MemoryNoteResult => ({
+    asked: false,
+    records: [],
+    status,
+    writeId,
+  });
+  if (!writeId) {
+    return result("off");
+  }
+  const status = await settled(ownerId, writeId, Date.now() + NOTE_WAIT_MS);
+  if (status !== "done") {
+    return result(
+      status === "skipped" || status === "failed" ? status : "queued"
+    );
+  }
+  const [records, questions] = await Promise.all([
+    listRecords(ownerId, { writeIds: [writeId] }),
+    listQuestions(ownerId),
+  ]);
+  return {
+    ...result("done"),
+    asked: questions.some((q) => q.writeId === writeId),
+    records: await views(ownerId, records, await listEntities(ownerId)),
   };
 };

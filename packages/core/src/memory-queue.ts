@@ -10,6 +10,7 @@ import {
   failWriteAttempt,
   nextQueuedWrite,
 } from "./memory";
+import type { WriteMaterial } from "./memory";
 import { drainQueue } from "./memory-drain";
 import { memorySource } from "./memory-sources";
 import { isMemoryOnFor, readWrite } from "./memory-write";
@@ -33,6 +34,8 @@ export interface MemoryMaterial {
   at?: Date;
   /** The person's zone when they said it (D31): «вчера» and «в среду» are counted in it. */
   timeZone: string;
+  /** The material itself, for a source with no store of its own: the write keeps it, sealed. */
+  material?: WriteMaterial;
 }
 
 /** A job queued before §19.9.5: a chat's message, named by its own fields. */
@@ -76,8 +79,9 @@ const getMemoryQueue = () => {
  * is when it was said: what the caller says, else what its source says, else now.
  */
 const enqueue = async (material: MemoryMaterial) => {
-  await createWrite(material.ownerId, {
+  const write = await createWrite(material.ownerId, {
     chatId: material.chatId,
+    material: material.material,
     sentAt:
       material.at ??
       (await memorySource(material.source)?.saidAt?.(material.sourceKey)),
@@ -85,21 +89,24 @@ const enqueue = async (material: MemoryMaterial) => {
     sourceKey: material.sourceKey,
     timeZone: material.timeZone,
   });
+  return write.id;
 };
 
 /**
- * Queues material for the memory — nothing at all while the memory is off. Never throws: the chat that calls it must
- * not stumble on the memory.
+ * Queues material for the memory — nothing at all while the memory is off — and gives its write's id; null — not
+ * queued. Never throws: the chat that calls it must not stumble on the memory.
  */
 export const queueMemoryWrite = async (material: MemoryMaterial) => {
   try {
     if (await isMemoryOnFor(material.ownerId)) {
-      await enqueue(material);
+      const id = await enqueue(material);
       await getMemoryQueue().add("write", { ownerId: material.ownerId });
+      return id;
     }
   } catch (error) {
     console.error("memory: could not queue a write", error);
   }
+  return null;
 };
 
 // ── The lock: one reader of a person's queue at a time ─────────────────────────────────────────────────────────────

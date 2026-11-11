@@ -5,6 +5,7 @@ import type {
   MemoryCard,
   MemoryCardItem,
   MemoryEntityKind,
+  MemoryNoteResult,
   MemoryOverview,
   MemoryRecordView,
   MemorySearch,
@@ -26,22 +27,28 @@ import {
   CircleHelp,
   FolderKanban,
   ListChecks,
+  LoaderCircle,
   MailCheck,
+  Plus,
   Search,
+  UserRound,
   Users,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { TopBar } from "@/components/chat/top-bar";
+import { daysUntil } from "@/lib/memory-dates";
 
 import {
   ENTER,
+  FreshContext,
   MemoryActionsContext,
   MemoryRecordRow,
   PRESS,
   occurredWords,
+  useActions,
   shortDay,
   useDirection,
 } from "./memory-record";
@@ -53,6 +60,7 @@ import type { MemoryActions } from "./memory-record";
 
 type Pick =
   | { type: "card"; id: string }
+  | { type: "me" }
   | { type: "questions" }
   | { type: "rules" };
 
@@ -163,7 +171,7 @@ const Header = ({
   action,
 }: {
   title: string;
-  hint?: string | null;
+  hint?: React.ReactNode;
   onBack?: () => void;
   avatar?: React.ReactNode;
   action?: React.ReactNode;
@@ -186,7 +194,11 @@ const Header = ({
         <h2 className="text-lg font-semibold tracking-tight break-words">
           {title}
         </h2>
-        {hint && <span className="text-muted-foreground text-sm">{hint}</span>}
+        {typeof hint === "string" ? (
+          <span className="text-muted-foreground text-sm">{hint}</span>
+        ) : (
+          hint
+        )}
       </div>
       {action}
     </header>
@@ -204,6 +216,300 @@ const checkLink = (card: MemoryCardItem, records: MemoryRecordView[], t: T) => {
   return `/?say=${encodeURIComponent(t("checkAsk", { items, name: card.name }))}`;
 };
 
+/** The role under the name, changed in place (P22): pressed — a field; Enter or leaving it saves, Escape does not. */
+const Role = ({ card }: { card: MemoryCardItem }) => {
+  const t = useTranslations("memory");
+  const { patchCard } = useActions();
+  const [editing, setEditing] = useState(false);
+  const [role, setRole] = useState(card.role ?? "");
+  const save = async () => {
+    setEditing(false);
+    const next = role.trim();
+    if (next !== (card.role ?? "")) {
+      await patchCard(card.id, { role: next || null });
+    }
+  };
+  if (editing) {
+    return (
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+      >
+        <input
+          aria-label={t("roleLabel")}
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- opened by the person's press
+          autoFocus
+          className="border-foreground/30 w-56 max-w-full border-b bg-transparent text-sm outline-none"
+          maxLength={500}
+          onBlur={save}
+          onChange={(e) => setRole(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setRole(card.role ?? "");
+              setEditing(false);
+            }
+          }}
+          placeholder={t("roleAsk")}
+          value={role}
+        />
+      </form>
+    );
+  }
+  return (
+    // Pressed — a field; the hover colour says it can be changed, nothing stands between the role and the dot.
+    <button
+      className="text-muted-foreground hover:text-foreground group/role relative max-w-[60%] shrink-0 truncate text-start text-sm transition-colors duration-150"
+      onClick={() => setEditing(true)}
+      title={t("roleEdit")}
+      type="button"
+    >
+      {card.role || t("roleAsk")}
+    </button>
+  );
+};
+
+/** Under the role: the groups they are in and the projects their records name, each a way to its card. */
+/** After the role, on its line: the groups they are in and the projects their records name, each a way to its card. */
+const Links = ({ links }: { links: NonNullable<MemoryCard["links"]> }) =>
+  links.map((l) => (
+    <span className="text-muted-foreground/70" key={l.id}>
+      <span aria-hidden>· </span>
+      <Link
+        className="hover:text-foreground transition-colors duration-150"
+        href={`/memory?card=${l.id}`}
+      >
+        {l.name}
+      </Link>
+    </span>
+  ));
+
+/**
+ * «Что сейчас» (P22): three figures in a row instead of a paragraph — the last contact, how often a rule wants one,
+ * what is open and past its day. Lines, not a panel. Longer without contact than the rule wants — the warning colour.
+ */
+const Now = ({ data, timeZone }: { data: MemoryCard; timeZone: string }) => {
+  const t = useTranslations("memory");
+  const { card, contact } = data;
+  if (!contact || data.records.length === 0) {
+    return null;
+  }
+  const days = contact.last
+    ? -daysUntil(new Date(contact.last), new Date(), timeZone)
+    : null;
+  const late = contact.every !== null && days !== null && days > contact.every;
+  const cells: [string, React.ReactNode][] = [
+    [
+      t("lastContact"),
+      <span className={cn(late && "text-warning")} key="last">
+        {days === null ? t("contactNever") : t("contactAgo", { days })}
+      </span>,
+    ],
+    ...(contact.every === null
+      ? []
+      : ([[t("rhythm"), t("rhythmEvery", { days: contact.every })]] as [
+          string,
+          React.ReactNode,
+        ][])),
+    [
+      t("openNow"),
+      card.open > 0 ? (
+        <>
+          {card.open}
+          {card.overdue > 0 && (
+            <span className="text-destructive">
+              , {t("overdueCount", { count: card.overdue })}
+            </span>
+          )}
+        </>
+      ) : (
+        t("openNone")
+      ),
+    ],
+  ];
+  return (
+    <dl
+      className={cn(
+        "grid divide-x border-y @max-md:grid-cols-1 @max-md:divide-x-0 @max-md:divide-y",
+        cells.length === 3 ? "grid-cols-3" : "grid-cols-2"
+      )}
+    >
+      {cells.map(([label, value], i) => (
+        <div
+          className={cn(
+            // The first lines up with the rows under it.
+            "flex flex-col gap-0.5 py-2.5 @max-md:flex-row @max-md:items-baseline @max-md:justify-between @max-md:px-2",
+            i > 0 ? "pl-4" : "pl-2"
+          )}
+          key={label}
+        >
+          <dt className="text-muted-foreground text-xs">{label}</dt>
+          <dd className="text-sm font-medium tabular-nums">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+};
+
+const FIELDS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
+
+/** Typing in another field, or a key with a modifier: «N» is not ours then. */
+const typing = (e: KeyboardEvent) => {
+  const target = e.target as HTMLElement | null;
+  return (
+    e.metaKey ||
+    e.ctrlKey ||
+    e.altKey ||
+    Boolean(target?.isContentEditable) ||
+    FIELDS.has(target?.tagName ?? "")
+  );
+};
+
+/**
+ * «Записать…» (P22): a quiet line under the head — pressed, or «N» anywhere on the page, and it is a field; Enter
+ * hands the note to the memory, which picks its section itself. What went in lights up where it lies.
+ */
+const QuickAdd = ({
+  card,
+  empty,
+  onWritten,
+}: {
+  card: MemoryCardItem;
+  empty: boolean;
+  onWritten: (ids: string[]) => void;
+}) => {
+  const t = useTranslations("memory");
+  const { note } = useActions();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  let hint = "N";
+  if (busy) {
+    hint = t("noteWriting");
+  } else if (text) {
+    hint = "Enter";
+  }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "n" || typing(e)) {
+        return;
+      }
+      e.preventDefault();
+      field.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return (
+    <form
+      className="group/add focus-within:border-foreground/30 hover:bg-muted/40 flex items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 transition-colors duration-150 focus-within:hover:bg-transparent"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const said = text.trim();
+        if (!said || busy) {
+          return;
+        }
+        setBusy(true);
+        const written = await note(card, said);
+        setBusy(false);
+        // Nothing found or a failure: the words stay, to say it otherwise.
+        if (written) {
+          setText("");
+          onWritten(written.map((r) => r.id));
+        }
+      }}
+    >
+      <span className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
+        {busy ? (
+          <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" />
+        ) : (
+          <Plus className="size-4" />
+        )}
+      </span>
+      <input
+        aria-label={t("noteLabel", { name: card.name })}
+        className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none disabled:opacity-60"
+        disabled={busy}
+        maxLength={2000}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={empty ? t("notePlaceholderEmpty") : t("notePlaceholder")}
+        ref={field}
+        value={text}
+      />
+      <kbd
+        className={cn(
+          "text-muted-foreground/70 rounded border px-1.5 text-[10px] leading-5 transition-opacity duration-150 @max-md:hidden",
+          text ? "opacity-100" : "group-focus-within/add:opacity-0"
+        )}
+      >
+        {hint}
+      </kbd>
+    </form>
+  );
+};
+
+/** «Ждёте» and «Вы обещали» side by side (P22 «Баланс»); nothing when neither has anything open. */
+const Balance = ({
+  theirs,
+  mine,
+  day,
+}: {
+  theirs: MemoryRecordView[];
+  mine: MemoryRecordView[];
+  /** A short day in the person's zone. */
+  day: (iso: string) => string;
+}) => {
+  const t = useTranslations("memory");
+  if (theirs.length + mine.length === 0) {
+    return null;
+  }
+  return (
+    <div className="grid gap-x-10 gap-y-6 @2xl:grid-cols-2">
+      {(
+        [
+          [t("waiting"), theirs],
+          [t("youPromised"), mine],
+        ] as const
+      ).map(([title, list]) => (
+        <Section count={list.length} key={title} title={title}>
+          {list.length > 0 ? (
+            list.map((r) => (
+              <MemoryRecordRow
+                key={r.id}
+                meta={t("givenOn", {
+                  date: day(r.givenAt ?? r.recordedAt) ?? "",
+                })}
+                record={r}
+              />
+            ))
+          ) : (
+            <li className="text-muted-foreground/70 px-2 py-1.5 text-sm">
+              {t("nothingOpen")}
+            </li>
+          )}
+        </Section>
+      ))}
+    </div>
+  );
+};
+
+/** Who has to do it. */
+const debtorOf = (r: MemoryRecordView) =>
+  r.entities.find((e) => e.role === "debtor");
+
+/**
+ * «Баланс» (P22): what they owe and what you owe, apart; promises between others — and every promise on a group's or
+ * a project's card — stay one list.
+ */
+const sidesOf = (card: MemoryCardItem, open: MemoryRecordView[]) => {
+  const split = card.kind === "person" || card.kind === "org";
+  const theirs = split ? open.filter((r) => debtorOf(r)?.id === card.id) : [];
+  const mine = split ? open.filter((r) => debtorOf(r)?.kind === "self") : [];
+  const others = open.filter((r) => !(theirs.includes(r) || mine.includes(r)));
+  return { mine, others, split, theirs };
+};
+
 const CardView = ({
   data,
   onBack,
@@ -217,12 +523,15 @@ const CardView = ({
   const format = useFormatter();
   const direction = useDirection();
   const { card, records } = data;
+  // What a note just wrote (P22): lit up where it went.
+  const [fresh, setFresh] = useState<string[]>([]);
   const commitments = records.filter((r) => r.kind === "commitment");
   const open = commitments
     .filter((r) => OPEN.has(r.status ?? ""))
     // oxlint-disable-next-line unicorn/no-array-sort -- sorts the filter's own copy (toSorted is past the ES2022 target)
     .sort(byUrgency);
   const closed = commitments.filter((r) => !OPEN.has(r.status ?? ""));
+  const { mine, others, split, theirs } = sidesOf(card, open);
   const known = records.filter(
     (r) => r.kind === "fact" || r.kind === "assessment"
   );
@@ -235,147 +544,182 @@ const CardView = ({
   const day = (iso: string | null) =>
     iso ? shortDay(iso, format, timeZone) : null;
   return (
-    <div className={cn("flex flex-col gap-6", ENTER)}>
-      <Header
-        action={
-          card.kind !== "project" &&
-          open.length > 0 && (
-            <Tooltip>
-              <TooltipTrigger
-                delay={400}
-                render={
-                  <Button
-                    className={PRESS}
-                    nativeButton={false}
-                    render={<Link href={checkLink(card, records, t)} />}
-                    size="sm"
-                    variant="outline"
-                  />
-                }
-              >
-                <MailCheck />{" "}
-                <span className="max-sm:sr-only">{t("check")}</span>
-              </TooltipTrigger>
-              <TooltipContent
-                arrow={false}
-                className="bg-sidebar text-foreground ring-foreground/10 max-w-64 shadow-md ring-1"
-                sideOffset={6}
-              >
-                {t("checkHint")}
-              </TooltipContent>
-            </Tooltip>
-          )
-        }
-        avatar={<Avatar kind={card.kind} name={card.name} size="size-10" />}
-        hint={card.role}
-        onBack={onBack}
-        title={card.name}
-      />
-      {card.kind === "group" && (
-        <Section count={data.members?.length ?? 0} title={t("members")}>
-          {data.members?.length ? (
-            <div className="flex flex-wrap gap-1.5">
-              {data.members.map((m) => (
-                <Link
-                  className={cn(
-                    "hover:bg-muted flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-0.5 text-sm transition-colors duration-150",
-                    PRESS
-                  )}
-                  href={`/memory?card=${m.id}`}
-                  key={m.id}
+    <FreshContext value={fresh}>
+      <div className={cn("@container flex flex-col gap-6", ENTER)}>
+        <Header
+          action={
+            card.kind !== "project" &&
+            open.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger
+                  delay={400}
+                  render={
+                    <Button
+                      className={PRESS}
+                      nativeButton={false}
+                      render={<Link href={checkLink(card, records, t)} />}
+                      size="sm"
+                      variant="outline"
+                    />
+                  }
                 >
-                  <Avatar
-                    kind={m.kind === "self" ? "person" : m.kind}
-                    name={m.name}
-                    size="size-6"
-                  />
-                  {m.name}
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">{t("noMembers")}</p>
+                  <MailCheck />{" "}
+                  <span className="max-sm:sr-only">{t("check")}</span>
+                </TooltipTrigger>
+                <TooltipContent
+                  arrow={false}
+                  className="bg-sidebar text-foreground ring-foreground/10 max-w-64 shadow-md ring-1"
+                  sideOffset={6}
+                >
+                  {t("checkHint")}
+                </TooltipContent>
+              </Tooltip>
+            )
+          }
+          avatar={<Avatar kind={card.kind} name={card.name} size="size-10" />}
+          hint={
+            data.contact ? (
+              // One line under the name: the role, then the groups and projects.
+              <div className="flex min-w-0 items-baseline gap-x-1.5 text-sm">
+                <Role card={card} key={card.role} />
+                <span className="min-w-0 flex-1 truncate">
+                  <Links links={data.links ?? []} />
+                </span>
+              </div>
+            ) : (
+              card.role
+            )
+          }
+          onBack={onBack}
+          title={card.name}
+        />
+        <Now data={data} timeZone={timeZone} />
+        <QuickAdd
+          card={card}
+          empty={records.length === 0}
+          onWritten={setFresh}
+        />
+        {card.kind === "group" && (
+          <Section count={data.members?.length ?? 0} title={t("members")}>
+            {data.members?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {data.members.map((m) => (
+                  <Link
+                    className={cn(
+                      "hover:bg-muted flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-0.5 text-sm transition-colors duration-150",
+                      PRESS
+                    )}
+                    href={`/memory?card=${m.id}`}
+                    key={m.id}
+                  >
+                    <Avatar
+                      kind={m.kind === "self" ? "person" : m.kind}
+                      name={m.name}
+                      size="size-6"
+                    />
+                    {m.name}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">{t("noMembers")}</p>
+            )}
+          </Section>
+        )}
+        <Balance day={(iso) => day(iso) ?? ""} mine={mine} theirs={theirs} />
+        {others.length > 0 && (
+          <Section
+            count={others.length}
+            title={split ? t("otherPromises") : t("commitments")}
+          >
+            {others.map((r) => (
+              <MemoryRecordRow
+                key={r.id}
+                lead={direction(r, card.id)}
+                meta={t("givenOn", {
+                  date: day(r.givenAt ?? r.recordedAt) ?? "",
+                })}
+                record={r}
+              />
+            ))}
+          </Section>
+        )}
+        {/* Side by side only when there are both: one alone keeps the width. */}
+        <div
+          className={cn(
+            "grid gap-x-10 gap-y-6 border-t pt-6 empty:hidden",
+            now.length + before.length > 0 &&
+              allEvents.length > 0 &&
+              "@2xl:grid-cols-2"
           )}
-        </Section>
-      )}
-      {open.length > 0 && (
-        <Section count={open.length} title={t("commitments")}>
-          {open.map((r) => (
-            <MemoryRecordRow
-              key={r.id}
-              lead={direction(r, card.id)}
-              meta={
-                r.givenAt ? t("since", { date: day(r.givenAt) ?? "" }) : null
-              }
-              record={r}
-            />
-          ))}
-        </Section>
-      )}
-      {(now.length > 0 || before.length > 0) && (
-        <Section title={t("known")}>
-          {now.map((r) => (
-            <MemoryRecordRow
-              key={r.id}
-              meta={
-                r.validFrom
-                  ? t("since", { date: day(r.validFrom) ?? "" })
-                  : null
-              }
-              record={r}
-            />
-          ))}
-          {before.length > 0 && (
-            <Folded title={t("earlier")}>
-              {before.map((r) => (
+        >
+          {(now.length > 0 || before.length > 0) && (
+            <Section title={t("known")}>
+              {now.map((r) => (
                 <MemoryRecordRow
                   key={r.id}
-                  meta={t("until", { date: day(r.validTo) ?? "" })}
-                  muted
+                  meta={
+                    r.validFrom
+                      ? t("since", { date: day(r.validFrom) ?? "" })
+                      : day(r.recordedAt)
+                  }
                   record={r}
                 />
               ))}
-            </Folded>
+              {before.length > 0 && (
+                <Folded title={t("earlier")}>
+                  {before.map((r) => (
+                    <MemoryRecordRow
+                      key={r.id}
+                      meta={t("until", { date: day(r.validTo) ?? "" })}
+                      muted
+                      record={r}
+                    />
+                  ))}
+                </Folded>
+              )}
+            </Section>
           )}
-        </Section>
-      )}
-      {allEvents.length > 0 && (
-        <Section title={t("events")}>
-          {events.map((r) => (
-            <MemoryRecordRow
-              key={r.id}
-              meta={occurredWords(r, format, timeZone, t)}
-              record={r}
-            />
-          ))}
-          {replaced.length > 0 && (
-            <Folded title={t("earlier")}>
-              {replaced.map((r) => (
+          {allEvents.length > 0 && (
+            <Section title={t("events")}>
+              {events.map((r) => (
                 <MemoryRecordRow
+                  dated
                   key={r.id}
                   meta={occurredWords(r, format, timeZone, t)}
-                  muted
                   record={r}
                 />
               ))}
-            </Folded>
+              {replaced.length > 0 && (
+                <Folded title={t("earlier")}>
+                  {replaced.map((r) => (
+                    <MemoryRecordRow
+                      key={r.id}
+                      meta={occurredWords(r, format, timeZone, t)}
+                      muted
+                      record={r}
+                    />
+                  ))}
+                </Folded>
+              )}
+            </Section>
           )}
-        </Section>
-      )}
-      {closed.length > 0 && (
-        <Folded title={t("closed", { count: closed.length })}>
-          {closed.map((r) => (
-            <MemoryRecordRow
-              key={r.id}
-              lead={`${direction(r, card.id)} · ${t("status", { status: r.status ?? "done" })}`}
-              meta={day(r.doneAt)}
-              muted
-              record={r}
-            />
-          ))}
-        </Folded>
-      )}
-    </div>
+        </div>
+        {closed.length > 0 && (
+          <Folded title={t("closed", { count: closed.length })}>
+            {closed.map((r) => (
+              <MemoryRecordRow
+                key={r.id}
+                lead={`${direction(r, card.id)} · ${t("status", { status: r.status ?? "done" })}`}
+                meta={day(r.doneAt)}
+                muted
+                record={r}
+              />
+            ))}
+          </Folded>
+        )}
+      </div>
+    </FreshContext>
   );
 };
 
@@ -452,6 +796,50 @@ const Questions = ({
           </div>
         </div>
       ))}
+    </div>
+  );
+};
+
+/** «Обо мне»: what the person told about themselves — kept apart from the cards of others, shown like a card's «Известно». */
+const Me = ({
+  records,
+  onBack,
+  timeZone,
+}: {
+  records: MemoryRecordView[];
+  onBack?: () => void;
+  timeZone: string;
+}) => {
+  const t = useTranslations("memory");
+  const format = useFormatter();
+  const now = records.filter((r) => !r.validTo);
+  const before = records.filter((r) => r.validTo);
+  return (
+    <div className={cn("flex flex-col gap-4", ENTER)}>
+      <Header hint={t("meHint")} onBack={onBack} title={t("me")} />
+      <ul className="flex flex-col">
+        {now.map((r) => (
+          <MemoryRecordRow
+            key={r.id}
+            meta={shortDay(r.validFrom ?? r.recordedAt, format, timeZone)}
+            record={r}
+          />
+        ))}
+      </ul>
+      {before.length > 0 && (
+        <Folded title={t("earlier")}>
+          {before.map((r) => (
+            <MemoryRecordRow
+              key={r.id}
+              meta={t("until", {
+                date: shortDay(r.validTo ?? r.recordedAt, format, timeZone),
+              })}
+              muted
+              record={r}
+            />
+          ))}
+        </Folded>
+      )}
     </div>
   );
 };
@@ -630,6 +1018,21 @@ const useMemoryData = (
   };
 };
 
+/** Which part of the card a record is shown in, seen from that card: «Ждёте», «Вы обещали», «Известно»… */
+const sectionOf = (r: MemoryRecordView, cardId: string, t: T) => {
+  if (r.kind === "commitment") {
+    const debtor = debtorOf(r);
+    if (debtor?.id === cardId) {
+      return t("waiting");
+    }
+    return debtor?.kind === "self" ? t("youPromised") : t("otherPromises");
+  }
+  if (r.kind === "event") {
+    return t("events");
+  }
+  return r.kind === "rule" ? t("rules") : t("known");
+};
+
 /** The page's calls: each change says so in a toast and reads the page again; a deletion offers «Вернуть». */
 const useActionsOf = (
   timeZone: string,
@@ -652,6 +1055,60 @@ const useActionsOf = (
       toast("dismiss" in body ? t("notRemembered") : t("answered"));
       await reread();
     },
+    note: async (card, text) => {
+      const response = await fetch(`/api/memory/cards/${card.id}/notes`, {
+        body: JSON.stringify({ text }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const result = response.ok
+        ? ((await response.json()) as MemoryNoteResult)
+        : null;
+      if (!result || result.status === "failed" || result.status === "off") {
+        toast.error(t("failed"));
+        return null;
+      }
+      if (result.status === "skipped") {
+        toast(t("noteNothing"));
+        return null;
+      }
+      if (result.status === "queued") {
+        toast(t("noteLater"));
+        return [];
+      }
+      await reread();
+      const [first] = result.records;
+      if (!first) {
+        toast(t("noteAsked"));
+        return [];
+      }
+      const { writeId } = result;
+      const words = {
+        count: result.records.length - 1,
+        section: sectionOf(first, card.id, t),
+        text: first.text,
+      };
+      toast(
+        result.records.length > 1
+          ? t("noteSavedMore", words)
+          : t("noteSaved", words),
+        writeId
+          ? {
+              action: {
+                label: t("undo"),
+                onClick: async () => {
+                  await fetch(`/api/memory/writes/${writeId}/undo`, {
+                    method: "POST",
+                  });
+                  await reread();
+                  toast(t("undone"));
+                },
+              },
+            }
+          : undefined
+      );
+      return result.records;
+    },
     patch: async (id, patch, saved) => {
       const response = await fetch(`/api/memory/records/${id}`, {
         body: JSON.stringify(patch),
@@ -663,6 +1120,19 @@ const useActionsOf = (
         return;
       }
       toast(t(saved as "saved"));
+      await reread();
+    },
+    patchCard: async (id, patch) => {
+      const response = await fetch(`/api/memory/cards/${id}`, {
+        body: JSON.stringify(patch),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+      });
+      if (!response.ok) {
+        toast.error(t("failed"));
+        return;
+      }
+      toast(t("saved"));
       await reread();
     },
     remove: async (id) => {
@@ -791,6 +1261,19 @@ const CardList = ({
             </span>
           </>
         )}
+      {!q &&
+        overview.me.length > 0 &&
+        item(
+          { type: "me" },
+          "me",
+          <>
+            <UserRound className="text-muted-foreground size-4 shrink-0" />
+            <span className="flex-1 text-sm">{t("me")}</span>
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {overview.me.length}
+            </span>
+          </>
+        )}
       {KINDS.map((kind) => {
         const of = cards.filter((c) => c.kind === kind);
         return (
@@ -887,7 +1370,8 @@ export const MemoryView = ({
   const empty =
     overview.cards.length +
       overview.questions.length +
-      overview.rules.length ===
+      overview.rules.length +
+      overview.me.length ===
     0;
   if (empty) {
     return (
@@ -908,6 +1392,7 @@ export const MemoryView = ({
         timeZone={timeZone}
       />
     ),
+    me: <Me onBack={back} records={overview.me} timeZone={timeZone} />,
     questions: (
       <Questions
         answer={actions.answer}
@@ -934,7 +1419,7 @@ export const MemoryView = ({
     <div className="flex min-h-0 flex-1">
       <div className="w-72 shrink-0 overflow-y-auto border-r p-3">{list}</div>
       <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-2xl flex-col gap-8 px-6 pt-8 pb-16">
+        <div className="mx-auto flex max-w-3xl flex-col gap-8 px-6 pt-8 pb-16">
           {results ?? detail ?? (
             <p className="text-muted-foreground text-sm">{t("pick")}</p>
           )}

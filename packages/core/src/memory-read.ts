@@ -53,7 +53,20 @@ const day = (d: Date | string | null, timeZone: string) =>
 
 const OPEN = new Set(["open", "unconfirmed"]);
 
-/** A record as the model reads it: its text and the facts around it, compact. */
+/**
+ * A record's kind as the model reads it. The words it reads are the words it answers in: «commitment» and «fact» came
+ * back to the user as «обязательство» and «запись» (`apps/cli/dev/memory-voice-check.ts`), so the block names things
+ * the way a person would.
+ */
+const SAID_AS: Record<MemoryRecord["kind"], string> = {
+  assessment: "the user's view",
+  commitment: "promise",
+  event: "happened",
+  fact: "known",
+  rule: "rule",
+};
+
+/** A record as the model reads it: its text and what goes with it, compact. */
 const lineOf = (
   r: MemoryRecord | MemoryRecordView,
   names: Map<string, MemoryEntity>,
@@ -70,7 +83,7 @@ const lineOf = (
   };
   const notes = [
     r.kind === "commitment" &&
-      `${who("debtor") ?? "?"} owes ${who("creditor") ?? "?"}`,
+      `by ${who("debtor") ?? "?"} to ${who("creditor") ?? "?"}`,
     r.status && r.status !== "open" && r.status,
     r.important && "important",
     r.dueAt && `due ${day(r.dueAt, timeZone)}`,
@@ -81,7 +94,7 @@ const lineOf = (
     r.validTo && `until ${day(r.validTo, timeZone)}`,
     "supersededAt" in r && r.supersededAt && "replaced by a later message",
   ].filter(Boolean);
-  return `${r.kind}: «${r.text}»${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
+  return `${SAID_AS[r.kind]}: «${r.text}»${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
 };
 
 /** What the memory has about one card, in a few lines. */
@@ -152,7 +165,7 @@ export const memoryBrief = async (
       `About who this message mentions:\n${cards.map((c) => cardBlock(c, records, names, timeZone)).join("\n")}`,
   ].filter(Boolean);
   return `<memory>
-What the user's memory keeps (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD}, ${LIST_COMMITMENTS} or ${LIST_CARDS} for more. The [ids] are for ${MEMORY_CARD}; never show them to the user. It may be out of date or wrong — the user's words now come first.
+What you remember of the user's work (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD}, ${LIST_COMMITMENTS} or ${LIST_CARDS} for more. The [ids] are for ${MEMORY_CARD}; never show them to the user. It may be out of date or wrong — the user's words now come first.
 ${parts.join("\n")}
 </memory>`;
 };
@@ -190,7 +203,7 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
   return {
     [LIST_COMMITMENTS]: tool({
       description:
-        "The user's open commitments from their memory — what others owe the user and what the user owes others — with deadlines, nearest first. For «что я обещал», «кто мне должен», «что горит», «что просрочено».",
+        "The promises still open — what others promised the user and what the user promised others — with deadlines, nearest first. For «что я обещал», «кто мне должен», «что горит», «что просрочено».",
       execute: async ({ overdueOnly }) => {
         const all = await listRecords(ownerId, { kinds: ["commitment"] });
         const today = day(new Date(), timeZone) ?? "";
@@ -208,7 +221,7 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
               (a.dueAt?.getTime() ?? Infinity) -
                 (b.dueAt?.getTime() ?? Infinity)
           );
-        return { commitments: await lines(open.slice(0, MAX_FOUND)), today };
+        return { promises: await lines(open.slice(0, MAX_FOUND)), today };
       },
       inputSchema: z.object({
         overdueOnly: z
@@ -219,7 +232,7 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
     }),
     [LIST_CARDS]: tool({
       description:
-        "Everyone the user's memory knows of one kind — people, organizations or projects — each with its [id], role and what is known: skills, what they work on, the user's assessments. For questions by meaning, not by name: «кому поручить анализ данных», «кто разбирается в базах», «какой поставщик возит оборудование» — read the list and pick by sense.",
+        "Everyone you remember of one kind — people, organizations or projects — each with its [id], role and what is known: skills, what they work on, what the user thinks of them. For questions by meaning, not by name: «кому поручить анализ данных», «кто разбирается в базах», «какой поставщик возит оборудование» — read the list and pick by sense.",
       execute: async ({ kind }) => {
         const entities = await listEntities(ownerId);
         const records = await listRecords(ownerId, {
@@ -252,7 +265,7 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
     }),
     [MEMORY_CARD]: tool({
       description:
-        "Everything the user's memory keeps about one person, organization or project: who they are, open commitments first, then what is known, events, and what is closed or no longer true. Give its [id] from the memory block or another tool; a name works too — when it fits several cards, they come back to choose from, and then ask the user which one they mean.",
+        "Everything you remember about one person, organization or project: who they are, open promises first, then what is known, what happened, and what is done or no longer true. Give its [id] from the <memory> block or another tool; a name works too — when it fits several, they come back to choose from, and then ask the user which one they mean.",
       execute: async ({ id, name }) => {
         const entities = await listEntities(ownerId);
         const cards = entities.filter((e) => e.kind !== "self");
@@ -295,7 +308,7 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
     }),
     [SEARCH_MEMORY]: tool({
       description:
-        "Searches the user's memory by words — not by meaning: people, organizations, projects and the records about them (facts, events, commitments, rules), done and cancelled ones too. A record is found only when it has every word of the query, so search a few times with other words for the same thing («SQL», then «базы данных», then «аналитика»); for who fits a task, read list_cards instead.",
+        "Searches what you remember by words — not by meaning: people, organizations, projects and what is kept about them (what is known, what happened, promises, rules), done and cancelled ones too. A line is found only when it has every word of the query, so search a few times with other words for the same thing («SQL», then «базы данных», then «аналитика»); for who fits a task, read list_cards instead.",
       execute: async ({ query }) => {
         const found = await searchMemory(ownerId, query);
         return {

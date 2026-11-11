@@ -26,6 +26,7 @@ const MemoryPage = async ({
     ? { ...(await memoryOverview(user.id)), on: true }
     : {
         cards: [],
+        me: [],
         off: state.service ? "person" : "service",
         on: false,
         questions: [],

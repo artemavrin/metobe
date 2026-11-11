@@ -294,6 +294,18 @@ export const splitQuoted = (text: string) => {
 };
 
 /**
+ * A note typed on a card (P22 «Записать…»): the card comes before it, as a question it answers — «обещал к пятнице»
+ * there is about them, unless it names someone else.
+ */
+export const noteTurn = (card: {
+  name: string;
+  role: string | null;
+}): ChatTurn => ({
+  role: "assistant",
+  text: `What should I remember about ${card.name}${card.role ? ` (${card.role})` : ""}?`,
+});
+
+/**
  * What the model reads: the message, and before it the chat it follows (`chatContext`) — only to understand «он»,
  * «передумал», an answer to the assistant's question or a story told over a few messages (S13, part 5). A message with
  * something quoted or forwarded in it comes split: the person's words in <user>, the rest in <quoted>.
@@ -847,3 +859,33 @@ export const planWrite = (
     statuses,
   };
 };
+
+/**
+ * Material written about a card (a note typed on it, P22): a record that names no one but the person — «вчера
+ * виделись» came back with only «user» — is linked to the card, so it lies where it was typed. One naming someone
+ * else («Андрей обещал ему…») is left as the model read it.
+ */
+export const onCard = (
+  records: Planned[],
+  cardId: string,
+  selfId: string | null
+) =>
+  records.map((r): Planned => {
+    const others = r.entities.filter(
+      (l) => !("entityId" in l && l.entityId === selfId)
+    );
+    if (others.length > 0) {
+      return r;
+    }
+    const has = (role: string) => r.entities.some((l) => l.role === role);
+    let role: Planned["entities"][number]["role"] = "about";
+    if (r.kind === "event") {
+      role = "participant";
+    } else if (r.kind === "commitment") {
+      role = has("debtor") ? "creditor" : "debtor";
+      if (has("debtor") && has("creditor")) {
+        role = "about";
+      }
+    }
+    return { ...r, entities: [...r.entities, { entityId: cardId, role }] };
+  });

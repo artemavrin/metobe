@@ -66,6 +66,11 @@ export const memoryWrites = pgTable(
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * The material itself, sealed — for a source with no store of its own: a note typed on a card (`{ text, about }`,
+     * P22). Null for a chat's message: it is in `messages`.
+     */
+    sealed: text("sealed"),
     /** When the message was sent: a person's messages are read in this order, one at a time (ARCH §19.8.1). */
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
     /**

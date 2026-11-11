@@ -6,6 +6,8 @@ import {
   memoryInstructions,
   memoryPrompt,
   mentionsUser,
+  noteTurn,
+  onCard,
   planWrite,
   splitQuoted,
 } from "./memory-extract";
@@ -944,5 +946,60 @@ describe("an item's time (ARCH §19.4)", () => {
       null,
       "day",
     ]);
+  });
+});
+
+/** A planned record with these links, for `onCard`. */
+const record = (
+  kind: "fact" | "event" | "commitment",
+  entities: {
+    entityId: string;
+    role: "about" | "participant" | "debtor" | "creditor";
+  }[]
+) => ({
+  entities,
+  important: false,
+  kind,
+  text: "…",
+});
+
+describe("a note typed on a card (P22)", () => {
+  it("asks about the card before the note, as the question it answers", () => {
+    expect(
+      memoryPrompt("обещала прислать план к пятнице", [
+        noteTurn({ name: "Ирина Белова", role: "заместитель" }),
+      ])
+    ).toBe(
+      "<context>\nAssistant: What should I remember about Ирина Белова (заместитель)?\n</context>\n<message>\nобещала прислать план к пятнице\n</message>"
+    );
+  });
+
+  it("puts a record naming no one but the person on the card", () => {
+    const [event, promise, mine] = onCard(
+      [
+        record("event", [{ entityId: SELF, role: "participant" }]),
+        record("commitment", []),
+        record("commitment", [{ entityId: SELF, role: "debtor" }]),
+      ],
+      ANDREY,
+      SELF
+    );
+    expect(event?.entities).toContainEqual({
+      entityId: ANDREY,
+      role: "participant",
+    });
+    expect(promise?.entities).toEqual([{ entityId: ANDREY, role: "debtor" }]);
+    expect(mine?.entities).toContainEqual({
+      entityId: ANDREY,
+      role: "creditor",
+    });
+  });
+
+  it("leaves a record naming someone else as the model read it", () => {
+    const named = record("commitment", [
+      { entityId: KOVALEV, role: "debtor" },
+      { entityId: SELF, role: "creditor" },
+    ]);
+    expect(onCard([named], ANDREY, SELF)).toEqual([named]);
   });
 });
