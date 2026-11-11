@@ -4,6 +4,7 @@ import type {
   ChatMemory,
   MemoryCard,
   MemoryCardItem,
+  MemoryDue,
   MemoryEntityKind,
   MemoryOverview,
   MemoryRecordView,
@@ -45,9 +46,11 @@ import {
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { TopBar } from "@/components/chat/top-bar";
+import { lateByCard } from "@/lib/memory-late";
 
 import {
   Avatar,
@@ -82,6 +85,27 @@ type Pick =
   | { type: "questions" }
   | { type: "due" }
   | { type: "rules" };
+
+/** The pick lives in the address, so a reload or a shared link comes back to the same card: `?card=<id>` or `?view=…`. */
+const VIEWS = ["me", "questions", "due", "rules"] as const;
+
+const pickFromParams = (params: { get: (k: string) => string | null }) => {
+  const card = params.get("card");
+  if (card) {
+    return { id: card, type: "card" } satisfies Pick;
+  }
+  const view = VIEWS.find((v) => v === params.get("view"));
+  return view ? ({ type: view } satisfies Pick) : null;
+};
+
+const pickToSearch = (p: Pick | null) => {
+  if (!p) {
+    return window.location.pathname;
+  }
+  return p.type === "card"
+    ? `?card=${encodeURIComponent(p.id)}`
+    : `?view=${p.type}`;
+};
 
 type Question = ChatMemory["questions"][number];
 
@@ -909,8 +933,9 @@ const searchUrl = (query: string) =>
   `/api/memory/search?q=${encodeURIComponent(query)}`;
 
 /**
- * What the page reads: the list (from the page at first), the open card and what the search finds. After a change
- * `reread` reads everything open again.
+ * What the page reads: the list (from the page at first), the deadlines, the open card and what the search finds. After
+ * a change `reread` reads everything open again. The deadlines are one state for the calendar and for the list's
+ * «просрочено»: a deadline moved on the calendar is moved here first, then saved.
  */
 const useMemoryData = (
   initial: MemoryOverview,
@@ -918,6 +943,7 @@ const useMemoryData = (
   q: string
 ) => {
   const [overview, setOverview] = useState(initial);
+  const [due, setDue] = useState<MemoryDue | null>(null);
   const [card, setCard] = useState<MemoryCard | null>(null);
   const [found, setFound] = useState<{ q: string; data: MemorySearch } | null>(
     null
@@ -941,6 +967,24 @@ const useMemoryData = (
     };
   }, [cardId]);
 
+  const { on } = initial;
+  useEffect(() => {
+    if (!on) {
+      return;
+    }
+    let live = true;
+    const read = async () => {
+      const rows = await readJson<MemoryDue>("/api/memory/due");
+      if (live && rows) {
+        setDue(rows);
+      }
+    };
+    read();
+    return () => {
+      live = false;
+    };
+  }, [on]);
+
   useEffect(() => {
     if (!query) {
       return;
@@ -959,13 +1003,17 @@ const useMemoryData = (
   }, [query]);
 
   const reread = async () => {
-    const [list, open, search] = await Promise.all([
+    const [list, open, search, rows] = await Promise.all([
       readJson<MemoryOverview>("/api/memory"),
       cardId ? readJson<MemoryCard>(`/api/memory/cards/${cardId}`) : null,
       query ? readJson<MemorySearch>(searchUrl(query)) : null,
+      readJson<MemoryDue>("/api/memory/due"),
     ]);
     if (list) {
       setOverview(list);
+    }
+    if (rows) {
+      setDue(rows);
     }
     if (cardId) {
       setCard(open);
@@ -978,9 +1026,11 @@ const useMemoryData = (
   return {
     // A card read for another pick is not shown under this one.
     card: card && card.card.id === cardId ? card : null,
+    due,
     found: query && found?.q === query ? found.data : null,
     overview,
     reread,
+    setDue,
   };
 };
 
@@ -1489,20 +1539,17 @@ export const MemoryView = ({
   initial,
   stale,
   timeZone,
-  start,
 }: {
   initial: MemoryOverview;
   /** Commitments open a long time: a way in to «Сверка» (Д2) while there are any. */
   stale: number;
   timeZone: string;
-  /** A card to open at once (`?card=`). */
-  start?: string;
 }) => {
   const t = useTranslations("memory");
   const phone = useIsMobile();
-  const [pick, setPick] = useState<Pick | null>(
-    start ? { id: start, type: "card" } : null
-  );
+  const pick = pickFromParams(useSearchParams());
+  const setPick = (p: Pick | null) =>
+    window.history.pushState(null, "", pickToSearch(p));
   const [q, setQ] = useState("");
   // «+» next to a section or «Правила»: the dialog of a new card or a new rule.
   const [making, setMaking] = useState<NewCardTarget | null>(null);
@@ -1512,8 +1559,26 @@ export const MemoryView = ({
   const shown: Pick | null =
     pick ?? (phone || !first ? null : { id: first.id, type: "card" });
   const cardId = shown?.type === "card" ? shown.id : null;
-  const { card, found, overview, reread } = useMemoryData(initial, cardId, q);
+  const { card, due, found, overview, reread, setDue } = useMemoryData(
+    initial,
+    cardId,
+    q
+  );
   const actions = useActionsOf(timeZone, reread);
+  // The list's «просрочено» comes from the same deadlines as the calendar: a bar moved over today changes both.
+  const listed = useMemo(() => {
+    if (!due) {
+      return overview;
+    }
+    const late = lateByCard(due, timeZone);
+    return {
+      ...overview,
+      cards: overview.cards.map((c) => ({
+        ...c,
+        overdue: late.get(c.id) ?? 0,
+      })),
+    };
+  }, [due, overview, timeZone]);
   /** A card by hand: it comes back made (or found, if the name was there), the list is read again, the card opens. */
   const create = async (input: NewCardInput) => {
     const response = await fetch("/api/memory/cards", {
@@ -1587,7 +1652,13 @@ export const MemoryView = ({
     due: (
       <div className={cn("flex flex-col gap-4", ENTER)}>
         <Header hint={t("dueHint")} onBack={back} title={t("due")} />
-        <DueView phone={phone} timeZone={timeZone} />
+        <DueView
+          due={due}
+          phone={phone}
+          reread={reread}
+          setDue={setDue}
+          timeZone={timeZone}
+        />
       </div>
     ),
     me: <Me onBack={back} records={overview.me} timeZone={timeZone} />,
@@ -1610,7 +1681,7 @@ export const MemoryView = ({
       onNew={setMaking}
       onPick={setPick}
       onRule={() => setRuleOpen(true)}
-      overview={overview}
+      overview={listed}
       q={q}
       setQ={setQ}
       shown={shown}

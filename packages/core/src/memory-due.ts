@@ -62,7 +62,11 @@ export const scheduleOf = (
       continue;
     }
     if (r.dueAt) {
-      rows.push({ ...rowOf(r, cards), dueAt: r.dueAt.toISOString() });
+      rows.push({
+        ...rowOf(r, cards),
+        cards: r.entities.map((e) => e.entityId),
+        dueAt: r.dueAt.toISOString(),
+      });
     } else {
       none += 1;
     }

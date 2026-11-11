@@ -57,6 +57,16 @@ describe("scheduleOf", () => {
     expect(s.today).toBe("2026-11-11");
   });
 
+  it("names every card a commitment is about, for counting by card", () => {
+    const { rows } = scheduleOf(
+      [promise("a", { dueAt: at("2026-11-13T09:00:00Z") })],
+      CARDS,
+      NOW,
+      TZ
+    );
+    expect(rows[0]?.cards).toEqual(["olga", "me"]);
+  });
+
   it("puts the important one first and reads the sides", () => {
     const due = at("2026-11-13T09:00:00Z");
     const { rows } = scheduleOf(

@@ -15,16 +15,18 @@ import { format, isSameMonth, subMilliseconds } from "date-fns";
 import { enUS, ru } from "date-fns/locale";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import type { Dispatch, SetStateAction } from "react";
 
 import { dayKey, localMidnightOf } from "@/lib/memory-dates";
-
-import { readJson } from "./use-memory-actions";
+import { isLate } from "@/lib/memory-late";
 
 // «Сроки» (Д6, P27, a calendar — ReUI's Event Calendar): every open commitment with a deadline stands on its day, a
 // whole-day bar; the ones past their day are red. Dragging one to another day moves its deadline (`PATCH` the record,
 // with «Вернуть»). A click opens the card of the other side. On a phone the agenda — a list by day — comes first.
 // A deadline has no hour, so the week is one tall row of days (the month grid over a week), not a time grid.
+// The rows are the page's own state (`MemoryView`), shared with the list's «просрочено»: the bars are drawn from them,
+// a move changes them first and is saved after, and what cannot be saved is read back from the server.
 
 interface Data {
   who: string | null;
@@ -96,19 +98,6 @@ const eventOf = (
   };
 };
 
-/** Red once its day is before today, its own color otherwise — so a moved bar turns late, or stops being late. */
-const recolor = (
-  event: CalendarEvent<Data>,
-  today: string,
-  timeZone: string
-): CalendarEvent<Data> => {
-  const color =
-    dayKey(event.start, timeZone) < today
-      ? COLOR.late
-      : (event.data?.base ?? event.color);
-  return color === event.color ? event : { ...event, color };
-};
-
 const patchDue = (id: string, dueAt: Date) =>
   fetch(`/api/memory/records/${id}`, {
     body: JSON.stringify({ dueAt: dueAt.toISOString() }),
@@ -116,34 +105,36 @@ const patchDue = (id: string, dueAt: Date) =>
     method: "PATCH",
   });
 
+/** The row with another day's midnight for its deadline. */
+const withDue = (due: MemoryDue, id: string, dueAt: string): MemoryDue => ({
+  ...due,
+  rows: due.rows.map((r) => (r.id === id ? { ...r, dueAt } : r)),
+});
+
 export const DueView = ({
+  due,
+  setDue,
+  reread,
   phone,
   timeZone,
 }: {
+  /** The deadlines; null while they are being read. */
+  due: MemoryDue | null;
+  setDue: Dispatch<SetStateAction<MemoryDue | null>>;
+  /** Reads the page again: the list, the deadlines, the open card. */
+  reread: () => Promise<void>;
   phone: boolean;
   timeZone: string;
 }) => {
   const t = useTranslations("memory");
   const locale = useLocale();
   const router = useRouter();
-  const [data, setData] = useState<MemoryDue | null>(null);
-  const [events, setEvents] = useState<CalendarEvent<Data>[]>([]);
-
-  useEffect(() => {
-    const read = async () => {
-      const due = await readJson<MemoryDue>("/api/memory/due");
-      if (!due) {
-        toast.error(t("loadFailed"));
-        return;
-      }
-      setData(due);
-      setEvents(due.rows.map((r) => eventOf(r, due.today, timeZone)));
-    };
-    read();
-  }, [t, timeZone]);
-
-  const late = data
-    ? events.filter((e) => dayKey(e.start, timeZone) < data.today).length
+  const events = useMemo(
+    () => (due ? due.rows.map((r) => eventOf(r, due.today, timeZone)) : []),
+    [due, timeZone]
+  );
+  const late = due
+    ? due.rows.filter((r) => isLate(r, due.today, timeZone)).length
     : 0;
 
   const i18n = useMemo(
@@ -174,7 +165,11 @@ export const DueView = ({
     [t]
   );
 
-  /** A bar dragged to another day: the deadline moves to its midnight; not saved — it goes back. */
+  /** A deadline set in the shared rows at once, so the list and the line under the calendar follow. */
+  const place = (id: string, dueAt: string) =>
+    setDue((d) => (d ? withDue(d, id, dueAt) : d));
+
+  /** A bar dropped on another day: the calendar has moved it (`onEventsChange`); here it is saved, or read back. */
   const move = (update: EventCalendarProposedUpdate<Data>) => {
     const before = update.event;
     const day = dayKey(update.start, timeZone);
@@ -182,28 +177,52 @@ export const DueView = ({
       return;
     }
     const dueAt = localMidnightOf(day, timeZone);
+    const was = before.data?.dueAt ?? dueAt.toISOString();
     const undo = async () => {
-      const response = await patchDue(
-        before.id,
-        new Date(before.data?.dueAt ?? dueAt)
-      );
-      if (response.ok) {
-        setEvents((all) => all.map((e) => (e.id === before.id ? before : e)));
+      place(before.id, was);
+      const response = await patchDue(before.id, new Date(was));
+      if (!response.ok) {
+        toast.error(t("failed"));
       }
+      await reread();
     };
     const save = async () => {
       const response = await patchDue(before.id, dueAt);
       if (!response.ok) {
         toast.error(t("failed"));
-        setEvents((all) => all.map((e) => (e.id === before.id ? before : e)));
+        await reread();
         return;
       }
       toast(t("savedMoved"), {
         action: { label: t("restore"), onClick: undo },
       });
+      await reread();
     };
     save();
   };
+
+  /** The calendar's own result of a drag: every bar where it now stands, in the shared rows. */
+  const apply = (all: CalendarEvent<Data>[]) =>
+    setDue((d) => {
+      if (!d) {
+        return d;
+      }
+      let next = d;
+      for (const e of all) {
+        const row = next.rows.find((r) => r.id === e.id);
+        const dueAt = localMidnightOf(
+          dayKey(e.start, timeZone),
+          timeZone
+        ).toISOString();
+        if (
+          row &&
+          dayKey(new Date(row.dueAt), timeZone) !== dayKey(e.start, timeZone)
+        ) {
+          next = withDue(next, e.id, dueAt);
+        }
+      }
+      return next;
+    });
 
   return (
     <div className="flex flex-col gap-4">
@@ -221,11 +240,7 @@ export const DueView = ({
               router.push(`/memory?card=${card}`);
             }
           }}
-          onEventsChange={(all) =>
-            setEvents(
-              data ? all.map((e) => recolor(e, data.today, timeZone)) : all
-            )
-          }
+          onEventsChange={apply}
           onEventUpdate={move}
           timeZone={timeZone}
           views={["month", "week", "agenda"]}
@@ -235,10 +250,10 @@ export const DueView = ({
           <EventCalendarContent components={{ week: EventCalendarMonthView }} />
         </EventCalendar>
       </div>
-      {data && (late > 0 || data.none > 0) && (
+      {due && (late > 0 || due.none > 0) && (
         <p className="text-muted-foreground flex flex-wrap gap-x-4 text-sm">
           {late > 0 && <span>{t("dueLate", { count: late })}</span>}
-          {data.none > 0 && <span>{t("dueNone", { count: data.none })}</span>}
+          {due.none > 0 && <span>{t("dueNone", { count: due.none })}</span>}
         </p>
       )}
     </div>

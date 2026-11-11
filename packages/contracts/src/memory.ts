@@ -383,8 +383,11 @@ export interface MemoryPromiseRow {
 export interface MemoryDue {
   /** Today in the person's zone, `2026-11-11`. */
   today: string;
-  /** Open commitments with a deadline, the nearest first; past ones too — the calendar shows them red. */
-  rows: (MemoryPromiseRow & { dueAt: string })[];
+  /**
+   * Open commitments with a deadline, the nearest first; past ones too — the calendar shows them red. `cards` — every
+   * card the commitment is about, so the list's «просрочено» can be counted from these rows as a deadline moves.
+   */
+  rows: (MemoryPromiseRow & { dueAt: string; cards: string[] })[];
   /** Open with no deadline. */
   none: number;
 }
