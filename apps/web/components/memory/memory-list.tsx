@@ -471,9 +471,12 @@ const Ways = () => {
           title={t("reviewTitle")}
         />
       )}
-      {(overview?.questions.length ?? 0) > 0 && (
+      {(overview?.questions.length ?? 0) + (overview?.merges.length ?? 0) >
+        0 && (
         <ViewRow
-          count={overview?.questions.length}
+          count={
+            (overview?.questions.length ?? 0) + (overview?.merges.length ?? 0)
+          }
           icon={<CircleHelp className="text-warning" />}
           pick={{ type: "questions" }}
           title={t("questions")}

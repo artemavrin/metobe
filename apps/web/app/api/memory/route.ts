@@ -20,6 +20,7 @@ export const GET = async () => {
     return Response.json({
       cards: [],
       me: [],
+      merges: [],
       off: state.service ? "person" : "service",
       on: false,
       questions: [],

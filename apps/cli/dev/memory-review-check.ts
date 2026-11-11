@@ -150,6 +150,21 @@ await addRecord(id, {
   rule: { days: 0, kind: "date", repeat: "year", workingDays: false },
   text: "У Ольги Ли день рождения",
 });
+// A second card of the same person under a short name, with a promise: «Один человек?» and «Объединить с…».
+const olya = await createEntity(id, {
+  aliases: [],
+  kind: "person",
+  name: "Ольга",
+});
+await addRecord(id, {
+  entities: [
+    { entityId: olya.id, role: "debtor" },
+    { entityId: selfId, role: "creditor" },
+  ],
+  givenAt: new Date(now - 3 * DAY),
+  kind: "commitment",
+  text: "Прислать счёт",
+});
 const changes = await lastChanges(id);
 const records = await listRecords(id);
 console.log(

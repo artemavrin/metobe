@@ -42,6 +42,10 @@ export const useActionsOf = (
 ): MemoryActions & {
   answer: (q: Question, body: object) => Promise<void>;
   rule: (text: string) => Promise<MemoryRecordView[] | null>;
+  /** Two cards into one (§19.8.5): `gone` goes into `keep`, with «Вернуть» in the toast. True when it went through. */
+  merge: (gone: string, keep: { id: string; name: string }) => Promise<boolean>;
+  /** «Разные» on «Один человек?»: the pair is not offered again. */
+  dismissMerge: (a: string, b: string) => Promise<void>;
 } => {
   const t = useTranslations("memory");
   /**
@@ -120,6 +124,42 @@ export const useActionsOf = (
       }
       toast("dismiss" in body ? t("notRemembered") : t("answered"));
       await reread();
+    },
+    dismissMerge: async (a, b) => {
+      const response = await fetch("/api/memory/merges/dismiss", {
+        body: JSON.stringify({ a, b }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) {
+        toast.error(t("failed"));
+        return;
+      }
+      await reread();
+    },
+    merge: async (gone, keep) => {
+      const response = await fetch(`/api/memory/cards/${gone}/merge`, {
+        body: JSON.stringify({ into: keep.id }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) {
+        toast.error(t("failed"));
+        return false;
+      }
+      const { id } = (await response.json()) as { id: string };
+      await reread();
+      toast(t("merged", { name: keep.name }), {
+        action: {
+          label: t("restore"),
+          onClick: async () => {
+            await fetch(`/api/memory/merges/${id}/undo`, { method: "POST" });
+            await reread();
+            toast(t("undone"));
+          },
+        },
+      });
+      return true;
     },
     note: (card, text) =>
       send(`/api/memory/cards/${card.id}/notes`, text, (r) =>

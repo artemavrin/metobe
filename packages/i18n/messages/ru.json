@@ -2942,6 +2942,20 @@
     "calAgenda": "Список",
     "dueLate": "просрочено: {count}",
     "calAllDay": "Весь день",
-    "calWeek": "Неделя"
+    "calWeek": "Неделя",
+    "mergeWith": "Объединить с…",
+    "mergeTitle": "Объединить «{name}» с…",
+    "mergeHint": "Записи, другие имена и «Убрать» перейдут в одну карточку. Объединение можно вернуть.",
+    "mergeSearch": "Найти карточку",
+    "mergeNone": "Подходящих карточек нет",
+    "mergeKeep": "Оставить это имя",
+    "mergeKept": "Останется",
+    "mergeCounts": "{open, plural, =0 {нет открытых} one {# открытое} few {# открытых} many {# открытых} other {# открытых}} · {records, plural, one {# запись} few {# записи} many {# записей} other {# записи}}",
+    "mergeResult": "Получится одна карточка «{name}»: {records, plural, one {# запись} few {# записи} many {# записей} other {# записи}}. Имя «{alias}» останется среди других имён.",
+    "mergeAction": "Объединить",
+    "merged": "Объединено: «{name}»",
+    "mergeAsk": "«{keep}» и «{gone}» — одна карточка?",
+    "mergeDifferent": "Разные",
+    "cardActions": "Действия с карточкой"
   }
 }

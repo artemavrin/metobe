@@ -198,6 +198,8 @@ export interface MemoryOverview {
   cards: MemoryCardItem[];
   /** «Не записано»: the open questions (P18), answered with `POST /api/memory/questions/[id]`. */
   questions: ChatMemory["questions"];
+  /** «Один человек?» in «Не записано»: pairs of cards that may be one (§19.8.5), up to three. */
+  merges: MemoryMergeSuggestion[];
   rules: MemoryRecordView[];
   /** What the person told about themselves — goals, work, what they have, how they like it done: «Обо мне». */
   me: MemoryRecordView[];

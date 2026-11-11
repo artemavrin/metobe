@@ -5,6 +5,7 @@ import type {
   MemoryCard,
   MemoryCardItem,
   MemoryEntityKind,
+  MemoryMergeSuggestion,
   MemoryRecordView,
 } from "@metobe/contracts/memory";
 import { Button } from "@metobe/ui/components/button";
@@ -53,6 +54,7 @@ import {
   useDirection,
 } from "./memory-record";
 import { useMemoryStore } from "./memory-store";
+import { CardMenu } from "./merge-dialog";
 import type { T } from "./use-memory-actions";
 
 // The «Память» page (P16 «Карточки», D39): people, organizations and projects on the left with their open and overdue
@@ -486,34 +488,37 @@ const CardView = ({
       <div className={cn("@container flex flex-col gap-6", ENTER)}>
         <Header
           action={
-            card.kind !== "project" &&
-            card.kind !== "custom" &&
-            open.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger
-                  delay={400}
-                  render={
-                    <Button
-                      className={PRESS}
-                      nativeButton={false}
-                      render={<Link href={checkLink(card, records, t)} />}
-                      size="sm"
-                      variant="outline"
-                    />
-                  }
-                >
-                  <MailCheck />{" "}
-                  <span className="max-sm:sr-only">{t("check")}</span>
-                </TooltipTrigger>
-                <TooltipContent
-                  arrow={false}
-                  className="bg-sidebar text-foreground ring-foreground/10 max-w-64 shadow-md ring-1"
-                  sideOffset={6}
-                >
-                  {t("checkHint")}
-                </TooltipContent>
-              </Tooltip>
-            )
+            <div className="flex items-center gap-1.5">
+              {card.kind !== "project" &&
+                card.kind !== "custom" &&
+                open.length > 0 && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      delay={400}
+                      render={
+                        <Button
+                          className={PRESS}
+                          nativeButton={false}
+                          render={<Link href={checkLink(card, records, t)} />}
+                          size="sm"
+                          variant="outline"
+                        />
+                      }
+                    >
+                      <MailCheck />{" "}
+                      <span className="max-sm:sr-only">{t("check")}</span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      arrow={false}
+                      className="bg-sidebar text-foreground ring-foreground/10 max-w-64 shadow-md ring-1"
+                      sideOffset={6}
+                    >
+                      {t("checkHint")}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              <CardMenu card={card} />
+            </div>
           }
           avatar={<Avatar kind={card.kind} name={card.name} size="size-10" />}
           hint={<Hint data={data} />}
@@ -666,11 +671,17 @@ const NEW_LABEL: Record<
 
 const Questions = ({
   questions,
+  merges,
   answer,
+  merge,
+  dismissMerge,
   onBack,
 }: {
   questions: Question[];
+  merges: MemoryMergeSuggestion[];
   answer: (q: Question, body: object) => Promise<void>;
+  merge: (gone: string, keep: { id: string; name: string }) => Promise<boolean>;
+  dismissMerge: (a: string, b: string) => Promise<void>;
   onBack?: () => void;
 }) => {
   const t = useTranslations("memory");
@@ -682,9 +693,45 @@ const Questions = ({
         onBack={onBack}
         title={t("questions")}
       />
-      {questions.length === 0 && (
+      {questions.length === 0 && merges.length === 0 && (
         <p className="text-muted-foreground text-sm">{t("allSorted")}</p>
       )}
+      {merges.map((m) => (
+        <div
+          className={cn(
+            "bg-card flex flex-col gap-2.5 rounded-xl border p-3",
+            ENTER
+          )}
+          key={`${m.keep.id}:${m.gone.id}`}
+        >
+          <p className="text-sm">
+            {t("mergeAsk", { gone: m.gone.name, keep: m.keep.name })}
+          </p>
+          <p className="text-muted-foreground text-xs">
+            {[m.keep, m.gone]
+              .map((c) => (c.role ? `${c.name} — ${c.role}` : c.name))
+              .join(" · ")}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <Button
+              className={PRESS}
+              onClick={() => merge(m.gone.id, m.keep)}
+              size="sm"
+              variant="outline"
+            >
+              {t("mergeAction")}
+            </Button>
+            <Button
+              className={PRESS}
+              onClick={() => dismissMerge(m.keep.id, m.gone.id)}
+              size="sm"
+              variant="ghost"
+            >
+              {t("mergeDifferent")}
+            </Button>
+          </div>
+        </div>
+      ))}
       {questions.map((q) => (
         <div
           className={cn(
@@ -981,6 +1028,9 @@ export const MemoryView = () => {
     questions: (
       <Questions
         answer={actions.answer}
+        dismissMerge={actions.dismissMerge}
+        merge={actions.merge}
+        merges={overview.merges}
         onBack={back}
         questions={overview.questions}
       />

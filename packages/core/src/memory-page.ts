@@ -23,6 +23,7 @@ import {
   listQuestions,
   listRecords,
   materialOf,
+  mergeSuggestions,
   recordHistory,
   writeChats,
   writeStatus,
@@ -102,15 +103,25 @@ const views = async (
   });
 };
 
+/** A side of a «Один человек?» pair as the page shows it. */
+const mergeSide = (c: MemoryEntity) => ({
+  id: c.id,
+  // The person's own card is never in a pair, nor a card of a kind the page does not name.
+  kind: c.kind as Exclude<MemoryEntity["kind"], "self">,
+  name: c.name,
+  role: c.role,
+});
+
 /** People, organizations and projects with their open and overdue commitments; the questions; the rules. */
 export const memoryOverview = async (
   ownerId: string
 ): Promise<Omit<MemoryOverview, "on">> => {
   const entities = await listEntities(ownerId);
   const self = entities.find((e) => e.kind === "self");
-  const [cards, questions, rules, mine] = await Promise.all([
+  const [cards, questions, pairs, rules, mine] = await Promise.all([
     cardItems(ownerId, entities),
     listQuestions(ownerId),
+    mergeSuggestions(ownerId),
     listRecords(ownerId, { kinds: ["rule"] }),
     self
       ? listRecords(ownerId, {
@@ -126,6 +137,9 @@ export const memoryOverview = async (
   return {
     cards,
     me: await views(ownerId, about, entities),
+    merges: pairs
+      .filter((p) => p.keep.kind !== "self" && p.gone.kind !== "self")
+      .map((p) => ({ gone: mergeSide(p.gone), keep: mergeSide(p.keep) })),
     questions: questions.map((q) => ({
       candidates: q.candidates,
       id: q.id,

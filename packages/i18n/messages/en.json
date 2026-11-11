@@ -2948,6 +2948,20 @@
     "calAgenda": "List",
     "dueLate": "{count} overdue",
     "calAllDay": "All day",
-    "calWeek": "Week"
+    "calWeek": "Week",
+    "mergeWith": "Merge with…",
+    "mergeTitle": "Merge “{name}” with…",
+    "mergeHint": "Records, other names and removed rows go to one card. A merge can be undone.",
+    "mergeSearch": "Find a card",
+    "mergeNone": "No fitting cards",
+    "mergeKeep": "Keep this name",
+    "mergeKept": "Kept",
+    "mergeCounts": "{open, plural, =0 {nothing open} other {# open}} · {records, plural, one {# record} other {# records}}",
+    "mergeResult": "One card “{name}” with {records, plural, one {# record} other {# records}}. “{alias}” stays among its other names.",
+    "mergeAction": "Merge",
+    "merged": "Merged: “{name}”",
+    "mergeAsk": "“{keep}” and “{gone}” — the same card?",
+    "mergeDifferent": "Different",
+    "cardActions": "Card actions"
   }
 }
