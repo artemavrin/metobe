@@ -11,8 +11,17 @@ import type {
   MemorySearch,
 } from "@metobe/contracts/memory";
 import { Button } from "@metobe/ui/components/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@metobe/ui/components/dialog";
 import { Input } from "@metobe/ui/components/input";
 import { Toaster, toast } from "@metobe/ui/components/sonner";
+import { Textarea } from "@metobe/ui/components/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -514,15 +523,12 @@ const NoteLine = ({
   placeholder,
   send,
   onWritten,
-  focus = false,
 }: {
   label: string;
   placeholder: string;
   /** Hands the words over; the records they made — none when nothing went in. */
   send: (text: string) => Promise<MemoryRecordView[] | null>;
   onWritten: (ids: string[]) => void;
-  /** Opened by the press on a «+»: the field is ready at once. */
-  focus?: boolean;
 }) => {
   const t = useTranslations("memory");
   const [text, setText] = useState("");
@@ -535,9 +541,6 @@ const NoteLine = ({
     hint = "Enter";
   }
   useEffect(() => {
-    if (focus) {
-      field.current?.focus();
-    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== "n" || typing(e)) {
         return;
@@ -547,7 +550,7 @@ const NoteLine = ({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focus]);
+  }, []);
   return (
     <form
       className="group/add focus-within:border-foreground/30 hover:bg-muted/40 flex items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 transition-colors duration-150 focus-within:hover:bg-transparent"
@@ -988,13 +991,11 @@ const Rules = ({
   rules,
   onBack,
   send,
-  focus,
 }: {
   rules: MemoryRecordView[];
   onBack?: () => void;
   /** A rule in words (`POST /api/memory/rules`). */
   send: (text: string) => Promise<MemoryRecordView[] | null>;
-  focus: boolean;
 }) => {
   const t = useTranslations("memory");
   const [fresh, setFresh] = useState<string[]>([]);
@@ -1003,7 +1004,6 @@ const Rules = ({
       <div className={cn("flex flex-col gap-4", ENTER)}>
         <Header hint={t("rulesHint")} onBack={onBack} title={t("rules")} />
         <NoteLine
-          focus={focus}
           label={t("ruleLabel")}
           onWritten={setFresh}
           placeholder={t("ruleAsk")}
@@ -1408,18 +1408,25 @@ const SectionHeading = ({
   </div>
 );
 
+/** Where a new card goes: its kind, the word for what it is (a thing in a section of its type), the dialog's title. */
+interface NewCardTarget {
+  kind: MemoryCardItem["kind"];
+  type?: string;
+  title: string;
+}
+
 /**
- * A card by hand: the name, and for a thing of the person's own kind (no word for it given by the section) what it is.
- * Enter makes it and opens it; Escape or leaving it empty closes it.
+ * A card by hand, in a dialog (P22): the name, and for a thing of the person's own kind in no section of its type —
+ * what it is, with the words the person already uses offered. Enter or «Создать» makes it and opens it.
  */
-const NewCard = ({
-  kind,
-  type,
+const NewCardDialog = ({
+  target,
+  types,
   onCreate,
   onClose,
 }: {
-  kind: MemoryCardItem["kind"];
-  type?: string;
+  target: NewCardTarget | null;
+  types: string[];
   onCreate: (input: NewCardInput) => Promise<boolean>;
   onClose: () => void;
 }) => {
@@ -1427,18 +1434,17 @@ const NewCard = ({
   const [name, setName] = useState("");
   const [word, setWord] = useState("");
   const [busy, setBusy] = useState(false);
-  const wordField = useRef<HTMLInputElement>(null);
-  const askType = kind === "custom" && !type;
+  const askType = target?.kind === "custom" && !target.type;
   const submit = async () => {
     const said = name.trim();
-    if (!said || busy) {
+    if (!(target && said) || busy) {
       return;
     }
     setBusy(true);
     const made = await onCreate({
-      kind,
+      kind: target.kind,
       name: said,
-      type: type ?? (word.trim() || undefined),
+      type: target.type ?? (word.trim() || undefined),
     });
     setBusy(false);
     if (made) {
@@ -1446,56 +1452,161 @@ const NewCard = ({
     }
   };
   return (
-    <form
-      className="flex flex-col gap-1.5 rounded-lg px-2 py-1.5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
       }}
+      onOpenChangeComplete={(open) => {
+        // The fields are blank the next time it opens.
+        if (!open) {
+          setName("");
+          setWord("");
+        }
+      }}
+      open={target !== null}
     >
-      <input
-        aria-label={t("newCardName")}
-        // oxlint-disable-next-line jsx-a11y/no-autofocus -- opened by the person's press on a «+»
-        autoFocus
-        className="border-foreground/30 border-b bg-transparent text-sm outline-none"
-        disabled={busy}
-        maxLength={200}
-        onBlur={(e) => {
-          // Leaving the line with nothing typed closes it.
-          if (!(name || word || e.relatedTarget === wordField.current)) {
-            onClose();
-          }
-        }}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            onClose();
-          }
-        }}
-        placeholder={t("newCardName")}
-        value={name}
-      />
-      {askType && (
-        <input
-          aria-label={t("typeLabel")}
-          className="border-foreground/30 border-b bg-transparent text-sm outline-none"
-          disabled={busy}
-          maxLength={60}
-          onChange={(e) => setWord(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              onClose();
-            }
+      <DialogContent>
+        <form
+          className="grid gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
           }}
-          placeholder={t("typeAsk")}
-          ref={wordField}
-          value={word}
-        />
-      )}
-      <button className="sr-only" type="submit">
-        {t("newCardMake")}
-      </button>
-    </form>
+        >
+          <DialogHeader>
+            <DialogTitle>{target?.title}</DialogTitle>
+          </DialogHeader>
+          <label className="grid gap-1.5 text-sm">
+            {t("newCardName")}
+            <Input
+              autoFocus
+              disabled={busy}
+              maxLength={200}
+              onChange={(e) => setName(e.target.value)}
+              value={name}
+            />
+          </label>
+          {askType && (
+            <label className="grid gap-1.5 text-sm">
+              {t("typeLabel")}
+              <Input
+                disabled={busy}
+                list="memory-types"
+                maxLength={60}
+                onChange={(e) => setWord(e.target.value)}
+                placeholder={t("typeAsk")}
+                value={word}
+              />
+              <datalist id="memory-types">
+                {types.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </datalist>
+            </label>
+          )}
+          <DialogFooter>
+            <Button
+              disabled={busy}
+              onClick={onClose}
+              type="button"
+              variant="outline"
+            >
+              {t("cancelNew")}
+            </Button>
+            <Button disabled={busy || !name.trim()} type="submit">
+              {t("newCardMake")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/** A rule in words, in a dialog (P22): the memory reads it as a standing rule and picks its kind and period. */
+const NewRuleDialog = ({
+  open,
+  send,
+  onClose,
+}: {
+  open: boolean;
+  send: (text: string) => Promise<MemoryRecordView[] | null>;
+  onClose: () => void;
+}) => {
+  const t = useTranslations("memory");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!text.trim() || busy) {
+      return;
+    }
+    setBusy(true);
+    const written = await send(text.trim());
+    setBusy(false);
+    // Nothing found or a failure: the words stay, to say it otherwise.
+    if (written) {
+      setText("");
+      onClose();
+    }
+  };
+  return (
+    <Dialog
+      onOpenChange={(next) => {
+        if (!next) {
+          onClose();
+        }
+      }}
+      open={open}
+    >
+      <DialogContent>
+        <form
+          className="grid gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("ruleAdd")}</DialogTitle>
+            <DialogDescription>{t("ruleHow")}</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            aria-label={t("ruleLabel")}
+            autoFocus
+            disabled={busy}
+            maxLength={2000}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              // ⌘/Ctrl + Enter sends from the field.
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={t("ruleAsk")}
+            rows={3}
+            value={text}
+          />
+          <DialogFooter>
+            <Button
+              disabled={busy}
+              onClick={onClose}
+              type="button"
+              variant="outline"
+            >
+              {t("cancelNew")}
+            </Button>
+            <Button disabled={busy || !text.trim()} type="submit">
+              {t("newCardMake")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -1533,7 +1644,7 @@ const CardList = ({
   shown,
   onPick,
   nothing,
-  onCreate,
+  onNew,
   onRule,
 }: {
   overview: MemoryOverview;
@@ -1542,13 +1653,12 @@ const CardList = ({
   shown: Pick | null;
   onPick: (p: Pick) => void;
   nothing: boolean;
-  /** Makes a card by hand; false — it was not made. */
-  onCreate: (input: NewCardInput) => Promise<boolean>;
-  /** «+» next to «Правила»: the rules page with its line ready. */
+  /** «+» next to a section: the dialog for a new card there. */
+  onNew: (target: NewCardTarget) => void;
+  /** «+» next to «Правила»: the dialog for a new rule. */
   onRule: () => void;
 }) => {
   const t = useTranslations("memory");
-  const [adding, setAdding] = useState<string | null>(null);
   const words = normalize(q).split(/\s+/u).filter(Boolean);
   const cards = overview.cards.filter((c) => matches(c, words));
   const things = thingSections(cards);
@@ -1585,16 +1695,14 @@ const CardList = ({
         ) : (
           <SectionHeading
             label={t("newCardIn", { section: title })}
-            onAdd={() => setAdding(key)}
+            onAdd={() =>
+              onNew({
+                kind: made.kind,
+                title: t("newCardIn", { section: title }),
+                type: made.type,
+              })
+            }
             title={title}
-          />
-        )}
-        {adding === key && (
-          <NewCard
-            kind={made.kind}
-            onClose={() => setAdding(null)}
-            onCreate={onCreate}
-            type={made.type}
           />
         )}
         {of.map((c) =>
@@ -1716,8 +1824,9 @@ export const MemoryView = ({
     start ? { id: start, type: "card" } : null
   );
   const [q, setQ] = useState("");
-  // «+» next to «Правила»: the rules page opens with its line ready (counted: each press opens it anew).
-  const [ruling, setRuling] = useState(0);
+  // «+» next to a section or «Правила»: the dialog of a new card or a new rule.
+  const [making, setMaking] = useState<NewCardTarget | null>(null);
+  const [ruleOpen, setRuleOpen] = useState(false);
   // On a wide screen the first card is open from the start; on a phone the list comes first.
   const [first] = initial.cards;
   const shown: Pick | null =
@@ -1744,7 +1853,6 @@ export const MemoryView = ({
       toast(t("cardExisted", { name: made.card.name }));
     }
     await reread();
-    setRuling(0);
     setPick({ id: made.card.id, type: "card" });
     return true;
   };
@@ -1804,15 +1912,7 @@ export const MemoryView = ({
         questions={overview.questions}
       />
     ),
-    rules: (
-      <Rules
-        focus={ruling > 0}
-        key={ruling}
-        onBack={back}
-        rules={overview.rules}
-        send={actions.rule}
-      />
-    ),
+    rules: <Rules onBack={back} rules={overview.rules} send={actions.rule} />,
   };
   const detail = shown ? details[shown.type] : null;
   // While searching, the records found stand over the card.
@@ -1820,15 +1920,9 @@ export const MemoryView = ({
   const list = (
     <CardList
       nothing={Boolean(found && found.records.length === 0)}
-      onCreate={create}
-      onPick={(p) => {
-        setRuling(0);
-        setPick(p);
-      }}
-      onRule={() => {
-        setPick({ type: "rules" });
-        setRuling((n) => n + 1);
-      }}
+      onNew={setMaking}
+      onPick={setPick}
+      onRule={() => setRuleOpen(true)}
       overview={overview}
       q={q}
       setQ={setQ}
@@ -1863,6 +1957,19 @@ export const MemoryView = ({
     <MemoryActionsContext.Provider value={actions}>
       <Bar />
       {phone ? narrow : wide}
+      <NewCardDialog
+        onClose={() => setMaking(null)}
+        onCreate={create}
+        target={making}
+        types={[
+          ...new Set(overview.cards.flatMap((c) => (c.type ? [c.type] : []))),
+        ]}
+      />
+      <NewRuleDialog
+        onClose={() => setRuleOpen(false)}
+        open={ruleOpen}
+        send={actions.rule}
+      />
       <Toaster position="bottom-right" />
     </MemoryActionsContext.Provider>
   );
