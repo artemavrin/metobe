@@ -8,43 +8,27 @@
 import { createGateway } from "@ai-sdk/gateway";
 import { experimental_evaluate as evaluate } from "ai";
 
+import { typeQuestions, typeState } from "../../packages/core/src/memory-types.ts";
+import type { OwnType } from "../../packages/core/src/memory-types.ts";
 import { sourceKey } from "../S13-jev/keys.ts";
 
 const MODEL = process.env.GATE_MODEL ?? "microsoft/microsoft-decision-1";
 const RUNS = Number(process.env.RUNS ?? 3);
 const SHOW = Boolean(process.env.SHOW);
 
-/** The person's own types so far, each with a few of its cards — as the app would show them. */
-const OWN = {
-  bus: "автобус — карточки: «Автобус 412», «118», «ЛиАЗ 233»",
-  contract: "договор — карточки: «Договор № 31 с „Вектором“», «Контракт 08/26»",
-  site: "стройка — карточки: «Стройка на Лесной, 14», «ЖК „Северный“»",
-};
-
-const CRITERIA = {
-  person: "A person, by name or by what they are to the user",
-  org: "A company, an institution, a sole trader — another organization",
-  project: "A project: work with a goal and an end, named",
-  group: "A group of people: a team, a department",
-  ...OWN,
-  new: "A particular named or numbered thing the user will come back to, of a kind that is none of the above: a new type of card",
-  none: "Not worth a card: a thing mentioned in passing, without a name or number of its own, or a kind in general, not a particular one",
-} as const;
-type Type = keyof typeof CRITERIA;
-
-const QUESTIONS = {
-  card: {
-    instructions:
-      "Is the mention a particular thing with a name or a number of its own — one the user could ask about again later by that name — and not a thing in general or one mentioned in passing?",
-    type: "boolean",
-  },
-  type: {
-    criteria: CRITERIA,
-    instructions:
-      "What type of card is the mention? A type the user already has fits only when the mention is one more thing of exactly that kind, whatever word the message uses for it. A thing that is merely related to a type (a route is not a bus, a licence is not a contract, a shop or a flat is not a building site) is a new type. An animal is not a person.",
-    type: "choice",
-  },
-} as const;
+/**
+ * The person's own types so far, each with a few of its cards — as the app shows them to the decision model. The
+ * questions are the app's own (`core/memory-types.ts`): what is measured here is what ships.
+ */
+const OWN: OwnType[] = [
+  { cards: ["Автобус 412", "118", "ЛиАЗ 233"], word: "автобус" },
+  { cards: ["Договор № 31 с «Вектором»", "Контракт 08/26"], word: "договор" },
+  { cards: ["Стройка на Лесной, 14", "ЖК «Северный»"], word: "стройка" },
+];
+/** The cases name the types by a word of their own; the questions name them `own1`…. */
+const KEY: Record<string, string> = { bus: "own1", contract: "own2", site: "own3" };
+type Type = "person" | "org" | "project" | "group" | "bus" | "contract" | "site" | "new" | "none";
+const QUESTIONS = typeQuestions(OWN);
 
 interface Case {
   text: string;
@@ -122,19 +106,19 @@ const ask = async (c: Case) => {
     model: gw.evaluationModel(MODEL),
     providerOptions: { gateway: { zeroDataRetention: true } },
     questions: QUESTIONS,
-    state: { mention: c.mention, message: c.text },
+    state: typeState(c.text, c.mention),
   });
   const type = r.answers.type;
   return {
-    card: r.answers.card.probability,
-    choice: type.choice as Type,
+    // Back to the cases' words: `own1` is a bus.
+    choice: (Object.entries(KEY).find(([, key]) => key === type.choice)?.[0] ?? type.choice) as Type,
     cost: Number((r.providerMetadata?.gateway as { cost?: string } | undefined)?.cost ?? 0),
     p: type.probabilities?.[type.choice] ?? Number.NaN,
   };
 };
 
 const GROUPS: Record<string, (t: Type) => boolean> = {
-  "свой тип, уже есть": (t) => t in OWN,
+  "свой тип, уже есть": (t) => t in KEY,
   встроенный: (t) => ["person", "org", "project", "group"].includes(t),
   "новый тип": (t) => t === "new",
   "не карточка": (t) => t === "none",
@@ -152,17 +136,15 @@ for (const [name, of] of Object.entries(GROUPS)) {
   console.log(`${name}: тип ${right.length}/${rows.length}, карточка/не карточка неверно ${cardWrong.length}`);
 }
 const total = answers.filter((a) => a.choice === a.c.expect).length;
-// How the plain yes/no would do alone, at 0.5.
-const byCard = answers.filter((a) => a.card >= 0.5 === (a.c.expect !== "none")).length;
 const sure = answers.filter((a) => a.p >= 0.9);
 console.log(
-  `всего: тип ${total}/${answers.length}; вопрос «карточка?» отдельно ${byCard}/${answers.length}; уверенных (P ≥ 0,9) ${sure.length}, из них верно ${sure.filter((a) => a.choice === a.c.expect).length}; $${answers.reduce((s, a) => s + a.cost, 0).toFixed(4)}`
+  `всего: тип ${total}/${answers.length}; уверенных (P ≥ 0,9) ${sure.length}, из них верно ${sure.filter((a) => a.choice === a.c.expect).length}; $${answers.reduce((s, a) => s + a.cost, 0).toFixed(4)}`
 );
 const misses = new Map<string, string[]>();
 for (const a of answers) {
   if (SHOW || a.choice !== a.c.expect) {
     const key = `${a.c.expect.padEnd(8)} ${a.c.text}`;
-    misses.set(key, [...(misses.get(key) ?? []), `${a.choice} ${a.p.toFixed(2)} (карточка ${a.card.toFixed(2)})`]);
+    misses.set(key, [...(misses.get(key) ?? []), `${a.choice} ${a.p.toFixed(2)}`]);
   }
 }
 for (const [key, got] of misses) {

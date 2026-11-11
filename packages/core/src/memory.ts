@@ -133,6 +133,8 @@ const entityBody = z.object({
   name: z.string(),
   phone: z.string().nullable().default(null),
   role: z.string().nullable(),
+  /** Kind `custom`: what kind of thing it is, as the person says it (D42). */
+  type: z.string().nullable().default(null),
 });
 
 export interface MemoryEntity {
@@ -146,6 +148,8 @@ export interface MemoryEntity {
   /** How to reach them: put in by hand (later — read from letters). */
   email: string | null;
   phone: string | null;
+  /** Kind `custom`: «автобус», «кот»; null for the others and for a thing of no known kind. */
+  type: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -176,6 +180,7 @@ const toEntity = (
     name: body.name,
     phone: body.phone,
     role: body.role,
+    type: body.type,
     updatedAt: row.updatedAt,
   };
 };
@@ -205,11 +210,13 @@ const mergedTo = async (db: Db | Tx, ownerId: string) => {
   };
 };
 
-interface EntityInput {
+export interface EntityInput {
   kind: Exclude<MemoryEntityKind, "self">;
   name: string;
   aliases?: string[];
   role?: string | null;
+  /** Kind `custom`: what kind of thing it is, as the person says it. */
+  type?: string | null;
   /** The write that found it: undoing the write takes the card away with it. */
   writeId?: string;
 }
@@ -229,6 +236,7 @@ const insertEntity = async (
     aliases: input.aliases ?? [],
     name,
     role: input.role ?? null,
+    type: input.kind === "custom" ? input.type?.trim() || null : null,
   };
   const [row] = await tx
     .insert(memoryEntities)
@@ -304,6 +312,7 @@ export const updateEntity = async (
     role?: string | null;
     email?: string | null;
     phone?: string | null;
+    type?: string | null;
   }
 ) => {
   const key = await dataKey(ownerId, false);
@@ -337,6 +346,7 @@ export const updateEntity = async (
           name,
           phone: patch.phone === undefined ? was.phone : patch.phone,
           role: patch.role === undefined ? was.role : patch.role,
+          type: patch.type === undefined ? was.type : patch.type,
         },
         key
       ),
@@ -2219,6 +2229,7 @@ export const mergeEntities = async (
             name: keep.name,
             phone: takesPhone ? gone.phone : keep.phone,
             role: takesRole ? gone.role : keep.role,
+            type: keep.type,
           },
           key
         ),
@@ -2381,6 +2392,7 @@ export const undoMerge = async (ownerId: string, mergeId: string) => {
               name: keep.name,
               phone: body.phoneTaken ? null : keep.phone,
               role: body.roleBefore === undefined ? keep.role : body.roleBefore,
+              type: keep.type,
             },
             key
           ),

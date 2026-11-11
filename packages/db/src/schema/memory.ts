@@ -139,7 +139,7 @@ export const memoryEntities = pgTable(
       .where(sql`${table.kind} = 'self'`),
     check(
       "memory_entities_kind",
-      sql`${table.kind} in ('self', 'person', 'org', 'project', 'group')`
+      sql`${table.kind} in ('self', 'person', 'org', 'project', 'group', 'custom')`
     ),
   ]
 );

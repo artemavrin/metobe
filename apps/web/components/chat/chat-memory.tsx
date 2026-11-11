@@ -59,8 +59,9 @@ const Hint = ({
 
 const NEW_LABEL: Record<
   MemoryEntityKind,
-  "newPerson" | "newOrg" | "newProject" | "newGroup"
+  "newPerson" | "newOrg" | "newProject" | "newGroup" | "newOther"
 > = {
+  custom: "newOther",
   group: "newGroup",
   org: "newOrg",
   person: "newPerson",

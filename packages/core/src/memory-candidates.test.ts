@@ -27,6 +27,7 @@ const card = (
   name,
   phone: null,
   role,
+  type: null,
   updatedAt: NOW,
 });
 

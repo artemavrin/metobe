@@ -52,6 +52,15 @@ import {
 } from "./memory-relations";
 import type { RelationAnswer } from "./memory-relations";
 import { memorySource } from "./memory-sources";
+import {
+  ownTypes,
+  thingsOf,
+  typeQuestions,
+  typeState,
+  verdictOf,
+  withTypes,
+} from "./memory-types";
+import type { TypeAnswers } from "./memory-types";
 import { getSlotModel } from "./model-slots";
 
 // The silent writer (ARCH §19.4): what the person said is read by the «Память» model, and what it finds goes into
@@ -322,6 +331,91 @@ const withRelations = async (
   }
 };
 
+const TYPE_TIMEOUT_MS = 10_000;
+
+/**
+ * The third step (D42, ARCH §19.9.9): each new card of a thing the writer named is sorted by a decision model — a
+ * built-in kind after all, a type the person has, a new type, or no card at all. No model in «Решения», a failure or
+ * a timeout — the writer's word stands (a card of the type it said): the step only sorts, it never loses a record.
+ */
+const withThingTypes = async (
+  job: Reading,
+  message: string,
+  plan: ReturnType<typeof planWrite>,
+  entities: Awaited<ReturnType<typeof listEntities>>
+) => {
+  const things = thingsOf(plan.entities);
+  if (things.length === 0) {
+    return plan;
+  }
+  const model = await getSlotModel("decisions");
+  if (!model) {
+    return plan;
+  }
+  const own = ownTypes(entities);
+  const started = Date.now();
+  try {
+    const evaluation = await getEvaluationModel(model.sourceId, model.modelId);
+    const results = await Promise.allSettled(
+      things.map((thing) =>
+        evaluate({
+          abortSignal: AbortSignal.timeout(TYPE_TIMEOUT_MS),
+          maxRetries: 1,
+          model: evaluation,
+          providerOptions: { gateway: { zeroDataRetention: true } },
+          questions: typeQuestions(own),
+          state: typeState(message, thing.name),
+        })
+      )
+    );
+    const answered = results.flatMap((r) =>
+      r.status === "fulfilled" ? [r.value] : []
+    );
+    if (answered.length === 0) {
+      throw new Error("the decision model answered none of the things");
+    }
+    await recordRun({
+      chatId: job.chatId,
+      latencyMs: Date.now() - started,
+      model,
+      providerMetadata: answered[0]?.providerMetadata,
+      purpose: "decide",
+      status: "ok",
+      usage: decisionUsage(
+        answered.reduce((n, r) => n + (r.usage.inputTokens ?? 0), 0)
+      ),
+      userId: job.ownerId,
+    });
+    return withTypes(
+      plan,
+      new Map(
+        things.map((thing, i) => {
+          const result = results[i];
+          return [
+            thing.ref,
+            result?.status === "fulfilled"
+              ? verdictOf(thing, result.value.answers as TypeAnswers, own)
+              : null,
+          ];
+        })
+      )
+    );
+  } catch (error) {
+    console.error("memory: the decision model did not answer", error);
+    await recordRun({
+      chatId: job.chatId,
+      latencyMs: null,
+      model,
+      purpose: "decide",
+      status: "error",
+      userId: job.ownerId,
+    }).catch((recordError: unknown) =>
+      console.error("memory: could not record the run", recordError)
+    );
+    return plan;
+  }
+};
+
 /** A plan that adds, asks, settles or ends something — «Запомнено» or a question to show. */
 const changesAnything = (plan: ReturnType<typeof planWrite>) =>
   plan.records.length > 0 ||
@@ -353,6 +447,7 @@ const knownCards = (
             name: e.name,
             ref: refs.get(e.id) ?? "",
             role: e.role,
+            type: e.type,
           },
         ]
   );
@@ -508,7 +603,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   const written = input.about
     ? { ...planned, records: onCard(planned.records, input.about, selfId) }
     : planned;
-  const plan = {
+  const related = {
     ...written,
     records: await withRelations(
       job,
@@ -518,6 +613,12 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
       known
     ),
   };
+  const plan = await withThingTypes(
+    job,
+    text.slice(0, MAX_TEXT),
+    related,
+    entities
+  );
   const kept = changesAnything(plan);
   if ((await applyWrite(job.ownerId, write.id, plan)) && kept) {
     // Whoever shows the material shows «Запомнено» or asks its question at once (P18).

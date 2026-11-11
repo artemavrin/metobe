@@ -30,6 +30,7 @@ import { sourceKey } from "../S13-jev/keys.ts";
 import { evalCases as selfCases } from "../S13-jev/self.ts";
 import { evalCases as foreignCases } from "./foreign.ts";
 import { evalCases as noteCases } from "./note.ts";
+import { evalCases as thingCases } from "./things.ts";
 import { evalCases as manyCases } from "./many.ts";
 import { relationCases } from "./relation.ts";
 import { evalCases as updateCases } from "./update.ts";
@@ -65,9 +66,10 @@ const SETS: Record<string, () => EvalCase[]> = {
   relation: relationCases,
   self: selfCases,
   status: () => manyCases("status", { facts, small: true }),
+  things: thingCases,
   update: () => updateCases({ known: facts }),
 };
-const ORDER = ["gate", "extract", "ask", "context", "status", "self", "groups", "many.extract", "many.ask", "many.status", "foreign", "update", "relation", "note"];
+const ORDER = ["gate", "extract", "ask", "context", "status", "self", "groups", "many.extract", "many.ask", "many.status", "foreign", "update", "relation", "note", "things"];
 const PARTS = process.env.PARTS?.split(",") ?? ORDER;
 const unknown = PARTS.filter((p) => !SETS[p]);
 if (unknown.length > 0) throw new Error(`no such set: ${unknown.join(", ")}; there are ${ORDER.join(", ")}`);

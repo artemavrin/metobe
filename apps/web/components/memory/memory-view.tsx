@@ -21,6 +21,7 @@ import {
 import { useIsMobile } from "@metobe/ui/hooks/use-mobile";
 import { cn } from "@metobe/ui/lib/utils";
 import {
+  Box,
   Building2,
   ChevronDown,
   ChevronLeft,
@@ -98,6 +99,8 @@ const Avatar = ({
     face = <FolderKanban className="size-3.5" />;
   } else if (kind === "group") {
     face = <Users className="size-3.5" />;
+  } else if (kind === "custom") {
+    face = <Box className="size-3.5" />;
   }
   return (
     <span
@@ -221,15 +224,17 @@ const checkLink = (card: MemoryCardItem, records: MemoryRecordView[], t: T) => {
 
 /** The role under the name, changed in place (P22): pressed — a field; Enter or leaving it saves, Escape does not. */
 const Role = ({ card }: { card: MemoryCardItem }) => {
+  // A thing of the person's own kind says what it is (its type); the others — who they are.
+  const field = card.kind === "custom" ? "type" : "role";
   const t = useTranslations("memory");
   const { patchCard } = useActions();
   const [editing, setEditing] = useState(false);
-  const [role, setRole] = useState(card.role ?? "");
+  const [role, setRole] = useState(card[field] ?? "");
   const save = async () => {
     setEditing(false);
     const next = role.trim();
-    if (next !== (card.role ?? "")) {
-      await patchCard(card.id, { role: next || null });
+    if (next !== (card[field] ?? "")) {
+      await patchCard(card.id, { [field]: next || null });
     }
   };
   if (editing) {
@@ -241,7 +246,7 @@ const Role = ({ card }: { card: MemoryCardItem }) => {
         }}
       >
         <input
-          aria-label={t("roleLabel")}
+          aria-label={t(`${field}Label`)}
           // oxlint-disable-next-line jsx-a11y/no-autofocus -- opened by the person's press
           autoFocus
           className="border-foreground/30 w-56 max-w-full border-b bg-transparent text-sm outline-none"
@@ -250,11 +255,11 @@ const Role = ({ card }: { card: MemoryCardItem }) => {
           onChange={(e) => setRole(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
-              setRole(card.role ?? "");
+              setRole(card[field] ?? "");
               setEditing(false);
             }
           }}
-          placeholder={t("roleAsk")}
+          placeholder={t(`${field}Ask`)}
           value={role}
         />
       </form>
@@ -268,7 +273,7 @@ const Role = ({ card }: { card: MemoryCardItem }) => {
       title={t("roleEdit")}
       type="button"
     >
-      {card.role || t("roleAsk")}
+      {card[field] || t(`${field}Ask`)}
     </button>
   );
 };
@@ -407,9 +412,9 @@ const Links = ({ links }: { links: NonNullable<MemoryCard["links"]> }) =>
 
 /** Under the name: a person's or an organization's role (changed in place), then their groups and projects; others — the role. */
 const Hint = ({ data }: { data: MemoryCard }) =>
-  data.contact ? (
+  data.contact || data.card.kind === "custom" ? (
     <div className="flex min-w-0 items-baseline gap-x-1.5 text-sm">
-      <Role card={data.card} key={data.card.role} />
+      <Role card={data.card} key={`${data.card.role}${data.card.type}`} />
       <span className="min-w-0 flex-1 truncate">
         <Links links={data.links ?? []} />
       </span>
@@ -682,6 +687,7 @@ const CardView = ({
         <Header
           action={
             card.kind !== "project" &&
+            card.kind !== "custom" &&
             open.length > 0 && (
               <Tooltip>
                 <TooltipTrigger
@@ -847,8 +853,9 @@ const CardView = ({
 
 const NEW_LABEL: Record<
   MemoryEntityKind,
-  "newPerson" | "newOrg" | "newProject" | "newGroup"
+  "newPerson" | "newOrg" | "newProject" | "newGroup" | "newOther"
 > = {
+  custom: "newOther",
   group: "newGroup",
   org: "newOrg",
   person: "newPerson",
@@ -1283,13 +1290,18 @@ const useActionsOf = (
 };
 
 const matches = (c: MemoryCardItem, words: string[]) => {
-  const hay = normalize([c.name, c.role ?? "", ...c.aliases].join(" "));
+  const hay = normalize(
+    [c.name, c.role ?? "", c.type ?? "", ...c.aliases].join(" ")
+  );
   return words.every((w) => hay.includes(w));
 };
 
 const samePick = (a: Pick | null, b: Pick) =>
   a?.type === b.type &&
   (b.type !== "card" || (a.type === "card" && a.id === b.id));
+
+/** Under a card's name in the list: who they are; for a thing of the person's own kind — what it is. */
+const caption = (c: MemoryCardItem) => (c.kind === "custom" ? c.type : c.role);
 
 const CardRow = ({ c }: { c: MemoryCardItem }) => {
   const t = useTranslations("memory");
@@ -1299,9 +1311,9 @@ const CardRow = ({ c }: { c: MemoryCardItem }) => {
       <Avatar kind={c.kind} name={c.name} size="size-7" />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm">{c.name}</span>
-        {c.role && (
+        {caption(c) && (
           <span className="text-muted-foreground truncate text-xs">
-            {c.role}
+            {caption(c)}
           </span>
         )}
       </span>
@@ -1325,6 +1337,33 @@ const CardRow = ({ c }: { c: MemoryCardItem }) => {
 };
 
 /** The left column: search, «Не записано», cards by kind (open/overdue on the right), «Правила». */
+/** A word as a heading: «автобус» — «Автобус». */
+const capitalized = (word: string) =>
+  word.slice(0, 1).toLocaleUpperCase("ru") + word.slice(1);
+
+/**
+ * The person's own kinds of card (D42) as sections of the list: a kind with two cards or more is a section under its
+ * own word; the lone ones and those of no known kind wait together under «Другое».
+ */
+const thingSections = (cards: MemoryCardItem[]) => {
+  const by = new Map<string, MemoryCardItem[]>();
+  for (const c of cards) {
+    if (c.kind === "custom") {
+      by.set(c.type ?? "", [...(by.get(c.type ?? "") ?? []), c]);
+    }
+  }
+  const sections = [...by].filter(([type, of]) => type && of.length > 1);
+  const apart = new Set(sections.flatMap(([, of]) => of));
+  return {
+    other: cards.filter((c) => c.kind === "custom" && !apart.has(c)),
+    sections: sections.map(([type, of]) => ({
+      cards: of,
+      title: capitalized(type),
+      type,
+    })),
+  };
+};
+
 const CardList = ({
   overview,
   q,
@@ -1343,6 +1382,7 @@ const CardList = ({
   const t = useTranslations("memory");
   const words = normalize(q).split(/\s+/u).filter(Boolean);
   const cards = overview.cards.filter((c) => matches(c, words));
+  const things = thingSections(cards);
   const item = (p: Pick, key: string, children: React.ReactNode) => (
     <button
       aria-current={samePick(shown, p) ? "true" : undefined}
@@ -1411,6 +1451,26 @@ const CardList = ({
           )
         );
       })}
+      {things.sections.map((section) => (
+        <div className="flex flex-col gap-0.5" key={`type:${section.type}`}>
+          <span className="text-muted-foreground px-2 pb-1 text-xs">
+            {section.title}
+          </span>
+          {section.cards.map((c) =>
+            item({ id: c.id, type: "card" }, c.id, <CardRow c={c} />)
+          )}
+        </div>
+      ))}
+      {things.other.length > 0 && (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-muted-foreground px-2 pb-1 text-xs">
+            {t("kinds.other")}
+          </span>
+          {things.other.map((c) =>
+            item({ id: c.id, type: "card" }, c.id, <CardRow c={c} />)
+          )}
+        </div>
+      )}
       {!q &&
         item(
           { type: "rules" },

@@ -7,6 +7,8 @@ import { z } from "zod";
 /**
  * `group` — people the person names as one («моя команда», «отдел продаж», «подрядчики»): who is in it is a fact
  * linking a person to it (role `group`), so a rule «с каждым из команды» keeps up with who joins and who leaves.
+ * `custom` — a thing of a kind the person named themselves (D42): a bus, a contract, a pet. The kind is a word on the
+ * card (`type`, «автобус», «кот»); the app has no word of its own for «a thing».
  */
 export const memoryEntityKinds = [
   "self",
@@ -14,6 +16,7 @@ export const memoryEntityKinds = [
   "org",
   "project",
   "group",
+  "custom",
 ] as const;
 export type MemoryEntityKind = (typeof memoryEntityKinds)[number];
 
@@ -131,6 +134,8 @@ export interface MemoryCardItem {
   name: string;
   aliases: string[];
   role: string | null;
+  /** A card of kind `custom`: its kind as the person says it («автобус»); null — not known. */
+  type: string | null;
   /** How to reach them; null — not known. */
   email: string | null;
   phone: string | null;
@@ -253,6 +258,7 @@ export const memoryCardPatchSchema = z
       .nullable()
       .optional(),
     role: z.string().trim().max(500).nullable().optional(),
+    type: z.string().trim().max(60).nullable().optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: "nothing to change",

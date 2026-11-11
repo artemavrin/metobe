@@ -595,6 +595,7 @@
       "now": "just now",
       "show": "Show in chat",
       "failed": "Could not save the answer",
+      "newOther": "Another card",
       "newGroup": "A new group",
       "replaced": "{text} · replaced: «{was}»",
       "moved": "Deadline moved: {text} · {from} → {to}",
@@ -2692,7 +2693,8 @@
       "person": "People",
       "org": "Organizations",
       "project": "Projects",
-      "group": "Groups"
+      "group": "Groups",
+      "other": "Other"
     },
     "counts": "{open, plural, one {# open commitment} other {# open commitments}}{overdue, plural, =0 {} other {, # overdue}}",
     "questions": "Not recorded",
@@ -2842,6 +2844,8 @@
     "phoneAdd": "Add phone",
     "emailLabel": "Email",
     "phoneLabel": "Phone",
+    "typeLabel": "What kind of thing",
+    "typeAsk": "What kind of thing?",
     "roleEdit": "Change who this is",
     "roleAsk": "Who is this?",
     "notePlaceholder": "Note: «promised the report by Friday», «met yesterday»",

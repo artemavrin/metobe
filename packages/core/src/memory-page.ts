@@ -56,6 +56,7 @@ const cardItems = async (ownerId: string, entities: MemoryEntity[]) => {
     overdue: counts.get(e.id)?.overdue ?? 0,
     phone: e.phone,
     role: e.role,
+    type: e.type,
   }));
 };
 

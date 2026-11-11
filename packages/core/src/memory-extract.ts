@@ -34,17 +34,17 @@ export const extractionSchema = z.object({
     .array(
       z.object({
         id: z.string().describe("new:<latin-slug>"),
-        kind: z.enum(["person", "organization", "project", "group"]),
+        kind: z.enum(["person", "organization", "project", "group", "thing"]),
         name: z.string(),
         about: z
           .string()
           .describe(
-            "Who it is to the user (a role, a company) if the message says so; empty if it does not — not what they did in the message"
+            "Who it is to the user (a role, a company) if the message says so; for a thing — what kind of thing it is, in the user's word; empty if the message does not say — not what they did in the message"
           ),
       })
     )
     .describe(
-      "People, organizations and projects mentioned that are not among the known cards"
+      "People, organizations, projects, groups and things mentioned that are not among the known cards"
     ),
   asks: z
     .array(
@@ -190,6 +190,8 @@ export interface KnownCard {
   name: string;
   aliases: string[];
   role: string | null;
+  /** Kind `custom`: what kind of thing it is. */
+  type?: string | null;
   /** A group's people now, by their refs. */
   members?: string[];
 }
@@ -210,9 +212,17 @@ const dayIn = (at: Date, timeZone: string) => ({
   }).format(at),
 });
 
+/** A card's kind as the writer reads it: a thing of the person's own kind is that kind's word («thing: автобус»). */
+const cardKind = (c: KnownCard) => {
+  if (c.kind === "custom") {
+    return c.type ? `thing: ${c.type}` : "thing";
+  }
+  return c.kind === "org" ? "organization" : c.kind;
+};
+
 const cardLine = (c: KnownCard) => {
   const about = [
-    c.kind === "org" ? "organization" : c.kind,
+    cardKind(c),
     c.role,
     c.aliases.length > 0 ? `also: ${c.aliases.join(", ")}` : null,
     c.kind === "group"
@@ -352,6 +362,14 @@ ${known
 `;
 
 /**
+ * Things (D42): a pet, a vehicle, a contract. The first wording — a long one with «will come back to» and a list of
+ * kinds — cost the «о себе» set a sixth of its answers on DeepSeek (28 of 36 against 33 of 36 without it): the writer
+ * grew careful with everything about the user. This short one costs none (33 of 36) and names every thing (16 of 16).
+ */
+const THINGS_RULE = `- A pet, a vehicle, a machine or a device, a contract or a site, given a name or a number («Барсик», «Автобус 412», «Mac Studio»), is a new_entities item of kind thing; \`about\` is what it is, in the user's word («кот», «автобус»). A thing named in general or in passing («ноутбук», «отчёт») is not a card.
+`;
+
+/**
  * Only with the block of current facts and coming events (ARCH §19.9.3): every other message keeps the prompt S13 was
  * measured on, word for word.
  */
@@ -412,7 +430,7 @@ ${knownBlock(known, cards, timeZone)}Rules:
 - Kinds: fact — a lasting state or attribute (role, stage, preference, birthday); assessment — the user's own opinion or judgement of someone («часто срывает сроки»), never turned into a fact; event — something that happened or is scheduled at a time; commitment — someone owes someone an action, with or without a deadline; rule — the user's standing instruction about reminders or what to highlight.
 - A rule with a period: rhythm — how often the user wants to meet or talk with someone («один на один с Андреем раз в две недели» — 14 days, the person as ref; «с каждым из моей команды» — the group as ref, not its people); wait — how long a reply or result from others may take before it is worth asking («ответа от контрагента ждём пять рабочих дней» — 5, working days; the party as ref if named, none if it is anyone). «Раз в неделю» is 7, «раз в месяц» 30.
 - Groups: people the user names as one — «моя команда», «отдел продаж», «бухгалтерия», «подрядчики» — are a card of kind group; a department of the user's own company is a group too, while another company is an organization. «Работает в отделе продаж» means being in that group. When the message says someone is in a group («Павел — новый разработчик в моей команде», «в отделе продаж теперь Игорь»), add a fact with both refs in about: the person and the group. When it says someone is no longer in a known group («Марина ушла из команды»), put them in leaves and add no fact for it. A rule for everyone in a group points at the group.
-- Refs: use a known card ref, "user", an id from new_entities or an id from asks. Pick a card only when the message makes it clear (a surname, a company, a role, the topic); a person not in the cards goes to new_entities. When a mention fits two or more known cards and nothing in the message tells which, do not guess: add it to asks with those cards as candidates, and use the ask id as the ref in the item (in about, debtor or creditor) instead of a card. The topic tells too: work on what a card is known for («API», «закупки») points at that card, and then it is not a question.
+${THINGS_RULE}- Refs: use a known card ref, "user", an id from new_entities or an id from asks. Pick a card only when the message makes it clear (a surname, a company, a role, the topic); a person not in the cards goes to new_entities. When a mention fits two or more known cards and nothing in the message tells which, do not guess: add it to asks with those cards as candidates, and use the ask id as the ref in the item (in about, debtor or creditor) instead of a card. The topic tells too: work on what a card is known for («API», «закупки») points at that card, and then it is not a question.
 - Dates: resolve relative dates against today and against the moment they refer to («в прошлый вторник сказал, что через две недели» — two weeks from that Tuesday). Past tense with a weekday means the latest such day before today. Set precision honestly: «на днях» is a week, «в начале октября» is a month. Never invent a date that the message does not imply.
 - In the text, turn a relative date the message gives into an absolute one («вчера» → «8 ноября», «до пятницы» → «до 13 ноября»); keep a vague time vague («на днях»), and never add a date or a deadline the message does not give.
 - Waiting for someone's reply, decision or result («ждём ответа», «обещала прислать») is that party's commitment to the user, besides any event.
@@ -494,6 +512,7 @@ const ENTITY_KINDS = {
   organization: "org",
   person: "person",
   project: "project",
+  thing: "custom",
 } as const;
 
 /** How the cards of a record that is not a commitment take part in it. */
@@ -557,14 +576,53 @@ const freshCards = (
       asKnown.set(e.id, same);
       continue;
     }
+    // A thing: «about» is what kind of thing it is, the card's type (D42); the other kinds — who it is to the user.
+    const thing = e.kind === "thing";
     fresh.set(e.id, {
       kind: ENTITY_KINDS[e.kind],
       name,
       ref: e.id,
-      role: e.about.trim() || null,
+      role: thing ? null : e.about.trim() || null,
+      ...(thing ? { type: e.about.trim().toLowerCase() || null } : {}),
     });
   }
   return fresh;
+};
+
+/**
+ * A thing the writer named and no item points at (D42): the card would not be made. Models leave it out of `about` —
+ * the item stands as one about «user» (S15 «вещи»: DeepSeek links 21 of 24, Qwen 3.7 Flash 2 of 24) — so a record
+ * whose text has the thing's name is linked to it, as «about» (or as a participant of an event). Only things: a person
+ * or an organization the writer does not link stays as it was measured.
+ */
+const linkThings = (records: Planned[], fresh: Map<string, Fresh>) => {
+  const linked = new Set(
+    records.flatMap((r) =>
+      r.entities.flatMap((l) => ("newRef" in l ? [l.newRef] : []))
+    )
+  );
+  const loose = [...fresh.values()].filter(
+    (e) => e.kind === "custom" && !linked.has(e.ref)
+  );
+  if (loose.length === 0) {
+    return records;
+  }
+  return records.map((r) => {
+    const text = normalize(r.text);
+    const named = loose.filter((e) => text.includes(normalize(e.name)));
+    return named.length === 0
+      ? r
+      : {
+          ...r,
+          entities: [
+            ...r.entities,
+            ...named.map((e): Link => ({
+              newRef: e.ref,
+              role: r.kind === "event" ? "participant" : "about",
+            })),
+          ],
+        };
+  });
 };
 
 /** A question with two or more known cards waits for the person; with one it is that card (in `asKnown`), with none — nothing. */
@@ -843,7 +901,7 @@ export const planWrite = (
   );
   const sorted = sortOut(records, asks);
   const drafts = sorted.drafts.map(withoutReplaces);
-  const ready = resolveReplaces(sorted.ready, knownRecords);
+  const ready = linkThings(resolveReplaces(sorted.ready, knownRecords), fresh);
   const used = new Set(
     [...ready, ...drafts.flatMap((d) => d.records)].flatMap((r) =>
       r.entities.flatMap((l) => ("newRef" in l ? [l.newRef] : []))

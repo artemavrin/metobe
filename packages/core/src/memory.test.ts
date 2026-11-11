@@ -1600,6 +1600,26 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       phone: "+7 900 000-00-00",
     });
 
+    // A thing of the person's own kind (D42): kind `custom`, the kind's word on the card, changed by hand.
+    const bus = await memory.createEntity(gwen, {
+      kind: "custom",
+      name: "Автобус 412",
+      type: " автобус ",
+    });
+    expect(bus).toMatchObject({ kind: "custom", type: "автобус" });
+    await memory.updateEntity(gwen, bus.id, { type: "маршрутка" });
+    const things = await memory.listEntities(gwen);
+    expect(things.find((c) => c.id === bus.id)).toMatchObject({
+      type: "маршрутка",
+    });
+    // The other kinds carry no type, whatever is given.
+    const other = await memory.createEntity(gwen, {
+      kind: "person",
+      name: "Игорь Тестовый",
+      type: "автобус",
+    });
+    expect(other.type).toBeNull();
+
     const merge = await memory.mergeEntities(gwen, kotova.id, lena.id);
     expect(merge).not.toBeNull();
     const cards = await memory.listEntities(gwen);
