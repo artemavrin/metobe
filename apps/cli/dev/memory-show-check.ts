@@ -6,7 +6,8 @@
 //
 //   cd apps/cli && DRY=1 npx tsx --conditions=react-server --env-file=../../.env dev/memory-show-check.ts   — only lists
 //   cd apps/cli && npx tsx --conditions=react-server --env-file=../../.env dev/memory-show-check.ts
-//   MODEL=deepseek/deepseek-v4-flash-0731 — the model by its id among the installation's models
+//   MODEL=… — the model by its id among the installation's models; Muse Ember by default, taken even while it is
+//   switched off in the list (a check is not a reason to switch a model on for everyone)
 
 import { getLanguageModel } from "@metobe/core/ai";
 import { STYLE_NOTE } from "@metobe/core/chat-tools/answer-style";
@@ -24,7 +25,7 @@ import { user } from "@metobe/db/schema/auth";
 import { generateText, stepCountIs } from "ai";
 
 const TIME_ZONE = "Europe/Moscow";
-const MODEL = process.env.MODEL ?? "deepseek/deepseek-v4-flash-0731";
+const MODEL = process.env.MODEL ?? "meta/muse-ember";
 
 const day = (n: number) => new Date(Date.now() + n * 86_400_000);
 
@@ -55,7 +56,7 @@ if (process.env.DRY) {
 const { db, sql } = getDb();
 const [row] = await sql<
   { source_id: string }[]
->`select source_id from models where model_id = ${MODEL} and enabled limit 1`;
+>`select source_id from models where model_id = ${MODEL} order by enabled desc limit 1`;
 if (!row) {
   throw new Error(`no model ${MODEL} in this installation`);
 }

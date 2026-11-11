@@ -58,6 +58,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
         ? ("pinned" as const)
         : chatGroupOf(chat.updatedAt, now, prefs.timeZone),
       id: chat.id,
+      memoryOff: chat.memoryOff,
       shared: chat.visibility === "team",
       title: chat.title,
     })

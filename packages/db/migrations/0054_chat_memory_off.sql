@@ -1,0 +1,1 @@
+ALTER TABLE "chats" ADD COLUMN "memory_off" boolean DEFAULT false NOT NULL;

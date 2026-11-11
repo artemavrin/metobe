@@ -379,6 +379,13 @@
       "when": 1794374668075,
       "tag": "0053_memory_custom_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794384280683,
+      "tag": "0054_chat_memory_off",
+      "breakpoints": true
     }
   ]
 }

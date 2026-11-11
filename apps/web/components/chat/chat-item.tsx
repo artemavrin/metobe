@@ -41,6 +41,8 @@ export interface ChatItem {
   naming?: boolean;
   /** Open to the team by its link (read only). */
   shared?: boolean;
+  /** «Не запоминать этот чат»: the memory leaves its messages alone. */
+  memoryOff?: boolean;
 }
 
 /** What the sidebar does with a chat: each changes the list at once and tells the server. */
@@ -52,6 +54,8 @@ export interface ChatOps {
   share: (id: string) => void;
   /** «Сжать чат» (D37): only where the chat's thread is open to do it. */
   compact?: (id: string) => void;
+  /** «Не запоминать этот чат» on or off (Д7.2): only while the person's memory is on. */
+  memoryOff?: (id: string, off: boolean) => void;
 }
 
 // How fast a long title slides under the cursor, in pixels per second — and the longest it may take: a very long

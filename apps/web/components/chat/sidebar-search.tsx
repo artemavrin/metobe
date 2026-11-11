@@ -10,9 +10,11 @@ import {
 } from "@metobe/ui/components/command";
 import { Kbd } from "@metobe/ui/components/kbd";
 import { SidebarInput, useSidebar } from "@metobe/ui/components/sidebar";
+import { Toaster } from "@metobe/ui/components/sonner";
 import { cn } from "@metobe/ui/lib/utils";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import {
+  BookPlus,
   MessageSquare,
   Monitor,
   Moon,
@@ -30,6 +32,10 @@ import type { ReactNode } from "react";
 
 import { searchChatsAction } from "@/app/(app)/(chat)/actions";
 import type { ChatItem } from "@/components/chat/chat-item";
+import {
+  NOTE_TOASTER,
+  useRememberNote,
+} from "@/components/memory/use-memory-actions";
 import { useHotkeyLabel } from "@/lib/hotkey-label";
 import { SETTINGS_NAV } from "@/lib/settings-nav";
 
@@ -58,6 +64,9 @@ const matches = (query: string, ...texts: string[]) => {
   return words.every((w) => hay.includes(w));
 };
 
+/** The row that writes the query to the memory. */
+const NOTE_ROW = "note:new";
+
 const THEMES = [
   { icon: Sun, id: "light" },
   { icon: Moon, id: "dark" },
@@ -68,6 +77,7 @@ const Results = ({
   query,
   chats,
   admin,
+  memory,
   onDone,
   selected,
   onSelected,
@@ -76,6 +86,8 @@ const Results = ({
   query: string;
   chats: ChatItem[];
   admin: boolean;
+  /** The person's memory is on: «Записать в память» is offered. */
+  memory: boolean;
   onDone: () => void;
   /** The highlighted row: the first one, until the arrows moved it (then it stays while it is there). */
   selected: string;
@@ -87,6 +99,7 @@ const Results = ({
   const hk = useHotkeyLabel();
   const router = useRouter();
   const { setTheme } = useTheme();
+  const remember = useRememberNote();
   const q = query.trim();
   // The server's hits for what was said; the titles are found here at once.
   const [found, setFound] = useState<{ query: string; hits: Hit[] }>({
@@ -159,8 +172,10 @@ const Results = ({
     ...sections.map((s) => `section:${s.id}`),
     ...actions.map((a) => `action:${a.id}`),
     ...themes.map((th) => `theme:${th.id}`),
+    ...(memory ? [NOTE_ROW] : []),
   ];
-  const first = values[0] ?? "";
+  // «Записать в память» is the last row and never the one Enter takes by itself: a search that found nothing is not a note.
+  const first = values.find((v) => v !== NOTE_ROW) ?? "";
   // Words found by the server come a moment later and go first: the highlight follows them unless the user moved it.
   const keep = moved && values.includes(selected);
   useEffect(() => {
@@ -205,7 +220,7 @@ const Results = ({
           ))}
         </CommandGroup>
       )}
-      {(actions.length > 0 || themes.length > 0) && (
+      {(actions.length > 0 || themes.length > 0 || memory) && (
         <CommandGroup heading={t("actions")}>
           {actions.map((a) => (
             <CommandItem
@@ -226,6 +241,18 @@ const Results = ({
               <th.icon /> {t(`themes.${th.id}`)}
             </CommandItem>
           ))}
+          {memory && (
+            <CommandItem
+              onSelect={() => {
+                remember(q);
+                onDone();
+              }}
+              value={NOTE_ROW}
+            >
+              <BookPlus />
+              <span className="truncate">{t("remember", { text: q })}</span>
+            </CommandItem>
+          )}
         </CommandGroup>
       )}
     </CommandList>
@@ -239,10 +266,13 @@ const Results = ({
 export const SidebarSearch = ({
   chats,
   admin,
+  memory = false,
   children,
 }: {
   chats: ChatItem[];
   admin: boolean;
+  /** The memory is on: the query can be written to it. */
+  memory?: boolean;
   children: ReactNode;
 }) => {
   const hk = useHotkeyLabel();
@@ -321,6 +351,7 @@ export const SidebarSearch = ({
           <Results
             admin={admin}
             chats={chats}
+            memory={memory}
             onDone={done}
             moved={moved}
             onSelected={setSelected}
@@ -330,6 +361,7 @@ export const SidebarSearch = ({
         )}
       </Command>
       {!searching && children}
+      <Toaster id={NOTE_TOASTER} position="bottom-right" />
     </>
   );
 };

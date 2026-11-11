@@ -44,6 +44,7 @@ export const listChats = (userId: string, limit = 200) => {
   return db
     .select({
       id: chats.id,
+      memoryOff: chats.memoryOff,
       pinnedAt: chats.pinnedAt,
       title: chats.title,
       updatedAt: chats.updatedAt,
@@ -75,6 +76,32 @@ export const setChatPinned = async (
     .update(chats)
     .set({ pinnedAt: pinned ? new Date() : null })
     .where(own(userId, id));
+};
+
+/** «Не запоминать этот чат»: its messages stop going to the memory, or start again. What it gave before stays. */
+export const setChatMemoryOff = async (
+  userId: string,
+  id: string,
+  off: boolean
+) => {
+  const { db } = getDb();
+  const [changed] = await db
+    .update(chats)
+    .set({ memoryOff: off })
+    .where(own(userId, id))
+    .returning({ id: chats.id });
+  return Boolean(changed);
+};
+
+/** Whether the owner told the memory to leave this chat alone. */
+export const isChatMemoryOff = async (userId: string, id: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ off: chats.memoryOff })
+    .from(chats)
+    .where(and(eq(chats.id, id), eq(chats.userId, userId)))
+    .limit(1);
+  return row?.off ?? false;
 };
 
 /** Opens the chat to everyone signed in, by its link (read only), or takes it back to its owner alone. */

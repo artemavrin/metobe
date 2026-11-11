@@ -4,6 +4,7 @@ import type { Job } from "bullmq";
 import { createClient } from "redis";
 import { z } from "zod";
 
+import { isChatMemoryOff } from "./chat";
 import {
   CHAT_SOURCE,
   createWrite,
@@ -98,6 +99,14 @@ const enqueue = async (material: MemoryMaterial) => {
  */
 export const queueMemoryWrite = async (material: MemoryMaterial) => {
   try {
+    // «Не запоминать этот чат»: a message of such a chat is not read at all (§19.8.13).
+    if (
+      material.source === CHAT_SOURCE &&
+      material.chatId &&
+      (await isChatMemoryOff(material.ownerId, material.chatId))
+    ) {
+      return null;
+    }
     if (await isMemoryOnFor(material.ownerId)) {
       const id = await enqueue(material);
       await getMemoryQueue().add("write", { ownerId: material.ownerId });

@@ -14,6 +14,7 @@ import {
 import { Spinner } from "@metobe/ui/components/spinner";
 import { Switch } from "@metobe/ui/components/switch";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { Row, Rows } from "@/components/settings/rows";
@@ -92,6 +93,20 @@ export const MemoryForm = ({ on: initial }: { on: boolean }) => {
           }}
         />
       </Row>
+      {on && (
+        <Row hint={t("settingsExportHint")} label={t("settingsExport")}>
+          <Button
+            nativeButton={false}
+            render={
+              <Link download href="/api/memory/export" prefetch={false} />
+            }
+            size="sm"
+            variant="outline"
+          >
+            {t("settingsExportButton")}
+          </Button>
+        </Row>
+      )}
       <Row hint={t("settingsForgetHint")} label={t("settingsForget")}>
         <Forget />
       </Row>

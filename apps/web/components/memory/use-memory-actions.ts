@@ -176,3 +176,63 @@ export const useActionsOf = (
     timeZone,
   };
 };
+
+/**
+ * «Записать в память» from the search (Д7.1): the text goes to the memory, and a toast in the corner says what came of
+ * it — kept, with «Отменить»; nothing to keep; or later. The toasts are the search's own (`toasterId`): the page the
+ * person is on may have no toaster of its own, or a different one.
+ */
+export const NOTE_TOASTER = "note";
+
+export const useRememberNote = () => {
+  const t = useTranslations("memory");
+  const options = { toasterId: NOTE_TOASTER } as const;
+  return async (text: string) => {
+    const response = await fetch("/api/memory/notes", {
+      body: JSON.stringify({ text }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    }).catch(() => null);
+    const result = response?.ok
+      ? ((await response.json()) as MemoryNoteResult)
+      : null;
+    if (!result || result.status === "failed" || result.status === "off") {
+      toast.error(t("failed"), options);
+      return;
+    }
+    if (result.status === "skipped") {
+      toast(t("noteNothing"), options);
+      return;
+    }
+    if (result.status === "queued") {
+      toast(t("noteLater"), options);
+      return;
+    }
+    const [first] = result.records;
+    if (!first) {
+      toast(t("noteAsked"), options);
+      return;
+    }
+    const { writeId } = result;
+    const words = { count: result.records.length - 1, text: first.text };
+    toast(
+      result.records.length > 1
+        ? t("rememberedMore", words)
+        : t("remembered", words),
+      {
+        ...options,
+        action: writeId
+          ? {
+              label: t("undo"),
+              onClick: async () => {
+                await fetch(`/api/memory/writes/${writeId}/undo`, {
+                  method: "POST",
+                });
+                toast(t("undone"), options);
+              },
+            }
+          : undefined,
+      }
+    );
+  };
+};

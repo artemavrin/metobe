@@ -460,6 +460,13 @@ export const writeNote = async (
   return writeMaterial(ownerId, { about: cardId, text }, timeZone);
 };
 
+/** A note with no card, typed in the search (⌘K): the writer picks what it is and which card it is about. */
+export const writeFreeNote = (
+  ownerId: string,
+  text: string,
+  timeZone: string
+) => writeMaterial(ownerId, { text }, timeZone);
+
 /** A rule typed on the «Правила» page (P22): read like a note, as a standing rule. */
 export const writeRule = (ownerId: string, text: string, timeZone: string) =>
   writeMaterial(ownerId, { intent: "rule", text }, timeZone);

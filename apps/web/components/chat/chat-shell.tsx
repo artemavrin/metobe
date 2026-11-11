@@ -44,6 +44,7 @@ import type { ReactNode } from "react";
 
 import {
   deleteChatAction,
+  memoryOffChatAction,
   pinChatAction,
   renameChatAction,
 } from "@/app/(app)/(chat)/actions";
@@ -385,6 +386,14 @@ export const ChatShell = ({
     return {
       // Runs in the open chat's thread, which holds its messages (components/chat/compact-bridge).
       compact: () => compactBridge.request(),
+      memoryOff: memory
+        ? (id, off) => {
+            setChats((list) =>
+              list.map((c) => (c.id === id ? { ...c, memoryOff: off } : c))
+            );
+            settle(memoryOffChatAction(id, off));
+          }
+        : undefined,
       pin: (id, pinned) => {
         settle(pinChatAction(id, pinned));
       },
@@ -403,7 +412,7 @@ export const ChatShell = ({
       },
       share: (id) => setSharingId(id),
     };
-  }, [compactBridge, pathname, router]);
+  }, [compactBridge, memory, pathname, router]);
   // ⌘, (Ctrl+, elsewhere) from anywhere, text fields included; the physical key, so ЙЦУКЕН works too.
   useHotkey("Mod+,", () => router.push("/settings"), { ignoreInputs: false });
 
@@ -421,7 +430,7 @@ export const ChatShell = ({
               </SidebarHeader>
               <SidebarContent>
                 {/* The search on top, as everywhere; while it is searching its results take the place of tasks and chats. */}
-                <SidebarSearch admin={admin} chats={chats}>
+                <SidebarSearch admin={admin} chats={chats} memory={memory}>
                   <Tasks tasks={taskRows} />
                   {memory && <Memory />}
                   <History chats={chats} ops={ops} />
