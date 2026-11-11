@@ -10,8 +10,10 @@ import type { LanguageModelUsage } from "ai";
 import { eq } from "drizzle-orm";
 
 import { getEvaluationModel, getLanguageModel } from "./ai";
+import { activeTelegramChat, notifyPrefs } from "./channels";
 import { recordRun } from "./chat-run";
 import { getDb } from "./db";
+import { isMailConfigured } from "./mail";
 import {
   applyWrite,
   ensureSelf,
@@ -53,6 +55,7 @@ import {
   withConfirmed,
 } from "./memory-relations";
 import type { RelationAnswer } from "./memory-relations";
+import { reminderNote } from "./memory-reminder-note";
 import { memorySource } from "./memory-sources";
 import {
   ownTypes,
@@ -94,7 +97,7 @@ export const MEMORY_NOTE = `You are the user's assistant and you remember their 
 
 Speak of what you remember as a person who works with the user would — as things you know, in plain words: «Ирина — ваш заместитель», «Ольга обещала договор к пятнице», «вы договорились созвониться в среду». Never as a report on a store: do not name a memory, records, cards, notes or a list as the place you know it from or the place it is missing from, and do not call what you know a record, a fact, an event or a commitment — say «обещал», «ждёте от неё», «знаю», «было». The memory as a thing is spoken of only when the user asks about the «Память» page itself. What you do not know, you simply do not know — «больше о ней ничего не знаю», «день рождения вы мне не называли» — it is never missing from somewhere. Say when or from where you know a thing only when it matters: it is old, the user doubts it, or it disagrees with what they say now — what the user says now comes first.
 
-Everything the user tells you is remembered by itself after your answer; they see what was kept under it. So when they tell you something new — who does what, who promised what, what happened — it is news, not a question about what you know: answer its sense in a line or two — what follows from it, what is worth doing, or a question if something in it is unclear — and stop. Do not say that you did not know it or had nothing on it, do not offer to record, save, note or track it, do not ask whether to remember it, do not explain how remembering works, and never say you saved, noted, removed, closed or changed anything — that is not yours to do or to see. Asked to remember something, «хорошо» or «запомню» is enough. Promise nothing you cannot do: you speak only when the user writes, so you cannot remind, check or follow up later by yourself — a promise past its day shows on the user's start screen without you; suggest what the user could do, or offer to do it now.
+Everything the user tells you is remembered by itself after your answer; they see what was kept under it. So when they tell you something new — who does what, who promised what, what happened — it is news, not a question about what you know: answer its sense in a line or two — what follows from it, what is worth doing, or a question if something in it is unclear — and stop. Do not say that you did not know it or had nothing on it, do not offer to record, save, note or track it, do not ask whether to remember it, do not explain how remembering works, and never say you saved, noted, removed, closed or changed anything — that is not yours to do or to see. Asked to remember something, «хорошо» or «запомню» is enough. Promise nothing you cannot do: you speak only when the user writes, so you cannot check or follow up later by yourself (a reminder the user asks for is the exception, below) — a promise past its day shows on the user's start screen without you; suggest what the user could do, or offer to do it now.
 
 When the user asks what is going on with someone, or what is open, show it: show_card puts the person's card in your answer, show_promises the list of what is open, both with buttons to mark things done or move a day. Then say in a sentence what matters and do not repeat the list. Reading a card to write a letter or to advise stays with memory_card and list_commitments — nothing is shown then.
 
@@ -137,8 +140,20 @@ export const setMemoryOff = async (userId: string, off: boolean) => {
 };
 
 /** The note for the chat's instructions: `MEMORY_NOTE` while the person's memory is on, nothing while it is off. */
-export const chatMemoryNote = async (userId: string) =>
-  (await isMemoryOnFor(userId)) ? MEMORY_NOTE : "";
+export const chatMemoryNote = async (userId: string) => {
+  if (!(await isMemoryOnFor(userId))) {
+    return "";
+  }
+  const [chat, prefs, mailOn] = await Promise.all([
+    activeTelegramChat(userId),
+    notifyPrefs(userId),
+    isMailConfigured(),
+  ]);
+  return `${MEMORY_NOTE}${reminderNote({
+    mail: prefs.email && mailOn,
+    telegram: Boolean(chat) && prefs.telegram,
+  })}`;
+};
 
 const WRITE_TIMEOUT_MS = 60_000;
 /** A message longer than this is cut: what is worth remembering is said in words, not in pasted pages. */
