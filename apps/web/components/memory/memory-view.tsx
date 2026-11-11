@@ -28,7 +28,10 @@ import {
   FolderKanban,
   ListChecks,
   LoaderCircle,
+  Mail,
   MailCheck,
+  Pencil,
+  Phone,
   Plus,
   Search,
   UserRound,
@@ -271,6 +274,123 @@ const Role = ({ card }: { card: MemoryCardItem }) => {
 };
 
 /** Under the role: the groups they are in and the projects their records name, each a way to its card. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+const PHONE = /^[+\d][\d\s().-]{3,29}$/u;
+
+/**
+ * One way to reach them, changed in place: set — a link (`mailto:`, `tel:`) with a pencil on hover; not set — a quiet
+ * «Добавить …». Enter or leaving the field saves, Escape does not; what is not an address or a number is not saved.
+ */
+const Reach = ({
+  card,
+  field,
+}: {
+  card: MemoryCardItem;
+  field: "email" | "phone";
+}) => {
+  const t = useTranslations("memory");
+  const { patchCard } = useActions();
+  const [editing, setEditing] = useState(false);
+  const value = card[field];
+  const [text, setText] = useState(value ?? "");
+  const Icon = field === "email" ? Mail : Phone;
+  const valid = (v: string) => (field === "email" ? EMAIL : PHONE).test(v);
+  const save = async () => {
+    const next = text.trim();
+    if (next && !valid(next)) {
+      return;
+    }
+    setEditing(false);
+    if (next !== (value ?? "")) {
+      await patchCard(card.id, { [field]: next || null });
+    }
+  };
+  if (editing) {
+    const bad = text.trim() !== "" && !valid(text.trim());
+    return (
+      <form
+        className="flex items-center gap-1.5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+      >
+        <Icon className="text-muted-foreground size-3.5 shrink-0" />
+        <input
+          aria-invalid={bad}
+          aria-label={t(`${field}Label`)}
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- opened by the person's press
+          autoFocus
+          className={cn(
+            "w-52 border-b bg-transparent text-sm outline-none",
+            bad ? "border-destructive" : "border-foreground/30"
+          )}
+          maxLength={200}
+          onBlur={() => (bad ? setEditing(false) : save())}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setText(value ?? "");
+              setEditing(false);
+            }
+          }}
+          type={field === "email" ? "email" : "tel"}
+          value={text}
+        />
+      </form>
+    );
+  }
+  if (!value) {
+    return (
+      <button
+        className="text-muted-foreground/70 hover:text-foreground flex items-center gap-1.5 text-sm transition-colors duration-150"
+        onClick={() => {
+          setText("");
+          setEditing(true);
+        }}
+        type="button"
+      >
+        <Icon className="size-3.5 shrink-0" />
+        {t(`${field}Add`)}
+      </button>
+    );
+  }
+  return (
+    <span className="group/reach flex items-center gap-1.5 text-sm">
+      <Icon className="text-muted-foreground size-3.5 shrink-0" />
+      <a
+        className="hover:underline"
+        href={
+          field === "email"
+            ? `mailto:${value}`
+            : `tel:${value.replaceAll(/[\s().-]/gu, "")}`
+        }
+      >
+        {value}
+      </a>
+      <button
+        aria-label={t(`${field}Label`)}
+        className="text-muted-foreground hover:text-foreground opacity-0 transition-opacity duration-150 group-hover/reach:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60"
+        onClick={() => {
+          setText(value);
+          setEditing(true);
+        }}
+        type="button"
+      >
+        <Pencil className="size-3" />
+      </button>
+    </span>
+  );
+};
+
+/** Under the figures of a person or an organization: how to reach them. */
+const Contacts = ({ card }: { card: MemoryCardItem }) => (
+  <div className="-mt-2 flex flex-wrap gap-x-6 gap-y-1 px-2">
+    <Reach card={card} field="email" key={`e${card.email}`} />
+    <Reach card={card} field="phone" key={`p${card.phone}`} />
+  </div>
+);
+
 /** After the role, on its line: the groups they are in and the projects their records name, each a way to its card. */
 const Links = ({ links }: { links: NonNullable<MemoryCard["links"]> }) =>
   links.map((l) => (
@@ -284,6 +404,19 @@ const Links = ({ links }: { links: NonNullable<MemoryCard["links"]> }) =>
       </Link>
     </span>
   ));
+
+/** Under the name: a person's or an organization's role (changed in place), then their groups and projects; others — the role. */
+const Hint = ({ data }: { data: MemoryCard }) =>
+  data.contact ? (
+    <div className="flex min-w-0 items-baseline gap-x-1.5 text-sm">
+      <Role card={data.card} key={data.card.role} />
+      <span className="min-w-0 flex-1 truncate">
+        <Links links={data.links ?? []} />
+      </span>
+    </div>
+  ) : (
+    data.card.role
+  );
 
 /**
  * «Что сейчас» (P22): three figures in a row instead of a paragraph — the last contact, how often a rule wants one,
@@ -577,23 +710,12 @@ const CardView = ({
             )
           }
           avatar={<Avatar kind={card.kind} name={card.name} size="size-10" />}
-          hint={
-            data.contact ? (
-              // One line under the name: the role, then the groups and projects.
-              <div className="flex min-w-0 items-baseline gap-x-1.5 text-sm">
-                <Role card={card} key={card.role} />
-                <span className="min-w-0 flex-1 truncate">
-                  <Links links={data.links ?? []} />
-                </span>
-              </div>
-            ) : (
-              card.role
-            )
-          }
+          hint={<Hint data={data} />}
           onBack={onBack}
           title={card.name}
         />
         <Now data={data} timeZone={timeZone} />
+        {data.contact && <Contacts card={card} />}
         <QuickAdd
           card={card}
           empty={records.length === 0}

@@ -57,8 +57,15 @@ export interface MemoryActions {
   /** `saved` — the toast's key in `memory`. */
   patch: (id: string, patch: RecordPatch, saved: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  /** A card's role, by hand (P22: in place under the name); null — none. */
-  patchCard: (id: string, patch: { role: string | null }) => Promise<void>;
+  /** A card's role, email or phone, by hand (P22: in place on the card); null — none. */
+  patchCard: (
+    id: string,
+    patch: {
+      role?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    }
+  ) => Promise<void>;
   /** «Записать…» on a card (P22); the records it wrote — none when nothing went in yet. */
   note: (
     card: MemoryCardItem,

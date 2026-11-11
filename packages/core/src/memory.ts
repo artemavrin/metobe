@@ -128,7 +128,10 @@ const BODY = "body";
 
 const entityBody = z.object({
   aliases: z.array(z.string()),
+  /** Where to write and call them; cards sealed before they existed have none. */
+  email: z.string().nullable().default(null),
   name: z.string(),
+  phone: z.string().nullable().default(null),
   role: z.string().nullable(),
 });
 
@@ -140,6 +143,9 @@ export interface MemoryEntity {
   aliases: string[];
   /** «закупщик поставщика», «наш перевозчик»: who it is to the person. */
   role: string | null;
+  /** How to reach them: put in by hand (later — read from letters). */
+  email: string | null;
+  phone: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -147,7 +153,7 @@ export interface MemoryEntity {
 const sealEntity = (
   ownerId: string,
   id: string,
-  body: z.infer<typeof entityBody>,
+  body: z.input<typeof entityBody>,
   key: SecretsKey
 ) =>
   sealField(JSON.stringify(body), memoryAad(ownerId, ENTITIES, id, BODY), key);
@@ -164,9 +170,11 @@ const toEntity = (
   return {
     aliases: body.aliases,
     createdAt: row.createdAt,
+    email: body.email,
     id: row.id,
     kind: row.kind,
     name: body.name,
+    phone: body.phone,
     role: body.role,
     updatedAt: row.updatedAt,
   };
@@ -290,7 +298,13 @@ export const ensureSelf = async (ownerId: string, name: string) => {
 export const updateEntity = async (
   ownerId: string,
   id: string,
-  patch: { name?: string; aliases?: string[]; role?: string | null }
+  patch: {
+    name?: string;
+    aliases?: string[];
+    role?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }
 ) => {
   const key = await dataKey(ownerId, false);
   if (!key) {
@@ -319,7 +333,9 @@ export const updateEntity = async (
         id,
         {
           aliases: patch.aliases ?? was.aliases,
+          email: patch.email === undefined ? was.email : patch.email,
           name,
+          phone: patch.phone === undefined ? was.phone : patch.phone,
           role: patch.role === undefined ? was.role : patch.role,
         },
         key
@@ -2077,6 +2093,13 @@ export const listDismissals = async (ownerId: string) => {
 
 // --- merging cards (ARCH §19.8.5) ----------------------------------------------------------------------------------
 
+/** What the kept card lacks it takes from the other one — its role and ways to reach them; what it has stays. */
+const takes = (keep: MemoryEntity, gone: MemoryEntity) => ({
+  takesEmail: !keep.email && Boolean(gone.email),
+  takesPhone: !keep.phone && Boolean(gone.phone),
+  takesRole: !keep.role && Boolean(gone.role),
+});
+
 const mergeBody = z.object({
   /** Other names `keep` got from `gone`. */
   aliasesAdded: z.array(z.string()),
@@ -2097,8 +2120,11 @@ const mergeBody = z.object({
   ),
   /** `gone`'s links dropped as repeats: `keep` had the same role in the same record. */
   dropped: z.array(z.object({ recordId: z.string(), role: z.string() })),
+  /** The contacts the kept card took from the other one: «Вернуть» takes them off again. */
+  emailTaken: z.boolean().optional(),
   /** `gone`'s links now on `keep`. */
   moved: z.array(z.object({ recordId: z.string(), role: z.string() })),
+  phoneTaken: z.boolean().optional(),
   /** `keep`'s role before, when it took `gone`'s. */
   roleBefore: z.string().nullable().optional(),
 });
@@ -2180,7 +2206,7 @@ export const mergeEntities = async (
         aliasesAdded.push(name.trim());
       }
     }
-    const takesRole = !keep.role && Boolean(gone.role);
+    const { takesEmail, takesPhone, takesRole } = takes(keep, gone);
     await tx
       .update(memoryEntities)
       .set({
@@ -2189,7 +2215,9 @@ export const mergeEntities = async (
           keepId,
           {
             aliases: [...keep.aliases, ...aliasesAdded],
+            email: takesEmail ? gone.email : keep.email,
             name: keep.name,
+            phone: takesPhone ? gone.phone : keep.phone,
             role: takesRole ? gone.role : keep.role,
           },
           key
@@ -2248,7 +2276,9 @@ export const mergeEntities = async (
       aliasesAdded,
       dismissals,
       dropped,
+      emailTaken: takesEmail || undefined,
       moved,
+      phoneTaken: takesPhone || undefined,
       roleBefore: takesRole ? keep.role : undefined,
     };
     await tx.insert(memoryMerges).values({
@@ -2347,7 +2377,9 @@ export const undoMerge = async (ownerId: string, mergeId: string) => {
             keep.id,
             {
               aliases: keep.aliases.filter((a) => !added.has(keyOf(a))),
+              email: body.emailTaken ? null : keep.email,
               name: keep.name,
+              phone: body.phoneTaken ? null : keep.phone,
               role: body.roleBefore === undefined ? keep.role : body.roleBefore,
             },
             key

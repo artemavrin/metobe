@@ -1586,9 +1586,27 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     expect(await memory.mergeEntities(gwen, self.id, lena.id)).toBeNull();
     expect(await memory.mergeEntities(gwen, lena.id, lena.id)).toBeNull();
 
+    // Contacts: put in by hand; the card kept takes the phone it lacks, keeps its own address.
+    await memory.updateEntity(gwen, kotova.id, {
+      email: "kotova@example.test",
+    });
+    await memory.updateEntity(gwen, lena.id, {
+      email: "lena@example.test",
+      phone: "+7 900 000-00-00",
+    });
+    const before = await memory.listEntities(gwen);
+    expect(before.find((c) => c.id === lena.id)).toMatchObject({
+      email: "lena@example.test",
+      phone: "+7 900 000-00-00",
+    });
+
     const merge = await memory.mergeEntities(gwen, kotova.id, lena.id);
     expect(merge).not.toBeNull();
     const cards = await memory.listEntities(gwen);
+    expect(cards.find((c) => c.id === kotova.id)).toMatchObject({
+      email: "kotova@example.test",
+      phone: "+7 900 000-00-00",
+    });
     expect(cards.map((c) => c.name)).not.toContain("Лена");
     expect(cards.find((c) => c.id === kotova.id)?.aliases).toEqual(["Лена"]);
     expect(await links(promise.id)).toEqual([kotova.id, self.id].toSorted());
@@ -1613,6 +1631,10 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     const back = await memory.listEntities(gwen);
     expect(back.map((c) => c.name)).toContain("Лена");
     expect(back.find((c) => c.id === kotova.id)?.aliases).toEqual([]);
+    expect(back.find((c) => c.id === kotova.id)).toMatchObject({
+      email: "kotova@example.test",
+      phone: null,
+    });
     expect(await links(promise.id)).toEqual([lena.id, self.id].toSorted());
     expect(await links(meeting.id)).toEqual([kotova.id, lena.id].toSorted());
     expect(await links(after.id)).toEqual([kotova.id]);

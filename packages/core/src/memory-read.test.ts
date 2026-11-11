@@ -12,9 +12,11 @@ const card = (
 ): MemoryEntity => ({
   aliases,
   createdAt: new Date(),
+  email: null,
   id: name,
   kind,
   name,
+  phone: null,
   role: null,
   updatedAt: new Date(),
 });

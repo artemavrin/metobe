@@ -48,11 +48,13 @@ const cardItems = async (ownerId: string, entities: MemoryEntity[]) => {
   const counts = await commitmentCounts(ownerId);
   return entities.filter(isCard).map((e): MemoryCardItem => ({
     aliases: e.aliases,
+    email: e.email,
     id: e.id,
     kind: e.kind,
     name: e.name,
     open: counts.get(e.id)?.open ?? 0,
     overdue: counts.get(e.id)?.overdue ?? 0,
+    phone: e.phone,
     role: e.role,
   }));
 };
@@ -243,7 +245,7 @@ export const searchMemory = async (
   };
   const entities = await listEntities(ownerId);
   const found = entities.filter(
-    (e) => isCard(e) && has(e.name, e.role, ...e.aliases)
+    (e) => isCard(e) && has(e.name, e.role, e.email, e.phone, ...e.aliases)
   );
   const all = await listRecords(ownerId);
   const records = all.filter((r) => has(r.text)).slice(0, MAX_FOUND);

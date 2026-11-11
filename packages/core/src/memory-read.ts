@@ -117,6 +117,13 @@ const cardBlock = (
   const lines = [...open, ...known, ...events].map(
     (r) => `  - ${lineOf(r, names, timeZone)}`
   );
+  const reach = [
+    card.email && `email ${card.email}`,
+    card.phone && `phone ${card.phone}`,
+  ].filter(Boolean);
+  if (reach.length > 0) {
+    lines.unshift(`  - reach: ${reach.join(", ")}`);
+  }
   const about = [card.kind === "org" ? "organization" : card.kind, card.role]
     .filter(Boolean)
     .join("; ");
@@ -288,9 +295,11 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
           return { found: false };
         }
         return {
+          email: data.card.email,
           found: true,
           id: shortId(data.card.id),
           name: data.card.name,
+          phone: data.card.phone,
           records: await lines(cardOrder(data.records).slice(0, MAX_CARD)),
           role: data.card.role,
         };

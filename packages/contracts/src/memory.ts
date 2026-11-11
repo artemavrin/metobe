@@ -131,6 +131,9 @@ export interface MemoryCardItem {
   name: string;
   aliases: string[];
   role: string | null;
+  /** How to reach them; null — not known. */
+  email: string | null;
+  phone: string | null;
   open: number;
   overdue: number;
 }
@@ -241,7 +244,14 @@ export type MemoryRecordPatch = z.infer<typeof memoryRecordPatchSchema>;
 export const memoryCardPatchSchema = z
   .object({
     aliases: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
+    email: z.email().max(200).nullable().optional(),
     name: z.string().trim().min(1).max(200).optional(),
+    phone: z
+      .string()
+      .trim()
+      .regex(/^[+\d][\d\s().-]{3,29}$/u)
+      .nullable()
+      .optional(),
     role: z.string().trim().max(500).nullable().optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
