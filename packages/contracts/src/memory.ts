@@ -253,10 +253,6 @@ export interface MemoryCard {
    * a rhythm rule wants one, in days (null — no rule).
    */
   contact?: { last: string | null; every: number | null };
-  /** The card's «Кратко» (Г2.1); null — none yet, or it no longer fits what is kept. */
-  summary?: MemorySummary | null;
-  /** The model is writing it now: the page looks again in a few seconds. */
-  summaryBuilding?: boolean;
   /** How each side kept its promises (Г2.2), for a person or an organization. */
   reliability?: MemoryReliability;
   /** The groups a person is in now and the projects their records name, for the line under the role. */

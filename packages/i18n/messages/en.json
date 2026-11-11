@@ -2965,11 +2965,6 @@
     "cardActions": "Card actions",
     "reliabilityTheirs": "Promised to you: {total} with a deadline. {onTime} marked done in time, {late} later{late, plural, =0 {} other { ({days} d on average)}}.{moved, plural, =0 {} other { Deadlines moved: {moved}.}}{overdueOpen, plural, =0 {} other { Overdue now: {overdueOpen}.}}",
     "reliabilityMine": "Promised by you: {total} with a deadline. {onTime} marked done in time, {late} later{late, plural, =0 {} other { ({days} d on average)}}.{moved, plural, =0 {} other { Deadlines moved: {moved}.}}{overdueOpen, plural, =0 {} other { Overdue now: {overdueOpen}.}}",
-    "summary": "In brief",
-    "summaryBuilt": "written {date}",
-    "summary_who": "Who",
-    "summary_how": "How to talk",
-    "summary_now": "Now",
     "meeting": "Before a meeting",
     "meetingAsk": "Get me ready to talk to {name} — what they owe me and I owe them, what changed since last time, how best to talk to them.",
     "meetingHint": "Opens a new chat: what you owe each other, what changed since last time and how best to talk"

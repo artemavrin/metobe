@@ -2959,11 +2959,6 @@
     "cardActions": "Действия с карточкой",
     "reliabilityTheirs": "Обещано вам: {total} со сроком. В срок отмечено {onTime}, позже — {late}{late, plural, =0 {} other { (в среднем на {days} дн.)}}.{moved, plural, =0 {} other { Сроки переносились: {moved}.}}{overdueOpen, plural, =0 {} other { Сейчас просрочено: {overdueOpen}.}}",
     "reliabilityMine": "Обещано вами: {total} со сроком. В срок отмечено {onTime}, позже — {late}{late, plural, =0 {} other { (в среднем на {days} дн.)}}.{moved, plural, =0 {} other { Сроки переносились: {moved}.}}{overdueOpen, plural, =0 {} other { Сейчас просрочено: {overdueOpen}.}}",
-    "summary": "Кратко",
-    "summaryBuilt": "собрано {date}",
-    "summary_who": "Кто это",
-    "summary_how": "Как общаться",
-    "summary_now": "Сейчас",
     "meeting": "Перед встречей",
     "meetingAsk": "Подготовь меня к разговору с {name} — что он должен мне и что я ему, что изменилось с прошлого раза, как лучше говорить.",
     "meetingHint": "Откроется новый чат: что вы должны друг другу, что изменилось с прошлого раза и как лучше говорить"
