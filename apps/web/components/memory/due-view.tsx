@@ -30,6 +30,8 @@ interface Data {
   who: string | null;
   card: string | null;
   dueAt: string;
+  /** Its color while not late: whose it is, or «ждёт проверки». */
+  base: string;
 }
 
 const COLOR = {
@@ -74,17 +76,15 @@ const eventOf = (
     dayKey(new Date(start.getTime() + 1.5 * DAY_MS), timeZone),
     timeZone
   );
-  let color: string = row.side === "mine" ? COLOR.mine : COLOR.theirs;
+  let base: string = row.side === "mine" ? COLOR.mine : COLOR.theirs;
   if (row.status === "unconfirmed") {
-    color = COLOR.unconfirmed;
-  }
-  if (day < today) {
-    color = COLOR.late;
+    base = COLOR.unconfirmed;
   }
   return {
     allDay: true,
-    color,
+    color: day < today ? COLOR.late : base,
     data: {
+      base,
       card: row.who?.id ?? null,
       dueAt: row.dueAt,
       who: row.who?.name ?? null,
@@ -94,6 +94,19 @@ const eventOf = (
     start,
     title: row.text,
   };
+};
+
+/** Red once its day is before today, its own color otherwise — so a moved bar turns late, or stops being late. */
+const recolor = (
+  event: CalendarEvent<Data>,
+  today: string,
+  timeZone: string
+): CalendarEvent<Data> => {
+  const color =
+    dayKey(event.start, timeZone) < today
+      ? COLOR.late
+      : (event.data?.base ?? event.color);
+  return color === event.color ? event : { ...event, color };
 };
 
 const patchDue = (id: string, dueAt: Date) =>
@@ -130,8 +143,7 @@ export const DueView = ({
   }, [t, timeZone]);
 
   const late = data
-    ? data.rows.filter((r) => dayKey(new Date(r.dueAt), timeZone) < data.today)
-        .length
+    ? events.filter((e) => dayKey(e.start, timeZone) < data.today).length
     : 0;
 
   const i18n = useMemo(
@@ -209,7 +221,11 @@ export const DueView = ({
               router.push(`/memory?card=${card}`);
             }
           }}
-          onEventsChange={setEvents}
+          onEventsChange={(all) =>
+            setEvents(
+              data ? all.map((e) => recolor(e, data.today, timeZone)) : all
+            )
+          }
           onEventUpdate={move}
           timeZone={timeZone}
           views={["month", "week", "agenda"]}
