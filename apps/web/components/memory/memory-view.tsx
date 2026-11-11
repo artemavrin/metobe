@@ -5,7 +5,6 @@ import type {
   MemoryCard,
   MemoryCardItem,
   MemoryEntityKind,
-  MemoryNoteResult,
   MemoryOverview,
   MemoryRecordView,
   MemorySearch,
@@ -30,12 +29,9 @@ import {
 import { useIsMobile } from "@metobe/ui/hooks/use-mobile";
 import { cn } from "@metobe/ui/lib/utils";
 import {
-  Box,
-  Building2,
   ChevronDown,
   ChevronLeft,
   CircleHelp,
-  FolderKanban,
   ListChecks,
   LoaderCircle,
   Mail,
@@ -45,15 +41,21 @@ import {
   Plus,
   Search,
   UserRound,
-  Users,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { TopBar } from "@/components/chat/top-bar";
-import { daysUntil } from "@/lib/memory-dates";
 
+import {
+  Avatar,
+  Balance,
+  Now,
+  Section,
+  byUrgency,
+  sidesOf,
+} from "./card-parts";
 import {
   ENTER,
   FreshContext,
@@ -65,7 +67,8 @@ import {
   shortDay,
   useDirection,
 } from "./memory-record";
-import type { MemoryActions } from "./memory-record";
+import { readJson, useActionsOf } from "./use-memory-actions";
+import type { T } from "./use-memory-actions";
 
 // The «Память» page (P16 «Карточки», D39): people, organizations and projects on the left with their open and overdue
 // commitments, «Не записано» and «Правила»; the card on the right — commitments (important first, then by deadline),
@@ -78,69 +81,12 @@ type Pick =
   | { type: "rules" };
 
 type Question = ChatMemory["questions"][number];
-type T = ReturnType<typeof useTranslations<"memory">>;
 
 const KINDS = ["person", "group", "org", "project"] as const;
 const OPEN = new Set(["open", "unconfirmed"]);
 const SEARCH_DELAY_MS = 250;
 
 const normalize = (s: string) => s.toLocaleLowerCase("ru").replaceAll("ё", "е");
-
-const Avatar = ({
-  kind,
-  name,
-  size = "size-8",
-}: {
-  kind: MemoryCardItem["kind"];
-  name: string;
-  size?: string;
-}) => {
-  const initials = name
-    .replaceAll(/[«»"]/gu, "")
-    .split(/\s+/u)
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("");
-  let face: React.ReactNode = initials;
-  if (kind === "org") {
-    face = <Building2 className="size-3.5" />;
-  } else if (kind === "project") {
-    face = <FolderKanban className="size-3.5" />;
-  } else if (kind === "group") {
-    face = <Users className="size-3.5" />;
-  } else if (kind === "custom") {
-    face = <Box className="size-3.5" />;
-  }
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "bg-muted text-muted-foreground flex shrink-0 items-center justify-center rounded-full text-[11px] font-medium",
-        size
-      )}
-    >
-      {face}
-    </span>
-  );
-};
-
-const Section = ({
-  title,
-  count,
-  children,
-}: {
-  title: string;
-  count?: number;
-  children: React.ReactNode;
-}) => (
-  <section className="flex flex-col gap-1">
-    <h3 className="text-muted-foreground flex items-center gap-1.5 px-2 text-xs font-medium">
-      {title}
-      {count !== undefined && <span className="tabular-nums">{count}</span>}
-    </h3>
-    <ul className="flex flex-col">{children}</ul>
-  </section>
-);
 
 /** «Раньше» and the closed ones: the history is there, folded out of the way. */
 const Folded = ({
@@ -171,12 +117,6 @@ const Folded = ({
     </div>
   );
 };
-
-/** Open commitments: «важно» first, then the nearest deadline, those without one last. */
-const byUrgency = (a: MemoryRecordView, b: MemoryRecordView) =>
-  Number(b.important) - Number(a.important) ||
-  (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999") ||
-  b.recordedAt.localeCompare(a.recordedAt);
 
 const Header = ({
   title,
@@ -432,73 +372,6 @@ const Hint = ({ data }: { data: MemoryCard }) =>
     data.card.role
   );
 
-/**
- * «Что сейчас» (P22): three figures in a row instead of a paragraph — the last contact, how often a rule wants one,
- * what is open and past its day. Lines, not a panel. Longer without contact than the rule wants — the warning colour.
- */
-const Now = ({ data, timeZone }: { data: MemoryCard; timeZone: string }) => {
-  const t = useTranslations("memory");
-  const { card, contact } = data;
-  if (!contact || data.records.length === 0) {
-    return null;
-  }
-  const days = contact.last
-    ? -daysUntil(new Date(contact.last), new Date(), timeZone)
-    : null;
-  const late = contact.every !== null && days !== null && days > contact.every;
-  const cells: [string, React.ReactNode][] = [
-    [
-      t("lastContact"),
-      <span className={cn(late && "text-warning")} key="last">
-        {days === null ? t("contactNever") : t("contactAgo", { days })}
-      </span>,
-    ],
-    ...(contact.every === null
-      ? []
-      : ([[t("rhythm"), t("rhythmEvery", { days: contact.every })]] as [
-          string,
-          React.ReactNode,
-        ][])),
-    [
-      t("openNow"),
-      card.open > 0 ? (
-        <>
-          {card.open}
-          {card.overdue > 0 && (
-            <span className="text-destructive">
-              , {t("overdueCount", { count: card.overdue })}
-            </span>
-          )}
-        </>
-      ) : (
-        t("openNone")
-      ),
-    ],
-  ];
-  return (
-    <dl
-      className={cn(
-        "grid divide-x border-y @max-md:grid-cols-1 @max-md:divide-x-0 @max-md:divide-y",
-        cells.length === 3 ? "grid-cols-3" : "grid-cols-2"
-      )}
-    >
-      {cells.map(([label, value], i) => (
-        <div
-          className={cn(
-            // The first lines up with the rows under it.
-            "flex flex-col gap-0.5 py-2.5 @max-md:flex-row @max-md:items-baseline @max-md:justify-between @max-md:px-2",
-            i > 0 ? "pl-4" : "pl-2"
-          )}
-          key={label}
-        >
-          <dt className="text-muted-foreground text-xs">{label}</dt>
-          <dd className="text-sm font-medium tabular-nums">{value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-};
-
 const FIELDS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
 /** Typing in another field, or a key with a modifier: «N» is not ours then. */
@@ -597,67 +470,6 @@ const NoteLine = ({
       </kbd>
     </form>
   );
-};
-
-/** «Ждёте» and «Вы обещали» side by side (P22 «Баланс»); nothing when neither has anything open. */
-const Balance = ({
-  theirs,
-  mine,
-  day,
-}: {
-  theirs: MemoryRecordView[];
-  mine: MemoryRecordView[];
-  /** A short day in the person's zone. */
-  day: (iso: string) => string;
-}) => {
-  const t = useTranslations("memory");
-  if (theirs.length + mine.length === 0) {
-    return null;
-  }
-  return (
-    <div className="grid gap-x-10 gap-y-6 @2xl:grid-cols-2">
-      {(
-        [
-          [t("waiting"), theirs],
-          [t("youPromised"), mine],
-        ] as const
-      ).map(([title, list]) => (
-        <Section count={list.length} key={title} title={title}>
-          {list.length > 0 ? (
-            list.map((r) => (
-              <MemoryRecordRow
-                key={r.id}
-                meta={t("givenOn", {
-                  date: day(r.givenAt ?? r.recordedAt) ?? "",
-                })}
-                record={r}
-              />
-            ))
-          ) : (
-            <li className="text-muted-foreground/70 px-2 py-1.5 text-sm">
-              {t("nothingOpen")}
-            </li>
-          )}
-        </Section>
-      ))}
-    </div>
-  );
-};
-
-/** Who has to do it. */
-const debtorOf = (r: MemoryRecordView) =>
-  r.entities.find((e) => e.role === "debtor");
-
-/**
- * «Баланс» (P22): what they owe and what you owe, apart; promises between others — and every promise on a group's or
- * a project's card — stay one list.
- */
-const sidesOf = (card: MemoryCardItem, open: MemoryRecordView[]) => {
-  const split = card.kind === "person" || card.kind === "org";
-  const theirs = split ? open.filter((r) => debtorOf(r)?.id === card.id) : [];
-  const mine = split ? open.filter((r) => debtorOf(r)?.kind === "self") : [];
-  const others = open.filter((r) => !(theirs.includes(r) || mine.includes(r)));
-  return { mine, others, split, theirs };
 };
 
 const CardView = ({
@@ -1090,10 +902,6 @@ const Empty = ({
   </div>
 );
 
-const readJson = async <Data,>(url: string) => {
-  const response = await fetch(url, { cache: "no-store" });
-  return response.ok ? ((await response.json()) as Data) : null;
-};
 const searchUrl = (query: string) =>
   `/api/memory/search?q=${encodeURIComponent(query)}`;
 
@@ -1170,163 +978,6 @@ const useMemoryData = (
     found: query && found?.q === query ? found.data : null,
     overview,
     reread,
-  };
-};
-
-/** Which part of the card a record is shown in, seen from that card: «Ждёте», «Вы обещали», «Известно»… */
-const sectionOf = (r: MemoryRecordView, cardId: string, t: T) => {
-  if (r.kind === "commitment") {
-    const debtor = debtorOf(r);
-    if (debtor?.id === cardId) {
-      return t("waiting");
-    }
-    return debtor?.kind === "self" ? t("youPromised") : t("otherPromises");
-  }
-  if (r.kind === "event") {
-    return t("events");
-  }
-  return r.kind === "rule" ? t("rules") : t("known");
-};
-
-/** The page's calls: each change says so in a toast and reads the page again; a deletion offers «Вернуть». */
-const useActionsOf = (
-  timeZone: string,
-  reread: () => Promise<void>
-): MemoryActions & {
-  answer: (q: Question, body: object) => Promise<void>;
-  rule: (text: string) => Promise<MemoryRecordView[] | null>;
-} => {
-  const t = useTranslations("memory");
-  /**
-   * A note or a rule in words goes to the memory, which picks what it is: the toast says where it lay (with «Отменить»),
-   * that nothing was found, or that it will be written later. The records it made — none when nothing went in.
-   */
-  const send = async (
-    url: string,
-    text: string,
-    section: (r: MemoryRecordView) => string
-  ): Promise<MemoryRecordView[] | null> => {
-    const response = await fetch(url, {
-      body: JSON.stringify({ text }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-    const result = response.ok
-      ? ((await response.json()) as MemoryNoteResult)
-      : null;
-    if (!result || result.status === "failed" || result.status === "off") {
-      toast.error(t("failed"));
-      return null;
-    }
-    if (result.status === "skipped") {
-      toast(t("noteNothing"));
-      return null;
-    }
-    if (result.status === "queued") {
-      toast(t("noteLater"));
-      return [];
-    }
-    await reread();
-    const [first] = result.records;
-    if (!first) {
-      toast(t("noteAsked"));
-      return [];
-    }
-    const { writeId } = result;
-    const words = {
-      count: result.records.length - 1,
-      section: section(first),
-      text: first.text,
-    };
-    toast(
-      result.records.length > 1
-        ? t("noteSavedMore", words)
-        : t("noteSaved", words),
-      writeId
-        ? {
-            action: {
-              label: t("undo"),
-              onClick: async () => {
-                await fetch(`/api/memory/writes/${writeId}/undo`, {
-                  method: "POST",
-                });
-                await reread();
-                toast(t("undone"));
-              },
-            },
-          }
-        : undefined
-    );
-    return result.records;
-  };
-
-  return {
-    answer: async (question, body) => {
-      const response = await fetch(`/api/memory/questions/${question.id}`, {
-        body: JSON.stringify(body),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
-      if (!(response.ok || response.status === 404)) {
-        toast.error(t("failed"));
-        return;
-      }
-      toast("dismiss" in body ? t("notRemembered") : t("answered"));
-      await reread();
-    },
-    note: (card, text) =>
-      send(`/api/memory/cards/${card.id}/notes`, text, (r) =>
-        sectionOf(r, card.id, t)
-      ),
-    patch: async (id, patch, saved) => {
-      const response = await fetch(`/api/memory/records/${id}`, {
-        body: JSON.stringify(patch),
-        headers: { "content-type": "application/json" },
-        method: "PATCH",
-      });
-      if (!response.ok) {
-        toast.error(t("failed"));
-        return;
-      }
-      toast(t(saved as "saved"));
-      await reread();
-    },
-    patchCard: async (id, patch) => {
-      const response = await fetch(`/api/memory/cards/${id}`, {
-        body: JSON.stringify(patch),
-        headers: { "content-type": "application/json" },
-        method: "PATCH",
-      });
-      if (!response.ok) {
-        toast.error(t("failed"));
-        return;
-      }
-      toast(t("saved"));
-      await reread();
-    },
-    remove: async (id) => {
-      const response = await fetch(`/api/memory/records/${id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        toast.error(t("failed"));
-        return;
-      }
-      await reread();
-      toast(t("deleted"), {
-        action: {
-          label: t("restore"),
-          onClick: async () => {
-            await fetch(`/api/memory/records/${id}/restore`, {
-              method: "POST",
-            });
-            await reread();
-          },
-        },
-      });
-    },
-    rule: (text) => send("/api/memory/rules", text, () => t("rules")),
-    timeZone,
   };
 };
 

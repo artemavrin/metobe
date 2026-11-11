@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { ChartInput, ChartOutput } from "./chart";
 import { FILES_PER_MESSAGE } from "./files";
+import type { ShowCardOutput, ShowPromisesOutput } from "./memory";
 import type { MetricsInput, MetricsOutput } from "./metrics";
 import type { TableInput, TableOutput } from "./table";
 import type { TaskDraft, TaskDraftOutput } from "./tasks";
@@ -125,6 +126,13 @@ export type ChatTools = {
           note?: string;
         }
       | { error: string };
+  };
+  /** A card in the answer with its open promises, where they are marked done or moved (Д1). */
+  show_card: { input: { id?: string; name?: string }; output: ShowCardOutput };
+  /** The open promises as a list in the answer (Д1). */
+  show_promises: {
+    input: { card?: string; overdueOnly?: boolean };
+    output: ShowPromisesOutput;
   };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_metrics: { input: MetricsInput; output: MetricsOutput };

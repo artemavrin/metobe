@@ -70,7 +70,11 @@ import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
 import { CHAT_SOURCE, forgetSources } from "@metobe/core/memory";
 import { queueMemoryWrite } from "@metobe/core/memory-queue";
-import { memoryBrief, memoryTools } from "@metobe/core/memory-read";
+import {
+  memoryBrief,
+  memoryShowTools,
+  memoryTools,
+} from "@metobe/core/memory-read";
 import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
@@ -188,7 +192,7 @@ const textOf = (message: ChatMessage) =>
 
 /**
  * The memory, while it is on for this person (ARCH §19.5): the cards the message mentions, as a block in front of it,
- * and three tools to read more. Read only; a broken read leaves the chat without the memory, not without an answer.
+ * and tools to read more, and two to show a card or the open promises in the answer. Read only; a broken read leaves the chat without the memory, not without an answer.
  */
 const chatMemoryOf = async (
   userId: string,
@@ -205,7 +209,13 @@ const chatMemoryOf = async (
       return "";
     }
   );
-  return { brief, tools: memoryTools(userId, timeZone) };
+  return {
+    brief,
+    tools: {
+      ...memoryTools(userId, timeZone),
+      ...memoryShowTools(userId, timeZone),
+    },
+  };
 };
 
 /** A chat started with files only is named by its first file until the titles model names it. */

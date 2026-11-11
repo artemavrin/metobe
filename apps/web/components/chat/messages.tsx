@@ -56,6 +56,7 @@ import type { Components } from "streamdown";
 
 import { ActivityBlock } from "@/components/chat/activity";
 import { AnswerChart } from "@/components/chat/answer-chart";
+import { AnswerCard, AnswerPromises } from "@/components/chat/answer-memory";
 import { AnswerMetrics } from "@/components/chat/answer-metrics";
 import { AnswerTable } from "@/components/chat/answer-table";
 import { ApprovalCard } from "@/components/chat/approval-card";
@@ -843,6 +844,17 @@ const AnswerPiece = ({
   }
   if (block.kind === "metrics") {
     return <AnswerMetrics part={block.part} />;
+  }
+  if (block.kind === "memory-card" || block.kind === "memory-promises") {
+    // The memory is the owner's: a shared chat's reader sees the answer's words, not the card (it has no buttons to give).
+    if (!onAsk) {
+      return null;
+    }
+    return block.kind === "memory-card" ? (
+      <AnswerCard part={block.part} />
+    ) : (
+      <AnswerPromises part={block.part} />
+    );
   }
   if (block.kind === "task") {
     return <TaskDraftCard part={block.part} />;

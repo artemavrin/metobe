@@ -203,6 +203,38 @@ export interface MemoryCard {
   links?: { id: string; name: string; kind: "group" | "project" }[];
 }
 
+/** How many open promises a card or a list in the answer shows; the rest is told as a number. */
+export const MEMORY_SHOWN = 12;
+
+/**
+ * What `show_card` leaves in the answer (D-chat widget): the card and its open promises as the page draws them. A
+ * name that fits several cards comes back as `candidates` — no widget, the model asks which one.
+ */
+export type ShowCardOutput =
+  | {
+      found: true;
+      card: MemoryCardItem;
+      /** The open promises, the most urgent first, at most `MEMORY_SHOWN`. */
+      open: MemoryRecordView[];
+      /** Open promises beyond those. */
+      moreOpen: number;
+      contact?: { last: string | null; every: number | null };
+    }
+  | {
+      found: false;
+      candidates?: { id: string; name: string; role: string | null }[];
+    };
+
+/** What `show_promises` leaves in the answer: open promises, the most urgent first; `card` — of that card only. */
+export interface ShowPromisesOutput {
+  records: MemoryRecordView[];
+  /** Open promises beyond those shown. */
+  more: number;
+  /** The day it was asked, `yyyy-mm-dd` in the person's zone. */
+  today: string;
+  card: { id: string; name: string } | null;
+}
+
 /** `GET /api/memory/search?q=`: cards by name and records by text; done and cancelled ones too. */
 export interface MemorySearch {
   cards: MemoryCardItem[];

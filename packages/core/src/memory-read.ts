@@ -1,5 +1,11 @@
 import "server-only";
-import type { MemoryRecordView } from "@metobe/contracts/memory";
+import { MEMORY_SHOWN } from "@metobe/contracts/memory";
+import type {
+  MemoryCard,
+  MemoryRecordView,
+  ShowCardOutput,
+  ShowPromisesOutput,
+} from "@metobe/contracts/memory";
 import { tool } from "ai";
 import type { ToolSet } from "ai";
 import { z } from "zod";
@@ -7,7 +13,7 @@ import { z } from "zod";
 import { listEntities, listRecords } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
 import { mentionedCards } from "./memory-candidates";
-import { memoryCard, searchMemory } from "./memory-page";
+import { memoryCard, searchMemory, viewsOf } from "./memory-page";
 
 // The chat reads the memory (ARCH §19.5, Б4): the cards a message mentions go to the model as a short block in front
 // of the message — what is open with them, what is known, when they last met; the rest it asks for with three tools.
@@ -17,6 +23,9 @@ export const SEARCH_MEMORY = "search_memory";
 export const MEMORY_CARD = "memory_card";
 export const LIST_COMMITMENTS = "list_commitments";
 export const LIST_CARDS = "list_cards";
+/** What stands in the answer as a card or a list the person can act on (not read silently). */
+export const SHOW_CARD = "show_card";
+export const SHOW_PROMISES = "show_promises";
 export const MEMORY_TOOLS = [
   SEARCH_MEMORY,
   MEMORY_CARD,
@@ -69,7 +78,7 @@ const SAID_AS: Record<MemoryRecord["kind"], string> = {
 /** A record as the model reads it: its text and what goes with it, compact. */
 const lineOf = (
   r: MemoryRecord | MemoryRecordView,
-  names: Map<string, MemoryEntity>,
+  names: Map<string, Pick<MemoryEntity, "kind" | "name">>,
   timeZone: string
 ) => {
   const ids = r.entities.map((e) => ("entityId" in e ? e.entityId : e.id));
@@ -200,6 +209,181 @@ const cardOrder = (records: MemoryRecordView[]) =>
       (RANK[a.kind] ?? 9) - (RANK[b.kind] ?? 9)
   );
 
+/** Open commitments: «важно» first, then the nearest deadline, those without one last. */
+const byUrgency = (a: MemoryRecordView, b: MemoryRecordView) =>
+  Number(b.important) - Number(a.important) ||
+  (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999") ||
+  b.recordedAt.localeCompare(a.recordedAt);
+
+const isOpen = (r: MemoryRecordView) =>
+  r.kind === "commitment" && OPEN.has(r.status ?? "");
+
+/** What `show_card` leaves in the answer, from a card as the page reads it: its open promises, the urgent first. */
+export const shownCard = (data: MemoryCard): ShowCardOutput => {
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts the filter's own copy
+  const open = data.records.filter(isOpen).sort(byUrgency);
+  return {
+    card: data.card,
+    contact: data.contact,
+    found: true,
+    moreOpen: Math.max(0, open.length - MEMORY_SHOWN),
+    open: open.slice(0, MEMORY_SHOWN),
+  };
+};
+
+/** What `show_promises` leaves in the answer, from the open promises already ordered. */
+export const shownPromises = (
+  records: MemoryRecordView[],
+  today: string,
+  card: ShowPromisesOutput["card"]
+): ShowPromisesOutput => ({
+  card,
+  more: Math.max(0, records.length - MEMORY_SHOWN),
+  records: records.slice(0, MEMORY_SHOWN),
+  today,
+});
+
+/** The names of the cards a view points at, enough for `lineOf`. */
+const namesIn = (records: MemoryRecordView[]) =>
+  new Map(records.flatMap((r) => r.entities.map((e) => [e.id, e] as const)));
+
+/**
+ * What the model is told of a widget that is already on screen: the same lines `memory_card` and `list_commitments`
+ * give, and that it must not say them again. The cards' full ids never go to it.
+ */
+export const toldOfShown = (
+  output: ShowCardOutput | ShowPromisesOutput,
+  timeZone: string
+) => {
+  if ("found" in output) {
+    if (!output.found) {
+      return {
+        type: "json" as const,
+        value: output.candidates
+          ? {
+              candidates: output.candidates,
+              note: "No widget: several cards fit. Ask the user which one.",
+            }
+          : { found: false },
+      };
+    }
+    const names = namesIn(output.open);
+    const lines = output.open.map((r) => `- ${lineOf(r, names, timeZone)}`);
+    const more =
+      output.moreOpen > 0 ? `\n(and ${output.moreOpen} more open)` : "";
+    return {
+      type: "text" as const,
+      value: `The card of ${output.card.name} [${shortId(output.card.id)}] is on screen with the open promises; the user can mark them done and move deadlines there. Do not repeat the list — say in a sentence what matters.\n${lines.length > 0 ? lines.join("\n") : "Nothing open."}${more}`,
+    };
+  }
+  const names = namesIn(output.records);
+  const lines = output.records.map((r) => `- ${lineOf(r, names, timeZone)}`);
+  const more = output.more > 0 ? `\n(and ${output.more} more open)` : "";
+  return {
+    type: "text" as const,
+    value: `The list of open promises${output.card ? ` of ${output.card.name}` : ""} is on screen (today is ${output.today}); the user can mark them done and move deadlines there. Do not repeat the list — say in a sentence what matters.\n${lines.length > 0 ? lines.join("\n") : "Nothing open."}${more}`,
+  };
+};
+
+/** A card by its [id] or by a name: the one card, or the ones a name fits when it is more than one. */
+const resolveCard = async (
+  ownerId: string,
+  { id, name }: { id?: string; name?: string }
+) => {
+  const entities = await listEntities(ownerId);
+  const cards = entities.filter((e) => e.kind !== "self");
+  const wanted = id?.replaceAll(/[[\]\s]/gu, "").toLowerCase();
+  const byId = wanted ? cards.filter((e) => e.id.startsWith(wanted)) : [];
+  return byId.length > 0 ? byId : mentionedCards(cards, name ?? "");
+};
+
+const candidatesOf = (fits: MemoryEntity[]) =>
+  fits.map((e) => ({ id: shortId(e.id), name: e.name, role: e.role }));
+
+const cardInput = z.object({
+  id: z
+    .string()
+    .optional()
+    .describe("The card's id as the memory shows it: «a1b2c3d4»"),
+  name: z
+    .string()
+    .optional()
+    .describe("Or the name as the user says it: «Ольга», «Вектор»"),
+});
+
+/**
+ * The tools that put a card or a list of promises in the answer, where the person acts on them (Д1). Apart from the
+ * reading tools: the model reads a card silently before a letter or an advice, and a widget at every read would be noise.
+ * The chat has them; a task's run does not — its letter has no buttons.
+ */
+export const memoryShowTools = (
+  ownerId: string,
+  timeZone: string
+): ToolSet => ({
+  [SHOW_CARD]: tool({
+    description:
+      "Shows one person, organization or project as a card in the answer, with its open promises the user can mark done or move. Use it when the user asks what is going on with someone: «что у меня с Ольгой?», «покажи Вектор». Not for reading a card to write a letter or give advice — read it with memory_card then. After it say in a sentence what matters; do not repeat the list.",
+    execute: async (input): Promise<ShowCardOutput> => {
+      const fits = await resolveCard(ownerId, input);
+      if (fits.length > 1) {
+        return { candidates: candidatesOf(fits), found: false };
+      }
+      const [card] = fits;
+      const data = card ? await memoryCard(ownerId, card.id) : null;
+      return data ? shownCard(data) : { found: false };
+    },
+    inputSchema: cardInput,
+    toModelOutput: ({ output }) => toldOfShown(output, timeZone),
+  }),
+  [SHOW_PROMISES]: tool({
+    description:
+      "Shows the open promises as a list in the answer — the user can mark them done or move deadlines there. For «что горит», «что я обещал», «кто мне должен», «что просрочено»; with `card` — only that person's, organization's or project's. Not for reading them to write something — read them with list_commitments then. After it say in a sentence what matters; do not repeat the list.",
+    execute: async ({
+      card: ref,
+      overdueOnly,
+    }): Promise<ShowPromisesOutput> => {
+      const today = day(new Date(), timeZone) ?? "";
+      let card: ShowPromisesOutput["card"] = null;
+      let entityId: string | undefined;
+      if (ref) {
+        const fits = await resolveCard(ownerId, { id: ref, name: ref });
+        // A name that fits several cards, or none: the list of everyone's is better than a guess.
+        if (fits.length === 1 && fits[0]) {
+          entityId = fits[0].id;
+          card = { id: fits[0].id, name: fits[0].name };
+        }
+      }
+      const all = await listRecords(ownerId, {
+        entityId,
+        kinds: ["commitment"],
+      });
+      const records = await viewsOf(
+        ownerId,
+        all.filter((r) => OPEN.has(r.status ?? ""))
+      );
+      const open = records
+        .filter(
+          (r) =>
+            !overdueOnly || (r.dueAt && (day(r.dueAt, timeZone) ?? "") < today)
+        )
+        // oxlint-disable-next-line unicorn/no-array-sort -- sorts the filter's own copy
+        .sort(byUrgency);
+      return shownPromises(open, today, card);
+    },
+    inputSchema: z.object({
+      card: z
+        .string()
+        .optional()
+        .describe("Only this card's: its id or the name as the user says it"),
+      overdueOnly: z
+        .boolean()
+        .optional()
+        .describe("Only those past their deadline"),
+    }),
+    toModelOutput: ({ output }) => toldOfShown(output, timeZone),
+  }),
+});
+
 /** The memory's tools: read only. */
 export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
   const lines = async (records: (MemoryRecord | MemoryRecordView)[]) => {
@@ -273,21 +457,10 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
     [MEMORY_CARD]: tool({
       description:
         "Everything you remember about one person, organization or project: who they are, open promises first, then what is known, what happened, and what is done or no longer true. Give its [id] from the <memory> block or another tool; a name works too — when it fits several, they come back to choose from, and then ask the user which one they mean.",
-      execute: async ({ id, name }) => {
-        const entities = await listEntities(ownerId);
-        const cards = entities.filter((e) => e.kind !== "self");
-        const wanted = id?.replaceAll(/[[\]\s]/gu, "").toLowerCase();
-        const byId = wanted ? cards.filter((e) => e.id.startsWith(wanted)) : [];
-        const fits = byId.length > 0 ? byId : mentionedCards(cards, name ?? "");
+      execute: async (input) => {
+        const fits = await resolveCard(ownerId, input);
         if (fits.length > 1) {
-          return {
-            candidates: fits.map((e) => ({
-              id: shortId(e.id),
-              name: e.name,
-              role: e.role,
-            })),
-            found: false,
-          };
+          return { candidates: candidatesOf(fits), found: false };
         }
         const [card] = fits;
         const data = card ? await memoryCard(ownerId, card.id) : null;
@@ -304,16 +477,7 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
           role: data.card.role,
         };
       },
-      inputSchema: z.object({
-        id: z
-          .string()
-          .optional()
-          .describe("The card's id as the memory shows it: «a1b2c3d4»"),
-        name: z
-          .string()
-          .optional()
-          .describe("Or the name as the user says it: «Ольга», «Вектор»"),
-      }),
+      inputSchema: cardInput,
     }),
     [SEARCH_MEMORY]: tool({
       description:

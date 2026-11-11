@@ -261,6 +261,22 @@ export const memoryCard = async (
   };
 };
 
+/** The owner's records by id as the page shows them; deleted ones and other people's are not there. */
+export const recordsByIds = async (ownerId: string, ids: string[]) => {
+  if (ids.length === 0) {
+    return [];
+  }
+  const [records, entities] = await Promise.all([
+    listRecords(ownerId, { ids }),
+    listEntities(ownerId),
+  ]);
+  return views(ownerId, records, entities);
+};
+
+/** Records of the owner as the page shows them (for what a tool puts in an answer). */
+export const viewsOf = async (ownerId: string, records: MemoryRecord[]) =>
+  views(ownerId, records, await listEntities(ownerId));
+
 /** Cards by name, other name or role; records by text — every word of the query, in any order. */
 export const searchMemory = async (
   ownerId: string,

@@ -391,6 +391,16 @@
       },
       "unnamed": "File"
     },
+    "memoryShown": {
+      "buildingCard": "Opening the card…",
+      "buildingList": "Collecting the list…",
+      "listTitle": "Open",
+      "listTitleCard": "Open: {name}",
+      "open": "Open in memory",
+      "more": "{count, plural, one {# more open} other {# more open}} — on the Memory page",
+      "nothing": "Nothing open",
+      "snapshot": "As it was when the answer was written. Changes are made on the Memory page."
+    },
     "metrics": {
       "building": "Calculating the figures…",
       "failed": "Could not calculate the figures",
