@@ -3010,7 +3010,8 @@
       "done": "Marked done",
       "tomorrow": "Moved to tomorrow",
       "dismiss": "Taken out of «Don't miss»",
-      "gone": "That item is gone"
+      "gone": "That item is gone",
+      "snooze": "I'll remind you in an hour"
     }
   },
   "digest": {
@@ -3023,5 +3024,16 @@
     "more": "And {count} more — in Metobe.",
     "tomorrowButton": "Tomorrow",
     "dismissButton": "Remove"
+  },
+  "reminder": {
+    "title": "Reminder",
+    "name": "Reminder",
+    "label": "Reminder",
+    "done": "✓ Done",
+    "snooze": "In an hour",
+    "tomorrow": "Tomorrow",
+    "open": "Open Metobe",
+    "off": "Notification settings",
+    "why": "This reminder came because you asked to be reminded."
   }
 }

@@ -174,6 +174,10 @@ export const memoryRecords = pgTable(
     recordedAt: timestamp("recorded_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** A commitment the person asked to be reminded of: the moment (the time of day they named, on its day); null — no
+     * reminder. `reminded_at` — when it was sent; changing `remind_at` makes it null again. */
+    remindAt: timestamp("remind_at", { withTimezone: true }),
+    remindedAt: timestamp("reminded_at", { withTimezone: true }),
     /** A `date` rule: how often its day (`occurred_at`) comes again; null — not a `date` rule (ARCH §19.8.7). */
     repeat: text("repeat").$type<MemoryRepeat>(),
     /** A rule «Не упустить» counts days by (ARCH §19.6); null — a rule it does not, or not a rule. */
@@ -218,6 +222,15 @@ export const memoryRecords = pgTable(
         sql`(${table.kind} = 'commitment') = (${table.status} is not null)
           and (${table.status} is null or ${table.status} in ('open', 'unconfirmed', 'done', 'cancelled'))`
       ),
+      check(
+        "memory_records_remind",
+        sql`${table.remindAt} is null or ${table.kind} = 'commitment'`
+      ),
+      index("memory_records_remind")
+        .on(table.remindAt)
+        .where(
+          sql`${table.remindAt} is not null and ${table.remindedAt} is null`
+        ),
       check(
         "memory_records_important",
         sql`not ${table.important} or ${table.kind} = 'commitment'`

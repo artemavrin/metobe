@@ -1,6 +1,7 @@
 import { checkHealth } from "@metobe/core/health";
 import { sendDueDigests } from "@metobe/core/memory-digest";
 import { startMemoryWorker } from "@metobe/core/memory-queue";
+import { sendDueReminders } from "@metobe/core/memory-reminders";
 import { ensureSecretsCanary } from "@metobe/core/secrets";
 import { startTasksWorker } from "@metobe/core/tasks-worker";
 import { startTelegramWorker } from "@metobe/core/telegram-bot";
@@ -26,7 +27,7 @@ const releases = async () => {
 };
 const updates = setInterval(releases, 60 * 60_000);
 
-// The morning digests (D43): each minute, whoever's chosen time has come. One run at a time.
+// The morning digests and the reminders people asked for (D43): each minute, whatever's time has come. One run at a time.
 let digesting = false;
 const digests = setInterval(async () => {
   if (digesting) {
@@ -35,6 +36,7 @@ const digests = setInterval(async () => {
   digesting = true;
   try {
     await sendDueDigests();
+    await sendDueReminders();
   } finally {
     digesting = false;
   }

@@ -100,30 +100,32 @@ export const digestBlocks = (
   return blocks;
 };
 
-const letterOf = async (
+/** The letter of a notice (a digest, a reminder): the task letter's template with the notice's own words (`scope`). */
+export const letterOf = async (
   blocks: LetterBlock[],
   heading: string,
   locale: Locale,
-  t: Awaited<ReturnType<typeof getTranslator>>
+  t: Awaited<ReturnType<typeof getTranslator>>,
+  scope: "digest" | "reminder" = "digest"
 ) => {
   const { taskLetter } = await import("@metobe/emails/task-letter");
   const app = new URL("/", getEnv().BETTER_AUTH_URL).toString();
   const letter = await taskLetter({
     blocks,
-    button: { href: app, label: t("digest.open") },
+    button: { href: app, label: t(`${scope}.open`) },
     heading,
     kind: "result",
-    label: t("digest.label"),
+    label: t(`${scope}.label`),
     locale,
     off: {
       href: new URL("/settings/account", app).toString(),
-      label: t("digest.off"),
+      label: t(`${scope}.off`),
     },
     preview: heading,
-    task: { color: "#2a78d6", meta: "", name: t("digest.name") },
-    why: t("digest.why"),
+    task: { color: "#2a78d6", meta: "", name: t(`${scope}.name`) },
+    why: t(`${scope}.why`),
   });
-  return { ...letter, subject: `${t("digest.name")}: ${heading}` };
+  return { ...letter, subject: `${t(`${scope}.name`)}: ${heading}` };
 };
 
 /** One person's digest, when it is due: claims the day first (two processes must not both send), then sends. */

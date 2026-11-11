@@ -127,6 +127,11 @@ export const extractionSchema = z.object({
         .describe(
           "Rule of kind date only: how often its day comes again — year (a birthday), month (the 20th of every month), week (every Friday). «none» for everything else"
         ),
+      remind: z
+        .string()
+        .describe(
+          "Commitment only: when the user asks to be reminded of it — the time of day as HH:MM, 24 hours («в 15:00» — «15:00»), or «morning» when they ask to be reminded with no time named. «none» for everything else, which is almost every item"
+        ),
     })
   ),
   updates: z
@@ -395,6 +400,22 @@ const MOVE_RULE = `
  * Only for a message with a quote, a letter or a forwarded message in it (ARCH §19.8.4): every other message keeps
  * the prompt S13 was measured on, word for word.
  */
+/** The local time of day, `15:30`. */
+const localClock = (at: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZone,
+  }).format(at);
+
+/** A message that asks to be reminded: only then the rule on reminders is offered. */
+export const asksReminder = (text: string) =>
+  /напомин|напомн|remind/iu.test(text);
+
+const REMIND_RULE = (now: string) => `
+- The user asks to be reminded («напомни мне завтра в 15:00 позвонить Ольге», «напомни в пятницу про отчёт»). Make it a commitment of the user (debtor «user»), the thing to do as its text. Its deadline (due) is the DAY the reminder goes off, precision day — «через два часа» or «сегодня в 18:00» is today, «завтра» tomorrow; a time of day already past today means tomorrow. Put the time of day in remind as HH:MM in 24 hours («в 15:00» — «15:00», «в три часа дня» — «15:00»); when no time is named, «morning». It is ${now} now (the user's local time). Do not add a second item for the same thing.`;
+
 /** A message that may name a day which comes again: a birthday, a payment day, «каждую пятницу». */
 export const repeatsDate = (text: string) =>
   /день рождени|родил(?:ся|ась)|днюх|именин|годовщин|кажд(?:ый|ую|ое|ые|ого|ой)(?![а-яё])|ежедневн|еженедельн|ежемесячн|ежегодн|раз в (?:год|месяц|неделю)|по (?:понедельникам|вторникам|средам|четвергам|пятницам)|birthday|every (?:day|week|month|year|monday|tuesday|wednesday|thursday|friday)|weekly|monthly|yearly|annual/iu.test(
@@ -416,6 +437,7 @@ export const memoryInstructions = ({
   known = [],
   quoted = false,
   repeating = false,
+  reminding = false,
 }: {
   sentAt: Date;
   timeZone: string;
@@ -427,6 +449,8 @@ export const memoryInstructions = ({
   quoted?: boolean;
   /** The message may name a day that comes again (`repeatsDate`): the rule on date rules is added, and only then. */
   repeating?: boolean;
+  /** The message asks to be reminded (`asksReminder`): the rule on reminders is added, and only then. */
+  reminding?: boolean;
 }) => {
   const today = dayIn(sentAt, timeZone);
   const promises =
@@ -468,7 +492,7 @@ ${THINGS_RULE}- Refs: use a known card ref, "user", an id from new_entities or a
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
 - One item per thing: never the same item twice in other words, or once for each side of an agreement.
-- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}${repeating ? REPEAT_RULE : ""}`;
+- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}${repeating ? REPEAT_RULE : ""}${reminding ? REMIND_RULE(localClock(sentAt, timeZone)) : ""}`;
 };
 
 /** Does the answer point at the user anywhere — then their own card has to exist before the plan is made. */
@@ -479,7 +503,14 @@ export const mentionsUser = (extraction: Extraction) =>
   );
 
 /** A calendar day's midnight in a zone, as an instant; null for anything that is not a real `YYYY-MM-DD`. */
-export const localMidnight = (date: string, timeZone: string) => {
+/** A day (`2026-11-12`) and a time of it (`15:30`) in a zone, as the moment; null — not a real day or time. */
+export const localInstant = (date: string, time: string, timeZone: string) => {
+  const clock = /^(?<hour>[01]\d|2[0-3]):(?<minute>[0-5]\d)$/u.exec(
+    time
+  )?.groups;
+  if (!clock) {
+    return null;
+  }
   const groups = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u.exec(
     date
   )?.groups;
@@ -489,7 +520,13 @@ export const localMidnight = (date: string, timeZone: string) => {
   const [year, month, day] = [groups.year, groups.month, groups.day].map(
     Number
   ) as [number, number, number];
-  const guess = Date.UTC(year, month - 1, day);
+  const guess = Date.UTC(
+    year,
+    month - 1,
+    day,
+    Number(clock.hour),
+    Number(clock.minute)
+  );
   const check = new Date(guess);
   if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
     return null;
@@ -525,6 +562,9 @@ export const localMidnight = (date: string, timeZone: string) => {
   const first = guess - offset(guess);
   return new Date(guess - offset(first));
 };
+
+export const localMidnight = (date: string, timeZone: string) =>
+  localInstant(date, "00:00", timeZone);
 
 type Item = Extraction["items"][number];
 type Planned = MemoryWritePlan["records"][number];
@@ -717,10 +757,28 @@ const openAsks = (
 };
 
 /** An item as a record: its cards by role, and its dates where its kind keeps them. */
+/** The time of day «morning» means, when the user asks to be reminded with none named. */
+const MORNING = "09:00";
+
+/**
+ * When to remind: the time of day the user named, on the day of the promise (its deadline). A reminder needs a day — the
+ * writer is told to give the deadline the day it is to go off; without one there is nothing to remind on.
+ */
+const remindOf = (
+  item: Item,
+  clock: (date: string, time: string) => Date | null
+) => {
+  const time = item.remind === "morning" ? MORNING : item.remind;
+  return item.due.precision === "day" && /^\d{2}:\d{2}$/u.test(time)
+    ? (clock(item.due.date, time) ?? undefined)
+    : undefined;
+};
+
 const toPlanned = (
   item: Item,
   link: (ref: string | null, role: MemoryRole) => Link | null,
-  day: (w: Item["when"]) => { at: Date; precision: MemoryPrecision } | null
+  day: (w: Item["when"]) => { at: Date; precision: MemoryPrecision } | null,
+  clock: (date: string, time: string) => Date | null
 ): Planned | null => {
   const text = item.text.trim();
   if (!text) {
@@ -760,6 +818,7 @@ const toPlanned = (
   if (item.kind === "commitment") {
     record.givenAt = at?.at;
     record.dueAt = day(item.due)?.at;
+    record.remindAt = remindOf(item, clock);
     if (item.important) {
       record.important = true;
     }
@@ -962,8 +1021,11 @@ export const planWrite = (
     const at = w.precision === "none" ? null : localMidnight(w.date, timeZone);
     return at && w.precision !== "none" ? { at, precision: w.precision } : null;
   };
+  // The moment of a day's time of day in the person's zone: where a reminder goes off.
+  const clock = (date: string, time: string) =>
+    localInstant(date, time, timeZone);
   const records = asMemberships(
-    extraction.items.flatMap((item) => toPlanned(item, link, day) ?? []),
+    extraction.items.flatMap((item) => toPlanned(item, link, day, clock) ?? []),
     new Set(cards.filter((c) => c.kind === "group").map((c) => c.id)),
     new Set(
       [...fresh.values()].filter((e) => e.kind === "group").map((e) => e.ref)

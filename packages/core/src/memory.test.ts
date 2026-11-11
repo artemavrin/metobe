@@ -1722,6 +1722,56 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ).toBe("gone");
   });
 
+  it("snoozes a reminder for an hour, or moves it a day on at the same time, from its buttons (D43)", async () => {
+    const { runAction } = await import("./telegram-actions");
+    const self = await memory.ensureSelf(hana, "Я");
+    const now = new Date("2026-11-12T12:00:00Z");
+    const first = new Date(now.getTime() - 60_000);
+    const make = (text: string) =>
+      memory.addRecord(hana, {
+        dueAt: new Date("2026-11-12T00:00:00Z"),
+        entities: [{ entityId: self.id, role: "debtor" }],
+        kind: "commitment",
+        remindAt: first,
+        text,
+      });
+    const [a, b] = await Promise.all([
+      make("Напоминание: час"),
+      make("Напоминание: завтра"),
+    ]);
+    if (!(a && b)) {
+      throw new Error("no records");
+    }
+    // Both were told: a reminder claimed is not due again until it is moved.
+    expect(await memory.claimReminder(hana, a.id)).toBe(true);
+    expect(await memory.claimReminder(hana, a.id)).toBe(false);
+    expect(await memory.claimReminder(hana, b.id)).toBe(true);
+
+    expect(await runAction(hana, { action: "snooze", id: a.id }, now)).toBe(
+      "snooze"
+    );
+    const [snoozed] = await memory.listRecords(hana, { ids: [a.id] });
+    expect(snoozed?.remindAt?.toISOString()).toBe("2026-11-12T13:00:00.000Z");
+    expect(snoozed?.remindedAt).toBeNull();
+
+    expect(await runAction(hana, { action: "tomorrow", id: b.id }, now)).toBe(
+      "tomorrow"
+    );
+    const [moved] = await memory.listRecords(hana, { ids: [b.id] });
+    // A day on from the moment it was due to go off (it was past): tomorrow, at the time of the press.
+    expect(moved?.remindAt?.toISOString()).toBe("2026-11-13T12:00:00.000Z");
+    expect(moved?.remindedAt).toBeNull();
+    const due = await memory.dueReminders(new Date("2026-11-13T12:30:00Z"));
+    const mine = due.filter((r) => r.ownerId === hana).map((r) => r.id);
+    expect(mine).toHaveLength(2);
+    expect(mine).toEqual(expect.arrayContaining([a.id, b.id]));
+
+    // Not a promise of theirs: nothing to snooze.
+    expect(await runAction(bob, { action: "snooze", id: a.id }, now)).toBe(
+      "gone"
+    );
+  });
+
   it("merges two cards into one and takes it back as it was (ARCH §19.8.5)", async () => {
     const today: typeof MemoryTodayModule = await import("./memory-today");
     const team = await memory.createEntity(gwen, {

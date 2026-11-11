@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("./db", () => ({ getDb: () => ({}) }));
 vi.mock("./memory", () => ({}));
 
-const { actionData, buttonsFor, parseAction, tomorrowOf } =
+const { actionData, buttonsFor, parseAction, reminderButtons, tomorrowOf } =
   await import("./telegram-actions");
 
 const ID = "0b9c1a52-9f5f-4b9a-8a52-6a1f0b2c3d4e";
@@ -31,7 +31,7 @@ const row = (
 
 describe("the digest's buttons (D43)", () => {
   it("carries an action and a promise's id in under 64 bytes, and reads it back", () => {
-    for (const action of ["done", "tomorrow", "dismiss"] as const) {
+    for (const action of ["done", "tomorrow", "dismiss", "snooze"] as const) {
       const data = actionData(action, ID);
       expect(Buffer.byteLength(data)).toBeLessThanOrEqual(64);
       expect(parseAction(data)).toEqual({ action, id: ID });
@@ -81,5 +81,26 @@ describe("tomorrowOf", () => {
     expect(
       tomorrowOf(new Date("2026-11-11T09:00:00Z"), "UTC")?.toISOString()
     ).toBe("2026-11-12T00:00:00.000Z");
+  });
+});
+
+describe("the buttons under a reminder", () => {
+  it("is one row: done, in an hour, tomorrow", () => {
+    const rows = reminderButtons(ID, {
+      done: "✓ Готово",
+      snooze: "Через час",
+      tomorrow: "Завтра",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.map((b) => b.text)).toEqual([
+      "✓ Готово",
+      "Через час",
+      "Завтра",
+    ]);
+    expect(rows[0]?.map((b) => parseAction(b.data)?.action)).toEqual([
+      "done",
+      "snooze",
+      "tomorrow",
+    ]);
   });
 });

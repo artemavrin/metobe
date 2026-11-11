@@ -377,6 +377,8 @@ export interface MemoryRecordInput {
   /** A commitment: when it was given, and when it is due. */
   givenAt?: Date;
   dueAt?: Date;
+  /** A commitment the person asked to be reminded of: the moment to remind them at (on or before its day). */
+  remindAt?: Date;
   /** Commitments only; open unless said otherwise. */
   status?: MemoryStatus;
   /** Commitments only: the person said it is important, or marked it so. */
@@ -406,6 +408,9 @@ export interface MemoryRecord {
   validTo: Date | null;
   givenAt: Date | null;
   dueAt: Date | null;
+  /** When to remind the person (they asked), and when it was sent; null — no reminder / not sent yet. */
+  remindAt: Date | null;
+  remindedAt: Date | null;
   status: MemoryStatus | null;
   important: boolean;
   /** Set on a fact about who its card is now. */
@@ -472,6 +477,8 @@ const toRecord = (
     occurredAt: row.occurredAt,
     occurredPrecision: row.occurredPrecision,
     recordedAt: row.recordedAt,
+    remindAt: row.remindAt,
+    remindedAt: row.remindedAt,
     role: body.role ?? null,
     rule: ruleOfRow(row),
     status: row.status,
@@ -625,6 +632,7 @@ const insertRecord = async (
       occurredAt: input.occurred?.at,
       occurredPrecision: input.occurred?.precision,
       ownerId,
+      remindAt: input.kind === "commitment" ? input.remindAt : undefined,
       ruleKind: input.rule?.kind ?? null,
       sealed: sealField(
         JSON.stringify(
@@ -703,6 +711,8 @@ export interface CommitmentPatch {
   /** Null — no deadline any more. */
   dueAt?: Date | null;
   important?: boolean;
+  /** A new moment to remind at (null — no reminder): it is sent again, whether it was or not. */
+  remindAt?: Date | null;
 }
 
 const asText = (v: MemoryStatus | Date | boolean | null) => {
@@ -775,8 +785,15 @@ const changeCommitment = async (
     line("important", row.important, patch.important);
     set.important = patch.important;
   }
-  if (lines.length > 0) {
+  if (patch.remindAt !== undefined) {
+    // Not a line of the history: the reminder is a delivery, not a fact about the promise.
+    set.remindAt = patch.remindAt;
+    set.remindedAt = null;
+  }
+  if (Object.keys(set).length > 0) {
     await tx.update(memoryRecords).set(set).where(eq(memoryRecords.id, id));
+  }
+  if (lines.length > 0) {
     await tx.insert(memoryChanges).values(lines);
   }
   return true;
@@ -2187,6 +2204,44 @@ export const listDismissals = async (ownerId: string) => {
     .from(memoryDismissals)
     .where(eq(memoryDismissals.ownerId, ownerId));
   return new Map(rows.map((r) => [r.key, r]));
+};
+
+/**
+ * The reminders whose moment has come, in every memory: open promises not reminded of yet, oldest first. Which of them
+ * to tell is the caller's to read (their text is sealed in the owner's memory).
+ */
+export const dueReminders = async (now: Date) => {
+  const rows = await getDb()
+    .db.select({ id: memoryRecords.id, ownerId: memoryRecords.ownerId })
+    .from(memoryRecords)
+    .where(
+      and(
+        lte(memoryRecords.remindAt, now),
+        isNull(memoryRecords.remindedAt),
+        inArray(memoryRecords.status, ["open", "unconfirmed"]),
+        isNull(memoryRecords.deletedAt),
+        isNull(memoryRecords.supersededAt)
+      )
+    )
+    .orderBy(asc(memoryRecords.remindAt))
+    .limit(200);
+  return rows;
+};
+
+/** A reminder is claimed before it is sent: true for the one process that got it (two ticks must not both tell). */
+export const claimReminder = async (ownerId: string, id: string) => {
+  const rows = await getDb()
+    .db.update(memoryRecords)
+    .set({ remindedAt: new Date() })
+    .where(
+      and(
+        eq(memoryRecords.id, id),
+        eq(memoryRecords.ownerId, ownerId),
+        isNull(memoryRecords.remindedAt)
+      )
+    )
+    .returning({ id: memoryRecords.id });
+  return rows.length > 0;
 };
 
 /** When each record was last changed — a status, a deadline, «важно» (`memory_changes`); records never changed are absent. */

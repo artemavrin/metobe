@@ -35,6 +35,8 @@ const record = (id: string, over: Partial<MemoryRecord> = {}) =>
     occurredAt: null,
     occurredPrecision: null,
     recordedAt: at("2026-11-01T09:00:00Z"),
+    remindAt: null,
+    remindedAt: null,
     status: null,
     supersededAt: null,
     text: id,

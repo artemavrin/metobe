@@ -8,6 +8,7 @@ import {
   mentionsUser,
   noteTurn,
   onCard,
+  asksReminder,
   planWrite,
   repeatsDate,
   splitQuoted,
@@ -56,6 +57,7 @@ const item = (
   important: false,
   interval_days: 0,
   kind: "fact",
+  remind: "none",
   repeat: "none",
   replaces: "",
   role: null,
@@ -816,6 +818,8 @@ describe("planWrite: groups (ARCH §19)", () => {
     occurredAt: null,
     occurredPrecision: null,
     recordedAt: new Date("2026-11-01T00:00:00Z"),
+    remindAt: null,
+    remindedAt: null,
     role: null,
     rule: null,
     status: null,
@@ -873,6 +877,87 @@ describe("planWrite: groups (ARCH §19)", () => {
     ]);
   });
 
+  it("turns «remind me at a time» into the moment on the promise's day, in the person's zone", () => {
+    const due = { date: "2026-11-12", precision: "day" } as const;
+    const { records } = plan({
+      items: [
+        item({
+          debtor: "user",
+          due,
+          kind: "commitment",
+          remind: "15:00",
+          text: "Позвонить Ольге",
+        }),
+        item({
+          debtor: "user",
+          due,
+          kind: "commitment",
+          remind: "morning",
+          text: "Отчёт",
+        }),
+        item({
+          debtor: "user",
+          due,
+          kind: "commitment",
+          remind: "none",
+          text: "Без напоминания",
+        }),
+        item({
+          debtor: "user",
+          due,
+          kind: "commitment",
+          remind: "25:00",
+          text: "Не время",
+        }),
+        item({
+          debtor: "user",
+          due,
+          kind: "commitment",
+          remind: "7:5",
+          text: "Не время 2",
+        }),
+        // No day for the promise: there is nothing to remind on.
+        item({
+          debtor: "user",
+          kind: "commitment",
+          remind: "15:00",
+          text: "Без дня",
+        }),
+        // Only a promise is reminded of.
+        item({ due, kind: "fact", remind: "15:00", text: "Факт" }),
+      ],
+    });
+    expect(records.map((r) => r.remindAt?.toISOString() ?? null)).toEqual([
+      "2026-11-12T12:00:00.000Z",
+      "2026-11-12T06:00:00.000Z",
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it("offers the rule on reminders only to a message that asks for one, with the local time", () => {
+    const args = {
+      cards: [],
+      sentAt: new Date("2026-11-09T11:05:00Z"),
+      timeZone: "Europe/Moscow",
+    };
+    expect(memoryInstructions(args)).not.toContain("asks to be reminded");
+    const text = memoryInstructions({ ...args, reminding: true });
+    expect(text).toContain("asks to be reminded");
+    expect(text).toContain("It is 14:05 now");
+    for (const said of [
+      "Напомни мне завтра в 15:00 позвонить",
+      "напоминай про отчёт",
+      "Remind me on Friday",
+    ]) {
+      expect(asksReminder(said)).toBe(true);
+    }
+    expect(asksReminder("Ольга обещала договор к пятнице")).toBe(false);
+  });
+
   it("keeps a day that comes again as a rule standing on its day (ARCH §19.8.7)", () => {
     const { records } = plan({
       items: [
@@ -900,6 +985,7 @@ describe("planWrite: groups (ARCH §19)", () => {
         }),
         item({
           kind: "rule",
+          remind: "none",
           repeat: "none",
           rule_kind: "date",
           text: "Встреча 14 ноября",

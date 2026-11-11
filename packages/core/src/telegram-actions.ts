@@ -4,7 +4,7 @@ import { user } from "@metobe/db/schema/auth";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "./db";
-import { dismissSuggestion, editCommitment } from "./memory";
+import { dismissSuggestion, editCommitment, listRecords } from "./memory";
 import { localMidnight } from "./memory-extract";
 
 // The buttons under a digest in Telegram (D43): «✓ …» marks the promise done, «Завтра» moves its deadline a day on,
@@ -12,10 +12,11 @@ import { localMidnight } from "./memory-extract";
 // carries the action and the promise's id (`d:<uuid>` — 38 bytes, under Telegram's 64); whose it is, the bot knows from
 // the chat, and the memory's own functions only touch the owner's records.
 
-export type TelegramAction = "done" | "tomorrow" | "dismiss";
+export type TelegramAction = "done" | "tomorrow" | "dismiss" | "snooze";
 const CODE: Record<TelegramAction, string> = {
   dismiss: "x",
   done: "d",
+  snooze: "s",
   tomorrow: "m",
 };
 const BY_CODE = new Map(
@@ -37,6 +38,8 @@ export const actionData = (action: TelegramAction, id: string) =>
   `${CODE[action]}:${id}`;
 
 const MAX_ROWS = 5;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
 const TITLE = 18;
 
 const short = (text: string) =>
@@ -94,11 +97,37 @@ export const runAction = async (
       ? "done"
       : "gone";
   }
+  // A reminder: «Через час» — the same promise, told again in an hour; «Завтра» — a day on, at the same time.
+  const [record] = await listRecords(ownerId, { ids: [press.id] });
+  if (press.action === "snooze") {
+    return record?.kind === "commitment" &&
+      (await editCommitment(ownerId, press.id, {
+        remindAt: new Date(now.getTime() + HOUR_MS),
+      }))
+      ? "snooze"
+      : "gone";
+  }
   if (press.action === "tomorrow") {
     const dueAt = tomorrowOf(now, timeZone);
-    return dueAt && (await editCommitment(ownerId, press.id, { dueAt }))
+    const remindAt = record?.remindAt
+      ? new Date(Math.max(record.remindAt.getTime(), now.getTime()) + DAY_MS)
+      : undefined;
+    return dueAt &&
+      (await editCommitment(ownerId, press.id, { dueAt, remindAt }))
       ? "tomorrow"
       : "gone";
   }
   return (await dismissSuggestion(ownerId, press.id)) ? "dismiss" : "gone";
 };
+
+/** The one row under a reminder: done, in an hour, tomorrow. */
+export const reminderButtons = (
+  id: string,
+  words: { done: string; snooze: string; tomorrow: string }
+) => [
+  [
+    { data: actionData("done", id), text: words.done },
+    { data: actionData("snooze", id), text: words.snooze },
+    { data: actionData("tomorrow", id), text: words.tomorrow },
+  ],
+];
