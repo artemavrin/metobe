@@ -878,7 +878,24 @@
     "listSearch": "Find in the list",
     "edit": "Change",
     "cancel": "Cancel",
-    "save": "Save"
+    "save": "Save",
+    "notifications": {
+      "title": "Notifications",
+      "telegram": "Telegram",
+      "telegramHint": "Metobe will write here with reminders and results of tasks. It takes a minute: the bot opens, press «Start» in it.",
+      "waiting": "Waiting for you to press «Start» in the bot. The link works for 10 minutes.",
+      "linked": "Linked: {name}. Notifications come to this chat.",
+      "blocked": "The bot cannot write to this chat (maybe you blocked it). Link again.",
+      "link": "Link Telegram",
+      "relink": "Link again",
+      "open": "Open the bot",
+      "cancel": "Cancel",
+      "test": "Check",
+      "unlink": "Unlink",
+      "testSent": "Message sent, check Telegram.",
+      "testFailed": "Could not send a message to Telegram.",
+      "linkFailed": "Could not make the link. Try again."
+    }
   },
   "sources": {
     "title": "Sources",
@@ -2968,5 +2985,12 @@
     "meeting": "Before a meeting",
     "meetingAsk": "Get me ready to talk to {name} — what they owe me and I owe them, what changed since last time, how best to talk to them.",
     "meetingHint": "Opens a new chat: what you owe each other, what changed since last time and how best to talk"
+  },
+  "telegram": {
+    "help": "I am the Metobe bot. To link this chat to your account, open the account settings in Metobe, the «Notifications» section, and press «Link Telegram».",
+    "linked": "Done: this chat is linked to your Metobe account. Notifications will come here.",
+    "invalid": "The code did not fit or has expired. Make a new link in the Metobe settings.",
+    "taken": "This Telegram is already linked to another Metobe account. Unlink it there or use another Telegram.",
+    "test": "Connection check: Metobe notifications arrive here."
   }
 }

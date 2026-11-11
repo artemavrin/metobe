@@ -1,4 +1,5 @@
 import { getAccount } from "@metobe/core/account";
+import { telegramAvailable, telegramChannel } from "@metobe/core/channels";
 import { isMailConfigured } from "@metobe/core/mail";
 import { memoryStateFor } from "@metobe/core/memory-write";
 import { getTranslations } from "next-intl/server";
@@ -15,6 +16,7 @@ import { DataForm, DangerForm } from "./data-form";
 import { AccountHeader } from "./header";
 import { MemoryForm } from "./memory-form";
 import { ModelForm } from "./model-form";
+import { NotificationsForm } from "./notifications-form";
 import { RegionForm } from "./region-form";
 import { Sessions } from "./sessions";
 import { ThemePicker } from "./theme-picker";
@@ -30,23 +32,27 @@ const AccountPage = async () => {
     tAppearance,
     tModel,
     tMemory,
+    tNotify,
     current,
     all,
     account,
     prefs,
     mailOn,
     memory,
+    channel,
   ] = await Promise.all([
     getTranslations("data"),
     getTranslations("settings.appearance"),
     getTranslations("personalization"),
     getTranslations("memory"),
+    getTranslations("settings.notifications"),
     getAuth().api.getSession({ headers: requestHeaders }),
     getAuth().api.listSessions({ headers: requestHeaders }),
     user ? getAccount(user.id) : null,
     getPrefs(),
     isMailConfigured(),
     user ? memoryStateFor(user.id) : null,
+    user && telegramAvailable() ? telegramChannel(user.id) : null,
   ]);
   if (!user) {
     return null;
@@ -81,6 +87,12 @@ const AccountPage = async () => {
             <MemoryForm on={memory.on} />
           </Section>
         </div>
+      )}
+      {/* Only while the installation has a bot: without one there is nothing to bind (D43). */}
+      {telegramAvailable() && (
+        <Section title={tNotify("title")}>
+          <NotificationsForm channel={channel} />
+        </Section>
       )}
       <Sessions
         currentToken={current?.session.token ?? ""}

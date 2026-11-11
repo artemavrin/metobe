@@ -407,6 +407,13 @@
       "when": 1794397774145,
       "tag": "0057_memory_summaries",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794402623106,
+      "tag": "0058_user_channels",
+      "breakpoints": true
     }
   ]
 }

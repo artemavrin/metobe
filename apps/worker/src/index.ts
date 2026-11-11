@@ -2,6 +2,7 @@ import { checkHealth } from "@metobe/core/health";
 import { startMemoryWorker } from "@metobe/core/memory-queue";
 import { ensureSecretsCanary } from "@metobe/core/secrets";
 import { startTasksWorker } from "@metobe/core/tasks-worker";
+import { startTelegramWorker } from "@metobe/core/telegram-bot";
 import { getUpdates } from "@metobe/core/updates";
 
 // Periodic DB check keeps the process alive until BullMQ workers hold the event loop.
@@ -28,12 +29,15 @@ const updates = setInterval(releases, 60 * 60_000);
 let stopTasks: (() => Promise<void>) | null = null;
 // The memory's silent writer (ARCH §19.4), on the same Redis; it reads nothing while no model holds the job.
 let stopMemory: (() => Promise<void>) | null = null;
+// The bot that binds users' Telegram chats (D43): reads its updates while the installation has a token.
+let stopTelegram: (() => void) | null = null;
 
 const shutdown = async () => {
   clearInterval(keepAlive);
   clearInterval(updates);
   console.log("worker stopping");
   // A run in progress is let go: its job comes back to the queue and runs again on the next start.
+  stopTelegram?.();
   await stopTasks?.().catch((error: unknown) =>
     console.error("worker: tasks stop", error)
   );
@@ -66,6 +70,10 @@ try {
     `worker started, db: ${health.services.db}, s3: ${health.services.s3}`
   );
   void releases();
+  stopTelegram = startTelegramWorker();
+  if (stopTelegram) {
+    console.log("worker: telegram bot on");
+  }
   if (process.env.REDIS_URL) {
     stopTasks = await startTasksWorker();
     stopMemory = startMemoryWorker();

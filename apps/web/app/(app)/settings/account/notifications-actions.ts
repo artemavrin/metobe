@@ -1,0 +1,66 @@
+"use server";
+
+import {
+  activeTelegramChat,
+  markTelegramError,
+  startTelegramLink,
+  telegramChannel,
+  unlinkTelegram,
+} from "@metobe/core/channels";
+import { TelegramError, sendTelegram } from "@metobe/core/telegram";
+import { getTranslations } from "next-intl/server";
+import { headers } from "next/headers";
+
+import { getAuth } from "@/lib/auth";
+
+// The user's own channels (D43): Telegram is bound by a code the bot reads (the worker); these are the settings' calls.
+
+const session = async () =>
+  getAuth().api.getSession({ headers: await headers() });
+
+/** A new link to the bot; refused while a chat is bound. */
+export const startTelegram = async () => {
+  const s = await session();
+  if (!s) {
+    return { ok: false as const, reason: "auth" as const };
+  }
+  return startTelegramLink(s.user.id);
+};
+
+/** Where the channel stands now: the settings ask while the link waits for «Start» in the bot. */
+export const telegramStatus = async () => {
+  const s = await session();
+  return s ? await telegramChannel(s.user.id) : null;
+};
+
+export const unlinkTelegramChat = async () => {
+  const s = await session();
+  if (!s) {
+    return { ok: false as const };
+  }
+  await unlinkTelegram(s.user.id);
+  return { ok: true as const };
+};
+
+/** A line to the chat, to see it works; a blocked bot turns the channel to an error. */
+export const testTelegram = async () => {
+  const s = await session();
+  if (!s) {
+    return { ok: false as const };
+  }
+  const chat = await activeTelegramChat(s.user.id);
+  if (!chat) {
+    return { ok: false as const };
+  }
+  const t = await getTranslations("telegram");
+  try {
+    await sendTelegram(chat, t("test"));
+    return { ok: true as const };
+  } catch (error) {
+    const blocked = error instanceof TelegramError && error.code === 403;
+    if (blocked) {
+      await markTelegramError(s.user.id, (error as Error).message);
+    }
+    return { blocked, ok: false as const };
+  }
+};
