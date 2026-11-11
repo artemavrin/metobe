@@ -492,6 +492,20 @@ const Now = ({ data, timeZone }: { data: MemoryCard; timeZone: string }) => {
 
 const FIELDS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
+/** What the line suggests to write on a card: examples fit what the card is. */
+const placeholderKey = (kind: MemoryCardItem["kind"], empty: boolean) => {
+  if (kind === "custom") {
+    return "notePlaceholderThing";
+  }
+  if (kind === "project") {
+    return "notePlaceholderProject";
+  }
+  if (kind === "group") {
+    return "notePlaceholderGroup";
+  }
+  return empty ? "notePlaceholderEmpty" : "notePlaceholder";
+};
+
 /** Typing in another field, or a key with a modifier: «N» is not ours then. */
 const typing = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null;
@@ -571,7 +585,7 @@ const QuickAdd = ({
         disabled={busy}
         maxLength={2000}
         onChange={(e) => setText(e.target.value)}
-        placeholder={empty ? t("notePlaceholderEmpty") : t("notePlaceholder")}
+        placeholder={t(placeholderKey(card.kind, empty))}
         ref={field}
         value={text}
       />
