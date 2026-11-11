@@ -3005,7 +3005,13 @@
     "linked": "Done: this chat is linked to your Metobe account. Notifications will come here.",
     "invalid": "The code did not fit or has expired. Make a new link in the Metobe settings.",
     "taken": "This Telegram is already linked to another Metobe account. Unlink it there or use another Telegram.",
-    "test": "Connection check: Metobe notifications arrive here."
+    "test": "Connection check: Metobe notifications arrive here.",
+    "press": {
+      "done": "Marked done",
+      "tomorrow": "Moved to tomorrow",
+      "dismiss": "Taken out of «Don't miss»",
+      "gone": "That item is gone"
+    }
   },
   "digest": {
     "name": "Don't miss",
@@ -3014,6 +3020,8 @@
     "open": "Open Metobe",
     "off": "Digest settings",
     "why": "This digest came because it is on in the notification settings.",
-    "more": "And {count} more — in Metobe."
+    "more": "And {count} more — in Metobe.",
+    "tomorrowButton": "Tomorrow",
+    "dismissButton": "Remove"
   }
 }

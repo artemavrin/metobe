@@ -5,9 +5,16 @@ import { defaultLocale, isLocale } from "@metobe/i18n/config";
 import type { Locale } from "@metobe/i18n/config";
 import { getTranslator } from "@metobe/i18n/translator";
 
-import { completeTelegramLink } from "./channels";
-import { getUpdates, sendTelegram, telegramToken } from "./telegram";
+import { completeTelegramLink, userOfChat } from "./channels";
+import {
+  answerCallback,
+  getUpdates,
+  sendTelegram,
+  setButtons,
+  telegramToken,
+} from "./telegram";
 import type { TelegramUpdate, TelegramUser } from "./telegram";
+import { parseAction, runAction } from "./telegram-actions";
 
 // What the bot does when someone writes to it (D43). Only «Start» with a code binds a chat to an account; anything
 // else gets a line saying what the bot is. Groups are not answered. The worker reads the updates by long polling —
@@ -54,8 +61,41 @@ export const replyTo = async (update: TelegramUpdate) => {
   return { chatId: String(message.chat.id), text: t(`telegram.${key}`) };
 };
 
+/** A press on a button under a digest: whose chat it is is known from the bot's binding, nothing is taken on trust. */
+export const answerPress = async (update: TelegramUpdate) => {
+  const press = update.callback_query;
+  if (!press) {
+    return;
+  }
+  const t = await getTranslator(localeOf(press.from));
+  const chat = press.message?.chat.id;
+  const action = parseAction(press.data);
+  const owner = chat === undefined ? null : await userOfChat(String(chat));
+  if (!(chat !== undefined && action && owner)) {
+    await answerCallback(press.id, t("telegram.press.gone"));
+    return;
+  }
+  const result = await runAction(owner, action);
+  await answerCallback(press.id, t(`telegram.press.${result}`));
+  // The promise has had its say: its row of buttons goes, the others stay.
+  const rows = press.message?.reply_markup?.inline_keyboard;
+  if (rows && press.message) {
+    await setButtons(
+      String(chat),
+      press.message.message_id,
+      rows.filter(
+        (row) => !row.some((b) => b.callback_data?.endsWith(action.id))
+      )
+    );
+  }
+};
+
 const handle = async (update: TelegramUpdate) => {
   try {
+    if (update.callback_query) {
+      await answerPress(update);
+      return;
+    }
     const reply = await replyTo(update);
     if (reply) {
       await sendTelegram(reply.chatId, reply.text);

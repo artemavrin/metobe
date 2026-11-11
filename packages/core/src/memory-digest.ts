@@ -12,6 +12,7 @@ import { getEnv } from "./env";
 import { todaySuggestions } from "./memory-today";
 import { isMemoryOnFor } from "./memory-write";
 import { notify } from "./notify";
+import { buttonsFor } from "./telegram-actions";
 
 // The morning digest of «Не упустить» (D43): at the time the person chose, one message with what is in front of them —
 // past its day, today, waiting for others, days that come, rhythms. It goes by `notify`, so where is their choice. It
@@ -181,6 +182,10 @@ const sendOne = async (
   const app = new URL("/", getEnv().BETTER_AUTH_URL).toString();
   const sent = await notify(row.id, {
     blocks,
+    buttons: buttonsFor(rows, {
+      dismiss: t("digest.dismissButton"),
+      tomorrow: t("digest.tomorrowButton"),
+    }),
     links: [
       { href: app, label: t("digest.open") },
       {

@@ -90,7 +90,13 @@ export interface TelegramUpdate {
     id: string;
     from: TelegramUser;
     data?: string;
-    message?: { chat: { id: number }; message_id: number };
+    message?: {
+      chat: { id: number };
+      message_id: number;
+      reply_markup?: {
+        inline_keyboard: { text: string; callback_data?: string }[][];
+      };
+    };
   };
 }
 
@@ -124,3 +130,21 @@ export const getUpdates = (offset: number, timeout: number) =>
     { allowed_updates: ["message", "callback_query"], offset, timeout },
     (timeout + 10) * 1000
   );
+
+/** The answer to a button press: a line that shows at the top of the chat for a moment. */
+export const answerCallback = async (id: string, text: string) => {
+  await call("answerCallbackQuery", { callback_query_id: id, text });
+};
+
+/** The buttons of a message, as they are now (an empty list takes them all away). */
+export const setButtons = async (
+  chatId: string,
+  messageId: number,
+  rows: { text: string; callback_data?: string }[][]
+) => {
+  await call("editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: { inline_keyboard: rows },
+  });
+};

@@ -1667,6 +1667,61 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ).rejects.toThrow();
   });
 
+  it("does what a Telegram button says for the owner of the promise, and for nobody else (D43)", async () => {
+    const { runAction, tomorrowOf } = await import("./telegram-actions");
+    const olga = await memory.createEntity(hana, {
+      kind: "person",
+      name: "Ольга из Telegram",
+    });
+    const self = await memory.ensureSelf(hana, "Я");
+    const make = (text: string) =>
+      memory.addRecord(hana, {
+        dueAt: new Date(Date.now() + 5 * 86_400_000),
+        entities: owes(olga.id, self.id),
+        kind: "commitment",
+        text,
+      });
+    const [a, b, c] = await Promise.all([
+      make("Кнопка: выполнить"),
+      make("Кнопка: завтра"),
+      make("Кнопка: убрать"),
+    ]);
+    if (!(a && b && c)) {
+      throw new Error("no records");
+    }
+    // Another person's button does nothing to it.
+    expect(await runAction(bob, { action: "done", id: a.id })).toBe("gone");
+    const still = await memory.listRecords(hana, { ids: [a.id] });
+    expect(still[0]?.status).toBe("open");
+
+    expect(await runAction(hana, { action: "done", id: a.id })).toBe("done");
+    const [doneRecord] = await memory.listRecords(hana, { ids: [a.id] });
+    expect(doneRecord?.status).toBe("done");
+
+    expect(await runAction(hana, { action: "tomorrow", id: b.id })).toBe(
+      "tomorrow"
+    );
+    const [moved] = await memory.listRecords(hana, { ids: [b.id] });
+    // The person has no zone set: it is UTC, tomorrow's midnight.
+    expect(moved?.dueAt?.toISOString()).toBe(
+      tomorrowOf(new Date(), "UTC")?.toISOString()
+    );
+
+    expect(await runAction(hana, { action: "dismiss", id: c.id })).toBe(
+      "dismiss"
+    );
+    const dismissed = await memory.listDismissals(hana);
+    expect(dismissed.has(c.id)).toBe(true);
+
+    // A promise that is not there.
+    expect(
+      await runAction(hana, {
+        action: "done",
+        id: "0b9c1a52-9f5f-4b9a-8a52-6a1f0b2c3d4e",
+      })
+    ).toBe("gone");
+  });
+
   it("merges two cards into one and takes it back as it was (ARCH §19.8.5)", async () => {
     const today: typeof MemoryTodayModule = await import("./memory-today");
     const team = await memory.createEntity(gwen, {

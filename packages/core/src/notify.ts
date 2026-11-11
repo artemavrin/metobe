@@ -21,6 +21,8 @@ export interface Notice {
   blocks?: LetterBlock[];
   /** Links under the message; the first is the one that opens the thing in the app. */
   links?: { href: string; label: string }[];
+  /** Buttons under the Telegram message, a row each: what they do is the bot's (`telegram-actions`). */
+  buttons?: { text: string; data: string }[][];
   /** The finished letter for the mail; asked for only when the mail is used. */
   mail?: () => Promise<{
     subject: string;
@@ -83,7 +85,10 @@ export const notify = async (
       const chat = await activeTelegramChat(userId);
       if (chat) {
         try {
-          await sendTelegram(chat, telegramMessage(notice), { html: true });
+          await sendTelegram(chat, telegramMessage(notice), {
+            buttons: notice.buttons,
+            html: true,
+          });
           done.telegram = true;
         } catch (error) {
           console.error("notify: the Telegram message was not sent", error);

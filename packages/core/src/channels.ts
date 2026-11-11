@@ -206,3 +206,19 @@ export const setNotifyPrefs = async (
     await getDb().db.update(user).set(set).where(eq(user.id, userId));
   }
 };
+
+/** Whose chat this is: the account a Telegram chat is bound to; null — nobody's, or the channel is not active. */
+export const userOfChat = async (chatId: string) => {
+  const [row] = await getDb()
+    .db.select({ userId: userChannels.userId })
+    .from(userChannels)
+    .where(
+      and(
+        eq(userChannels.kind, "telegram"),
+        eq(userChannels.chatId, chatId),
+        eq(userChannels.status, "active")
+      )
+    )
+    .limit(1);
+  return row?.userId ?? null;
+};
