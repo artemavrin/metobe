@@ -278,6 +278,12 @@ const filePartSchema = z.object({
 /** The one message the client sends; the history comes from the database. Text, files, or both. */
 export const userMessageSchema = z.object({
   id: z.uuid(),
+  /**
+   * What the client may say about the message beyond its words: the memory's cards it mentions with `@` (Д4). The
+   * rest of the metadata — the time, the model — is the server's; without this the cards were dropped on the way in,
+   * so the mention was neither kept with the message nor read from the memory by id.
+   */
+  metadata: chatMessageMetadataSchema.pick({ cards: true }).optional(),
   parts: z
     .array(z.union([textPartSchema, filePartSchema]))
     .min(1)
