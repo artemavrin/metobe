@@ -59,6 +59,7 @@ import {
   useCompactBridgeValue,
 } from "@/components/chat/compact-bridge";
 import { ShareDialog } from "@/components/chat/share-dialog";
+import { SidebarResizer } from "@/components/chat/sidebar-resizer";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
 import { TopBarSlot } from "@/components/chat/top-bar";
 import { TaskDot } from "@/components/tasks/task-dot";
@@ -282,6 +283,7 @@ export const ChatShell = ({
   admin,
   user,
   sendKey,
+  sidebarWidth = null,
   whatsNew = NO_NEWS,
   children,
 }: {
@@ -296,6 +298,8 @@ export const ChatShell = ({
   user: Person;
   /** The key that sends a message, as the user chose it. */
   sendKey: "enter" | "mod-enter";
+  /** The sidebar's width as the person dragged it, in px; null — the default. */
+  sidebarWidth?: number | null;
   /** «Что нового»: the window to open now, after an update, and the notes the account menu reads again. */
   whatsNew?: WhatsNew;
   children: ReactNode;
@@ -304,6 +308,8 @@ export const ChatShell = ({
   const router = useRouter();
   const prefs = useMemo(() => ({ sendKey }), [sendKey]);
   const [chats, setChats] = useState(initialChats);
+  // As dragged: the handle moves the CSS variable itself while it is held and tells here when it is let go.
+  const [barWidth, setBarWidth] = useState(sidebarWidth);
   const [whatsNewOpen, setWhatsNewOpen] = useState(Boolean(whatsNew.show));
   const notes = whatsNew.show ?? whatsNew.latest;
   // A fresh list from the server (a reload of the layout) replaces the local one.
@@ -420,7 +426,15 @@ export const ChatShell = ({
     <ChatListContext.Provider value={touch}>
       <ChatPrefsContext.Provider value={prefs}>
         <CompactBridgeProvider value={compactBridge}>
-          <SidebarProvider>
+          <SidebarProvider
+            style={
+              barWidth
+                ? ({
+                    "--sidebar-width": `${barWidth}px`,
+                  } as React.CSSProperties)
+                : undefined
+            }
+          >
             <Sidebar variant="floating">
               <SidebarHeader>
                 <div className="flex h-8 items-center justify-between ps-2">
@@ -449,6 +463,7 @@ export const ChatShell = ({
                   user={user}
                 />
               </SidebarFooter>
+              <SidebarResizer onCommit={setBarWidth} width={barWidth} />
             </Sidebar>
             {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
             <SidebarInset className="h-dvh min-h-0 overflow-hidden">

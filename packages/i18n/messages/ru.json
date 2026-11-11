@@ -614,7 +614,8 @@
       "replaced": "{text} · заменило: «{was}»",
       "moved": "Срок перенесён: {text} · {from} → {to}",
       "noDue": "без срока"
-    }
+    },
+    "sidebarResize": "Ширина боковой панели"
   },
   "login": {
     "title": "Вход в Metobe",
@@ -2913,6 +2914,18 @@
     "reviewToMemory": "К памяти",
     "reviewUndoLast": "Вернуть последнее",
     "reviewKeys": "Клавиши: 1 — выполнено, 2 — жду дальше, 3 — перенести, 4 — отменено, Backspace — назад.",
-    "reviewRow": "Сверка"
+    "reviewRow": "Сверка",
+    "due": "Сроки",
+    "dueHint": "Обещания по дням: перетащите на другой день, и срок перенесётся",
+    "dueNone": "{count, plural, one {# обещание} few {# обещания} many {# обещаний} other {# обещания}} без срока",
+    "calToday": "Сегодня",
+    "calPrevious": "Назад",
+    "calNext": "Вперёд",
+    "calNoEvents": "В этот день сроков нет",
+    "calMore": "ещё {count}",
+    "calSelectView": "Вид",
+    "calMonth": "Месяц",
+    "calAgenda": "Список",
+    "dueLate": "просрочено: {count}"
   }
 }

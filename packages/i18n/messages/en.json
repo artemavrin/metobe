@@ -620,7 +620,8 @@
       "replaced": "{text} · replaced: «{was}»",
       "moved": "Deadline moved: {text} · {from} → {to}",
       "noDue": "none"
-    }
+    },
+    "sidebarResize": "Sidebar width"
   },
   "login": {
     "title": "Sign in to Metobe",
@@ -2919,6 +2920,18 @@
     "reviewToMemory": "To the memory",
     "reviewUndoLast": "Undo the last one",
     "reviewKeys": "Keys: 1 — done, 2 — still waiting, 3 — move, 4 — cancelled, Backspace — back.",
-    "reviewRow": "Review"
+    "reviewRow": "Review",
+    "due": "Deadlines",
+    "dueHint": "Promises by day: drag one to another day to move its deadline",
+    "dueNone": "{count} with no deadline",
+    "calToday": "Today",
+    "calPrevious": "Previous",
+    "calNext": "Next",
+    "calNoEvents": "No deadlines this day",
+    "calMore": "{count} more",
+    "calSelectView": "View",
+    "calMonth": "Month",
+    "calAgenda": "List",
+    "dueLate": "{count} overdue"
   }
 }

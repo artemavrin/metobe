@@ -4,7 +4,9 @@ import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { listSidebarTasks } from "@metobe/core/tasks";
 import { availableUpdate } from "@metobe/core/updates";
 import { getWhatsNew } from "@metobe/core/whats-new";
+import { COOKIE } from "@metobe/i18n/config";
 import { getTranslations } from "next-intl/server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ChatShell } from "@/components/chat/chat-shell";
@@ -12,6 +14,7 @@ import { getChatModels } from "@/lib/chat-data";
 import { chatGroupOf } from "@/lib/chat-history";
 import { getPrefs } from "@/lib/prefs";
 import { getSettingsViewer } from "@/lib/settings-access";
+import { parseSidebarWidth } from "@/lib/sidebar-width";
 
 import { NotReady } from "./not-ready";
 
@@ -63,6 +66,8 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
       title: chat.title,
     })
   );
+  const jar = await cookies();
+  const sidebarWidth = parseSidebarWidth(jar.get(COOKIE.sidebarWidth)?.value);
   const roleKey = role === "superuser" || role === "admin" ? role : "user";
   return (
     <ChatShell
@@ -70,6 +75,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
       chats={chats}
       memory={memory}
       tasks={tasks}
+      sidebarWidth={sidebarWidth}
       sendKey={account?.sendKey === "mod-enter" ? "mod-enter" : "enter"}
       whatsNew={whatsNew}
       user={{
