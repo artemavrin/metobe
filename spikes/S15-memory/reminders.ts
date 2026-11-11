@@ -1,11 +1,11 @@
 // S15 part «напоминания» (D43): a message asks to be reminded — «напомни мне завтра в 15:00 позвонить Ольге» — and the
 // writer makes a promise of the user with its day as the deadline and the time of day in `remind`; a message that only
-// names a thing to do, or a meeting, does not get one. 14 messages, now is Monday 9 November 2026, 12:00 in Moscow; the
+// names a thing to do, or a meeting, does not get one. 16 messages, now is Monday 9 November 2026, 12:00 in Moscow; the
 // model is shown what the writer shows it (the rule on reminders only for a message `asksReminder` finds), its answer
 // judged as `planWrite` takes it. Gateway only.
 //
 //   DRY=1 pnpm run reminders      # no model: which messages get the rule in the prompt
-//   pnpm run reminders            # meta/muse-ember — about $0.01 for 14 messages
+//   pnpm run reminders            # meta/muse-ember — about $0.01 for 16 messages
 //   SHOW=1 pnpm run reminders     # with what the model answered for each miss
 
 import { createGateway } from "@ai-sdk/gateway";
@@ -61,6 +61,8 @@ const cases: { text: string; want: Want }[] = [
   { text: "Напомни мне в 9 утра позвонить Игорю Белову", want: { at: "2026-11-10T06:00:00Z" } },
   { text: "Напомни мне 15 ноября в 12:30 оплатить счёт", want: { at: "2026-11-15T09:30:00Z" } },
   { text: "Remind me tomorrow at 4pm to call Marina", want: { at: "2026-11-10T13:00:00Z" } },
+  { text: "напомни в 10 завтра про встречу с Владом", want: { at: "2026-11-10T07:00:00Z" } },
+  { text: "Напомни завтра в 10 вечера выключить сервер", want: { at: "2026-11-10T19:00:00Z" } },
   { text: "Ольга Ли обещала прислать договор к пятнице", want: { none: true } },
   { text: "Мне нужно позвонить Ольге завтра", want: { none: true } },
   { text: "Не напоминай мне про отчёт, я помню", want: { none: true } },
