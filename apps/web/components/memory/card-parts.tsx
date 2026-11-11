@@ -211,3 +211,37 @@ export const sidesOf = (card: MemoryCardItem, open: MemoryRecordView[]) => {
   const others = open.filter((r) => !(theirs.includes(r) || mine.includes(r)));
   return { mine, others, split, theirs };
 };
+
+/**
+ * How each side kept its promises (Г2.2): plain counts under «что сейчас», nothing when fewer than three promises with
+ * a deadline are done. «Отмечено в срок» — the day it was said, not the day it was done.
+ */
+export const Reliability = ({ data }: { data: MemoryCard }) => {
+  const t = useTranslations("memory");
+  const { reliability } = data;
+  if (!(reliability?.theirs || reliability?.mine)) {
+    return null;
+  }
+  const line = (
+    key: "reliabilityTheirs" | "reliabilityMine",
+    s: NonNullable<MemoryCard["reliability"]>["theirs"]
+  ) =>
+    s ? (
+      <p className="text-muted-foreground text-sm" key={key}>
+        {t(key, {
+          days: s.lateDays,
+          late: s.late,
+          moved: s.moved,
+          onTime: s.onTime,
+          overdueOpen: s.overdueOpen,
+          total: s.total,
+        })}
+      </p>
+    ) : null;
+  return (
+    <div className="flex flex-col gap-1">
+      {line("reliabilityTheirs", reliability.theirs)}
+      {line("reliabilityMine", reliability.mine)}
+    </div>
+  );
+};

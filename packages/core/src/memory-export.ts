@@ -234,7 +234,7 @@ export const exportMemory = async (
 ) => {
   const overview: Omit<MemoryOverview, "on"> = await memoryOverview(ownerId);
   const read = await Promise.all(
-    overview.cards.map((c) => memoryCard(ownerId, c.id))
+    overview.cards.map((c) => memoryCard(ownerId, c.id, options.timeZone))
   );
   const cards = read.filter((c): c is MemoryCard => c !== null);
   return memoryMarkdown({

@@ -205,6 +205,28 @@ export interface MemoryOverview {
   me: MemoryRecordView[];
 }
 
+/**
+ * How a side kept its promises (Г2.2), by counts: of `total` promises with a deadline and done, `onTime` were marked done
+ * by it, `late` after it (by `lateDays` on average); `moved` — how many times those deadlines were moved;
+ * `overdueOpen` — open ones past their day.
+ */
+export interface MemoryReliabilityStat {
+  total: number;
+  onTime: number;
+  late: number;
+  lateDays: number;
+  moved: number;
+  overdueOpen: number;
+}
+
+/** Both sides of a card; null — fewer than three counted, nothing to say. */
+export interface MemoryReliability {
+  /** What the card promised the person. */
+  theirs: MemoryReliabilityStat | null;
+  /** What the person promised the card. */
+  mine: MemoryReliabilityStat | null;
+}
+
 /** `GET /api/memory/cards/[id]`. */
 export interface MemoryCard {
   card: MemoryCardItem;
@@ -216,6 +238,8 @@ export interface MemoryCard {
    * a rhythm rule wants one, in days (null — no rule).
    */
   contact?: { last: string | null; every: number | null };
+  /** How each side kept its promises (Г2.2), for a person or an organization. */
+  reliability?: MemoryReliability;
   /** The groups a person is in now and the projects their records name, for the line under the role. */
   links?: { id: string; name: string; kind: "group" | "project" }[];
 }

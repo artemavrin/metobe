@@ -2956,6 +2956,8 @@
     "merged": "Объединено: «{name}»",
     "mergeAsk": "«{keep}» и «{gone}» — одна карточка?",
     "mergeDifferent": "Разные",
-    "cardActions": "Действия с карточкой"
+    "cardActions": "Действия с карточкой",
+    "reliabilityTheirs": "Обещано вам: {total} со сроком. В срок отмечено {onTime}, позже — {late}{late, plural, =0 {} other { (в среднем на {days} дн.)}}.{moved, plural, =0 {} other { Сроки переносились: {moved}.}}{overdueOpen, plural, =0 {} other { Сейчас просрочено: {overdueOpen}.}}",
+    "reliabilityMine": "Обещано вами: {total} со сроком. В срок отмечено {onTime}, позже — {late}{late, plural, =0 {} other { (в среднем на {days} дн.)}}.{moved, plural, =0 {} other { Сроки переносились: {moved}.}}{overdueOpen, plural, =0 {} other { Сейчас просрочено: {overdueOpen}.}}"
   }
 }

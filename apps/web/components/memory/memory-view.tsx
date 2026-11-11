@@ -36,6 +36,7 @@ import {
   Avatar,
   Balance,
   Now,
+  Reliability,
   Section,
   byUrgency,
   sidesOf,
@@ -526,6 +527,7 @@ const CardView = ({
           title={card.name}
         />
         <Now data={data} timeZone={timeZone} />
+        <Reliability data={data} />
         {data.contact && <Contacts card={card} />}
         <NoteLine
           label={t("noteLabel", { name: card.name })}

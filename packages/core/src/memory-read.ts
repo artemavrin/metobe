@@ -336,7 +336,7 @@ export const memoryShowTools = (
         return { candidates: candidatesOf(fits), found: false };
       }
       const [card] = fits;
-      const data = card ? await memoryCard(ownerId, card.id) : null;
+      const data = card ? await memoryCard(ownerId, card.id, timeZone) : null;
       return data ? shownCard(data) : { found: false };
     },
     inputSchema: cardInput,
@@ -470,7 +470,7 @@ export const memoryTools = (ownerId: string, timeZone: string): ToolSet => {
           return { candidates: candidatesOf(fits), found: false };
         }
         const [card] = fits;
-        const data = card ? await memoryCard(ownerId, card.id) : null;
+        const data = card ? await memoryCard(ownerId, card.id, timeZone) : null;
         if (!data) {
           return { found: false };
         }

@@ -165,6 +165,26 @@ await addRecord(id, {
   kind: "commitment",
   text: "Прислать счёт",
 });
+// Done promises with a deadline, for «Надёжность»: two kept in time, two a few days late (done now).
+for (const [text, days] of [
+  ["Прислать смету", 2],
+  ["Прислать спецификацию", 4],
+  ["Согласовать макет", -3],
+  ["Подписать акт", -5],
+] as const) {
+  // oxlint-disable-next-line eslint/no-await-in-loop -- four rows, once
+  await addRecord(id, {
+    dueAt: new Date(now + days * DAY),
+    entities: [
+      { entityId: olga.id, role: "debtor" },
+      { entityId: selfId, role: "creditor" },
+    ],
+    givenAt: new Date(now - 10 * DAY),
+    kind: "commitment",
+    status: "done",
+    text,
+  });
+}
 const changes = await lastChanges(id);
 const records = await listRecords(id);
 console.log(

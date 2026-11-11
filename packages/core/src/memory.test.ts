@@ -631,7 +631,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
 
       // On the card the replaced meeting stands in «Раньше»; the old version of a hand correction does not.
       const page: typeof MemoryPageModule = await import("./memory-page");
-      const card = await page.memoryCard(ana, project.id);
+      const card = await page.memoryCard(ana, project.id, "Europe/Moscow");
       expect(
         card?.records
           .filter((r) => r.kind === "event")
@@ -659,7 +659,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         meeting.id,
         "Встреча по складу в среду в 15:00"
       );
-      const fixed = await page.memoryCard(ana, project.id);
+      const fixed = await page.memoryCard(ana, project.id, "Europe/Moscow");
       expect(
         fixed?.records.filter((r) => r.kind === "event").map((r) => r.text)
       ).toEqual(["Встреча по складу в среду в 15:00"]);
@@ -1153,7 +1153,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       "Встреча один на один раз в две недели",
     ]);
 
-    const card = await page.memoryCard(cleo, olga.id);
+    const card = await page.memoryCard(cleo, olga.id, "Europe/Moscow");
     expect(card?.records).toHaveLength(3);
     expect(card?.records.find((r) => r.id === late.id)).toMatchObject({
       chatId,
@@ -1163,7 +1163,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       ],
       fromChat: true,
     });
-    expect(await page.memoryCard(cleo, self.id)).toBeNull();
+    expect(await page.memoryCard(cleo, self.id, "Europe/Moscow")).toBeNull();
 
     // A card by hand («+» next to a section): made once; the same name again — that card, not a second one.
     const group = await page.createCard(cleo, {
@@ -1186,7 +1186,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       type: "автобус",
     });
     expect(thing.card).toMatchObject({ kind: "custom", type: "автобус" });
-    expect(await page.memoryCard(bob, olga.id)).toBeNull();
+    expect(await page.memoryCard(bob, olga.id, "Europe/Moscow")).toBeNull();
 
     // Every word, any order, ё as е; done ones too.
     const found = await page.searchMemory(cleo, "СЧЁТ ольга");

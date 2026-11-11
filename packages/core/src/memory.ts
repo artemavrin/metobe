@@ -2202,6 +2202,25 @@ export const lastChanges = async (ownerId: string) => {
   return new Map(rows.map((r) => [r.recordId, r.at]));
 };
 
+/** How many times each commitment's deadline was moved: lines of `memory_changes` for `due` that had a deadline before. */
+export const movedCounts = async (ownerId: string) => {
+  const rows = await getDb()
+    .db.select({
+      moves: sql<number>`count(*)`.mapWith(Number),
+      recordId: memoryChanges.recordId,
+    })
+    .from(memoryChanges)
+    .where(
+      and(
+        eq(memoryChanges.ownerId, ownerId),
+        eq(memoryChanges.field, "due"),
+        isNotNull(memoryChanges.before)
+      )
+    )
+    .groupBy(memoryChanges.recordId);
+  return new Map(rows.map((r) => [r.recordId, r.moves]));
+};
+
 /** The key of «Оставить» in «Сверка»: the commitment stays open and out of it for a while. */
 export const keepKey = (recordId: string) => `stale:${recordId}`;
 

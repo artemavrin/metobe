@@ -23,6 +23,7 @@ import {
   listQuestions,
   listRecords,
   materialOf,
+  movedCounts,
   mergeSuggestions,
   recordHistory,
   writeChats,
@@ -31,6 +32,7 @@ import {
 import type { MemoryEntity, MemoryRecord, WriteMaterial } from "./memory";
 import { groupMembers } from "./memory-groups";
 import { queueMemoryWrite } from "./memory-queue";
+import { reliabilityOf } from "./memory-reliability";
 import { cardContact } from "./memory-today";
 
 // The «Память» page (ARCH §19, P16), put together from the store: the list of cards, a card, search and «Откуда».
@@ -238,7 +240,9 @@ const linksOf = (
 /** One card with all it takes part in; null — not the owner's, or the person's own. */
 export const memoryCard = async (
   ownerId: string,
-  id: string
+  id: string,
+  /** The person's zone: the days a promise was due and done are counted in it. */
+  timeZone: string
 ): Promise<MemoryCard | null> => {
   const entities = await listEntities(ownerId);
   const entity = entities.find((e) => e.id === id);
@@ -255,11 +259,25 @@ export const memoryCard = async (
   }
   const view = { card, records: await views(ownerId, records, entities) };
   if (entity.kind === "person" || entity.kind === "org") {
-    const contact = await cardContact(ownerId, id, records, entities);
+    const [contact, moves] = await Promise.all([
+      cardContact(ownerId, id, records, entities),
+      movedCounts(ownerId),
+    ]);
+    const selfIds = new Set(
+      entities.filter((e) => e.kind === "self").map((e) => e.id)
+    );
     return {
       ...view,
       contact: { every: contact.every, last: iso(contact.last) },
       links: linksOf(id, records, entities),
+      reliability: reliabilityOf(
+        id,
+        records,
+        selfIds,
+        moves,
+        new Date(),
+        timeZone
+      ),
     };
   }
   if (entity.kind !== "group") {

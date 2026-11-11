@@ -2962,6 +2962,8 @@
     "merged": "Merged: “{name}”",
     "mergeAsk": "“{keep}” and “{gone}” — the same card?",
     "mergeDifferent": "Different",
-    "cardActions": "Card actions"
+    "cardActions": "Card actions",
+    "reliabilityTheirs": "Promised to you: {total} with a deadline. {onTime} marked done in time, {late} later{late, plural, =0 {} other { ({days} d on average)}}.{moved, plural, =0 {} other { Deadlines moved: {moved}.}}{overdueOpen, plural, =0 {} other { Overdue now: {overdueOpen}.}}",
+    "reliabilityMine": "Promised by you: {total} with a deadline. {onTime} marked done in time, {late} later{late, plural, =0 {} other { ({days} d on average)}}.{moved, plural, =0 {} other { Deadlines moved: {moved}.}}{overdueOpen, plural, =0 {} other { Overdue now: {overdueOpen}.}}"
   }
 }
