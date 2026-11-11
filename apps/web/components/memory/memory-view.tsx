@@ -492,20 +492,6 @@ const Now = ({ data, timeZone }: { data: MemoryCard; timeZone: string }) => {
 
 const FIELDS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
-/** What the line suggests to write on a card: examples fit what the card is. */
-const placeholderKey = (kind: MemoryCardItem["kind"], empty: boolean) => {
-  if (kind === "custom") {
-    return "notePlaceholderThing";
-  }
-  if (kind === "project") {
-    return "notePlaceholderProject";
-  }
-  if (kind === "group") {
-    return "notePlaceholderGroup";
-  }
-  return empty ? "notePlaceholderEmpty" : "notePlaceholder";
-};
-
 /** Typing in another field, or a key with a modifier: «N» is not ours then. */
 const typing = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null;
@@ -524,11 +510,9 @@ const typing = (e: KeyboardEvent) => {
  */
 const QuickAdd = ({
   card,
-  empty,
   onWritten,
 }: {
   card: MemoryCardItem;
-  empty: boolean;
   onWritten: (ids: string[]) => void;
 }) => {
   const t = useTranslations("memory");
@@ -585,7 +569,7 @@ const QuickAdd = ({
         disabled={busy}
         maxLength={2000}
         onChange={(e) => setText(e.target.value)}
-        placeholder={t(placeholderKey(card.kind, empty))}
+        placeholder={t("notePlaceholder")}
         ref={field}
         value={text}
       />
@@ -736,11 +720,7 @@ const CardView = ({
         />
         <Now data={data} timeZone={timeZone} />
         {data.contact && <Contacts card={card} />}
-        <QuickAdd
-          card={card}
-          empty={records.length === 0}
-          onWritten={setFresh}
-        />
+        <QuickAdd card={card} onWritten={setFresh} />
         {card.kind === "group" && (
           <Section count={data.members?.length ?? 0} title={t("members")}>
             {data.members?.length ? (
