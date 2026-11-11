@@ -30,6 +30,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   notExists,
   sql,
@@ -1354,15 +1355,45 @@ export interface MemoryQuestion {
   createdAt: Date;
 }
 
-/** Open questions: of one chat (under its answers), or all of them («Не записано» on the «Память» page). */
+/**
+ * A question nobody answered in this many days is given up (ARCH §19.8.6): it is no longer asked, and what waited
+ * for it is not written — a person who has not settled «какой Андрей» in two weeks is not going to.
+ */
+export const QUESTION_DAYS = 14;
+
+const DAY_MS = 86_400_000;
+
+/** Gives up the owner's questions older than `QUESTION_DAYS`. */
+const expireQuestions = async (ownerId: string, now: Date) => {
+  await getDb()
+    .db.update(memoryDrafts)
+    .set({ answeredAt: now, status: "expired" })
+    .where(
+      and(
+        eq(memoryDrafts.ownerId, ownerId),
+        eq(memoryDrafts.status, "open"),
+        lt(
+          memoryDrafts.createdAt,
+          new Date(now.getTime() - QUESTION_DAYS * DAY_MS)
+        )
+      )
+    );
+};
+
+/**
+ * Open questions: of one chat (under its answers), or all of them («Не записано» on the «Память» page). The ones past
+ * their time are given up first.
+ */
 export const listQuestions = async (
   ownerId: string,
-  filter: { chatId?: string } = {}
+  filter: { chatId?: string } = {},
+  now = new Date()
 ): Promise<MemoryQuestion[]> => {
   const key = await dataKey(ownerId, false);
   if (!key) {
     return [];
   }
+  await expireQuestions(ownerId, now);
   const { db } = getDb();
   const rows = await db
     .select({

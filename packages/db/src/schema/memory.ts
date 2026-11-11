@@ -278,7 +278,7 @@ export const memoryDrafts = pgTable(
     index("memory_drafts_write").on(table.writeId),
     check(
       "memory_drafts_status",
-      sql`${table.status} in ('open', 'answered', 'dismissed')`
+      sql`${table.status} in ('open', 'answered', 'dismissed', 'expired')`
     ),
   ]
 );

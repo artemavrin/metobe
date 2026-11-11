@@ -5,6 +5,7 @@ import { runMigrations } from "@metobe/db/migrate";
 import { user } from "@metobe/db/schema/auth";
 import { chats, messages } from "@metobe/db/schema/chat";
 import {
+  memoryDrafts,
   memoryKeys,
   memoryRecords,
   memoryWrites,
@@ -921,6 +922,38 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
             dismiss: true,
           })
         ).toBeNull();
+      });
+
+      it("gives up a question nobody answered in two weeks, and what waited for it is not written (§19.8.6)", async () => {
+        const { question } = await ask();
+        const id = question?.id as string;
+        const waiting = async () => {
+          const all = await memory.listRecords(ana);
+          return all.filter((r) => r.text === "Андрей в отпуске с 10 ноября")
+            .length;
+        };
+        const asked = async () => {
+          const list = await memory.listQuestions(ana);
+          return list.some((q) => q.id === id);
+        };
+        const before = await waiting();
+        expect(await asked()).toBe(true);
+        await db
+          .update(memoryDrafts)
+          .set({ createdAt: new Date(Date.now() - 15 * 86_400_000) })
+          .where(eq(memoryDrafts.id, id));
+        expect(await asked()).toBe(false);
+        // Given up for good: it cannot be answered any more, and nothing of it went in.
+        const answered = await memory.answerQuestion(ana, id, {
+          dismiss: true,
+        });
+        expect(answered).toBeNull();
+        const [row] = await db
+          .select({ status: memoryDrafts.status })
+          .from(memoryDrafts)
+          .where(eq(memoryDrafts.id, id));
+        expect(row?.status).toBe("expired");
+        expect(await waiting()).toBe(before);
       });
 
       it("puts the records in under the picked card, once", async () => {

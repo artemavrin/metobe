@@ -78,8 +78,16 @@ export const memoryWriteStatuses = [
 ] as const;
 export type MemoryWriteStatus = (typeof memoryWriteStatuses)[number];
 
-/** A question the writer could not settle by itself (P18): open until the person answers or turns it away. */
-export const memoryDraftStatuses = ["open", "answered", "dismissed"] as const;
+/**
+ * A question the writer could not settle by itself (P18): open until the person answers or turns it away — or until
+ * it is old enough to be given up (`expired`, ARCH §19.8.6).
+ */
+export const memoryDraftStatuses = [
+  "open",
+  "answered",
+  "dismissed",
+  "expired",
+] as const;
 export type MemoryDraftStatus = (typeof memoryDraftStatuses)[number];
 
 /** The person's answer to a question (P18): a card of the question's, a new card, or «Не запоминать». */

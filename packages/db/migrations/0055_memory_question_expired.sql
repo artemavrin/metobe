@@ -1,0 +1,2 @@
+ALTER TABLE "memory_drafts" DROP CONSTRAINT "memory_drafts_status";--> statement-breakpoint
+ALTER TABLE "memory_drafts" ADD CONSTRAINT "memory_drafts_status" CHECK ("memory_drafts"."status" in ('open', 'answered', 'dismissed', 'expired'));
