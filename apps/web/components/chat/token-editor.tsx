@@ -37,7 +37,7 @@ export interface EditorHandle {
   /** Puts a badge where the caret is, or was last in the field — else at its end (a pick from the «+» menu). */
   addToken: (t: Token) => void;
   /** Puts text at the end of the draft, after what is there, the caret after it (a starter from the new chat). */
-  addText: (text: string) => void;
+  addText: (text: string, tight?: boolean) => void;
 }
 
 /** The badge's look, shared by the editor (built in the DOM) and a sent message (React). */
@@ -288,15 +288,16 @@ export const TokenEditor = ({
   }, [autoFocus]);
 
   useImperativeHandle(ref, () => ({
-    addText: (text) => {
+    addText: (text, tight = false) => {
       const el = root.current;
       if (!el) {
         return;
       }
-      // Its own words: a space before them when they would stick to the draft.
+      // Its own words: a space before them when they would stick to the draft — unless they go on from a badge.
       const glued =
-        /\S$/u.test(el.textContent ?? "") ||
-        el.lastChild?.nodeType === Node.ELEMENT_NODE;
+        !tight &&
+        (/\S$/u.test(el.textContent ?? "") ||
+          el.lastChild?.nodeType === Node.ELEMENT_NODE);
       const node = document.createTextNode(glued ? ` ${text}` : text);
       el.append(node);
       el.focus();

@@ -31,6 +31,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { TopBar } from "@/components/chat/top-bar";
+import { cardMarker } from "@/lib/mentions";
 
 import {
   Avatar,
@@ -148,7 +149,7 @@ const checkLink = (card: MemoryCardItem, records: MemoryRecordView[], t: T) => {
     .sort(byUrgency)
     .map((r) => `— ${r.text}`)
     .join("\n");
-  return `/?say=${encodeURIComponent(t("checkAsk", { items, name: card.name }))}`;
+  return `/?say=${encodeURIComponent(t("checkAsk", { items, name: cardMarker(card) }))}`;
 };
 
 /** The role under the name, changed in place (P22): pressed — a field; Enter or leaving it saves, Escape does not. */

@@ -2780,7 +2780,7 @@
     "textLabel": "Record text",
     "check": "Remind about what is open",
     "checkHint": "A message on all open agreements — in a new chat",
-    "checkAsk": "Write a short check-in message. To: {name}. Open agreements:\n{items}\nAsk where each one stands.",
+    "checkAsk": "Write a short letter to check where things stand.\nTo: {name}\nOpen agreements:\n{items}\nAsk them to answer on each.",
     "restore": "Restore",
     "skip": "Don't remember",
     "savedDone": "Marked done",
@@ -2852,14 +2852,14 @@
       "dismiss": "Remove",
       "dismissed": "Removed from «Don't miss»",
       "more": "{count} more",
-      "askConfirm": "Write a short request to confirm it is done. To: {name}. What: {text}.",
+      "askConfirm": "Write a short request to confirm it is done.\nTo: {name}\nWhat: {text}.",
       "askMine": "Help me do this: {text}.{due, select, none {} other { Due {due}.}} Where do I start?",
       "askRemind": "Write a short polite reminder. To: {name}. About: {text}.{due, select, none {} other {{late, select, yes { It was due {due}.} other { Due {due}.}}}}",
       "askMeet": "Write a short message to set up a meeting. To: {name}.{since, select, none { We have not met yet.} other { We last met on {since}.}} I want to meet at least every {every} days.",
       "contacted": "Already done",
       "contactText": "Contact: {name}",
       "savedContact": "Contact noted: {name}",
-      "askBirthday": "Write a short, warm greeting. To: {name}. Occasion: {text}.",
+      "askBirthday": "Write a short, warm greeting.\nTo: {name}\nOccasion: {text}.",
       "askDate": "Help me get ready: {text}. Where do I start?"
     },
     "members": "Members",
@@ -2971,6 +2971,7 @@
     "summary_how": "How to talk",
     "summary_now": "Now",
     "meeting": "Before a meeting",
-    "meetingAsk": "Get me ready to talk to {name}: what they owe me and I owe them, what changed since last time, how best to talk to them."
+    "meetingAsk": "Get me ready to talk to {name} — what they owe me and I owe them, what changed since last time, how best to talk to them.",
+    "meetingHint": "Opens a new chat: what you owe each other, what changed since last time and how best to talk"
   }
 }

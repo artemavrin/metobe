@@ -40,6 +40,7 @@ import {
   useOAuthWindow,
 } from "@/components/mcp/oauth-window";
 import { useHotkeyLabel } from "@/lib/hotkey-label";
+import { splitCardMarkers } from "@/lib/mentions";
 import { tokenizePaste } from "@/lib/paste-tokens";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
@@ -553,7 +554,24 @@ export const Composer = ({
       pick(server);
     },
     pickFiles: () => filesInput.current?.click(),
-    say: (text) => editor.current?.addText(text),
+    say: (text) => {
+      // A request may name cards of the memory: each stands as its badge, so the chat knows which one it is.
+      for (const [i, piece] of splitCardMarkers(text).entries()) {
+        if (typeof piece === "string") {
+          // After a badge, which brings its own space: no second one.
+          editor.current?.addText(
+            i > 0 ? piece.replace(/^ /u, "") : piece,
+            i > 0
+          );
+        } else {
+          editor.current?.addToken({
+            id: piece.id,
+            kind: "card",
+            label: piece.name,
+          });
+        }
+      }
+    },
   }));
 
   const submit = () => {

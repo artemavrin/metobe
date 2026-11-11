@@ -33,6 +33,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { moveTargets } from "@/lib/memory-dates";
+import { cardMarker } from "@/lib/mentions";
 
 // «На сегодня» on the new chat screen (ARCH §19.6, P17 «Строки»): rows like «Начать с» — what to do and why now on the
 // right; a click puts the request into the composer, the person sends it. The menu: done (or confirmed), move the
@@ -113,7 +114,8 @@ const usePrompt = (timeZone: string) => {
           timeZone,
         })
       : null;
-    const name = s.who?.name ?? null;
+    // The other side is a badge in the composer, so the chat knows which card it is.
+    const name = s.who ? cardMarker(s.who) : null;
     if (s.date) {
       return s.date.repeat === "year" && name
         ? t("askBirthday", { name, text: s.text })

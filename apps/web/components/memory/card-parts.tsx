@@ -6,6 +6,11 @@ import type {
   MemoryRecordView,
 } from "@metobe/contracts/memory";
 import { Button } from "@metobe/ui/components/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import {
   Box,
@@ -18,6 +23,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 
 import { daysUntil } from "@/lib/memory-dates";
+import { cardMarker } from "@/lib/mentions";
 
 import { MemoryRecordRow, PRESS } from "./memory-record";
 
@@ -310,18 +316,32 @@ export const MeetingButton = ({ card }: { card: MemoryCardItem }) => {
     return null;
   }
   return (
-    <Button
-      className={PRESS}
-      nativeButton={false}
-      render={
-        <Link
-          href={`/?say=${encodeURIComponent(t("meetingAsk", { name: card.name }))}`}
-        />
-      }
-      size="sm"
-      variant="outline"
-    >
-      <CalendarClock /> <span className="max-sm:sr-only">{t("meeting")}</span>
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        delay={400}
+        render={
+          <Button
+            className={PRESS}
+            nativeButton={false}
+            render={
+              <Link
+                href={`/?say=${encodeURIComponent(t("meetingAsk", { name: cardMarker(card) }))}`}
+              />
+            }
+            size="sm"
+            variant="outline"
+          />
+        }
+      >
+        <CalendarClock /> <span className="max-sm:sr-only">{t("meeting")}</span>
+      </TooltipTrigger>
+      <TooltipContent
+        arrow={false}
+        className="bg-sidebar text-foreground ring-foreground/10 max-w-64 shadow-md ring-1"
+        sideOffset={6}
+      >
+        {t("meetingHint")}
+      </TooltipContent>
+    </Tooltip>
   );
 };
