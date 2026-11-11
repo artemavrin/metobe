@@ -940,6 +940,15 @@ const Bar = () => {
   );
 };
 
+/** The page's column: the calendar takes the whole of the place — its height and its width; the rest a readable column. */
+const pageClass = (fill: boolean, phone: boolean) =>
+  cn(
+    "mx-auto flex flex-col gap-8",
+    fill ? "h-full" : "max-w-3xl",
+    phone ? "p-4" : "px-6 pt-8 pb-16",
+    fill && !phone && "pb-6"
+  );
+
 /**
  * The page: what is picked in the list — a card, the calendar, «Обо мне», «Не записано», «Правила» — or what the search
  * found. The list stands in the app's sidebar (`MemoryListLevel`), and on a phone with nothing picked, here. Both read
@@ -1018,7 +1027,7 @@ export const MemoryView = () => {
       />
     ),
     due: (
-      <div className={cn("flex flex-col gap-4", ENTER)}>
+      <div className={cn("flex min-h-0 flex-1 flex-col gap-4", ENTER)}>
         <Header hint={t("dueHint")} onBack={back} title={t("due")} />
         <DueView
           due={due}
@@ -1045,6 +1054,7 @@ export const MemoryView = () => {
   const detail = shown ? details[shown.type] : null;
   // While searching, the records found stand over the card (on a phone, under the list and its search).
   const results = found && <Found records={found.records} />;
+  const fill = !results && shown?.type === "due";
   const phoneList = <MemoryRows inline />;
   let content: React.ReactNode;
   if (phone) {
@@ -1064,15 +1074,8 @@ export const MemoryView = () => {
   return (
     <MemoryActionsContext.Provider value={actions}>
       <Bar />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div
-          className={cn(
-            "mx-auto flex max-w-3xl flex-col gap-8",
-            phone ? "p-4" : "px-6 pt-8 pb-16"
-          )}
-        >
-          {content}
-        </div>
+      <div className={cn("min-h-0 flex-1", !fill && "overflow-y-auto")}>
+        <div className={pageClass(fill, phone)}>{content}</div>
       </div>
       <NewCardDialog
         onClose={() => setMaking(null)}

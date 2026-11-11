@@ -67,6 +67,8 @@ export const scheduleOf = (
         ...rowOf(r, cards),
         cards: r.entities.map((e) => e.entityId),
         dueAt: r.dueAt.toISOString(),
+        remindAt: r.remindAt?.toISOString() ?? null,
+        reminded: r.remindedAt !== null,
       });
     } else {
       none += 1;

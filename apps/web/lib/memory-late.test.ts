@@ -14,6 +14,8 @@ const row = (
   dueAt,
   id,
   important: false,
+  remindAt: null,
+  reminded: false,
   side: "theirs",
   status: "open",
   text: id,

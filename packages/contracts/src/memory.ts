@@ -325,6 +325,8 @@ export const memoryRecordPatchSchema = z
   .object({
     dueAt: z.iso.datetime({ offset: true }).nullable().optional(),
     important: z.boolean().optional(),
+    /** When the reminder goes off; null takes it back. A new time makes it go off again. */
+    remindAt: z.iso.datetime({ offset: true }).nullable().optional(),
     status: z.enum(memoryStatuses).optional(),
     text: z.string().trim().min(1).max(2000).optional(),
   })
@@ -450,7 +452,13 @@ export interface MemoryDue {
    * Open commitments with a deadline, the nearest first; past ones too — the calendar shows them red. `cards` — every
    * card the commitment is about, so the list's «просрочено» can be counted from these rows as a deadline moves.
    */
-  rows: (MemoryPromiseRow & { dueAt: string; cards: string[] })[];
+  rows: (MemoryPromiseRow & {
+    dueAt: string;
+    cards: string[];
+    /** When the reminder goes off, if one was asked for, and whether it has gone off. */
+    remindAt: string | null;
+    reminded: boolean;
+  })[];
   /** Open with no deadline. */
   none: number;
 }

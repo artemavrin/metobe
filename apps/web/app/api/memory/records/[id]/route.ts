@@ -30,12 +30,16 @@ export const PATCH = async (request: Request, { params }: Params) => {
   if (!id) {
     return notFound();
   }
-  const { text, dueAt, status, important } = patch.data;
+  const { text, dueAt, status, important, remindAt } = patch.data;
   if (
-    (status !== undefined || dueAt !== undefined || important !== undefined) &&
+    (status !== undefined ||
+      dueAt !== undefined ||
+      important !== undefined ||
+      remindAt !== undefined) &&
     !(await editCommitment(owner, id, {
       dueAt: typeof dueAt === "string" ? new Date(dueAt) : dueAt,
       important,
+      remindAt: typeof remindAt === "string" ? new Date(remindAt) : remindAt,
       status,
     }))
   ) {

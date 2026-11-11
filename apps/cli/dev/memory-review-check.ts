@@ -61,6 +61,7 @@ const seeds = [
     by: olga.id,
     days: 5,
     due: now + 2 * DAY,
+    remind: now + 2 * DAY - 3_600_000,
     text: "Прислать смету на склад",
     to: selfId,
   },
@@ -68,6 +69,7 @@ const seeds = [
     by: selfId,
     days: 3,
     due: now + 5 * DAY,
+    remind: now + 3 * 3_600_000,
     text: "Подготовить отчёт по закупкам",
     to: olga.id,
   },
@@ -124,6 +126,7 @@ for (const s of seeds) {
     ],
     givenAt: new Date(now - s.days * DAY),
     kind: "commitment",
+    remindAt: s.remind ? new Date(s.remind) : undefined,
     text: s.text,
   });
 }
