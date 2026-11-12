@@ -1772,6 +1772,44 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     );
   });
 
+  it("keeps a reminder still to go off when the text is corrected, and does not bring back one that went off", async () => {
+    const self = await memory.ensureSelf(hana, "Я");
+    const at = new Date("2026-11-20T07:00:00Z");
+    const make = (text: string) =>
+      memory.addRecord(hana, {
+        dueAt: new Date("2026-11-19T21:00:00Z"),
+        entities: [{ entityId: self.id, role: "debtor" }],
+        kind: "commitment",
+        remindAt: at,
+        text,
+      });
+    const [ahead, told] = await Promise.all([
+      make("Поправка: ещё не сработало"),
+      make("Поправка: уже сработало"),
+    ]);
+    if (!(ahead && told)) {
+      throw new Error("no records");
+    }
+    expect(await memory.claimReminder(hana, told.id)).toBe(true);
+    const [one, two] = await Promise.all([
+      memory.correctRecord(
+        hana,
+        ahead.id,
+        "Поправка: ещё не сработало, новый текст"
+      ),
+      memory.correctRecord(
+        hana,
+        told.id,
+        "Поправка: уже сработало, новый текст"
+      ),
+    ]);
+    const [a] = await memory.listRecords(hana, { ids: [one?.id as string] });
+    const [b] = await memory.listRecords(hana, { ids: [two?.id as string] });
+    expect(a?.remindAt?.toISOString()).toBe(at.toISOString());
+    expect(a?.remindedAt).toBeNull();
+    expect(b?.remindAt).toBeNull();
+  });
+
   it("merges two cards into one and takes it back as it was (ARCH §19.8.5)", async () => {
     const today: typeof MemoryTodayModule = await import("./memory-today");
     const team = await memory.createEntity(gwen, {

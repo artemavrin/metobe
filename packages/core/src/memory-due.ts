@@ -1,11 +1,14 @@
 import "server-only";
 import type {
   MemoryDue,
+  MemoryPromiseCreate,
   MemoryPromiseRow,
   MemoryStaleRow,
 } from "@metobe/contracts/memory";
 
 import {
+  addRecord,
+  ensureSelf,
   keepKey,
   lastChanges,
   listDismissals,
@@ -13,7 +16,7 @@ import {
   listRecords,
   reviewKey,
 } from "./memory";
-import type { MemoryEntity, MemoryRecord } from "./memory";
+import type { MemoryEntity, MemoryRecord, MemoryRecordInput } from "./memory";
 import { cardOf, dayKey, daysBetween, sidesOf } from "./memory-today";
 
 // «Сроки» (Д6, P27) and «Сверка» (Д2, P20): two views of the open commitments that «Не упустить» does not give —
@@ -193,4 +196,43 @@ export const reviewCount = async (
     listDismissals(ownerId),
   ]);
   return dismissed.has(reviewKey(weekStart(now, timeZone))) ? 0 : rows.length;
+};
+
+/**
+ * A promise written by hand: the person's own («mine»: they owe, to the card if one is named) or a card's to them. Null
+ * when the card is not the owner's. No model is asked: what is typed is what is kept.
+ */
+export const createPromise = async (
+  ownerId: string,
+  ownerName: string,
+  input: MemoryPromiseCreate
+) => {
+  const self = await ensureSelf(ownerId, ownerName);
+  let other: string | null = null;
+  if (input.card) {
+    const cards = await listEntities(ownerId);
+    other = cards.find((e) => e.id === input.card)?.id ?? null;
+    if (!other) {
+      return null;
+    }
+  }
+  const mine = input.side === "mine";
+  const entities: MemoryRecordInput["entities"] = [
+    { entityId: mine ? self.id : (other ?? self.id), role: "debtor" },
+  ];
+  if (mine && other) {
+    entities.push({ entityId: other, role: "creditor" });
+  } else if (!mine) {
+    entities.push({ entityId: self.id, role: "creditor" });
+  }
+  const record = await addRecord(ownerId, {
+    dueAt: new Date(input.dueAt),
+    entities,
+    givenAt: new Date(),
+    important: input.important,
+    kind: "commitment",
+    remindAt: input.remindAt ? new Date(input.remindAt) : undefined,
+    text: input.text,
+  });
+  return record.id;
 };

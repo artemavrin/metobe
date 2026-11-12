@@ -1962,6 +1962,8 @@ export const correctRecord = async (
       old.occurredAt && old.occurredPrecision
         ? { at: old.occurredAt, precision: old.occurredPrecision }
         : undefined,
+    // A reminder still to go off goes with the new version; one that has gone off does not go off again.
+    remindAt: old.remindedAt ? undefined : (old.remindAt ?? undefined),
     role: old.role ?? undefined,
     status: old.status ?? undefined,
     text,

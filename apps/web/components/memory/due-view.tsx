@@ -1,10 +1,14 @@
 "use client";
 
-import type { MemoryDue } from "@metobe/contracts/memory";
+import type { MemoryCardItem, MemoryDue } from "@metobe/contracts/memory";
+import { Button } from "@metobe/ui/components/button";
 import { EventCalendar } from "@metobe/ui/components/reui/event-calendar/event-calendar";
 import type { EventCalendarRenderEventProps } from "@metobe/ui/components/reui/event-calendar/event-calendar";
 import { EventCalendarContent } from "@metobe/ui/components/reui/event-calendar/event-calendar-content";
-import { EventCalendarNav } from "@metobe/ui/components/reui/event-calendar/event-calendar-nav";
+import {
+  EventCalendarNav,
+  EventCalendarToolbar,
+} from "@metobe/ui/components/reui/event-calendar/event-calendar-nav";
 import type {
   EventCalendarProposedUpdate,
   CalendarEvent,
@@ -13,7 +17,7 @@ import { toast } from "@metobe/ui/components/sonner";
 import type { Locale } from "date-fns";
 import { format, isSameMonth, subMilliseconds } from "date-fns";
 import { enUS, ru } from "date-fns/locale";
-import { Bell } from "lucide-react";
+import { Bell, Plus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
@@ -22,11 +26,15 @@ import type { Dispatch, SetStateAction } from "react";
 import { dayKey, localMidnightOf } from "@/lib/memory-dates";
 import { isLate } from "@/lib/memory-late";
 
+import { PromiseDialog, newDraft } from "./promise-dialog";
+import { usePromiseEditor } from "./use-promise-editor";
+
 // «Календарь» (Д6, P27 — ReUI's Event Calendar): every open commitment with a deadline stands on its day, a whole-day
 // bar; the ones past their day are red. One with a reminder still to go off stands at the reminder's time instead, with
 // a bell — the week is a time grid for these. Dragging a bar to another day moves its deadline, dragging a reminder
-// moves the time it goes off (`PATCH` the record, with «Вернуть»). A click opens the card of the other side. On a phone
-// the agenda — a list by day — comes first.
+// moves the time it goes off (`PATCH` the record, with «Вернуть»). A click on a bar opens the promise in a dialog, a
+// click on an empty day or hour starts a new one there (`PromiseDialog`: add, change, done, delete). On a phone the
+// agenda — a list by day — comes first.
 // The rows are the page's own state (`MemoryView`), shared with the list's «просрочено»: the bars are drawn from them,
 // a move changes them first and is saved after, and what cannot be saved is read back from the server.
 
@@ -177,6 +185,7 @@ export const DueView = ({
   reread,
   phone,
   timeZone,
+  cards,
 }: {
   /** The deadlines; null while they are being read. */
   due: MemoryDue | null;
@@ -185,8 +194,11 @@ export const DueView = ({
   reread: () => Promise<void>;
   phone: boolean;
   timeZone: string;
+  /** The cards a promise can be to or from. */
+  cards: MemoryCardItem[];
 }) => {
   const t = useTranslations("memory");
+  const editor = usePromiseEditor({ due, reread, timeZone });
   const locale = useLocale();
   const router = useRouter();
   // The week opens at the hour before now, the way a calendar does.
@@ -346,6 +358,26 @@ export const DueView = ({
     );
   };
 
+  /** A click on an empty day or hour: a new promise there; on an hour, with a reminder at it, if it is still ahead. */
+  const startAt = (slot: { date: Date; allDay: boolean }) => {
+    const day = dayKey(slot.date, timeZone);
+    if (slot.allDay || slot.date.getTime() <= Date.now()) {
+      editor.open(newDraft(day));
+      return;
+    }
+    editor.open(
+      newDraft(
+        day,
+        new Intl.DateTimeFormat("en-GB", {
+          hour: "2-digit",
+          hourCycle: "h23",
+          minute: "2-digit",
+          timeZone,
+        }).format(slot.date)
+      )
+    );
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="min-h-[24rem] flex-1 overflow-hidden rounded-xl border">
@@ -357,14 +389,13 @@ export const DueView = ({
           eventTooltip
           i18n={i18n}
           locale={locale === "ru" ? ru : enUS}
-          onEventClick={(occurrence) => {
-            const card = occurrence.event.data?.card;
-            if (card) {
-              router.push(`/memory?card=${card}`);
-            }
+          onEventClick={(occurrence, e) => {
+            e.preventDefault();
+            editor.edit(occurrence.event.id);
           }}
           onEventsChange={apply}
           onEventUpdate={move}
+          onSlotClick={startAt}
           renderEvent={(props) => renderReminder(props, locale, timeZone)}
           renderEventTooltip={tooltip}
           scrollToHour={scrollToHour}
@@ -373,9 +404,29 @@ export const DueView = ({
           weekStartsOn={1}
         >
           <EventCalendarNav />
+          <EventCalendarToolbar className="justify-end border-b px-3 py-2">
+            <Button
+              onClick={() => startAt({ allDay: true, date: new Date() })}
+              size="sm"
+              variant="outline"
+            >
+              <Plus /> {t("promiseAdd")}
+            </Button>
+          </EventCalendarToolbar>
           <EventCalendarContent />
         </EventCalendar>
       </div>
+      <PromiseDialog
+        busy={editor.busy}
+        cards={cards}
+        draft={editor.draft}
+        onChange={editor.handleChange}
+        onClose={editor.handleClose}
+        onDelete={editor.handleRemove}
+        onDone={editor.handleDone}
+        onOpenCard={(card) => router.push(`/memory?card=${card}`)}
+        onSave={editor.handleSave}
+      />
       {due && (late > 0 || due.none > 0) && (
         <p className="text-muted-foreground flex flex-wrap gap-x-4 text-sm">
           {late > 0 && <span>{t("dueLate", { count: late })}</span>}

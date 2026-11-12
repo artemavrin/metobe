@@ -1030,6 +1030,7 @@ export const MemoryView = () => {
       <div className={cn("flex min-h-0 flex-1 flex-col gap-4", ENTER)}>
         <Header hint={t("dueHint")} onBack={back} title={t("due")} />
         <DueView
+          cards={overview.cards}
           due={due}
           phone={phone}
           reread={reread}

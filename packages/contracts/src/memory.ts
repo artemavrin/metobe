@@ -320,6 +320,21 @@ export interface MemoryRecordSource {
   }[];
 }
 
+/** `POST /api/memory/records`: a promise written by hand, from the calendar; «theirs» is a card's promise to the person. */
+export const memoryPromiseCreateSchema = z
+  .object({
+    card: z.uuid().nullable().optional(),
+    dueAt: z.iso.datetime({ offset: true }),
+    important: z.boolean().optional(),
+    remindAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    side: z.enum(["mine", "theirs"]),
+    text: z.string().trim().min(1).max(2000),
+  })
+  .refine((p) => p.side === "mine" || Boolean(p.card), {
+    message: "a promise to the person needs a card",
+  });
+export type MemoryPromiseCreate = z.infer<typeof memoryPromiseCreateSchema>;
+
 /** `PATCH /api/memory/records/[id]`: a new text is a correction (a new version, a new id); the rest — a commitment's. */
 export const memoryRecordPatchSchema = z
   .object({
