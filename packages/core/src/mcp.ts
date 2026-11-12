@@ -15,6 +15,7 @@ import { onConfigChange } from "./config-bus";
 import { getDb } from "./db";
 import { StoredOAuth } from "./mcp-oauth";
 import type { OAuthStart } from "./mcp-oauth";
+import { isClosedClient, reopening } from "./mcp-reopen";
 import { fetchFor } from "./net";
 import { withSecret } from "./secrets";
 import type { Owner } from "./secrets";
@@ -216,6 +217,24 @@ const dropClients = (catalogId?: string) => {
       void closeQuietly(client);
     }
   }
+};
+
+/** A client that closed under a chat is taken out of the cache, so the next ask opens a new one. */
+const evict = async (key: string, dead: MCPClient) => {
+  if ((await clients.get(key)) === dead) {
+    clients.delete(key);
+  }
+};
+
+/** A fresh client where `dead` was closed: the tools it lists, by name. */
+const reopened = async (
+  item: CatalogItem,
+  owner: Owner,
+  dead: MCPClient
+): Promise<ToolSet> => {
+  await evict(clientKey(item, owner), dead);
+  const fresh = await clientFor(item, owner);
+  return fresh.tools() as Promise<ToolSet>;
 };
 
 // A catalog item changed (or everything did), here or in another process: its clients reconnect.
@@ -431,7 +450,15 @@ export const toolsForUser = async (
       }
       try {
         const client = await clientFor(item, owner);
-        const tools = await client.tools();
+        // A client a change to its server closed since the last chat: the cache gives it once, this chat reopens.
+        const tools = await (client.tools() as Promise<ToolSet>).catch(
+          (error: unknown) => {
+            if (!isClosedClient(error)) {
+              throw error;
+            }
+            return reopened(item, owner, client);
+          }
+        );
         const allowed = item.allowedTools ? new Set(item.allowedTools) : null;
         const set: ToolSet = {};
         for (const [name, tool] of Object.entries(tools)) {
@@ -441,7 +468,8 @@ export const toolsForUser = async (
           }
           // The server's tool as it is, with our answer to «ask first?» (a Tool of the same shape).
           set[`${item.key}_${name}`] = {
-            ...tool,
+            // A change to the server may close its client while this answer is still being written.
+            ...reopening(tool, name, () => reopened(item, owner, client)),
             needsApproval: approval === "ask",
           } as ToolSet[string];
         }
