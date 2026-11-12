@@ -78,8 +78,22 @@ export const usePromiseEditor = ({
     await reread();
   };
 
-  const create = async (next: PromiseDraft) => {
+  const create = async (made: PromiseDraft) => {
+    // A reminder is a promise of the person to themselves, due on the day it goes off.
+    const next: PromiseDraft =
+      made.kind === "reminder"
+        ? {
+            ...made,
+            card: null,
+            day: made.remindDay,
+            remind: true,
+            side: "mine",
+          }
+        : made;
     const remindAt = remindOf(next, timeZone);
+    if (next.kind === "reminder" && !remindAt) {
+      return;
+    }
     if (pastRemind(remindAt)) {
       toast.error(t("calRemindPast"));
       return;
@@ -98,7 +112,7 @@ export const usePromiseEditor = ({
     const { id } = (await response.json()) as { id: string };
     close();
     await reread();
-    toast(t("promiseAdded"), {
+    toast(t(next.kind === "reminder" ? "reminderAdded" : "promiseAdded"), {
       action: {
         label: t("restore"),
         onClick: async () => {

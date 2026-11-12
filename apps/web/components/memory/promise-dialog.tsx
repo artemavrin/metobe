@@ -45,6 +45,8 @@ type Row = MemoryDue["rows"][number];
 export interface PromiseDraft {
   /** The record being edited; null — a new promise. */
   id: string | null;
+  /** A new one is a promise or only a reminder: a time, and nobody's deadline. */
+  kind: "promise" | "reminder";
   text: string;
   side: "mine" | "theirs";
   /** The other side's card. */
@@ -64,6 +66,8 @@ export const newDraft = (day: string, time?: string): PromiseDraft => ({
   card: null,
   day,
   id: null,
+  // An hour clicked is a time to be told at: a reminder; a day clicked, a promise.
+  kind: time ? "reminder" : "promise",
   remind: Boolean(time),
   remindDay: day,
   side: "mine",
@@ -79,6 +83,7 @@ export const draftOf = (row: Row, timeZone: string): PromiseDraft => {
     card: row.who?.id ?? null,
     day,
     id: row.id,
+    kind: "promise",
     remind: at !== null,
     remindDay: at ? dayKey(at, timeZone) : day,
     side: row.side === "theirs" ? "theirs" : "mine",
@@ -151,6 +156,37 @@ const DayField = ({
   );
 };
 
+/** What is being made: a promise (whose, by when) or a reminder (only when). */
+const KindField = ({
+  draft,
+  onChange,
+}: {
+  draft: PromiseDraft;
+  onChange: (patch: Partial<PromiseDraft>) => void;
+}) => {
+  const t = useTranslations("memory");
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {(["promise", "reminder"] as const).map((kind) => (
+        <Button
+          key={kind}
+          onClick={() =>
+            onChange(
+              kind === "reminder"
+                ? { kind, remind: true, remindDay: draft.day, side: "mine" }
+                : { kind }
+            )
+          }
+          type="button"
+          variant={draft.kind === kind ? "secondary" : "outline"}
+        >
+          {t(kind === "promise" ? "kindPromise" : "kindReminder")}
+        </Button>
+      ))}
+    </div>
+  );
+};
+
 const NOBODY = "none";
 
 /** Who owes whom: a switch between «я обещал» and «мне обещали», and the card on the other side. */
@@ -210,23 +246,30 @@ const WhoField = ({
 const RemindField = ({
   draft,
   onChange,
+  fixed,
 }: {
   draft: PromiseDraft;
   onChange: (patch: Partial<PromiseDraft>) => void;
+  /** A reminder is nothing without its time: no switch, always on. */
+  fixed: boolean;
 }) => {
   const t = useTranslations("memory");
   const s = useTranslations("settings.notifications");
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <FieldLabel htmlFor="promise-remind">{t("promiseRemind")}</FieldLabel>
-        <Switch
-          aria-label={t("promiseRemind")}
-          checked={draft.remind}
-          id="promise-remind"
-          onCheckedChange={(remind) => onChange({ remind })}
-        />
-      </div>
+      {fixed ? (
+        <FieldLabel>{t("reminderWhen")}</FieldLabel>
+      ) : (
+        <div className="flex items-center justify-between">
+          <FieldLabel htmlFor="promise-remind">{t("promiseRemind")}</FieldLabel>
+          <Switch
+            aria-label={t("promiseRemind")}
+            checked={draft.remind}
+            id="promise-remind"
+            onCheckedChange={(remind) => onChange({ remind })}
+          />
+        </div>
+      )}
       {draft.remind && (
         <div className="grid grid-cols-[1fr_auto] gap-2">
           <DayField
@@ -264,6 +307,106 @@ const RemindField = ({
   );
 };
 
+/** The dialog's fields: the kind, the text, whose it is, the deadline and the reminder — those a kind needs. */
+const PromiseFields = ({
+  draft,
+  edit,
+  reminder,
+  cards,
+  onChange,
+}: {
+  draft: PromiseDraft;
+  edit: boolean;
+  reminder: boolean;
+  cards: MemoryCardItem[];
+  onChange: (patch: Partial<PromiseDraft>) => void;
+}) => {
+  const t = useTranslations("memory");
+  return (
+    <>
+      {edit ? null : <KindField draft={draft} onChange={onChange} />}
+      <Field>
+        <FieldLabel htmlFor="promise-text">
+          {t(reminder ? "reminderText" : "promiseText")}
+        </FieldLabel>
+        <Input
+          autoFocus
+          id="promise-text"
+          onChange={(e) => onChange({ text: e.target.value })}
+          placeholder={t(reminder ? "reminderTextHint" : "promiseTextHint")}
+          value={draft.text}
+        />
+      </Field>
+      {edit || reminder ? null : (
+        <WhoField cards={cards} draft={draft} onChange={onChange} />
+      )}
+      {reminder ? null : (
+        <Field>
+          <FieldLabel>{t("promiseDay")}</FieldLabel>
+          <DayField
+            label={t("promiseDay")}
+            onChange={(day) =>
+              onChange({
+                day,
+                // A reminder that stood on the deadline's day goes with it.
+                remindDay:
+                  draft.remindDay === draft.day ? day : draft.remindDay,
+              })
+            }
+            value={draft.day}
+          />
+        </Field>
+      )}
+      <RemindField draft={draft} fixed={reminder} onChange={onChange} />
+    </>
+  );
+};
+
+/** What can be done with a promise that is there: finish it, go to its card, delete it. */
+const EditActions = ({
+  id,
+  card,
+  busy,
+  onDone,
+  onDelete,
+  onOpenCard,
+}: {
+  id: string;
+  card: string | null;
+  busy: boolean;
+  onDone: (id: string) => void;
+  onDelete: (id: string) => void;
+  onOpenCard: (card: string) => void;
+}) => {
+  const t = useTranslations("memory");
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+      <Button
+        disabled={busy}
+        onClick={() => onDone(id)}
+        type="button"
+        variant="outline"
+      >
+        {t("done")}
+      </Button>
+      {card && (
+        <Button onClick={() => onOpenCard(card)} type="button" variant="ghost">
+          {t("promiseOpenCard")}
+        </Button>
+      )}
+      <Button
+        className="text-destructive hover:text-destructive ms-auto"
+        disabled={busy}
+        onClick={() => onDelete(id)}
+        type="button"
+        variant="ghost"
+      >
+        {t("delete")}
+      </Button>
+    </div>
+  );
+};
+
 export const PromiseDialog = ({
   draft,
   cards,
@@ -287,16 +430,23 @@ export const PromiseDialog = ({
 }) => {
   const t = useTranslations("memory");
   const edit = draft?.id !== null && draft?.id !== undefined;
+  const reminder = !edit && draft?.kind === "reminder";
   const ready =
     draft !== null &&
     draft.text.trim().length > 0 &&
-    (draft.side === "mine" || draft.card !== null);
+    (reminder || draft.side === "mine" || draft.card !== null);
+  let title: "promiseNew" | "promiseEdit" | "reminderNew" = "promiseNew";
+  if (edit) {
+    title = "promiseEdit";
+  } else if (reminder) {
+    title = "reminderNew";
+  }
   return (
     <Dialog onOpenChange={(open) => !open && onClose()} open={draft !== null}>
       {draft && (
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t(edit ? "promiseEdit" : "promiseNew")}</DialogTitle>
+            <DialogTitle>{t(title)}</DialogTitle>
           </DialogHeader>
           <form
             className="flex flex-col gap-4"
@@ -307,64 +457,22 @@ export const PromiseDialog = ({
               }
             }}
           >
-            <Field>
-              <FieldLabel htmlFor="promise-text">{t("promiseText")}</FieldLabel>
-              <Input
-                autoFocus
-                id="promise-text"
-                onChange={(e) => onChange({ text: e.target.value })}
-                placeholder={t("promiseTextHint")}
-                value={draft.text}
-              />
-            </Field>
-            {edit ? null : (
-              <WhoField cards={cards} draft={draft} onChange={onChange} />
-            )}
-            <Field>
-              <FieldLabel>{t("promiseDay")}</FieldLabel>
-              <DayField
-                label={t("promiseDay")}
-                onChange={(day) =>
-                  onChange({
-                    day,
-                    // A reminder that stood on the deadline's day goes with it.
-                    remindDay:
-                      draft.remindDay === draft.day ? day : draft.remindDay,
-                  })
-                }
-                value={draft.day}
-              />
-            </Field>
-            <RemindField draft={draft} onChange={onChange} />
+            <PromiseFields
+              cards={cards}
+              draft={draft}
+              edit={edit}
+              onChange={onChange}
+              reminder={reminder}
+            />
             {edit && draft.id && (
-              <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-                <Button
-                  disabled={busy}
-                  onClick={() => onDone(draft.id as string)}
-                  type="button"
-                  variant="outline"
-                >
-                  {t("done")}
-                </Button>
-                {draft.card && (
-                  <Button
-                    onClick={() => onOpenCard(draft.card as string)}
-                    type="button"
-                    variant="ghost"
-                  >
-                    {t("promiseOpenCard")}
-                  </Button>
-                )}
-                <Button
-                  className="text-destructive hover:text-destructive ms-auto"
-                  disabled={busy}
-                  onClick={() => onDelete(draft.id as string)}
-                  type="button"
-                  variant="ghost"
-                >
-                  {t("delete")}
-                </Button>
-              </div>
+              <EditActions
+                busy={busy}
+                card={draft.card}
+                id={draft.id}
+                onDelete={onDelete}
+                onDone={onDone}
+                onOpenCard={onOpenCard}
+              />
             )}
             <DialogFooter>
               <Button onClick={onClose} type="button" variant="ghost">
