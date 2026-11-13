@@ -9,9 +9,9 @@ import { getLanguageModel } from "./ai";
 import { recordRun } from "./chat-run";
 import { listMailboxes, sendEmail } from "./mailboxes";
 import {
-  dismissSuggestion,
   listEntities,
   listRecords,
+  markReminded,
   recordContact,
 } from "./memory";
 import { localMidnight } from "./memory-extract";
@@ -30,7 +30,8 @@ import { getPersonalPolicy } from "./personal";
 // «Напомнить» in «Не упустить» (Г2.4, P23 «Окно»): a letter to the one who owes the person, written by the model of
 // the slot «Память» (a person's memory goes to no other model, D39) or, without one, by a template; sent from the
 // person's own box when they press «Отправить» — that press is the «ask first?» of the box. After it the card gets an
-// event, and the row leaves «Не упустить» until the promise's deadline or status changes.
+// event, and the row leaves «Не упустить» while the one who owes has the wait to answer; with no change by then it is
+// back as «напомнили N дн. назад» (`memory-today`).
 
 const WRITE_TIMEOUT_MS = 20_000;
 
@@ -175,8 +176,8 @@ export const reminderDraft = async (
 };
 
 /**
- * Sends the letter from the person's box (the one named, or the only one), then notes it on the card and takes the
- * row away. A box with sending turned off is refused, as the chat refuses it.
+ * Sends the letter from the person's box (the one named, or the only one), then notes it on the card and marks the
+ * promise reminded. A box with sending turned off is refused, as the chat refuses it.
  */
 export const sendReminder = async (
   ownerId: string,
@@ -214,6 +215,6 @@ export const sendReminder = async (
       t("memory.letter.event", { text: owed.record.text })
     );
   }
-  await dismissSuggestion(ownerId, recordId);
+  await markReminded(ownerId, recordId);
   return { from: box.address, sent: true as const };
 };

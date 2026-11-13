@@ -2869,6 +2869,7 @@
         "tomorrow": "завтра",
         "important": "важно",
         "waiting": "ждём {days} дн.",
+        "reminded": "напомнили {days} дн. назад",
         "rhythm": "не было {days} дн.",
         "date": "{days, plural, =0 {сегодня} =1 {завтра} other {через # дн.}}"
       },

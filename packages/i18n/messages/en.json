@@ -2875,6 +2875,7 @@
         "tomorrow": "tomorrow",
         "important": "important",
         "waiting": "waiting {days} d",
+        "reminded": "reminded {days} d ago",
         "rhythm": "{days} d since",
         "date": "{days, plural, =0 {today} =1 {tomorrow} other {in # d}}"
       },

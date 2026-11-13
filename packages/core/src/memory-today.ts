@@ -10,6 +10,7 @@ import {
   listDismissals,
   listEntities,
   listRecords,
+  remindedKey,
   writeChats,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
@@ -40,6 +41,7 @@ const ORDER: Record<MemorySuggestionReason, number> = {
   date: 3.5,
   important: 6,
   overdue: 0,
+  reminded: 2.5,
   rhythm: 5,
   today: 3,
   tomorrow: 4,
@@ -192,6 +194,18 @@ export const cardOf = (who: MemoryEntity | undefined) =>
  * Days someone has kept the person waiting with no deadline, if that is longer than the wait rule for them (or the one
  * for anyone) allows; null when no rule says or it is not that long yet.
  */
+/** The wait rule for a debtor: theirs, else the one for anyone; undefined — no rule says. */
+const waitOf = (waits: Map<string, MemoryRecord>, debtor: string | undefined) =>
+  ((debtor ? waits.get(debtor) : undefined) ?? waits.get(""))?.rule;
+
+/** Days from `since` to `today` as a wait counts them: working days or all. */
+const waitedSince = (
+  since: string,
+  today: string,
+  by: { workingDays?: boolean | null }
+) =>
+  by.workingDays ? workingDaysBetween(since, today) : daysBetween(since, today);
+
 const waitedTooLong = (
   r: MemoryRecord,
   debtor: string | undefined,
@@ -199,15 +213,42 @@ const waitedTooLong = (
   today: string,
   timeZone: string
 ) => {
-  const by = ((debtor ? waits.get(debtor) : undefined) ?? waits.get(""))?.rule;
+  const by = waitOf(waits, debtor);
   if (!by) {
     return null;
   }
-  const since = dayKey(r.givenAt ?? r.recordedAt, timeZone);
-  const waited = by.workingDays
-    ? workingDaysBetween(since, today)
-    : daysBetween(since, today);
+  const waited = waitedSince(
+    dayKey(r.givenAt ?? r.recordedAt, timeZone),
+    today,
+    by
+  );
   return waited >= by.days ? waited : null;
+};
+
+/** How long an answer to a reminder letter is waited for when no rule says: five working days (D41). */
+const REMINDED_WAIT = { days: 5, workingDays: true };
+
+/**
+ * A promise the person reminded of by letter (Г2.4): `hold` — the one who owes still has the wait to answer (their
+ * wait rule, or anyone's, or five working days), so the row is away; a number — the wait is over with no change, the
+ * row is back, days since the letter; null — no letter, or the deadline or status changed since, so it counts as any.
+ */
+const afterReminder = (
+  r: MemoryRecord,
+  letter: { at: Date; dueAt: Date | null; status: string | null } | undefined,
+  by: { days: number; workingDays?: boolean | null },
+  today: string,
+  timeZone: string
+): "hold" | number | null => {
+  if (
+    !letter ||
+    letter.status !== r.status ||
+    (letter.dueAt?.getTime() ?? null) !== (r.dueAt?.getTime() ?? null)
+  ) {
+    return null;
+  }
+  const waited = waitedSince(dayKey(letter.at, timeZone), today, by);
+  return waited < by.days ? "hold" : waited;
 };
 
 /**
@@ -376,6 +417,21 @@ const attachChats = async (
   }
 };
 
+/** The row's number: days since the letter, of waiting, or past the deadline. */
+const daysOfRow = (
+  reason: MemorySuggestionReason,
+  {
+    days,
+    reminded,
+    waited,
+  }: { days: number | null; reminded: number | null; waited: number | null }
+) => {
+  if (reason === "reminded") {
+    return reminded ?? 0;
+  }
+  return reason === "waiting" ? (waited ?? 0) : Math.max(0, -(days ?? 0));
+};
+
 /** The rows, «важно» first, then past due (the longest first), said done, today, tomorrow, the rest important. */
 export const todaySuggestions = async (
   ownerId: string,
@@ -410,6 +466,16 @@ export const todaySuggestions = async (
     }
     const days = r.dueAt ? daysBetween(today, dayKey(r.dueAt, timeZone)) : null;
     const { side, who } = sidesOf(r, cards);
+    const reminded = afterReminder(
+      r,
+      dismissed.get(remindedKey(r.id)),
+      waitOf(waits, who?.id) ?? REMINDED_WAIT,
+      today,
+      timeZone
+    );
+    if (reminded === "hold") {
+      return [];
+    }
     const waited =
       side === "theirs" && !r.dueAt && r.status === "open"
         ? waitedTooLong(r, who?.id, waits, today, timeZone)
@@ -418,12 +484,16 @@ export const todaySuggestions = async (
     if (waited !== null && (!reason || reason === "important")) {
       reason = "waiting";
     }
+    // Back after a letter with no answer: that is what is said, whatever else is true of it.
+    if (reminded !== null) {
+      reason = "reminded";
+    }
     if (!reason) {
       return [];
     }
     return [
       {
-        days: reason === "waiting" ? (waited ?? 0) : Math.max(0, -(days ?? 0)),
+        days: daysOfRow(reason, { days, reminded, waited }),
         dueAt: r.dueAt?.toISOString() ?? null,
         ...reminderOf(r, who),
         id: r.id,

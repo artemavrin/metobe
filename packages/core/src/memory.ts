@@ -2392,8 +2392,8 @@ export const undismissReview = async (ownerId: string, week: string) => {
     );
 };
 
-/** «Оставить» in «Сверка» (В2.1): the commitment is not shown there for 30 days. False — it is not an open one of theirs. */
-export const keepOpen = async (ownerId: string, recordId: string) => {
+/** Keeps a row of `memory_dismissals` for an open commitment of the owner's with its deadline and status now, at now. */
+const snapshotOpen = async (ownerId: string, recordId: string, key: string) => {
   const { db } = getDb();
   const [row] = await db
     .select({ dueAt: memoryRecords.dueAt, status: memoryRecords.status })
@@ -2413,13 +2413,24 @@ export const keepOpen = async (ownerId: string, recordId: string) => {
   const snapshot = { dueAt: row.dueAt, entityId: null, status: row.status };
   await db
     .insert(memoryDismissals)
-    .values({ ...snapshot, key: keepKey(recordId), ownerId, recordId })
+    .values({ ...snapshot, key, ownerId, recordId })
     .onConflictDoUpdate({
       set: { ...snapshot, at: new Date() },
       target: memoryDismissals.key,
     });
   return true;
 };
+
+/** «Оставить» in «Сверка» (В2.1): the commitment is not shown there for 30 days. False — it is not an open one of theirs. */
+export const keepOpen = (ownerId: string, recordId: string) =>
+  snapshotOpen(ownerId, recordId, keepKey(recordId));
+
+/** A reminder letter sent to the one who owes (Г2.4): «Не упустить» waits for their answer — `memory-today`. */
+export const remindedKey = (recordId: string) => `reminded:${recordId}`;
+
+/** Notes the letter: when it went, and the deadline and status it was about. */
+export const markReminded = (ownerId: string, recordId: string) =>
+  snapshotOpen(ownerId, recordId, remindedKey(recordId));
 
 /** «Вернуть» after «Оставить». */
 export const unkeepOpen = async (ownerId: string, recordId: string) => {

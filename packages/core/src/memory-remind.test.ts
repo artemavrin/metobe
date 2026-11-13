@@ -144,6 +144,65 @@ describe.skipIf(!URL)("a reminder letter (Г2.4)", () => {
     expect(after.map((s) => s.id)).not.toContain(owed.id);
   });
 
+  const DAY = 86_400_000;
+  /** The row of a promise in «Не упустить» on a day this many days from now. */
+  const rowOf = async (id: string, inDays: number) => {
+    const rows = await today.todaySuggestions(
+      owner,
+      TZ,
+      new Date(Date.now() + inDays * DAY)
+    );
+    return rows.find((s) => s.id === id);
+  };
+  const letterTo = (id: string) =>
+    remind.sendReminder(
+      owner,
+      id,
+      { subject: "Договор", text: "Текст", to: "olga@example.test" },
+      prefs
+    );
+
+  it("brings the row back after five working days with no change, as «reminded»", async () => {
+    boxes = [{ address: "me@example.test", toolPolicy: {} }];
+    const { owed } = await seed();
+    await letterTo(owed.id);
+    // Three days hold at most three working days: the wait is not over.
+    expect(await rowOf(owed.id, 3)).toBeUndefined();
+    // Nine days hold at least five.
+    const back = await rowOf(owed.id, 9);
+    expect(back?.reason).toBe("reminded");
+    expect(back?.days).toBeGreaterThanOrEqual(5);
+  });
+
+  it("forgets the letter once the deadline moves", async () => {
+    boxes = [{ address: "me@example.test", toolPolicy: {} }];
+    const { owed } = await seed();
+    await letterTo(owed.id);
+    await memory.editCommitment(owner, owed.id, {
+      dueAt: new Date(Date.now() + DAY),
+    });
+    const row = await rowOf(owed.id, 0);
+    expect(row).toBeDefined();
+    expect(row?.reason).not.toBe("reminded");
+  });
+
+  it("waits as long as the wait rule for them says", async () => {
+    boxes = [{ address: "me@example.test", toolPolicy: {} }];
+    const { olga, owed } = await seed();
+    await memory.addRecord(owner, {
+      entities: [{ entityId: olga.id, role: "subject" }],
+      kind: "rule",
+      rule: { days: 2, kind: "wait", workingDays: false },
+      text: "Ольге даю два дня на ответ",
+    });
+    await letterTo(owed.id);
+    expect(await rowOf(owed.id, 1)).toBeUndefined();
+    expect(await rowOf(owed.id, 2)).toMatchObject({
+      days: 2,
+      reason: "reminded",
+    });
+  });
+
   it("refuses a box where sending is off, and asks which of several", async () => {
     const { owed } = await seed();
     const letter = {

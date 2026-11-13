@@ -405,6 +405,7 @@ export const memorySuggestionReasons = [
   "overdue",
   "unconfirmed",
   "waiting",
+  "reminded",
   "today",
   "tomorrow",
   "rhythm",
@@ -413,10 +414,6 @@ export const memorySuggestionReasons = [
 ] as const;
 export type MemorySuggestionReason = (typeof memorySuggestionReasons)[number];
 
-/**
- * A row of «Не упустить»: an open commitment and why it is there now, or — `rhythm` — a person the person wants to be
- * in touch with more often than they have been (a rule, ARCH §19.6).
- */
 /** `POST /api/memory/records/[id]/reminder` (Г2.4): the letter «Напомнить» opens with. */
 export interface MemoryReminderDraft {
   /** The boxes it can go from; empty — no mail to send with. */
@@ -434,6 +431,10 @@ export interface MemoryReminderDraft {
   to: { id: string; name: string; email: string | null };
 }
 
+/**
+ * A row of «Не упустить»: an open commitment and why it is there now, or — `rhythm` — a person the person wants to be
+ * in touch with more often than they have been (a rule, ARCH §19.6).
+ */
 export interface MemorySuggestion {
   /** The row: the commitment's id, or the rule's and the card's for a rhythm row (`rule:card`). */
   key: string;
@@ -441,7 +442,7 @@ export interface MemorySuggestion {
   id: string;
   kind: "commitment" | "rhythm" | "date";
   reason: MemorySuggestionReason;
-  /** Days past the deadline (`overdue`), of waiting (`waiting`), since the last contact (`rhythm`). */
+  /** Days past the deadline (`overdue`), of waiting (`waiting`), since the reminder letter (`reminded`), since the last contact (`rhythm`). */
   days: number;
   text: string;
   /** `theirs` — someone owes the person; `mine` — the person owes, or keeps the rhythm; `between` — two others. */
