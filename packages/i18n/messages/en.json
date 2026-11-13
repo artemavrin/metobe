@@ -3026,7 +3026,40 @@
     "reliabilityMine": "Promised by you: {total} with a deadline. {onTime} marked done in time, {late} later{late, plural, =0 {} other { ({days} d on average)}}.{moved, plural, =0 {} other { Deadlines moved: {moved}.}}{overdueOpen, plural, =0 {} other { Overdue now: {overdueOpen}.}}",
     "meeting": "Before a meeting",
     "meetingAsk": "Get me ready to talk to {name} — what they owe me and I owe them, what changed since last time, how best to talk to them.",
-    "meetingHint": "Opens a new chat: what you owe each other, what changed since last time and how best to talk"
+    "meetingHint": "Opens a new chat: what you owe each other, what changed since last time and how best to talk",
+    "letter": {
+      "subject": "Reminder: {text}",
+      "hello": "Hello {name},",
+      "helloAll": "Hello,",
+      "body": "A reminder: {text}{due, select, none {} other {{late, select, yes { — it was due {due}} other { — due {due}}}}}{given, select, none {} other {, as agreed on {given}}}. Could you tell me how it is going?",
+      "thanks": "Thank you!",
+      "event": "Reminded by mail: {text}"
+    },
+    "remind": {
+      "action": "Remind",
+      "title": "Remind · {name}",
+      "from": "from {address}",
+      "subject": "Subject",
+      "text": "Letter",
+      "writing": "Writing…",
+      "short": "Shorter",
+      "soft": "Softer",
+      "promised": "Promised {given}",
+      "inChat": "in the chat «{chat}»",
+      "due": "due {due}",
+      "notInLetter": "not in the letter",
+      "address": "Address: {name}",
+      "addressHint": "The address will be kept on the card «{name}»",
+      "noMailbox": "No mail connected",
+      "copy": "Copy",
+      "copied": "Text copied",
+      "connect": "Connect mail",
+      "byModel": "Written by the model — check it",
+      "byTemplate": "Written from a template — check it",
+      "send": "Send",
+      "sent": "Letter sent, noted on the card «{name}»",
+      "notSent": "The letter was not sent: {error}"
+    }
   },
   "telegram": {
     "help": "I am the Metobe bot. To link this chat to your account, open the account settings in Metobe, the «Notifications» section, and press «Link Telegram».",

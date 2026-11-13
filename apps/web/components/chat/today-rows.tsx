@@ -23,6 +23,7 @@ import {
   CircleCheck,
   Ellipsis,
   FolderKanban,
+  Mail,
   MailCheck,
   Star,
   Users,
@@ -35,10 +36,13 @@ import { useState } from "react";
 import { moveTargets } from "@/lib/memory-dates";
 import { cardMarker } from "@/lib/mentions";
 
+import { RemindDialog, useRemind } from "./remind-dialog";
+
 // «На сегодня» on the new chat screen (ARCH §19.6, P17 «Строки»): rows like «Начать с» — what to do and why now on the
 // right; a click puts the request into the composer, the person sends it. The menu: done (or confirmed), move the
 // deadline, open the card, take it away — each with «Вернуть». A rhythm row (a rule, ARCH §19.6): «Уже было» notes a
-// contact today, open the card, take it away until the next contact.
+// contact today, open the card, take it away until the next contact. A row where someone owes the person has
+// «Напомнить» (Г2.4, P23 «Окно»): a letter to them in a window, sent from the person's box.
 
 /** The same rows as «Начать с»; on a phone the text wraps and «why» goes under it. */
 const ROW =
@@ -164,6 +168,30 @@ const Why = ({ s }: { s: Item }) => {
       )}
       {t(`why.${s.reason}`, { days: s.days })}
     </span>
+  );
+};
+
+/** Someone owes the person, it is open, and it is known who: a letter can remind them. */
+const remindable = (s: Item) =>
+  s.kind === "commitment" &&
+  s.side === "theirs" &&
+  s.status === "open" &&
+  s.who !== null;
+
+/** «Напомнить» left of the menu: shown on hover on a computer, an icon always there on a phone. */
+const RemindButton = ({ onClick }: { onClick: () => void }) => {
+  const t = useTranslations("memory.remind");
+  return (
+    <Button
+      aria-label={t("action")}
+      className="absolute top-1/2 right-9 h-7 -translate-y-1/2 gap-1.5 px-2 text-xs focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+      onClick={onClick}
+      size="sm"
+      variant="ghost"
+    >
+      <Mail className="size-3.5" />
+      <span className="max-sm:sr-only">{t("action")}</span>
+    </Button>
   );
 };
 
@@ -458,6 +486,7 @@ export const TodayRows = ({
   const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
   const [all, setAll] = useState(false);
   const [reviewGone, setReviewGone] = useState(false);
+  const remind = useRemind();
   const left = items.filter((s) => !gone.has(s.key));
   const reviewing = review > 0 && !reviewGone;
   if (left.length === 0 && !reviewing) {
@@ -481,7 +510,7 @@ export const TodayRows = ({
         {shown.map((s) => (
           <div className={cn("group relative", ENTER)} key={s.key}>
             <button
-              className={ROW}
+              className={cn(ROW, remindable(s) && "pr-16 sm:pr-36")}
               onClick={() => put(prompt(s))}
               type="button"
             >
@@ -491,6 +520,7 @@ export const TodayRows = ({
                 <Why s={s} />
               </span>
             </button>
+            {remindable(s) && <RemindButton onClick={() => remind.open(s)} />}
             <Menu
               onBack={() => show(s.key)}
               onGone={() => hide(s.key)}
@@ -533,6 +563,7 @@ export const TodayRows = ({
           </div>
         )}
       </div>
+      <RemindDialog onSent={(s) => hide(s.key)} remind={remind} />
     </section>
   );
 };

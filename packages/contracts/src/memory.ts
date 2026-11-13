@@ -417,6 +417,23 @@ export type MemorySuggestionReason = (typeof memorySuggestionReasons)[number];
  * A row of «Не упустить»: an open commitment and why it is there now, or — `rhythm` — a person the person wants to be
  * in touch with more often than they have been (a rule, ARCH §19.6).
  */
+/** `POST /api/memory/records/[id]/reminder` (Г2.4): the letter «Напомнить» opens with. */
+export interface MemoryReminderDraft {
+  /** The boxes it can go from; empty — no mail to send with. */
+  boxes: string[];
+  /** Who wrote the words: the model of the slot «Память», or the template when there is none. */
+  by: "model" | "template";
+  /** Where it was promised — for the person, not for the letter. */
+  chat: { id: string; title: string } | null;
+  /** Days in the person's words: «13 ноября». */
+  due: string | null;
+  given: string | null;
+  subject: string;
+  text: string;
+  /** The one who owes: the card, and its address if it has one. */
+  to: { id: string; name: string; email: string | null };
+}
+
 export interface MemorySuggestion {
   /** The row: the commitment's id, or the rule's and the card's for a rhythm row (`rule:card`). */
   key: string;
