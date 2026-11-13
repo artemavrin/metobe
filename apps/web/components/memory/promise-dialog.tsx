@@ -7,12 +7,8 @@ import { Calendar } from "@metobe/ui/components/calendar";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@metobe/ui/components/dialog";
-import { Field, FieldLabel } from "@metobe/ui/components/field";
-import { Input } from "@metobe/ui/components/input";
 import {
   Popover,
   PopoverContent,
@@ -26,19 +22,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@metobe/ui/components/select";
-import { Switch } from "@metobe/ui/components/switch";
+import { cn } from "@metobe/ui/lib/utils";
 import { format } from "date-fns";
 import { enUS, ru } from "date-fns/locale";
-import { CalendarDays } from "lucide-react";
+import { Bell, CalendarDays, Check, Trash2, UserRound, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { dayKey } from "@/lib/memory-dates";
 
-// «Новое обещание» and «Обещание» in the calendar (ReUI's Event Calendar 3: one dialog for both). A click on an empty
-// day or hour opens it for a new promise; a click on a bar, for that one. The deadline is a day; a reminder, if asked
-// for, is a day and a time of its own — in the person's zone. Who owes is chosen when the promise is made and read-only
-// after it (the cards' own page moves it). Done and delete are here too, with «Вернуть» in the toast.
+// «Новое обещание», «Новое напоминание» and «Обещание» in the calendar (ReUI's Event Calendar 3: one dialog for all).
+// A click on an empty day or hour opens it for a new one; a click on a bar, for that one. The look is «Строки» (the
+// prototype memory-promise-dialog): the title is typed straight into the top field, each line is an icon and a value,
+// the kind is two words, not a switch. The deadline is a day; a reminder is a day and a time of its own — in the
+// person's zone. Who owes is chosen when the promise is made and read-only after it (the cards' own page moves it).
+// Done and delete are two icons in the footer, with «Вернуть» in the toast.
 
 type Row = MemoryDue["rows"][number];
 
@@ -109,13 +107,17 @@ export const remindOf = (draft: PromiseDraft, timeZone: string) =>
 const toDate = (key: string) => new Date(`${key}T12:00:00`);
 const toKey = (date: Date) => format(date, "yyyy-MM-dd");
 
+type Change = (patch: Partial<PromiseDraft>) => void;
+
 /** A day as a button that opens a month to pick it from. */
 const DayField = ({
   label,
+  prefix,
   value,
   onChange,
 }: {
   label: string;
+  prefix?: string;
   value: string;
   onChange: (day: string) => void;
 }) => {
@@ -128,12 +130,12 @@ const DayField = ({
           <Button
             aria-label={label}
             className="justify-start font-normal"
-            variant="outline"
+            variant="ghost"
           />
         }
       >
-        <CalendarDays />
-        {format(toDate(value), "d MMM yyyy", {
+        {prefix ? `${prefix} ` : ""}
+        {format(toDate(value), "EEE, d MMM yyyy", {
           locale: locale === "ru" ? ru : enUS,
         })}
       </PopoverTrigger>
@@ -156,19 +158,39 @@ const DayField = ({
   );
 };
 
-/** What is being made: a promise (whose, by when) or a reminder (only when). */
-const KindField = ({
+/** A line: an icon, and what it is about. */
+const Line = ({
+  icon: Icon,
+  children,
+}: {
+  icon: typeof Bell;
+  children: React.ReactNode;
+}) => (
+  <div className="flex min-h-9 items-center gap-3 text-sm">
+    <Icon className="text-muted-foreground size-4 shrink-0" />
+    <div className="flex min-w-0 flex-1 items-center gap-1">{children}</div>
+  </div>
+);
+
+/** What is being made: a promise (whose, by when) or a reminder (only when) — two words, the chosen one underlined. */
+const KindTabs = ({
   draft,
   onChange,
 }: {
   draft: PromiseDraft;
-  onChange: (patch: Partial<PromiseDraft>) => void;
+  onChange: Change;
 }) => {
   const t = useTranslations("memory");
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="flex gap-4 text-sm">
       {(["promise", "reminder"] as const).map((kind) => (
-        <Button
+        <button
+          className={cn(
+            "-mb-px border-b-2 pb-1.5 transition-colors duration-150",
+            draft.kind === kind
+              ? "border-foreground font-medium"
+              : "text-muted-foreground hover:text-foreground border-transparent"
+          )}
           key={kind}
           onClick={() =>
             onChange(
@@ -178,10 +200,9 @@ const KindField = ({
             )
           }
           type="button"
-          variant={draft.kind === kind ? "secondary" : "outline"}
         >
           {t(kind === "promise" ? "kindPromise" : "kindReminder")}
-        </Button>
+        </button>
       ))}
     </div>
   );
@@ -189,32 +210,39 @@ const KindField = ({
 
 const NOBODY = "none";
 
-/** Who owes whom: a switch between «я обещал» and «мне обещали», and the card on the other side. */
-const WhoField = ({
+/** Who owes whom: a word that turns between «я обещал» and «мне обещали», and the card on the other side. */
+const WhoLine = ({
   draft,
   cards,
+  edit,
   onChange,
 }: {
   draft: PromiseDraft;
   cards: MemoryCardItem[];
-  onChange: (patch: Partial<PromiseDraft>) => void;
+  edit: boolean;
+  onChange: Change;
 }) => {
   const t = useTranslations("memory");
   const named = cards.find((c) => c.id === draft.card)?.name;
   const mine = draft.side === "mine";
+  const side = t(mine ? "promiseMine" : "promiseTheirs");
+  if (edit) {
+    return (
+      <Line icon={UserRound}>
+        <span className="px-2.5">{named ? `${side} · ${named}` : side}</span>
+      </Line>
+    );
+  }
   return (
-    <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-2 gap-2">
-        {(["mine", "theirs"] as const).map((side) => (
-          <Button
-            key={side}
-            onClick={() => onChange({ side })}
-            variant={draft.side === side ? "secondary" : "outline"}
-          >
-            {t(side === "mine" ? "promiseMine" : "promiseTheirs")}
-          </Button>
-        ))}
-      </div>
+    <Line icon={UserRound}>
+      <Button
+        className="font-normal"
+        onClick={() => onChange({ side: mine ? "theirs" : "mine" })}
+        type="button"
+        variant="ghost"
+      >
+        {side}
+      </Button>
       <Select
         onValueChange={(v) =>
           onChange({ card: v === NOBODY ? null : (v as string) })
@@ -223,7 +251,7 @@ const WhoField = ({
       >
         <SelectTrigger
           aria-label={t(mine ? "promiseWhoMine" : "promiseWhoTheirs")}
-          className="w-full"
+          className="w-auto border-0 shadow-none"
         >
           <SelectValue>
             {named ?? t(mine ? "promiseNobody" : "promiseWhoTheirs")}
@@ -238,77 +266,85 @@ const WhoField = ({
           ))}
         </SelectContent>
       </Select>
-    </div>
+    </Line>
   );
 };
 
-/** The reminder: a switch, and when it is on, the day and the time it goes off. */
-const RemindField = ({
+/** The reminder: «Напомнить…» turns it on; on, it is the day and the time it goes off, and a cross to take it off. */
+const RemindLine = ({
   draft,
   onChange,
   fixed,
 }: {
   draft: PromiseDraft;
-  onChange: (patch: Partial<PromiseDraft>) => void;
-  /** A reminder is nothing without its time: no switch, always on. */
+  onChange: Change;
+  /** A reminder is nothing without its time: always on, no cross. */
   fixed: boolean;
 }) => {
   const t = useTranslations("memory");
   const s = useTranslations("settings.notifications");
+  if (!draft.remind) {
+    return (
+      <Line icon={Bell}>
+        <Button
+          className="text-muted-foreground font-normal"
+          onClick={() => onChange({ remind: true })}
+          type="button"
+          variant="ghost"
+        >
+          {t("promiseRemindAdd")}
+        </Button>
+      </Line>
+    );
+  }
   return (
-    <div className="flex flex-col gap-2">
-      {fixed ? (
-        <FieldLabel>{t("reminderWhen")}</FieldLabel>
-      ) : (
-        <div className="flex items-center justify-between">
-          <FieldLabel htmlFor="promise-remind">{t("promiseRemind")}</FieldLabel>
-          <Switch
-            aria-label={t("promiseRemind")}
-            checked={draft.remind}
-            id="promise-remind"
-            onCheckedChange={(remind) => onChange({ remind })}
-          />
-        </div>
+    <Line icon={Bell}>
+      <DayField
+        label={t("promiseRemindDay")}
+        onChange={(remindDay) => onChange({ remindDay })}
+        value={draft.remindDay}
+      />
+      <TimePicker
+        aria-label={t("promiseRemindTime")}
+        className="w-24 border-0 shadow-none"
+        hourCycle={24}
+        i18n={{
+          labels: {
+            clear: s("timeClear"),
+            confirm: s("timeOk"),
+            hour: s("timeHour"),
+            minute: s("timeMinute"),
+            now: s("timeNow"),
+            openPicker: t("promiseRemindTime"),
+            panelLabel: t("promiseRemindTime"),
+            placeholder: s("timePlaceholder"),
+          },
+        }}
+        minuteStep={5}
+        onValueChange={(time) => {
+          if (time) {
+            onChange({ time });
+          }
+        }}
+        value={draft.time}
+      />
+      {fixed ? null : (
+        <button
+          aria-label={t("promiseRemindOff")}
+          className="text-muted-foreground hover:text-foreground ms-auto p-1"
+          onClick={() => onChange({ remind: false })}
+          title={t("promiseRemindOff")}
+          type="button"
+        >
+          <X className="size-3.5" />
+        </button>
       )}
-      {draft.remind && (
-        <div className="grid grid-cols-[1fr_auto] gap-2">
-          <DayField
-            label={t("promiseRemindDay")}
-            onChange={(remindDay) => onChange({ remindDay })}
-            value={draft.remindDay}
-          />
-          <TimePicker
-            aria-label={t("promiseRemindTime")}
-            className="w-28"
-            hourCycle={24}
-            i18n={{
-              labels: {
-                clear: s("timeClear"),
-                confirm: s("timeOk"),
-                hour: s("timeHour"),
-                minute: s("timeMinute"),
-                now: s("timeNow"),
-                openPicker: t("promiseRemindTime"),
-                panelLabel: t("promiseRemindTime"),
-                placeholder: s("timePlaceholder"),
-              },
-            }}
-            minuteStep={5}
-            onValueChange={(time) => {
-              if (time) {
-                onChange({ time });
-              }
-            }}
-            value={draft.time}
-          />
-        </div>
-      )}
-    </div>
+    </Line>
   );
 };
 
-/** The dialog's fields: the kind, the text, whose it is, the deadline and the reminder — those a kind needs. */
-const PromiseFields = ({
+/** The lines a kind needs: whose it is and the deadline for a promise, the reminder for both. */
+const PromiseLines = ({
   draft,
   edit,
   reminder,
@@ -319,30 +355,16 @@ const PromiseFields = ({
   edit: boolean;
   reminder: boolean;
   cards: MemoryCardItem[];
-  onChange: (patch: Partial<PromiseDraft>) => void;
+  onChange: Change;
 }) => {
   const t = useTranslations("memory");
   return (
-    <>
-      {edit ? null : <KindField draft={draft} onChange={onChange} />}
-      <Field>
-        <FieldLabel htmlFor="promise-text">
-          {t(reminder ? "reminderText" : "promiseText")}
-        </FieldLabel>
-        <Input
-          autoFocus
-          id="promise-text"
-          onChange={(e) => onChange({ text: e.target.value })}
-          placeholder={t(reminder ? "reminderTextHint" : "promiseTextHint")}
-          value={draft.text}
-        />
-      </Field>
-      {edit || reminder ? null : (
-        <WhoField cards={cards} draft={draft} onChange={onChange} />
+    <div className="flex flex-col">
+      {reminder ? null : (
+        <WhoLine cards={cards} draft={draft} edit={edit} onChange={onChange} />
       )}
       {reminder ? null : (
-        <Field>
-          <FieldLabel>{t("promiseDay")}</FieldLabel>
+        <Line icon={CalendarDays}>
           <DayField
             label={t("promiseDay")}
             onChange={(day) =>
@@ -353,16 +375,17 @@ const PromiseFields = ({
                   draft.remindDay === draft.day ? day : draft.remindDay,
               })
             }
+            prefix={t("promiseDueBy")}
             value={draft.day}
           />
-        </Field>
+        </Line>
       )}
-      <RemindField draft={draft} fixed={reminder} onChange={onChange} />
-    </>
+      <RemindLine draft={draft} fixed={reminder} onChange={onChange} />
+    </div>
   );
 };
 
-/** What can be done with a promise that is there: finish it, go to its card, delete it. */
+/** What can be done with a promise that is there: finish it, delete it, go to its card. */
 const EditActions = ({
   id,
   card,
@@ -380,29 +403,41 @@ const EditActions = ({
 }) => {
   const t = useTranslations("memory");
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+    <div className="flex items-center gap-1">
       <Button
+        aria-label={t("done")}
         disabled={busy}
         onClick={() => onDone(id)}
-        type="button"
-        variant="outline"
-      >
-        {t("done")}
-      </Button>
-      {card && (
-        <Button onClick={() => onOpenCard(card)} type="button" variant="ghost">
-          {t("promiseOpenCard")}
-        </Button>
-      )}
-      <Button
-        className="text-destructive hover:text-destructive ms-auto"
-        disabled={busy}
-        onClick={() => onDelete(id)}
+        size="icon-sm"
+        title={t("done")}
         type="button"
         variant="ghost"
       >
-        {t("delete")}
+        <Check />
       </Button>
+      <Button
+        aria-label={t("delete")}
+        className="text-destructive hover:text-destructive"
+        disabled={busy}
+        onClick={() => onDelete(id)}
+        size="icon-sm"
+        title={t("delete")}
+        type="button"
+        variant="ghost"
+      >
+        <Trash2 />
+      </Button>
+      {card && (
+        <Button
+          className="text-muted-foreground font-normal"
+          onClick={() => onOpenCard(card)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {t("promiseOpenCard")}
+        </Button>
+      )}
     </div>
   );
 };
@@ -421,7 +456,7 @@ export const PromiseDialog = ({
   draft: PromiseDraft | null;
   cards: MemoryCardItem[];
   busy: boolean;
-  onChange: (patch: Partial<PromiseDraft>) => void;
+  onChange: Change;
   onClose: () => void;
   onSave: () => void;
   onDone: (id: string) => void;
@@ -435,19 +470,10 @@ export const PromiseDialog = ({
     draft !== null &&
     draft.text.trim().length > 0 &&
     (reminder || draft.side === "mine" || draft.card !== null);
-  let title: "promiseNew" | "promiseEdit" | "reminderNew" = "promiseNew";
-  if (edit) {
-    title = "promiseEdit";
-  } else if (reminder) {
-    title = "reminderNew";
-  }
   return (
     <Dialog onOpenChange={(open) => !open && onClose()} open={draft !== null}>
       {draft && (
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t(title)}</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="gap-4 p-5 pb-4 sm:max-w-[26rem]">
           <form
             className="flex flex-col gap-4"
             onSubmit={(event) => {
@@ -457,31 +483,52 @@ export const PromiseDialog = ({
               }
             }}
           >
-            <PromiseFields
+            {edit ? (
+              <DialogTitle className="text-muted-foreground text-xs font-normal">
+                {t("promiseEdit")}
+              </DialogTitle>
+            ) : (
+              <>
+                <DialogTitle className="sr-only">
+                  {t(reminder ? "reminderNew" : "promiseNew")}
+                </DialogTitle>
+                <KindTabs draft={draft} onChange={onChange} />
+              </>
+            )}
+            <input
+              aria-label={t(reminder ? "reminderText" : "promiseText")}
+              autoFocus
+              className="placeholder:text-muted-foreground/50 w-full bg-transparent text-lg font-medium outline-none"
+              onChange={(e) => onChange({ text: e.target.value })}
+              placeholder={t(reminder ? "reminderText" : "promiseText")}
+              value={draft.text}
+            />
+            <PromiseLines
               cards={cards}
               draft={draft}
               edit={edit}
               onChange={onChange}
               reminder={reminder}
             />
-            {edit && draft.id && (
-              <EditActions
-                busy={busy}
-                card={draft.card}
-                id={draft.id}
-                onDelete={onDelete}
-                onDone={onDone}
-                onOpenCard={onOpenCard}
-              />
-            )}
-            <DialogFooter>
-              <Button onClick={onClose} type="button" variant="ghost">
-                {t("cancelNew")}
-              </Button>
+            <div className="flex items-center justify-between border-t pt-3">
+              {edit && draft.id ? (
+                <EditActions
+                  busy={busy}
+                  card={draft.card}
+                  id={draft.id}
+                  onDelete={onDelete}
+                  onDone={onDone}
+                  onOpenCard={onOpenCard}
+                />
+              ) : (
+                <span className="text-muted-foreground text-xs">
+                  {t("promiseEnterHint")}
+                </span>
+              )}
               <Button disabled={busy || !ready} type="submit">
                 {t(edit ? "save" : "promiseCreate")}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       )}
