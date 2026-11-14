@@ -48,9 +48,17 @@ const call = async <T>(
     });
     body = (await response.json()) as Reply<T>;
   } catch (error) {
-    // The URL, with the token, is in the cause of a network error: only its kind is kept.
+    // The URL, with the token, is in the cause of a network error: only its kind and the cause's code are kept
+    // («TypeError (ECONNRESET)») — enough to tell a dropped connection from a refused proxy.
     const kind = error instanceof Error ? error.name : "error";
-    throw new TelegramError(`${method}: ${kind}`);
+    const cause =
+      error instanceof Error &&
+      error.cause instanceof Error &&
+      "code" in error.cause &&
+      typeof error.cause.code === "string"
+        ? ` (${error.cause.code})`
+        : "";
+    throw new TelegramError(`${method}: ${kind}${cause}`);
   }
   if (!(body.ok && body.result !== undefined)) {
     throw new TelegramError(
@@ -75,16 +83,32 @@ export const botUsername = async () => {
 export interface TelegramUser {
   id: number;
   first_name?: string;
+  last_name?: string;
   username?: string;
   language_code?: string;
+}
+
+/** Where a forwarded message came from: a person (hidden, by name only), a group or a channel. */
+export interface TelegramOrigin {
+  type: "user" | "hidden_user" | "chat" | "channel";
+  sender_user?: TelegramUser;
+  sender_user_name?: string;
+  sender_chat?: { title?: string };
+  chat?: { title?: string };
 }
 
 export interface TelegramUpdate {
   update_id: number;
   message?: {
+    message_id?: number;
+    /** Seconds since 1970. */
+    date?: number;
     chat: { id: number; type: string };
     from?: TelegramUser;
     text?: string;
+    /** The words under a photo or a file. */
+    caption?: string;
+    forward_origin?: TelegramOrigin;
   };
   callback_query?: {
     id: string;
@@ -130,6 +154,11 @@ export const getUpdates = (offset: number, timeout: number) =>
     { allowed_updates: ["message", "callback_query"], offset, timeout },
     (timeout + 10) * 1000
   );
+
+/** «печатает…» at the top of the chat, for five seconds or until a message comes. */
+export const sendTyping = async (chatId: string) => {
+  await call("sendChatAction", { action: "typing", chat_id: chatId });
+};
 
 /** The answer to a button press: a line that shows at the top of the chat for a moment. */
 export const answerCallback = async (id: string, text: string) => {

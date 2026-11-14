@@ -4,6 +4,8 @@ import type * as ActionsModule from "./telegram-actions";
 
 const complete = vi.fn();
 const userOfChat = vi.fn();
+const sendTelegram = vi.fn();
+const answerTelegram = vi.fn();
 const runAction = vi.fn();
 const answerCallback = vi.fn();
 const setButtons = vi.fn();
@@ -13,16 +15,31 @@ vi.mock("./channels", () => ({ completeTelegramLink: complete, userOfChat }));
 vi.mock("./telegram", () => ({
   answerCallback,
   getUpdates: vi.fn(),
-  sendTelegram: vi.fn(),
+  sendTelegram,
+  sendTyping: () => Promise.resolve(),
   setButtons,
   telegramToken: () => "token",
 }));
+class NoChatModelError extends Error {
+  constructor() {
+    super("no chat model");
+    this.name = "NoChatModelError";
+  }
+}
+vi.mock("./telegram-chat", () => ({ NoChatModelError, answerTelegram }));
+// The owner's language and zone: one row, whatever is asked.
+const ownerRows = () =>
+  Promise.resolve([{ locale: "ru", timeZone: "Europe/Moscow" }]);
+vi.mock("./db", () => {
+  const chain = { from: () => chain, limit: ownerRows, where: () => chain };
+  return { getDb: () => ({ db: { select: () => chain } }) };
+});
 vi.mock("./telegram-actions", async () => ({
   ...(await vi.importActual<typeof ActionsModule>("./telegram-actions")),
   runAction,
 }));
 
-const { answerPress, replyTo } = await import("./telegram-bot");
+const { answerPress, handleUpdate, replyTo } = await import("./telegram-bot");
 
 const message = (text: string, over: Record<string, unknown> = {}) => ({
   message: {
@@ -42,6 +59,9 @@ const message = (text: string, over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   complete.mockReset();
   userOfChat.mockReset();
+  sendTelegram.mockReset();
+  sendTelegram.mockImplementation(() => Promise.resolve());
+  answerTelegram.mockReset();
   runAction.mockReset();
   answerCallback.mockReset();
   setButtons.mockReset();
@@ -170,5 +190,82 @@ describe("a press on a button under a digest (D43)", () => {
     await answerPress(press(`m:${ID}`));
     expect(answerCallback).toHaveBeenCalledWith("cb1", "Этого пункта уже нет");
     expect(setButtons).toHaveBeenCalled();
+  });
+});
+
+describe("a bound chat writes to the bot (шаг 7)", () => {
+  it("answers a comment and what was forwarded with it as one message, the chat's way", async () => {
+    vi.useFakeTimers();
+    try {
+      userOfChat.mockResolvedValue("owner");
+      sendTelegram.mockImplementation(() => Promise.resolve());
+      answerTelegram.mockResolvedValue({
+        answer: {
+          id: "a",
+          parts: [{ text: "Договор жду **в пятницу**", type: "text" }],
+          role: "assistant",
+        },
+        chatId: "c",
+      });
+      await handleUpdate(message("Это от юриста"));
+      await handleUpdate(
+        message("Пришлю договор в пятницу", {
+          forward_origin: {
+            sender_user: { first_name: "Ольга", id: 5 },
+            type: "user",
+          },
+        })
+      );
+      expect(answerTelegram).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(answerTelegram).toHaveBeenCalledTimes(1);
+      expect(answerTelegram).toHaveBeenCalledWith({
+        text: "Это от юриста\n\nПереслано от Ольга:\nПришлю договор в пятницу",
+        timeZone: "Europe/Moscow",
+        userId: "owner",
+      });
+      expect(sendTelegram).toHaveBeenLastCalledWith(
+        "77",
+        "Договор жду <b>в пятницу</b>",
+        { html: true }
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says plainly when there is nothing to answer with", async () => {
+    vi.useFakeTimers();
+    try {
+      userOfChat.mockResolvedValue("owner");
+      answerTelegram.mockRejectedValue(new NoChatModelError());
+      await handleUpdate(message("что у меня горит?"));
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(sendTelegram).toHaveBeenLastCalledWith(
+        "77",
+        expect.stringContaining("нет модели для чата")
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("asks for words when a message has none, and leaves a chat bound to nobody to the old line", async () => {
+    userOfChat.mockResolvedValue("owner");
+    await handleUpdate({
+      message: { chat: { id: 77, type: "private" } },
+      update_id: 2,
+    });
+    expect(sendTelegram).toHaveBeenLastCalledWith(
+      "77",
+      expect.stringContaining("только текст")
+    );
+    userOfChat.mockResolvedValue(null);
+    await handleUpdate(message("привет"));
+    expect(sendTelegram).toHaveBeenLastCalledWith(
+      "77",
+      expect.stringContaining("Я бот Metobe")
+    );
+    expect(answerTelegram).not.toHaveBeenCalled();
   });
 });

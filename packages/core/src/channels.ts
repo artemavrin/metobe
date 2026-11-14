@@ -222,3 +222,24 @@ export const userOfChat = async (chatId: string) => {
     .limit(1);
   return row?.userId ?? null;
 };
+
+/** The app's chat the bot's talk is kept in (шаг 7); null — none yet, or the person deleted it. */
+export const telegramAppChat = async (userId: string) => {
+  const [row] = await getDb()
+    .db.select({ chatId: userChannels.appChatId })
+    .from(userChannels)
+    .where(
+      and(eq(userChannels.userId, userId), eq(userChannels.kind, "telegram"))
+    )
+    .limit(1);
+  return row?.chatId ?? null;
+};
+
+export const setTelegramAppChat = async (userId: string, chatId: string) => {
+  await getDb()
+    .db.update(userChannels)
+    .set({ appChatId: chatId, updatedAt: new Date() })
+    .where(
+      and(eq(userChannels.userId, userId), eq(userChannels.kind, "telegram"))
+    );
+};

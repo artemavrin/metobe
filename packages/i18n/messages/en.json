@@ -3090,10 +3090,21 @@
   },
   "telegram": {
     "help": "I am the Metobe bot. To link this chat to your account, open the account settings in Metobe, the «Notifications» section, and press «Link Telegram».",
-    "linked": "Done: this chat is linked to your Metobe account. Notifications will come here.",
+    "linked": "Done: this chat is linked to your Metobe account. Notifications will come here. You can write here too, as in a Metobe chat: «remind me tomorrow at 10 to call the bank», a question, or a forwarded message worth remembering.",
     "invalid": "The code did not fit or has expired. Make a new link in the Metobe settings.",
     "taken": "This Telegram is already linked to another Metobe account. Unlink it there or use another Telegram.",
     "test": "Connection check: Metobe notifications arrive here.",
+    "chat": {
+      "forwarded": "Forwarded from {name}:",
+      "forwardedAnon": "Forwarded from a hidden sender:",
+      "onlyText": "For now I read only text and captions under files.",
+      "empty": "No answer came out. Try putting it another way.",
+      "failed": "Could not answer. Try again, or write in Metobe.",
+      "noModel": "Metobe has no chat model, so there is nothing to answer with. An administrator turns one on.",
+      "due": "by {date}",
+      "late": "overdue",
+      "more": "and {count} more"
+    },
     "press": {
       "done": "Marked done",
       "tomorrow": "Moved to tomorrow",
