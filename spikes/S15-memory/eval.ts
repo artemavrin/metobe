@@ -20,11 +20,9 @@ import { experimental_evaluate as evaluate, generateText, Output } from "ai";
 import { z } from "zod";
 
 import { extractionSchema } from "../../packages/core/src/memory-extract.ts";
-import { GATE_QUESTIONS, type GateAnswers } from "../../packages/core/src/memory-gate.ts";
 import { RELATION_QUESTIONS, type RelationAnswer } from "../../packages/core/src/memory-relations.ts";
 import { evalCases as contextCases } from "../S13-jev/context.ts";
 import type { EvalCase, Tally } from "../S13-jev/eval-case.ts";
-import { evalCases as gateCases } from "../S13-jev/gate.ts";
 import { evalCases as groupCases } from "../S13-jev/groups.ts";
 import { sourceKey } from "../S13-jev/keys.ts";
 import { evalCases as selfCases } from "../S13-jev/self.ts";
@@ -56,7 +54,6 @@ const SETS: Record<string, () => EvalCase[]> = {
   context: contextCases,
   extract: () => manyCases("extract", { facts, small: true }),
   foreign: foreignCases,
-  gate: gateCases,
   groups: groupCases,
   // The same messages on 300 cards and 200 open promises: the writer is shown the pick.
   "many.ask": () => manyCases("ask", { facts }),
@@ -69,7 +66,7 @@ const SETS: Record<string, () => EvalCase[]> = {
   things: thingCases,
   update: () => updateCases({ known: facts }),
 };
-const ORDER = ["gate", "extract", "ask", "context", "status", "self", "groups", "many.extract", "many.ask", "many.status", "foreign", "update", "relation", "note", "things"];
+const ORDER = ["extract", "ask", "context", "status", "self", "groups", "many.extract", "many.ask", "many.status", "foreign", "update", "relation", "note", "things"];
 const PARTS = process.env.PARTS?.split(",") ?? ORDER;
 const unknown = PARTS.filter((p) => !SETS[p]);
 if (unknown.length > 0) throw new Error(`no such set: ${unknown.join(", ")}; there are ${ORDER.join(", ")}`);
@@ -141,12 +138,11 @@ const prices = new Map<string, { input: number; output: number }>();
 const CHARS_PER_TOKEN = 3;
 const OUTPUT_TOKENS = 400;
 const SCHEMA_CHARS = JSON.stringify(z.toJSONSchema(extractionSchema)).length;
-const QUESTIONS_CHARS = JSON.stringify(GATE_QUESTIONS).length;
 const RELATION_CHARS = JSON.stringify(RELATION_QUESTIONS).length;
 const chars = (c: EvalCase) =>
   c.kind === "write"
     ? c.instructions.length + c.prompt.length + SCHEMA_CHARS
-    : JSON.stringify(c.state).length + (c.kind === "relation" ? RELATION_CHARS : QUESTIONS_CHARS);
+    : JSON.stringify(c.state).length + RELATION_CHARS;
 const guess = (set: string, c: EvalCase) => {
   const was = before?.sets[set]?.cases.find((x) => x.id === c.id);
   if (was && was.runs > 0 && was.cost > 0) return was.cost / was.runs;
@@ -199,17 +195,6 @@ interface Done {
 }
 
 const ask = async (c: EvalCase) => {
-  if (c.kind === "gate") {
-    const r = await evaluate({
-      abortSignal: AbortSignal.timeout(120_000),
-      maxRetries: 2,
-      model: gw.evaluationModel(GATE_MODEL),
-      providerOptions: { gateway: { zeroDataRetention: true } },
-      questions: GATE_QUESTIONS,
-      state: c.state as never,
-    });
-    return { answer: r.answers, cost: costOf(r as never), inputTokens: r.usage.inputTokens ?? 0, verdict: c.score(r.answers as GateAnswers) };
-  }
   if (c.kind === "relation") {
     const r = await evaluate({
       abortSignal: AbortSignal.timeout(120_000),

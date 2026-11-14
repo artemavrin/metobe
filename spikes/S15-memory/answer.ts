@@ -1,9 +1,10 @@
 // S15 part «ответ» (Г1.6а, MEMORY-PLAN §7.1): the assistant's answer retells what a tool read — the mail, a business
 // system, the web — and may settle an open commitment as «ждёт проверки», nothing else. 15 cases on the 300-card
 // memory: 8 where the answer shows a commitment done (one of them — two), 7 where it only plans, advises, guesses,
-// finds something partial or something else. The model is shown what the writer shows it: the commitments the pick
-// finds for the request and the answer (`candidateCommitments`), and its answer is judged as `retoldStatuses` takes it.
-// Aim: false closures 0. Gateway only.
+// finds something partial or something else. The writer is shown what it would be shown: the cards and commitments
+// the pick finds for the request and the answer, the request in <message>, the answer in <answer>; its output goes
+// through the table of voices (`limitByVoice`) and `planWrite`. Aim: no false closure, nothing settled as «выполнено»,
+// no record made from the answer. Gateway only.
 //
 //   DRY=1 pnpm run answer        # no model: what each case is shown, and whether the pick holds the commitment
 //   pnpm run answer              # meta/muse-ember — about $0.01 for 15 answers
@@ -14,13 +15,9 @@ import { generateText, Output } from "ai";
 
 import type { MemoryEntity, MemoryRecord } from "../../packages/core/src/memory.ts";
 import { candidateCards, candidateCommitments } from "../../packages/core/src/memory-candidates.ts";
-import type { OpenCommitment } from "../../packages/core/src/memory-extract.ts";
-import {
-  RETOLD_INSTRUCTIONS,
-  retoldPrompt,
-  retoldSchema,
-  retoldStatuses,
-} from "../../packages/core/src/memory-retold.ts";
+import { limitByVoice } from "../../packages/core/src/memory-evidence.ts";
+import { extractionSchema, memoryInstructions, memoryPrompt, planWrite } from "../../packages/core/src/memory-extract.ts";
+import type { KnownCard, OpenCommitment } from "../../packages/core/src/memory-extract.ts";
 import { sourceKey } from "../S13-jev/keys.ts";
 import { NOW, SELF, fillerCards, fillerPromises, promise } from "./memory300.ts";
 
@@ -148,22 +145,24 @@ const cases: { request: string; answer: string; settles: string[] }[] = [
 
 // --- what the model is shown ----------------------------------------------------------------------------------------
 
-const shown = (request: string, answer: string): OpenCommitment[] => {
+const shown = (request: string, answer: string) => {
   const said = `${request}\n${answer}`;
   const found = candidateCards({ entities, now: NOW, records, text: said });
-  return candidateCommitments({ cards: found, now: NOW, records, selfId: SELF.id, text: said })
-    .filter((r) => r.status === "open")
-    .map((r, i) => ({ due: r.dueAt, id: r.id, ref: `k${i + 1}`, status: "open", text: r.text }));
+  const commitments: OpenCommitment[] = candidateCommitments({ cards: found, now: NOW, records, selfId: SELF.id, text: said }).map(
+    (r, i) => ({ due: r.dueAt, id: r.id, ref: `k${i + 1}`, status: r.status === "unconfirmed" ? "unconfirmed" : "open", text: r.text })
+  );
+  const cards: KnownCard[] = found.map((e) => ({ aliases: e.aliases, id: e.id, kind: e.kind as KnownCard["kind"], name: e.name, ref: e.id, role: e.role }));
+  return { cards, commitments };
 };
 
-const TODAY = "Monday, 9 November 2026 (2026-11-09)";
+const TIMEZONE = "Europe/Moscow";
 const picked = cases.map((c, i) => ({ c, i: i + 1 })).filter(({ i }) => !ONLY || ONLY.has(i));
 
 for (const { c, i } of picked) {
   const s = shown(c.request, c.answer);
-  const lost = c.settles.filter((id) => !s.some((k) => k.id === id));
+  const lost = c.settles.filter((id) => !s.commitments.some((k) => k.id === id));
   if (lost.length > 0) console.log(`  ✗ ${i}. pick lost ${lost.join(", ")}`);
-  if (DRY) console.log(`  ${i}. ${s.length} commitments shown`);
+  if (DRY) console.log(`  ${i}. ${s.commitments.length} commitments shown`);
 }
 if (DRY) process.exit(0);
 
@@ -173,22 +172,29 @@ let cost = 0;
 let right = 0;
 let falseClosures = 0;
 let missed = 0;
+let asDone = 0;
+let fromAnswer = 0;
 await Promise.all(
   picked.map(async ({ c, i }) => {
     const s = shown(c.request, c.answer);
     try {
       const r = await generateText({
-        instructions: RETOLD_INSTRUCTIONS,
+        instructions: memoryInstructions({ answer: true, cards: s.cards, commitments: s.commitments, sentAt: NOW, timeZone: TIMEZONE }),
         maxRetries: 2,
         model: gw(MODEL),
-        output: Output.object({ schema: retoldSchema }),
-        prompt: retoldPrompt({ commitments: s, message: c.request, retold: c.answer, today: TODAY }),
+        output: Output.object({ schema: extractionSchema }),
+        prompt: memoryPrompt(c.request, [], c.answer),
         providerOptions: { gateway: { zeroDataRetention: true } },
         reasoning: "low",
       });
       cost += Number((r.providerMetadata?.gateway as { cost?: string } | undefined)?.cost ?? 0);
+      const limited = limitByVoice(r.output, { answer: true, others: false, owner: true });
+      const plan = planWrite(limited, { cards: s.cards, commitments: s.commitments, selfId: SELF.id, timeZone: TIMEZONE });
+      asDone += plan.statuses.filter((x) => x.status === "done").length;
+      fromAnswer += plan.records.length;
+      if (plan.records.length > 0) console.log(`  · ${i}. records: ${plan.records.map((x) => `«${x.text}»`).join(", ")}`);
       // oxlint-disable-next-line unicorn/no-array-sort -- a fresh array
-      const got = retoldStatuses(r.output, s).map((x) => x.recordId).sort();
+      const got = plan.statuses.map((x) => x.recordId).sort();
       const want = [...c.settles].sort();
       const wrong = got.filter((id) => !want.includes(id));
       const lacking = want.filter((id) => !got.includes(id));
@@ -206,6 +212,8 @@ console.log(
   JSON.stringify({
     cost: `$${cost.toFixed(4)}`,
     false_closures: falseClosures,
+    records_made: fromAnswer,
+    settled_as_done: asDone,
     missed_closures: missed,
     model: MODEL,
     right: `${right}/${picked.length}`,

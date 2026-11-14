@@ -1,0 +1,2360 @@
+{
+ "gateModel": "microsoft/microsoft-decision-1",
+ "label": "app",
+ "model": "meta/muse-ember",
+ "sets": {
+  "gate": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.000027384,
+     "id": "01",
+     "inputTokens": 652,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027468,
+     "id": "02",
+     "inputTokens": 654,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027636,
+     "id": "03",
+     "inputTokens": 658,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00002688,
+     "id": "04",
+     "inputTokens": 640,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027636,
+     "id": "05",
+     "inputTokens": 658,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027636,
+     "id": "06",
+     "inputTokens": 658,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027636,
+     "id": "07",
+     "inputTokens": 658,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027552,
+     "id": "08",
+     "inputTokens": 656,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027636,
+     "id": "09",
+     "inputTokens": 658,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026628,
+     "id": "10",
+     "inputTokens": 634,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00002688,
+     "id": "11",
+     "inputTokens": 640,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027132,
+     "id": "12",
+     "inputTokens": 646,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00002856,
+     "id": "13",
+     "inputTokens": 680,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026964,
+     "id": "14",
+     "inputTokens": 642,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027216,
+     "id": "15",
+     "inputTokens": 648,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026964,
+     "id": "16",
+     "inputTokens": 642,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027384,
+     "id": "17",
+     "inputTokens": 652,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027216,
+     "id": "18",
+     "inputTokens": 648,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00002688,
+     "id": "19",
+     "inputTokens": 640,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026796,
+     "id": "20",
+     "inputTokens": 638,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027468,
+     "id": "21",
+     "inputTokens": 654,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027048,
+     "id": "22",
+     "inputTokens": 644,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026964,
+     "id": "23",
+     "inputTokens": 642,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026796,
+     "id": "24",
+     "inputTokens": 638,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027468,
+     "id": "25",
+     "inputTokens": 654,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026712,
+     "id": "26",
+     "inputTokens": 636,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027132,
+     "id": "27",
+     "inputTokens": 646,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027216,
+     "id": "28",
+     "inputTokens": 648,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00002646,
+     "id": "29",
+     "inputTokens": 630,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027636,
+     "id": "30",
+     "inputTokens": 658,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027384,
+     "id": "31",
+     "inputTokens": 652,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027384,
+     "id": "32",
+     "inputTokens": 652,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0000273,
+     "id": "33",
+     "inputTokens": 650,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026628,
+     "id": "34",
+     "inputTokens": 634,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000026796,
+     "id": "35",
+     "inputTokens": 638,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000027468,
+     "id": "36",
+     "inputTokens": 654,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000030408,
+     "id": "37",
+     "inputTokens": 724,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000030072,
+     "id": "38",
+     "inputTokens": 716,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00003024,
+     "id": "39",
+     "inputTokens": 720,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000030576,
+     "id": "40",
+     "inputTokens": 728,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000029064,
+     "id": "41",
+     "inputTokens": 692,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000030576,
+     "id": "42",
+     "inputTokens": 728,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.0011608799999999998,
+   "errors": 0,
+   "inputTokensMax": 364,
+   "inputTokensP50": 326,
+   "metrics": {
+    "right": [
+     84,
+     84
+    ],
+    "kept": [
+     58,
+     58
+    ],
+    "skipped_nothing": [
+     26,
+     26
+    ]
+   }
+  },
+  "extract": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.0012932999999999998,
+     "id": "01",
+     "inputTokens": 7528,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001037008,
+     "id": "02",
+     "inputTokens": 7536,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0015149999999999999,
+     "id": "03",
+     "inputTokens": 7540,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0017059,
+     "id": "04",
+     "inputTokens": 7524,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0013277,
+     "id": "05",
+     "inputTokens": 7532,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012429,
+     "id": "06",
+     "inputTokens": 7544,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001154,
+     "id": "07",
+     "inputTokens": 7540,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008294,
+     "id": "08",
+     "inputTokens": 7556,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0011811,
+     "id": "09",
+     "inputTokens": 7526,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000688,
+     "id": "10",
+     "inputTokens": 7532,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0011924,
+     "id": "11",
+     "inputTokens": 7524,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0011682,
+     "id": "12",
+     "inputTokens": 7534,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001372,
+     "id": "13",
+     "inputTokens": 7530,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009814,
+     "id": "14",
+     "inputTokens": 7536,
+     "ok": 1,
+     "runs": 2
+    },
+    {
+     "cost": 0.0007669999999999999,
+     "id": "15",
+     "inputTokens": 7522,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00089,
+     "id": "16",
+     "inputTokens": 7522,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0014342,
+     "id": "17",
+     "inputTokens": 7532,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009832999999999999,
+     "id": "18",
+     "inputTokens": 7540,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0011424,
+     "id": "19",
+     "inputTokens": 7534,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008372,
+     "id": "20",
+     "inputTokens": 7534,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008007,
+     "id": "21",
+     "inputTokens": 7524,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0011376,
+     "id": "22",
+     "inputTokens": 7538,
+     "ok": 0,
+     "runs": 2
+    },
+    {
+     "cost": 0.000648508,
+     "id": "23",
+     "inputTokens": 7538,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000777908,
+     "id": "24",
+     "inputTokens": 7532,
+     "ok": 0,
+     "runs": 2
+    },
+    {
+     "cost": 0.000603208,
+     "id": "25",
+     "inputTokens": 7530,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0014352000000000002,
+     "id": "26",
+     "inputTokens": 7552,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0011993,
+     "id": "27",
+     "inputTokens": 7528,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008898,
+     "id": "28",
+     "inputTokens": 7540,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008707000000000001,
+     "id": "29",
+     "inputTokens": 7532,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0001426,
+     "id": "30",
+     "inputTokens": 7520,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.031247932000000006,
+   "errors": 0,
+   "inputTokensMax": 3778,
+   "inputTokensP50": 3766,
+   "metrics": {
+    "right": [
+     55,
+     60
+    ],
+    "dates": [
+     41,
+     48
+    ],
+    "empty": [
+     4,
+     4
+    ],
+    "records": [
+     56,
+     58
+    ]
+   }
+  },
+  "ask": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.0012207,
+     "id": "01",
+     "inputTokens": 7572,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008221,
+     "id": "02",
+     "inputTokens": 7568,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012875,
+     "id": "03",
+     "inputTokens": 7570,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0007811000000000001,
+     "id": "04",
+     "inputTokens": 7568,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001185608,
+     "id": "05",
+     "inputTokens": 7564,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0011915,
+     "id": "06",
+     "inputTokens": 7560,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000602908,
+     "id": "07",
+     "inputTokens": 7562,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012707999999999999,
+     "id": "08",
+     "inputTokens": 7558,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0015478,
+     "id": "09",
+     "inputTokens": 7558,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001437708,
+     "id": "10",
+     "inputTokens": 7568,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012211000000000001,
+     "id": "11",
+     "inputTokens": 7566,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0014009,
+     "id": "12",
+     "inputTokens": 7564,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0007730079999999999,
+     "id": "13",
+     "inputTokens": 7568,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008296,
+     "id": "14",
+     "inputTokens": 7568,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009779160000000001,
+     "id": "15",
+     "inputTokens": 7556,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012171,
+     "id": "16",
+     "inputTokens": 7568,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012947,
+     "id": "17",
+     "inputTokens": 7562,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0013857000000000001,
+     "id": "18",
+     "inputTokens": 7564,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008879000000000001,
+     "id": "19",
+     "inputTokens": 7566,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009604,
+     "id": "20",
+     "inputTokens": 7566,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0010185,
+     "id": "21",
+     "inputTokens": 7562,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0015367,
+     "id": "22",
+     "inputTokens": 7562,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.024851247999999996,
+   "errors": 0,
+   "inputTokensMax": 3786,
+   "inputTokensP50": 3783,
+   "metrics": {
+    "right": [
+     44,
+     44
+    ],
+    "clear": [
+     28,
+     28
+    ],
+    "asked": [
+     16,
+     16
+    ]
+   }
+  },
+  "context": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.0017490000000000001,
+     "id": "01",
+     "inputTokens": 6830,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001033364,
+     "id": "02",
+     "inputTokens": 6792,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000544164,
+     "id": "03",
+     "inputTokens": 6780,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001018564,
+     "id": "04",
+     "inputTokens": 6804,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000806364,
+     "id": "05",
+     "inputTokens": 6802,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001047608,
+     "id": "06",
+     "inputTokens": 6792,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000819508,
+     "id": "07",
+     "inputTokens": 6776,
+     "ok": 0,
+     "runs": 2
+    },
+    {
+     "cost": 0.000472164,
+     "id": "08",
+     "inputTokens": 6780,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000827864,
+     "id": "09",
+     "inputTokens": 6842,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000575964,
+     "id": "10",
+     "inputTokens": 6848,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.008894563999999999,
+   "errors": 0,
+   "inputTokensMax": 3424,
+   "inputTokensP50": 3401,
+   "metrics": {
+    "right": [
+     18,
+     20
+    ]
+   }
+  },
+  "status": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.000421396,
+     "id": "01",
+     "inputTokens": 7354,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000432096,
+     "id": "02",
+     "inputTokens": 7356,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000461496,
+     "id": "03",
+     "inputTokens": 7350,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000977908,
+     "id": "04",
+     "inputTokens": 7360,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009107,
+     "id": "05",
+     "inputTokens": 7352,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001279508,
+     "id": "06",
+     "inputTokens": 7356,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000724988,
+     "id": "07",
+     "inputTokens": 7364,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001422516,
+     "id": "08",
+     "inputTokens": 7362,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001467408,
+     "id": "09",
+     "inputTokens": 7360,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000518308,
+     "id": "10",
+     "inputTokens": 7416,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000846688,
+     "id": "11",
+     "inputTokens": 7356,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001015708,
+     "id": "12",
+     "inputTokens": 7368,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008338880000000001,
+     "id": "13",
+     "inputTokens": 7368,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001066708,
+     "id": "14",
+     "inputTokens": 7378,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000457596,
+     "id": "15",
+     "inputTokens": 7356,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.012836911999999997,
+   "errors": 0,
+   "inputTokensMax": 3708,
+   "inputTokensP50": 3680,
+   "metrics": {
+    "right": [
+     30,
+     30
+    ],
+    "status": [
+     30,
+     30
+    ]
+   }
+  },
+  "self": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.00070984,
+     "id": "01",
+     "inputTokens": 6316,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00117584,
+     "id": "02",
+     "inputTokens": 6316,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000921348,
+     "id": "03",
+     "inputTokens": 6342,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00076008,
+     "id": "04",
+     "inputTokens": 6314,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000520448,
+     "id": "05",
+     "inputTokens": 6308,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000623508,
+     "id": "06",
+     "inputTokens": 6306,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.004711064,
+   "errors": 0,
+   "inputTokensMax": 3171,
+   "inputTokensP50": 3158,
+   "metrics": {
+    "right": [
+     12,
+     12
+    ]
+   }
+  },
+  "groups": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.000973152,
+     "id": "01",
+     "inputTokens": 6432,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000922408,
+     "id": "02",
+     "inputTokens": 6440,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00081426,
+     "id": "03",
+     "inputTokens": 6434,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001313108,
+     "id": "04",
+     "inputTokens": 6432,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000819052,
+     "id": "05",
+     "inputTokens": 6426,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012674000000000001,
+     "id": "06",
+     "inputTokens": 6424,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0010301519999999999,
+     "id": "07",
+     "inputTokens": 6432,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000449104,
+     "id": "08",
+     "inputTokens": 6432,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.007588636,
+   "errors": 0,
+   "inputTokensMax": 3220,
+   "inputTokensP50": 3216,
+   "metrics": {
+    "right": [
+     16,
+     16
+    ]
+   }
+  },
+  "many.extract": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.001151208,
+     "id": "01",
+     "inputTokens": 8278,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000982416,
+     "id": "02",
+     "inputTokens": 8096,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0017442999999999998,
+     "id": "03",
+     "inputTokens": 9088,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00135776,
+     "id": "04",
+     "inputTokens": 8874,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000949628,
+     "id": "05",
+     "inputTokens": 10058,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0010913160000000002,
+     "id": "06",
+     "inputTokens": 9770,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0010975,
+     "id": "07",
+     "inputTokens": 7600,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00098924,
+     "id": "08",
+     "inputTokens": 10282,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001051316,
+     "id": "09",
+     "inputTokens": 8950,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009567079999999999,
+     "id": "10",
+     "inputTokens": 8128,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008723800000000001,
+     "id": "11",
+     "inputTokens": 8984,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0017952,
+     "id": "12",
+     "inputTokens": 8722,
+     "ok": 1,
+     "runs": 2
+    },
+    {
+     "cost": 0.001150416,
+     "id": "13",
+     "inputTokens": 8656,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001003132,
+     "id": "14",
+     "inputTokens": 8130,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000634344,
+     "id": "15",
+     "inputTokens": 8200,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001126308,
+     "id": "16",
+     "inputTokens": 8074,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000881908,
+     "id": "17",
+     "inputTokens": 7592,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012190080000000002,
+     "id": "18",
+     "inputTokens": 8136,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000874372,
+     "id": "19",
+     "inputTokens": 8958,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009115600000000001,
+     "id": "20",
+     "inputTokens": 8812,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00098616,
+     "id": "21",
+     "inputTokens": 8898,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00122946,
+     "id": "22",
+     "inputTokens": 8134,
+     "ok": 0,
+     "runs": 2
+    },
+    {
+     "cost": 0.001009124,
+     "id": "23",
+     "inputTokens": 8094,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012691159999999998,
+     "id": "24",
+     "inputTokens": 8128,
+     "ok": 0,
+     "runs": 2
+    },
+    {
+     "cost": 0.00075588,
+     "id": "25",
+     "inputTokens": 8954,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001920808,
+     "id": "26",
+     "inputTokens": 10674,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000899624,
+     "id": "27",
+     "inputTokens": 8084,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001032616,
+     "id": "28",
+     "inputTokens": 8728,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000543516,
+     "id": "29",
+     "inputTokens": 7592,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00035120800000000004,
+     "id": "30",
+     "inputTokens": 7580,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.03183753199999998,
+   "errors": 0,
+   "inputTokensMax": 5337,
+   "inputTokensP50": 4328,
+   "metrics": {
+    "right": [
+     55,
+     60
+    ],
+    "dates": [
+     41,
+     48
+    ],
+    "empty": [
+     4,
+     4
+    ],
+    "records": [
+     56,
+     58
+    ]
+   }
+  },
+  "many.ask": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.001317208,
+     "id": "01",
+     "inputTokens": 8438,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001104608,
+     "id": "02",
+     "inputTokens": 8302,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009900159999999998,
+     "id": "03",
+     "inputTokens": 8882,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000804644,
+     "id": "04",
+     "inputTokens": 8248,
+     "ok": 0,
+     "runs": 2
+    },
+    {
+     "cost": 0.001487808,
+     "id": "05",
+     "inputTokens": 7586,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00124,
+     "id": "06",
+     "inputTokens": 8580,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000967372,
+     "id": "07",
+     "inputTokens": 9028,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001083208,
+     "id": "08",
+     "inputTokens": 8138,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001648308,
+     "id": "09",
+     "inputTokens": 9184,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00103456,
+     "id": "10",
+     "inputTokens": 8822,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000958824,
+     "id": "11",
+     "inputTokens": 8106,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000917736,
+     "id": "12",
+     "inputTokens": 8298,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001326608,
+     "id": "13",
+     "inputTokens": 8212,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00072808,
+     "id": "14",
+     "inputTokens": 9076,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001293308,
+     "id": "15",
+     "inputTokens": 9154,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001235608,
+     "id": "16",
+     "inputTokens": 8302,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008129439999999999,
+     "id": "17",
+     "inputTokens": 8296,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001388736,
+     "id": "18",
+     "inputTokens": 8298,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001092936,
+     "id": "19",
+     "inputTokens": 8300,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001126316,
+     "id": "20",
+     "inputTokens": 8210,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0010239799999999999,
+     "id": "21",
+     "inputTokens": 9070,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012244439999999999,
+     "id": "22",
+     "inputTokens": 8206,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.024807252,
+   "errors": 0,
+   "inputTokensMax": 4592,
+   "inputTokensP50": 4151,
+   "metrics": {
+    "right": [
+     42,
+     44
+    ],
+    "clear": [
+     26,
+     28
+    ],
+    "asked": [
+     16,
+     16
+    ]
+   }
+  },
+  "many.status": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.000599224,
+     "id": "01",
+     "inputTokens": 8140,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000491944,
+     "id": "02",
+     "inputTokens": 8376,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000554944,
+     "id": "03",
+     "inputTokens": 8176,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0007439440000000001,
+     "id": "04",
+     "inputTokens": 8186,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000644916,
+     "id": "05",
+     "inputTokens": 8086,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001272916,
+     "id": "06",
+     "inputTokens": 8186,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000876216,
+     "id": "07",
+     "inputTokens": 8194,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000591144,
+     "id": "08",
+     "inputTokens": 8188,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001620324,
+     "id": "09",
+     "inputTokens": 8146,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000919416,
+     "id": "10",
+     "inputTokens": 8436,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001073316,
+     "id": "11",
+     "inputTokens": 8090,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000940872,
+     "id": "12",
+     "inputTokens": 9088,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012321160000000001,
+     "id": "13",
+     "inputTokens": 9268,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008932160000000001,
+     "id": "14",
+     "inputTokens": 8204,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000474508,
+     "id": "15",
+     "inputTokens": 7638,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.012929016000000002,
+   "errors": 0,
+   "inputTokensMax": 4634,
+   "inputTokensP50": 4093,
+   "metrics": {
+    "right": [
+     30,
+     30
+    ],
+    "status": [
+     30,
+     30
+    ]
+   }
+  },
+  "foreign": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.001238584,
+     "id": "01",
+     "inputTokens": 6918,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0015902199999999998,
+     "id": "02",
+     "inputTokens": 6906,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001383908,
+     "id": "03",
+     "inputTokens": 6880,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0013889520000000002,
+     "id": "04",
+     "inputTokens": 6700,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008508719999999999,
+     "id": "05",
+     "inputTokens": 6678,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001107084,
+     "id": "06",
+     "inputTokens": 6888,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.002641608,
+     "id": "07",
+     "inputTokens": 6942,
+     "ok": 0,
+     "runs": 2
+    },
+    {
+     "cost": 0.0007466160000000001,
+     "id": "08",
+     "inputTokens": 6638,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001856076,
+     "id": "09",
+     "inputTokens": 7082,
+     "ok": 1,
+     "runs": 2
+    },
+    {
+     "cost": 0.0012231,
+     "id": "10",
+     "inputTokens": 6856,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001127052,
+     "id": "11",
+     "inputTokens": 6626,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001590984,
+     "id": "12",
+     "inputTokens": 6932,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.016745055999999998,
+   "errors": 0,
+   "inputTokensMax": 3541,
+   "inputTokensP50": 3444,
+   "metrics": {
+    "right": [
+     21,
+     24
+    ],
+    "authors_not_users": [
+     23,
+     24
+    ]
+   }
+  },
+  "update": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.00083666,
+     "id": "01",
+     "inputTokens": 8838,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001084616,
+     "id": "02",
+     "inputTokens": 9378,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000868952,
+     "id": "03",
+     "inputTokens": 10702,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00094442,
+     "id": "04",
+     "inputTokens": 10210,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000735068,
+     "id": "05",
+     "inputTokens": 8808,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001381516,
+     "id": "06",
+     "inputTokens": 8812,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00072778,
+     "id": "07",
+     "inputTokens": 8938,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000663768,
+     "id": "08",
+     "inputTokens": 8800,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001449716,
+     "id": "09",
+     "inputTokens": 8834,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0007605919999999999,
+     "id": "10",
+     "inputTokens": 9374,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00068058,
+     "id": "11",
+     "inputTokens": 9066,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001064216,
+     "id": "12",
+     "inputTokens": 8934,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001185308,
+     "id": "13",
+     "inputTokens": 8834,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000883916,
+     "id": "14",
+     "inputTokens": 9596,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000549592,
+     "id": "15",
+     "inputTokens": 9374,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0011781,
+     "id": "16",
+     "inputTokens": 9936,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000727196,
+     "id": "17",
+     "inputTokens": 9572,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0010708520000000002,
+     "id": "18",
+     "inputTokens": 10506,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000722668,
+     "id": "19",
+     "inputTokens": 8844,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0006991160000000001,
+     "id": "20",
+     "inputTokens": 9930,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008478720000000001,
+     "id": "21",
+     "inputTokens": 8938,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0006685160000000001,
+     "id": "22",
+     "inputTokens": 8802,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0010279,
+     "id": "23",
+     "inputTokens": 8804,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00045578000000000003,
+     "id": "24",
+     "inputTokens": 8938,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000930916,
+     "id": "25",
+     "inputTokens": 8806,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00094286,
+     "id": "26",
+     "inputTokens": 8840,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.023088476,
+   "errors": 0,
+   "inputTokensMax": 5351,
+   "inputTokensP50": 4469,
+   "metrics": {
+    "right": [
+     52,
+     52
+    ],
+    "moved": [
+     8,
+     8
+    ],
+    "no_wrong_replace": [
+     52,
+     52
+    ],
+    "replaced": [
+     30,
+     30
+    ]
+   }
+  },
+  "relation": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.000015624,
+     "id": "01",
+     "inputTokens": 372,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000016212,
+     "id": "02",
+     "inputTokens": 386,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00001596,
+     "id": "03",
+     "inputTokens": 380,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000014616,
+     "id": "04",
+     "inputTokens": 348,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000015792,
+     "id": "05",
+     "inputTokens": 376,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000016128,
+     "id": "06",
+     "inputTokens": 384,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000016044,
+     "id": "07",
+     "inputTokens": 382,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000015624,
+     "id": "08",
+     "inputTokens": 372,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000016716,
+     "id": "09",
+     "inputTokens": 398,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0000168,
+     "id": "10",
+     "inputTokens": 400,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00001512,
+     "id": "11",
+     "inputTokens": 360,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00001554,
+     "id": "12",
+     "inputTokens": 370,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000016296,
+     "id": "13",
+     "inputTokens": 388,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000015624,
+     "id": "14",
+     "inputTokens": 372,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000016716,
+     "id": "15",
+     "inputTokens": 398,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000016212,
+     "id": "16",
+     "inputTokens": 386,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000015372,
+     "id": "17",
+     "inputTokens": 366,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000015204,
+     "id": "18",
+     "inputTokens": 362,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000015876,
+     "id": "19",
+     "inputTokens": 378,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.00030147599999999996,
+   "errors": 0,
+   "inputTokensMax": 200,
+   "inputTokensP50": 189,
+   "metrics": {
+    "right": [
+     38,
+     38
+    ],
+    "replaced": [
+     30,
+     30
+    ],
+    "no_wrong_replace": [
+     8,
+     8
+    ]
+   }
+  },
+  "note": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.00075946,
+     "id": "01",
+     "inputTokens": 6636,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000599372,
+     "id": "02",
+     "inputTokens": 6638,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000719816,
+     "id": "03",
+     "inputTokens": 6640,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00065106,
+     "id": "04",
+     "inputTokens": 6642,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000767264,
+     "id": "05",
+     "inputTokens": 6656,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00109446,
+     "id": "06",
+     "inputTokens": 6656,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000695072,
+     "id": "07",
+     "inputTokens": 6650,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001041672,
+     "id": "08",
+     "inputTokens": 6636,
+     "ok": 1,
+     "runs": 2
+    },
+    {
+     "cost": 0.00060926,
+     "id": "09",
+     "inputTokens": 6664,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0006820719999999999,
+     "id": "10",
+     "inputTokens": 6650,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00090886,
+     "id": "11",
+     "inputTokens": 6640,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009630400000000001,
+     "id": "12",
+     "inputTokens": 6668,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009406519999999999,
+     "id": "13",
+     "inputTokens": 6662,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000623072,
+     "id": "14",
+     "inputTokens": 6660,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.001152408,
+     "id": "15",
+     "inputTokens": 6660,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.012207539999999998,
+   "errors": 0,
+   "inputTokensMax": 3334,
+   "inputTokensP50": 3325,
+   "metrics": {
+    "right": [
+     29,
+     30
+    ],
+    "on_card": [
+     23,
+     24
+    ],
+    "language": [
+     30,
+     30
+    ],
+    "rule_typed": [
+     6,
+     6
+    ]
+   }
+  },
+  "things": {
+   "at": "2026-11-14T22:50:01.744Z",
+   "cases": [
+    {
+     "cost": 0.0010144519999999999,
+     "id": "01",
+     "inputTokens": 6600,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000583204,
+     "id": "02",
+     "inputTokens": 6598,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009016600000000001,
+     "id": "03",
+     "inputTokens": 6598,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0007149599999999999,
+     "id": "04",
+     "inputTokens": 6616,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00094696,
+     "id": "05",
+     "inputTokens": 6606,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009219600000000001,
+     "id": "06",
+     "inputTokens": 6596,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000660104,
+     "id": "07",
+     "inputTokens": 6592,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000635104,
+     "id": "08",
+     "inputTokens": 6602,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00090136,
+     "id": "09",
+     "inputTokens": 6610,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00066266,
+     "id": "10",
+     "inputTokens": 6598,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0009944519999999998,
+     "id": "11",
+     "inputTokens": 6600,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000918428,
+     "id": "12",
+     "inputTokens": 6594,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.0008454039999999999,
+     "id": "13",
+     "inputTokens": 6590,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00071816,
+     "id": "14",
+     "inputTokens": 6588,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.00106206,
+     "id": "15",
+     "inputTokens": 6592,
+     "ok": 2,
+     "runs": 2
+    },
+    {
+     "cost": 0.000811,
+     "id": "16",
+     "inputTokens": 6590,
+     "ok": 2,
+     "runs": 2
+    }
+   ],
+   "cost": 0.013291927999999998,
+   "errors": 0,
+   "inputTokensMax": 3308,
+   "inputTokensP50": 3299,
+   "metrics": {
+    "right": [
+     32,
+     32
+    ],
+    "thing_named": [
+     16,
+     16
+    ],
+    "thing_made": [
+     16,
+     16
+    ],
+    "thing_typed": [
+     16,
+     16
+    ],
+    "built_in_kept": [
+     8,
+     8
+    ],
+    "no_extra_thing": [
+     8,
+     8
+    ]
+   }
+  }
+ }
+}

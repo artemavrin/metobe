@@ -54,6 +54,7 @@ const item = (
   creditor: null,
   debtor: null,
   due: NO_TIME,
+  from: "user",
   important: false,
   interval_days: 0,
   kind: "fact",
@@ -392,10 +393,10 @@ describe("planWrite", () => {
   it("settles open commitments by ref, once each, and only when the status changes", () => {
     const { statuses } = plan({
       updates: [
-        { ref: "k1", status: "done" },
-        { ref: "k1", status: "cancelled" },
-        { ref: "k2", status: "unconfirmed" },
-        { ref: "k9", status: "done" },
+        { from: "user", ref: "k1", status: "done" },
+        { from: "user", ref: "k1", status: "cancelled" },
+        { from: "user", ref: "k2", status: "unconfirmed" },
+        { from: "user", ref: "k9", status: "done" },
       ],
     });
     expect(statuses).toEqual([
@@ -517,7 +518,7 @@ describe("planWrite", () => {
     ).toHaveLength(1);
     expect(
       moveOf([{ due: to, ref: "k1" }], {
-        updates: [{ ref: "k1", status: "done" }],
+        updates: [{ from: "user", ref: "k1", status: "done" }],
       })
     ).toEqual([]);
   });

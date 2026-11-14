@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OpenCommitment } from "./memory-extract";
-import {
-  RETOLD_MAX,
-  retoldOf,
-  retoldPrompt,
-  retoldStatuses,
-} from "./memory-retold";
+import { RETOLD_MAX, retoldOf } from "./memory-retold";
 
 const text = (t: string) => ({ text: t, type: "text" });
 const tool = (type: string, state = "output-available") => ({ state, type });
@@ -51,62 +45,6 @@ describe("an answer that retells what a tool read (Г1.6а)", () => {
     const long = "а".repeat(RETOLD_MAX + 50);
     expect(retoldOf([tool("tool-email_read"), text(long)])).toHaveLength(
       RETOLD_MAX
-    );
-  });
-});
-
-const open = (ref: string, status: OpenCommitment["status"] = "open") => ({
-  due: null,
-  id: `id-${ref}`,
-  ref,
-  status,
-  text: ref,
-});
-
-describe("what it may change", () => {
-  const commitments = [open("k1"), open("k2", "unconfirmed"), open("k3")];
-
-  it("sets «ждёт проверки» on an open commitment it shows done, with the words that say so", () => {
-    expect(
-      retoldStatuses(
-        {
-          settled: [
-            { evidence: "договор пришёл", ref: "k1" },
-            { evidence: "договор пришёл", ref: " k1 " },
-          ],
-        },
-        commitments
-      )
-    ).toEqual([{ recordId: "id-k1", status: "unconfirmed" }]);
-  });
-
-  it("leaves one already said to be done, one the person's words settle, an unknown ref and one with no words", () => {
-    expect(
-      retoldStatuses(
-        {
-          settled: [
-            { evidence: "готово", ref: "k2" },
-            { evidence: "готово", ref: "k3" },
-            { evidence: "готово", ref: "k9" },
-            { evidence: " ", ref: "k1" },
-          ],
-        },
-        commitments,
-        new Set(["id-k3"])
-      )
-    ).toEqual([]);
-  });
-
-  it("shows the model the commitments, the request and the answer", () => {
-    expect(
-      retoldPrompt({
-        commitments: [open("k1")],
-        message: "Пришёл договор от Ольги?",
-        retold: "Да, пришёл вчера.",
-        today: "Friday, 13 November 2026 (2026-11-13)",
-      })
-    ).toBe(
-      "Today is Friday, 13 November 2026 (2026-11-13).\n\nOpen commitments (ref: text):\n- k1: k1\n\n<request>\nПришёл договор от Ольги?\n</request>\n<answer>\nДа, пришёл вчера.\n</answer>"
     );
   });
 });

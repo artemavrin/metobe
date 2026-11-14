@@ -40,19 +40,13 @@ import {
   repeatsDate,
   splitQuoted,
 } from "./memory-extract";
-import type {
-  ChatTurn,
-  KnownCard,
-  KnownRecord,
-  OpenCommitment,
-} from "./memory-extract";
-import { GATE_QUESTIONS, gateState, nothingToKeep } from "./memory-gate";
+import type { KnownCard, KnownRecord, OpenCommitment } from "./memory-extract";
 import { groupMembers } from "./memory-groups";
 import {
   memoryPromptOf,
   messageSegments,
   othersSpeak,
-  ownerSpeaks,
+  voicesOf,
 } from "./memory-input";
 import {
   RELATION_QUESTIONS,
@@ -63,14 +57,7 @@ import {
 } from "./memory-relations";
 import type { RelationAnswer } from "./memory-relations";
 import { reminderNote } from "./memory-reminder-note";
-import {
-  RETOLD_INSTRUCTIONS,
-  retoldPrompt,
-  retoldSchema,
-  retoldStatuses,
-} from "./memory-retold";
 import { memorySource } from "./memory-sources";
-import type { MemoryInput } from "./memory-sources";
 import {
   ownTypes,
   thingsOf,
@@ -216,67 +203,6 @@ const decisionUsage = (
   outputTokens: 0,
   totalTokens: inputTokens,
 });
-
-const GATE_TIMEOUT_MS = 15_000;
-
-/**
- * The first step (ARCH §19.4, Б2b): with a model in «Решения», it answers the gate's yes/no questions, and only a sure
- * «no» to all of them keeps the «Память» model from reading the message. No model, a failure or a timeout — the
- * message is read as before: the step only saves, it never loses a message.
- */
-const nothingToKeepSaid = async (
-  job: Reading,
-  text: string,
-  before: ChatTurn[],
-  sentAt: Date
-) => {
-  const model = await getSlotModel("decisions");
-  if (!model) {
-    return false;
-  }
-  const started = Date.now();
-  const today = new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "long",
-    timeZone: job.timeZone,
-    weekday: "long",
-    year: "numeric",
-  }).format(sentAt);
-  try {
-    const result = await evaluate({
-      abortSignal: AbortSignal.timeout(GATE_TIMEOUT_MS),
-      maxRetries: 1,
-      model: await getEvaluationModel(model.sourceId, model.modelId),
-      providerOptions: { gateway: { zeroDataRetention: true } },
-      questions: GATE_QUESTIONS,
-      state: gateState(text.slice(0, MAX_TEXT), today, before),
-    });
-    await recordRun({
-      chatId: job.chatId,
-      latencyMs: Date.now() - started,
-      model,
-      providerMetadata: result.providerMetadata,
-      purpose: "decide",
-      status: "ok",
-      usage: decisionUsage(result.usage.inputTokens),
-      userId: job.ownerId,
-    });
-    return nothingToKeep(result.answers);
-  } catch (error) {
-    console.error("memory: the decision model did not answer", error);
-    await recordRun({
-      chatId: job.chatId,
-      latencyMs: null,
-      model,
-      purpose: "decide",
-      status: "error",
-      userId: job.ownerId,
-    }).catch((recordError: unknown) =>
-      console.error("memory: could not record the run", recordError)
-    );
-    return false;
-  }
-};
 
 const RELATION_TIMEOUT_MS = 10_000;
 
@@ -449,117 +375,6 @@ const withThingTypes = async (
   }
 };
 
-const RETOLD_TIMEOUT_MS = 20_000;
-
-/** «Friday, 13 November 2026 (2026-11-13)» in the person's zone. */
-const todayText = (at: Date, timeZone: string) =>
-  `${new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "long",
-    timeZone,
-    weekday: "long",
-    year: "numeric",
-  }).format(
-    at
-  )} (${new Intl.DateTimeFormat("en-CA", { timeZone }).format(at)})`;
-
-/**
- * The assistant's retelling of what a tool read (Г1.6а): which open commitments it shows done — «ждёт проверки», and
- * only those the person's own words did not settle (`taken`). A call of its own to the «Память» model, only when there
- * is an answer like that and a commitment it may be about; a failure loses nothing — the person can say it themselves.
- */
-const settleRetold = async (
-  job: Reading,
-  model: NonNullable<Awaited<ReturnType<typeof getSlotModel>>>,
-  input: MemoryInput,
-  memory: {
-    entities: Awaited<ReturnType<typeof listEntities>>;
-    records: Awaited<ReturnType<typeof listRecords>>;
-  },
-  taken: ReadonlySet<string>
-): Promise<MemoryWritePlan["statuses"]> => {
-  if (!input.retold) {
-    return [];
-  }
-  const said = `${input.text}\n${input.retold}`;
-  const found = candidateCards({
-    entities: memory.entities,
-    named: input.named,
-    now: input.at,
-    records: memory.records,
-    text: said,
-  });
-  const commitments: OpenCommitment[] = candidateCommitments({
-    cards: found,
-    now: input.at,
-    records: memory.records,
-    selfId: memory.entities.find((e) => e.kind === "self")?.id ?? null,
-    text: said,
-  })
-    .filter((r) => r.status === "open" && !taken.has(r.id))
-    .map((r, i) => ({
-      due: r.dueAt,
-      id: r.id,
-      ref: `k${i + 1}`,
-      status: "open",
-      text: r.text,
-    }));
-  if (commitments.length === 0) {
-    return [];
-  }
-  const started = Date.now();
-  try {
-    const result = await generateText({
-      abortSignal: AbortSignal.timeout(RETOLD_TIMEOUT_MS),
-      instructions: RETOLD_INSTRUCTIONS,
-      maxRetries: 1,
-      model: await getLanguageModel(model.sourceId, model.modelId),
-      output: Output.object({ schema: retoldSchema }),
-      prompt: retoldPrompt({
-        commitments,
-        message: input.text.slice(0, MAX_TEXT),
-        retold: input.retold,
-        today: todayText(input.at, job.timeZone),
-      }),
-      providerOptions:
-        model.kind === "gateway"
-          ? { gateway: { zeroDataRetention: true } }
-          : undefined,
-    });
-    await recordRun({
-      chatId: job.chatId,
-      latencyMs: Date.now() - started,
-      model,
-      providerMetadata: result.providerMetadata,
-      purpose: "memory",
-      status: "ok",
-      usage: result.totalUsage,
-      userId: job.ownerId,
-    });
-    return retoldStatuses(result.output, commitments, taken);
-  } catch (error) {
-    console.error("memory: could not read the assistant's answer", error);
-    await recordRun({
-      chatId: job.chatId,
-      latencyMs: null,
-      model,
-      purpose: "memory",
-      status: "error",
-      userId: job.ownerId,
-    }).catch(() => null);
-    return [];
-  }
-};
-
-const EMPTY_PLAN: MemoryWritePlan = {
-  drafts: [],
-  dues: [],
-  ends: [],
-  entities: [],
-  records: [],
-  statuses: [],
-};
-
 /** A plan that adds, asks, settles or ends something — «Запомнено» or a question to show. */
 const changesAnything = (plan: ReturnType<typeof planWrite>) =>
   plan.records.length > 0 ||
@@ -654,30 +469,17 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   const { db } = getDb();
   // A sure «nothing to keep» from the decision model: the «Память» model does not read it (Б2b). Not asked of what was
   // written to be remembered.
-  const nothing =
-    !source.meant && (await nothingToKeepSaid(job, text, before, at));
-  if (nothing && !input.retold) {
-    await markWrite(job.ownerId, write.id, "skipped");
-    return "skipped";
-  }
   const [entities, records] = await Promise.all([
     listEntities(job.ownerId),
     listRecords(job.ownerId),
   ]);
-  // Nothing to keep in the person's words, but the answer retells what a tool found: only that is read (Г1.6а).
-  if (nothing) {
-    const statuses = await settleRetold(
-      job,
-      model,
-      input,
-      { entities, records },
-      new Set()
-    );
-    return finishWrite(job, write, source, { ...EMPTY_PLAN, statuses });
-  }
   const facts = records.filter((r) => r.kind === "fact");
   // Not the whole memory: what the message and the chat before it may be about (ARCH §19.8.3).
-  const said = [text, ...chatContext(before).map((t) => t.text)].join("\n");
+  const said = [
+    text,
+    ...chatContext(before).map((t) => t.text),
+    input.retold ?? "",
+  ].join("\n");
   const found = candidateCards({
     entities,
     named: input.named,
@@ -716,6 +518,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     result = await extract({
       abortSignal: AbortSignal.timeout(WRITE_TIMEOUT_MS),
       instructions: memoryInstructions({
+        answer: Boolean(input.retold),
         cards,
         commitments,
         known,
@@ -730,8 +533,8 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
       }),
       model: await getLanguageModel(model.sourceId, model.modelId),
       prompt: input.segments
-        ? memoryPromptOf(segments, before)
-        : memoryPrompt(text.slice(0, MAX_TEXT), before),
+        ? memoryPromptOf(segments, before, input.retold)
+        : memoryPrompt(text.slice(0, MAX_TEXT), before, input.retold),
       // A person's memory is not left with the provider behind the Gateway (D39).
       providerOptions:
         model.kind === "gateway"
@@ -762,7 +565,11 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     usage: result.totalUsage,
     userId: job.ownerId,
   });
-  const extraction = result.output;
+  // What the voices allow (§5.2): someone else's words and the assistant's retelling settle only as «ждёт проверки».
+  const extraction = limitByVoice(
+    result.output,
+    voicesOf(segments, input.retold)
+  );
   let selfId: string | null = null;
   if (mentionsUser(extraction)) {
     const [owner] = await db
@@ -794,20 +601,11 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
       known
     ),
   };
-  // What the voices allow (§5.2): someone else's words alone settle only as «ждёт проверки», and set no rule.
-  const typed = limitByVoice(
-    await withThingTypes(job, text.slice(0, MAX_TEXT), related, entities),
-    ownerSpeaks(segments)
-  );
-  const retold = await settleRetold(
+  const plan = await withThingTypes(
     job,
-    model,
-    input,
-    { entities, records },
-    new Set(typed.statuses.map((s) => s.recordId))
+    text.slice(0, MAX_TEXT),
+    related,
+    entities
   );
-  return finishWrite(job, write, source, {
-    ...typed,
-    statuses: [...typed.statuses, ...retold],
-  });
+  return finishWrite(job, write, source, plan);
 };

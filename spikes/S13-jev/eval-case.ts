@@ -4,7 +4,6 @@
 import { fileURLToPath } from "node:url";
 
 import type { extractionSchema } from "../../packages/core/src/memory-extract.ts";
-import type { GateAnswers } from "../../packages/core/src/memory-gate.ts";
 import type { RelationAnswer } from "../../packages/core/src/memory-relations.ts";
 
 export type Out = (typeof extractionSchema)["_output"];
@@ -21,8 +20,6 @@ export interface Verdict {
 export type EvalCase =
   /** A message for the «Память» model. */
   | { kind: "write"; id: string; text: string; instructions: string; prompt: string; score: (out: Out) => Verdict }
-  /** A message for the decision model that lets the «Память» model skip it. */
-  | { kind: "gate"; id: string; text: string; state: unknown; score: (answers: GateAnswers) => Verdict }
   /** A writer's replacement for the decision model to confirm: the message, the new and the old record, their days (ARCH §19.9.3). */
   | { kind: "relation"; id: string; text: string; state: unknown; score: (answers: Record<string, RelationAnswer>) => Verdict };
 

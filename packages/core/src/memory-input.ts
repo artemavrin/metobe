@@ -1,4 +1,5 @@
-import { chatContext, splitQuoted } from "./memory-extract";
+import type { Voices } from "./memory-evidence";
+import { promptOf, splitQuoted } from "./memory-extract";
 import type { ChatTurn } from "./memory-extract";
 
 // The memory's material as lines with speakers (И1, MEMORY-PLAN §5.1): a chat's message is the person's line (and
@@ -80,15 +81,18 @@ export const segmentsBody = (segments: Segment[]) => {
     .join("\n");
 };
 
-/** What the writer reads (`memoryPrompt`, by lines): the chat before it, then the material. */
+/** What the writer reads (`memoryPrompt`, by lines): the chat before it, the material, the answer that retells. */
 export const memoryPromptOf = (
   segments: Segment[],
-  context: ChatTurn[] = []
-) => {
-  const lines = chatContext(context).map(
-    (t) => `${t.role === "user" ? "User" : "Assistant"}: ${t.text}`
-  );
-  const before =
-    lines.length > 0 ? `<context>\n${lines.join("\n")}\n</context>\n` : "";
-  return `${before}<message>\n${segmentsBody(segments)}\n</message>`;
-};
+  context: ChatTurn[] = [],
+  answer?: string
+) => promptOf(segmentsBody(segments), context, answer);
+
+/** Which voices a material has: the person's own words, someone else's, the assistant's retelling. */
+export const voicesOf = (segments: Segment[], answer?: string): Voices => ({
+  answer: Boolean(answer),
+  others: segments.some(
+    (s) => (s.speaker.kind !== "owner" || s.voice === "quoted") && s.text.trim()
+  ),
+  owner: ownerSpeaks(segments),
+});

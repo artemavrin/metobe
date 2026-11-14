@@ -132,6 +132,11 @@ export const extractionSchema = z.object({
         .describe(
           "Commitment only: when the user asks to be reminded of it — the time of day as HH:MM, 24 hours («в 15:00» — «15:00»), or «morning» when they ask to be reminded with no time named. «none» for everything else, which is almost every item"
         ),
+      from: z
+        .enum(["user", "other", "answer"])
+        .describe(
+          "Whose words it comes from: user — the user's own; other — someone else's text in the message (<quoted>, <said by>); answer — the assistant's <answer>"
+        ),
     })
   ),
   updates: z
@@ -139,6 +144,11 @@ export const extractionSchema = z.object({
       z.object({
         ref: z.string().describe("An open commitment's ref: «k2»"),
         status: z.enum(["done", "cancelled", "unconfirmed"]),
+        from: z
+          .enum(["user", "other", "answer"])
+          .describe(
+            "Whose words it comes from: user — the user's own; other — someone else's text in the message (<quoted>, <said by>); answer — the assistant's <answer>"
+          ),
       })
     )
     .describe(
@@ -336,17 +346,34 @@ export const RULE_TURN: ChatTurn = {
  * «передумал», an answer to the assistant's question or a story told over a few messages (S13, part 5). A message with
  * something quoted or forwarded in it comes split: the person's words in <user>, the rest in <quoted>.
  */
-export const memoryPrompt = (message: string, context: ChatTurn[] = []) => {
+export const promptOf = (
+  body: string,
+  context: ChatTurn[] = [],
+  answer?: string
+) => {
   const lines = chatContext(context).map(
     (t) => `${t.role === "user" ? "User" : "Assistant"}: ${t.text}`
   );
   const before =
     lines.length > 0 ? `<context>\n${lines.join("\n")}\n</context>\n` : "";
+  const after = answer ? `\n<answer>\n${answer}\n</answer>` : "";
+  return `${before}<message>\n${body}\n</message>${after}`;
+};
+
+/**
+ * What the model reads for a chat's message: its words — split into the person's and what they pasted, if they
+ * pasted — the chat before it, and the assistant's answer when it retells what a tool found (Г1.6а).
+ */
+export const memoryPrompt = (
+  message: string,
+  context: ChatTurn[] = [],
+  answer?: string
+) => {
   const { own, quoted } = splitQuoted(message);
   const body = quoted
     ? `<user>\n${own}\n</user>\n<quoted>\n${quoted}\n</quoted>`
     : message;
-  return `${before}<message>\n${body}\n</message>`;
+  return promptOf(body, context, answer);
 };
 
 /**
@@ -435,6 +462,10 @@ const QUOTED_RULE = `
 const SAID_RULE = `
 - Lines inside <said by="…"> are that person's own words — a letter they wrote, what they said at a meeting. «Я», «мы», «наша компания» there are that person, never the user; a card ref in by is their card. Their promise is their commitment, to the user unless it names someone else; their request to the user is the user's commitment to them. What they say they have done settles their open commitment only as unconfirmed — it is said, not seen. Lines inside <user> are the user's own.`;
 
+/** Only with the assistant's answer that retells what a tool found (Г1.6а). */
+const ANSWER_RULE = `
+- After the message, <answer> is the assistant's reply: it retells what a tool found — the user's mail, a business system, the web. Take from it only updates, with from «answer»: an open commitment the answer shows done by the one who owes it — exactly that thing, as a fact the tool showed (the letter with the signed contract came, the invoice is paid) — is unconfirmed. A plan, advice, a guess, a question, something partial or something else, or nothing found changes nothing. No items from <answer>.`;
+
 /** «Today» is when the message was sent, in the person's zone: a write retried tomorrow still reads «вчера» right. */
 export const memoryInstructions = ({
   sentAt,
@@ -444,6 +475,7 @@ export const memoryInstructions = ({
   known = [],
   quoted = false,
   said = false,
+  answer = false,
   repeating = false,
   reminding = false,
 }: {
@@ -457,6 +489,8 @@ export const memoryInstructions = ({
   quoted?: boolean;
   /** Someone other than the person speaks in the material (`othersSpeak`): the rule on their lines is added, and only then. */
   said?: boolean;
+  /** The assistant's answer that retells what a tool found comes after the message: the rule on it is added. */
+  answer?: boolean;
   /** The message may name a day that comes again (`repeatsDate`): the rule on date rules is added, and only then. */
   repeating?: boolean;
   /** The message asks to be reminded (`asksReminder`): the rule on reminders is added, and only then. */
@@ -502,7 +536,7 @@ ${THINGS_RULE}- Refs: use a known card ref, "user", an id from new_entities or a
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
 - One item per thing: never the same item twice in other words, or once for each side of an agreement.
-- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}${said ? SAID_RULE : ""}${repeating ? REPEAT_RULE : ""}${reminding ? REMIND_RULE(localClock(sentAt, timeZone)) : ""}`;
+- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}${said ? SAID_RULE : ""}${answer ? ANSWER_RULE : ""}${repeating ? REPEAT_RULE : ""}${reminding ? REMIND_RULE(localClock(sentAt, timeZone)) : ""}`;
 };
 
 /** Does the answer point at the user anywhere — then their own card has to exist before the plan is made. */
