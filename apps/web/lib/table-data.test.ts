@@ -11,6 +11,8 @@ import {
   matchesQuery,
   numbersOf,
   summarize,
+  tableAsHtml,
+  tableAsText,
   tableView,
 } from "./table-data";
 
@@ -169,5 +171,21 @@ describe("grouping, figures and tints the model asks for", () => {
     expect(summarize(nums, "min")).toBe(10);
     expect(summarize(nums, "max")).toBe(30);
     expect(summarize([], "sum")).toBeUndefined();
+  });
+
+  it("writes the table for the clipboard: a header, then the rows, a cell never breaking its row", () => {
+    const cols = [
+      { id: "c0", label: "Имя", type: "text" },
+      { id: "c1", label: "Оклад", type: "number" },
+    ] as never;
+    const rows = [
+      { cells: ["А\tБ", 10], id: "1" },
+      { cells: ["<b>", null], id: "2" },
+    ];
+    expect(tableAsText(cols, rows)).toBe("Имя\tОклад\nА Б\t10\n<b>\t");
+    expect(tableAsHtml(cols, rows)).toBe(
+      "<table><thead><tr><th>Имя</th><th>Оклад</th></tr></thead><tbody>" +
+        "<tr><td>А Б</td><td>10</td></tr><tr><td>&lt;b&gt;</td><td></td></tr></tbody></table>"
+    );
   });
 });
