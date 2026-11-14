@@ -234,6 +234,8 @@
       "failedDetail": "The file is damaged or could not be read."
     },
     "table": {
+      "copy": "Copy table",
+      "copied": "Copied",
       "building": "Building the table…",
       "rows": "{count, plural, one {# row} other {# rows}}",
       "shown": "{shown} of {total}",

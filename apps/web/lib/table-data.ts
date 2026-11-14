@@ -260,3 +260,34 @@ export const summarize = (values: number[], kind: TableSummary) => {
     }
   }
 };
+
+/** A cell as the clipboard has it: the value itself (a number stays parseable), nothing for an empty one, no tab or line break to break a row. */
+const plainCell = (v: TableCell | undefined) =>
+  v === null || v === undefined ? "" : String(v).replaceAll(/[\t\r\n]+/gu, " ");
+
+/** The table as tab-separated text, the header first: spreadsheets paste it as cells. */
+export const tableAsText = (columns: TableColumn[], rows: TableRow[]) =>
+  [
+    columns.map((c) => plainCell(c.label)).join("\t"),
+    ...rows.map((r) => columns.map((_, i) => plainCell(r.cells[i])).join("\t")),
+  ].join("\n");
+
+const escapeHtml = (s: string) =>
+  s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+/** The same as an HTML table: documents and notes paste it as a table, not as tabbed text. */
+export const tableAsHtml = (columns: TableColumn[], rows: TableRow[]) =>
+  `<table><thead><tr>${columns
+    .map((c) => `<th>${escapeHtml(plainCell(c.label))}</th>`)
+    .join("")}</tr></thead><tbody>${rows
+    .map(
+      (r) =>
+        `<tr>${columns
+          .map((_, i) => `<td>${escapeHtml(plainCell(r.cells[i]))}</td>`)
+          .join("")}</tr>`
+    )
+    .join("")}</tbody></table>`;
