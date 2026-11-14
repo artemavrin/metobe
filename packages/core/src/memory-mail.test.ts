@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { MailEnvelope } from "./mailboxes";
-import { baseSubject, waitedPast, waitingLetters } from "./memory-mail";
+import {
+  baseSubject,
+  cardAddresses,
+  waitedPast,
+  waitingLetters,
+} from "./memory-mail";
+import type { MailCard } from "./memory-mail";
 
 const ME = "me@company.example";
 const OLGA = "olga@vendor.example";
@@ -18,6 +24,7 @@ const letter = (over: Partial<MailEnvelope>): MailEnvelope => {
     from: [OLGA],
     inReplyTo: null,
     messageId: `<m${uid}@mail.example>`,
+    names: {},
     references: [],
     subject: "Договор поставки",
     to: [ME],
@@ -155,5 +162,73 @@ describe("how long it has waited", () => {
     expect(
       waitedPast("2026-11-06", "2026-11-09", { days: 3, workingDays: true })
     ).toBeNull();
+  });
+});
+
+const card = (id: string, name: string, over: Partial<MailCard> = {}) => ({
+  aliases: [],
+  email: null,
+  id,
+  kind: "person",
+  name,
+  ...over,
+});
+
+describe("whose address it is", () => {
+  it("takes the address on the card, and a full name the letters give an address to", () => {
+    const found = cardAddresses(
+      [
+        card("olga", "Ольга Ли"),
+        card("andrey", "Андрей Седов", { email: "Andrey@Vendor.example" }),
+        card("me", "Я", { email: "me@company.example", kind: "self" }),
+      ],
+      [
+        letter({ names: { [OLGA]: "Ли Ольга" } }),
+        sent({ names: { [ANDREY]: "Андрей" } }),
+      ]
+    );
+    expect([...found]).toEqual([
+      [ANDREY, "andrey"],
+      [OLGA, "olga"],
+    ]);
+  });
+
+  it("does not guess by a first name, a name two cards share, or an address two names share", () => {
+    expect(
+      cardAddresses(
+        [card("olga", "Ольга")],
+        [letter({ names: { [OLGA]: "Ольга" } })]
+      ).size
+    ).toBe(0);
+    expect(
+      cardAddresses(
+        [card("a", "Андрей Седов"), card("b", "Седов Андрей")],
+        [letter({ names: { [ANDREY]: "Андрей Седов" } })]
+      ).size
+    ).toBe(0);
+    expect(
+      cardAddresses(
+        [card("olga", "Ольга Ли"), card("ira", "Ирина Ким")],
+        [
+          letter({ names: { "team@vendor.example": "Ольга Ли" } }),
+          letter({ names: { "team@vendor.example": "Ирина Ким" } }),
+        ]
+      ).size
+    ).toBe(0);
+  });
+
+  it("goes by an alias, and leaves an organization alone", () => {
+    expect([
+      ...cardAddresses(
+        [
+          card("olga", "Ольга", { aliases: ["Ольга Ли"] }),
+          card("vendor", "Вектор Плюс", { kind: "org" }),
+        ],
+        [
+          letter({ names: { [OLGA]: "Ольга Ли" } }),
+          letter({ names: { "info@vector.example": "Вектор Плюс" } }),
+        ]
+      ),
+    ]).toEqual([[OLGA, "olga"]]);
   });
 });

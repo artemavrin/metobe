@@ -16,7 +16,7 @@ vi.mock("server-only", () => ({}));
 const URL = process.env.MEMORY_TEST_DATABASE_URL;
 
 const TZ = "Europe/Moscow";
-const SERVER = { host: "mail.example", port: 993, security: "tls" } as const;
+const SERVER = { host: "mail.example", port: 993, security: "ssl" } as const;
 
 describe.skipIf(!URL)("letters with no answer in «Не упустить» (Г3.1)", () => {
   const ana = `mailwait-test-${randomBytes(4).toString("hex")}`;
@@ -55,7 +55,6 @@ describe.skipIf(!URL)("letters with no answer in «Не упустить» (Г3.
     box = row?.id ?? "";
     await memory.ensureSelf(ana, "Я");
     ({ id: olga } = await memory.createEntity(ana, {
-      email: "olga@vendor.example",
       kind: "person",
       name: "Ольга Ли",
     }));

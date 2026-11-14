@@ -130,6 +130,8 @@ const ToolPolicies = ({
 interface MemoryReads {
   on: boolean;
   checkedAt: string | null;
+  /** Why the last look failed; null — it went through. */
+  error: string | null;
   /** Letters of this box with no answer now. */
   waits: number;
 }
@@ -144,11 +146,15 @@ const MemorySection = ({ id, memory }: { id: string; memory: MemoryReads }) => {
   const now = useNow({ updateInterval: 60_000 });
   const [, start] = useTransition();
   const [on, setOn] = useOptimistic(memory.on);
-  const checked = memory.checkedAt
-    ? t("checked", {
-        when: format.relativeTime(new Date(memory.checkedAt), now),
-      })
-    : t("notChecked");
+  const when = memory.checkedAt
+    ? format.relativeTime(new Date(memory.checkedAt), now)
+    : null;
+  let checked = t("notChecked");
+  if (when && memory.error) {
+    checked = t("failed", { error: memory.error, when });
+  } else if (when) {
+    checked = t("checked", { when });
+  }
   return (
     <Section title={t("title")}>
       <Rows>

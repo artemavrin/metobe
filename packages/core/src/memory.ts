@@ -2522,13 +2522,17 @@ export const loadSummary = async (
 /** The key of «Оставить» in «Сверка»: the commitment stays open and out of it for a while. */
 export const keepKey = (recordId: string) => `stale:${recordId}`;
 
-/** «Убрать» on the «Сверка» row of «Не упустить»: the row stays away for the rest of the week that starts on `week`. */
-export const reviewKey = (week: string) => `review:${week}`;
+/**
+ * «Убрать» on the «Сверка» row of «Не упустить»: the row stays away for the rest of the week that starts on `week`. The
+ * key is the table's primary key across every owner, so it names the owner: a week alone would be one row for all.
+ */
+export const reviewKey = (ownerId: string, week: string) =>
+  `review:${ownerId}:${week}`;
 
 export const dismissReview = async (ownerId: string, week: string) => {
   await getDb()
     .db.insert(memoryDismissals)
-    .values({ key: reviewKey(week), ownerId })
+    .values({ key: reviewKey(ownerId, week), ownerId })
     .onConflictDoUpdate({
       set: { at: new Date() },
       target: memoryDismissals.key,
@@ -2542,7 +2546,7 @@ export const undismissReview = async (ownerId: string, week: string) => {
     .where(
       and(
         eq(memoryDismissals.ownerId, ownerId),
-        eq(memoryDismissals.key, reviewKey(week))
+        eq(memoryDismissals.key, reviewKey(ownerId, week))
       )
     );
 };

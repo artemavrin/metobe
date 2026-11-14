@@ -249,11 +249,15 @@ export const boxesForMemory = (before: Date) =>
     )
     .orderBy(asc(mailboxes.memoryCheckedAt));
 
-/** Notes the memory's look at a box, done or failed: the next is an hour on either way. */
-export const markMemoryChecked = (id: string, at: Date) =>
+/** Notes the memory's look at a box, done or failed (`error`): the next is an hour on either way. */
+export const markMemoryChecked = (
+  id: string,
+  at: Date,
+  error: string | null = null
+) =>
   getDb()
     .db.update(mailboxes)
-    .set({ memoryCheckedAt: at })
+    .set({ memoryCheckedAt: at, memoryError: error })
     .where(eq(mailboxes.id, id));
 
 /** Removes a box of the user's and its password; false when there was none. */
@@ -577,6 +581,8 @@ export interface MailEnvelope {
   cc: string[];
   subject: string;
   date: string | null;
+  /** The names the letter gives its people, by address: «Ольга Ли» for olga@… — from the envelope, as written. */
+  names: Record<string, string>;
   /** An autoreply, a list or bulk mail (`Auto-Submitted`, `List-Id`, `Precedence`): nobody's answer. */
   auto: boolean;
 }
@@ -595,6 +601,19 @@ const ids = (value: string | undefined) =>
 
 const addressesOf = (list?: { address?: string }[]) =>
   (list ?? []).flatMap((a) => (a.address ? [a.address.toLowerCase()] : []));
+
+const namesOf = (
+  ...lists: ({ address?: string; name?: string }[] | undefined)[]
+) =>
+  Object.fromEntries(
+    lists.flatMap((list) =>
+      (list ?? []).flatMap((a) =>
+        a.address && a.name?.trim()
+          ? [[a.address.toLowerCase(), a.name.trim()] as const]
+          : []
+      )
+    )
+  );
 
 /** One header's value from a fetched raw header block (unfolded). */
 const headerOf = (raw: string, name: string) => {
@@ -618,13 +637,13 @@ const THREAD_HEADERS = [
 interface Fetched {
   uid: number;
   envelope?: {
-    cc?: { address?: string }[];
+    cc?: { address?: string; name?: string }[];
     date?: Date | string;
-    from?: { address?: string }[];
+    from?: { address?: string; name?: string }[];
     inReplyTo?: string;
     messageId?: string;
     subject?: string;
-    to?: { address?: string }[];
+    to?: { address?: string; name?: string }[];
   };
   headers?: Buffer;
 }
@@ -653,6 +672,7 @@ const envelopeOf = (m: Fetched, folder: string): MailEnvelope => {
     from: addressesOf(e?.from),
     inReplyTo: ids(e?.inReplyTo)[0] ?? null,
     messageId: e?.messageId ?? null,
+    names: namesOf(e?.from, e?.to, e?.cc),
     references: ids(headerOf(raw, "references")),
     subject: e?.subject ?? "",
     to: addressesOf(e?.to),

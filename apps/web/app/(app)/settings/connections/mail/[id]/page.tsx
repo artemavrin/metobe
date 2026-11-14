@@ -49,6 +49,7 @@ const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
           memoryOn
             ? {
                 checkedAt: box.memoryCheckedAt?.toISOString() ?? null,
+                error: box.memoryError,
                 on: box.memoryReads,
                 waits,
               }

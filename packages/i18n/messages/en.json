@@ -1844,6 +1844,7 @@
         "hint": "The memory looks at whom you wrote and whether they answered — by addresses and subjects. It never reads or keeps a letter's text.",
         "checked": "Checked {when}.",
         "notChecked": "Not checked yet.",
+        "failed": "The last check {when} failed: {error}",
         "waits": "no answer: {count}"
       }
     },

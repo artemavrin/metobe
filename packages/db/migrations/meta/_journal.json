@@ -456,6 +456,13 @@
       "when": 1794691369757,
       "tag": "0064_memory_mail_waits",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1794693104239,
+      "tag": "0065_mailbox_memory_error",
+      "breakpoints": true
     }
   ]
 }

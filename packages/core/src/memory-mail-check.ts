@@ -15,7 +15,7 @@ import {
   listEntities,
   saveMailWaits,
 } from "./memory";
-import { waitingLetters } from "./memory-mail";
+import { cardAddresses, waitingLetters } from "./memory-mail";
 import { isMemoryOnFor } from "./memory-write";
 
 // The look for letters with no answer (Г3.1): about once an hour, each box whose owner turned on «Замечать письма без
@@ -42,14 +42,7 @@ const checkBox = async (box: Mailbox, now: Date) => {
     return;
   }
   const entities = await listEntities(box.userId);
-  const cards = new Map(
-    entities.flatMap((e) =>
-      e.kind !== "self" && e.email
-        ? [[e.email.trim().toLowerCase(), e.id] as const]
-        : []
-    )
-  );
-  if (cards.size === 0) {
+  if (!entities.some((e) => e.kind === "person" || e.email)) {
     await saveMailWaits(box.userId, box.id, [], now);
     return;
   }
@@ -58,6 +51,7 @@ const checkBox = async (box: Mailbox, now: Date) => {
     box.id,
     new Date(now.getTime() - READ_DAYS * DAY_MS)
   );
+  const cards = cardAddresses(entities, envelopes);
   const waits = waitingLetters({
     address: box.address,
     cards,
@@ -90,17 +84,19 @@ const checkBox = async (box: Mailbox, now: Date) => {
 export const checkMailWaits = async (now = new Date()) => {
   const boxes = await boxesForMemory(new Date(now.getTime() - HOUR_MS));
   for (const box of boxes) {
+    let failed: string | null = null;
     try {
       // oxlint-disable-next-line eslint/no-await-in-loop -- one box at a time: each holds an IMAP connection
       await checkBox(box, now);
     } catch (error) {
+      failed = error instanceof Error ? error.message : String(error);
       console.error(
         "memory: could not look for letters with no answer",
-        error instanceof Error ? error.message : error
+        failed
       );
     }
     // oxlint-disable-next-line eslint/no-await-in-loop -- noted after each
-    await markMemoryChecked(box.id, now);
+    await markMemoryChecked(box.id, now, failed?.slice(0, 500) ?? null);
   }
   return boxes.length;
 };

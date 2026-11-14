@@ -237,7 +237,9 @@ export const reviewCount = async (
     memoryStale(ownerId, timeZone, now),
     listDismissals(ownerId),
   ]);
-  return dismissed.has(reviewKey(weekStart(now, timeZone))) ? 0 : rows.length;
+  return dismissed.has(reviewKey(ownerId, weekStart(now, timeZone)))
+    ? 0
+    : rows.length;
 };
 
 /**

@@ -140,6 +140,79 @@ export const waitingLetters = ({
   });
 };
 
+/** What of a card the mail needs: who it is, the names it goes by, and the address put on it. */
+export interface MailCard {
+  id: string;
+  kind: string;
+  name: string;
+  aliases: string[];
+  email: string | null;
+}
+
+/** «Ли  Ольга» and «ольга ли» are one name: the words in lower case, «ё» as «е», in order; fewer than two — none. */
+const nameKey = (name: string) => {
+  const words = name
+    .toLocaleLowerCase("ru")
+    .replaceAll("ё", "е")
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own array
+  return words.length >= 2 ? words.sort().join(" ") : null;
+};
+
+/** Puts `value` under `key`, or — another value is there already — marks the key as two (`null`). */
+const only = (map: Map<string, string | null>, key: string, value: string) =>
+  map.set(key, map.has(key) && map.get(key) !== value ? null : value);
+
+/** A person's full names with no address on the card → the card; a name two cards share — `null`. */
+const unaddressedNames = (cards: MailCard[]) => {
+  const byName = new Map<string, string | null>();
+  for (const c of cards) {
+    if (c.kind === "person" && !c.email?.trim()) {
+      for (const key of [c.name, ...c.aliases].map(nameKey)) {
+        if (key) {
+          only(byName, key, c.id);
+        }
+      }
+    }
+  }
+  return byName;
+};
+
+/**
+ * Each card's addresses: the one put on the card, and — none there — the addresses the box's letters give a person's
+ * full name to («Ольга Ли <olga@…>», in a letter the person sent or got). Only a name that is one card's alone, only
+ * an address that is no other card's; a first name alone does not count. The card itself is not changed.
+ */
+export const cardAddresses = (
+  cards: MailCard[],
+  envelopes: MailEnvelope[]
+): Map<string, string> => {
+  const found = new Map<string, string>();
+  for (const c of cards) {
+    if (c.kind !== "self" && c.email?.trim()) {
+      found.set(c.email.trim().toLowerCase(), c.id);
+    }
+  }
+  const byName = unaddressedNames(cards);
+  const named = new Map<string, string | null>();
+  for (const e of envelopes) {
+    for (const [address, name] of Object.entries(e.names)) {
+      const key = nameKey(name);
+      const card = key ? byName.get(key) : undefined;
+      if (card && !found.has(address)) {
+        only(named, address, card);
+      }
+    }
+  }
+  for (const [address, card] of named) {
+    if (card) {
+      found.set(address, card);
+    }
+  }
+  return found;
+};
+
 const DAY_MS = 86_400_000;
 
 /** Working days after `from`, up to and including `to` (`2026-11-14`): Saturdays and Sundays do not count. */

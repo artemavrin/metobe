@@ -35,6 +35,8 @@ export const mailboxes = pgTable(
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     /** The last look for letters with no answer (Г3.1); null — not yet. */
     memoryCheckedAt: timestamp("memory_checked_at", { withTimezone: true }),
+    /** Why the last look failed; null — it went through. */
+    memoryError: text("memory_error"),
     /** «Замечать письма без ответа» (Г3.1): the memory reads this box's envelopes — off until the person turns it on. */
     memoryReads: boolean("memory_reads").notNull().default(false),
     preset: text("preset").$type<MailPresetId>().notNull(),
