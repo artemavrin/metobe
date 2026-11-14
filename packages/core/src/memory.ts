@@ -632,6 +632,8 @@ const insertRecord = async (
       occurredAt: input.occurred?.at,
       occurredPrecision: input.occurred?.precision,
       ownerId,
+      // The moment of this insert, not of the transaction: what one message added keeps the order it was said in.
+      recordedAt: sql`clock_timestamp()`,
       remindAt: input.kind === "commitment" ? input.remindAt : undefined,
       ruleKind: input.rule?.kind ?? null,
       sealed: sealField(
@@ -864,6 +866,8 @@ export interface MemoryRecordFilter {
   entityId?: string;
   /** Records these writes put in. */
   writeIds?: string[];
+  /** In the order they were recorded, oldest first — by default, newest by when they happened first. */
+  asRecorded?: boolean;
   /** Records these writes closed. */
   closedBy?: string[];
   ids?: string[];
@@ -913,8 +917,12 @@ export const listRecords = async (
       )
     )
     .orderBy(
-      sql`coalesce(${memoryRecords.occurredAt}, ${memoryRecords.recordedAt}) desc`,
-      desc(memoryRecords.recordedAt)
+      ...(filter.asRecorded
+        ? [asc(memoryRecords.recordedAt)]
+        : [
+            sql`coalesce(${memoryRecords.occurredAt}, ${memoryRecords.recordedAt}) desc`,
+            desc(memoryRecords.recordedAt),
+          ])
     );
   if (rows.length === 0) {
     return [];
@@ -1846,7 +1854,7 @@ export const chatMemory = async (ownerId: string, chatId: string) => {
   const [records, closed, moved] =
     ids.length > 0
       ? await Promise.all([
-          listRecords(ownerId, { writeIds: ids }),
+          listRecords(ownerId, { asRecorded: true, writeIds: ids }),
           listRecords(ownerId, { closedBy: ids, kinds: ["commitment"] }),
           dueMoves(ownerId, ids),
         ])
@@ -1858,9 +1866,8 @@ export const chatMemory = async (ownerId: string, chatId: string) => {
     writeId: string,
     line: ChatMemory["notes"][number]["records"][number]
   ) => byWrite.set(writeId, [...(byWrite.get(writeId) ?? []), line]);
-  for (let i = records.length - 1; i >= 0; i -= 1) {
-    const r = records[i];
-    if (r?.writeId) {
+  for (const r of records) {
+    if (r.writeId) {
       const was = replaced.get(r.id);
       add(r.writeId, {
         id: r.id,
