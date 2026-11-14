@@ -7,6 +7,7 @@ import { CHAT_SOURCE, NOTE_SOURCE, listEntities, materialOf } from "./memory";
 import type { QueuedWrite } from "./memory";
 import { CONTEXT_TURNS, RULE_TURN, noteTurn } from "./memory-extract";
 import type { ChatTurn } from "./memory-extract";
+import type { Segment } from "./memory-input";
 import { retoldOf } from "./memory-retold";
 import type { AnswerPart } from "./memory-retold";
 import { announceMemory } from "./task-events";
@@ -33,6 +34,11 @@ export interface MemoryInput {
    * commitment as «ждёт проверки» (`memory-retold.ts`).
    */
   retold?: string;
+  /**
+   * The material as lines with speakers (a letter, a meeting): who says what decides what it may change
+   * (`memory-evidence.ts`). None — a message of the person's, read as `messageSegments` makes it.
+   */
+  segments?: Segment[];
 }
 
 export interface MemorySource {

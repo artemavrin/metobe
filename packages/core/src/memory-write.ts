@@ -27,6 +27,7 @@ import {
   candidateCommitments,
   candidateKnown,
 } from "./memory-candidates";
+import { limitByVoice } from "./memory-evidence";
 import {
   chatContext,
   extractionSchema,
@@ -47,6 +48,12 @@ import type {
 } from "./memory-extract";
 import { GATE_QUESTIONS, gateState, nothingToKeep } from "./memory-gate";
 import { groupMembers } from "./memory-groups";
+import {
+  memoryPromptOf,
+  messageSegments,
+  othersSpeak,
+  ownerSpeaks,
+} from "./memory-input";
 import {
   RELATION_QUESTIONS,
   claimedPairs,
@@ -701,6 +708,8 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     status: r.status === "unconfirmed" ? "unconfirmed" : "open",
     text: r.text,
   }));
+  // Lines with speakers: a message of the person's is read as ever; a letter or a meeting by who says what (И1).
+  const segments = input.segments ?? messageSegments(text.slice(0, MAX_TEXT));
   const started = Date.now();
   let result;
   try {
@@ -710,14 +719,19 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
         cards,
         commitments,
         known,
-        quoted: splitQuoted(text.slice(0, MAX_TEXT)).quoted !== "",
+        quoted: input.segments
+          ? segments.some((s) => s.voice === "quoted")
+          : splitQuoted(text.slice(0, MAX_TEXT)).quoted !== "",
         reminding: asksReminder(text),
         repeating: repeatsDate(text),
+        said: othersSpeak(segments),
         sentAt: at,
         timeZone: job.timeZone,
       }),
       model: await getLanguageModel(model.sourceId, model.modelId),
-      prompt: memoryPrompt(text.slice(0, MAX_TEXT), before),
+      prompt: input.segments
+        ? memoryPromptOf(segments, before)
+        : memoryPrompt(text.slice(0, MAX_TEXT), before),
       // A person's memory is not left with the provider behind the Gateway (D39).
       providerOptions:
         model.kind === "gateway"
@@ -780,11 +794,10 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
       known
     ),
   };
-  const typed = await withThingTypes(
-    job,
-    text.slice(0, MAX_TEXT),
-    related,
-    entities
+  // What the voices allow (§5.2): someone else's words alone settle only as «ждёт проверки», and set no rule.
+  const typed = limitByVoice(
+    await withThingTypes(job, text.slice(0, MAX_TEXT), related, entities),
+    ownerSpeaks(segments)
   );
   const retold = await settleRetold(
     job,

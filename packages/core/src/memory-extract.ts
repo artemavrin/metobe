@@ -428,6 +428,13 @@ const REPEAT_RULE = `
 const QUOTED_RULE = `
 - The message has someone else's text inside <quoted>: a letter, a forwarded message or a quote. It speaks in its author's voice: «я», «мы», «наша компания» there are the author, never the user. An author's promise is the author's commitment, to the user unless it names someone else; a request to the user is the user's commitment to the author. The user's own words are inside <user>. A long quoted text gives the few items that matter to the user, not one per sentence.`;
 
+/**
+ * Only for material where someone other than the person speaks in their own voice (a letter, a meeting's lines, И1):
+ * every chat message keeps the prompt S13 was measured on, word for word.
+ */
+const SAID_RULE = `
+- Lines inside <said by="…"> are that person's own words — a letter they wrote, what they said at a meeting. «Я», «мы», «наша компания» there are that person, never the user; a card ref in by is their card. Their promise is their commitment, to the user unless it names someone else; their request to the user is the user's commitment to them. What they say they have done settles their open commitment only as unconfirmed — it is said, not seen. Lines inside <user> are the user's own.`;
+
 /** «Today» is when the message was sent, in the person's zone: a write retried tomorrow still reads «вчера» right. */
 export const memoryInstructions = ({
   sentAt,
@@ -436,6 +443,7 @@ export const memoryInstructions = ({
   commitments = [],
   known = [],
   quoted = false,
+  said = false,
   repeating = false,
   reminding = false,
 }: {
@@ -447,6 +455,8 @@ export const memoryInstructions = ({
   known?: KnownRecord[];
   /** The message has someone else's text in it (`splitQuoted`): the rule on it is added, and only then. */
   quoted?: boolean;
+  /** Someone other than the person speaks in the material (`othersSpeak`): the rule on their lines is added, and only then. */
+  said?: boolean;
   /** The message may name a day that comes again (`repeatsDate`): the rule on date rules is added, and only then. */
   repeating?: boolean;
   /** The message asks to be reminded (`asksReminder`): the rule on reminders is added, and only then. */
@@ -492,7 +502,7 @@ ${THINGS_RULE}- Refs: use a known card ref, "user", an id from new_entities or a
 - Earlier conversation may come before the message, inside <context> tags. Use it only to understand the message: who «он», «она» or «Андрей» is, what «передумал» or «перенесли» is about, which option the user picks when answering the assistant's question. Record only what the message itself says; never record again what the context already said.
 - Do not record an item you cannot state in full («Андрей передумал» — about what?). If the message makes no sense without context and the context does not tell, return nothing for it.
 - One item per thing: never the same item twice in other words, or once for each side of an agreement.
-- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}${repeating ? REPEAT_RULE : ""}${reminding ? REMIND_RULE(localClock(sentAt, timeZone)) : ""}`;
+- Do not add judgements or guesses that the message does not state.${known.length > 0 ? REPLACE_RULE : ""}${commitments.length > 0 ? MOVE_RULE : ""}${quoted ? QUOTED_RULE : ""}${said ? SAID_RULE : ""}${repeating ? REPEAT_RULE : ""}${reminding ? REMIND_RULE(localClock(sentAt, timeZone)) : ""}`;
 };
 
 /** Does the answer point at the user anywhere — then their own card has to exist before the plan is made. */
