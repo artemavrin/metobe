@@ -214,12 +214,13 @@ const RowIcon = ({
 
 type Say = ReturnType<typeof useSay>;
 
-/** The memory's read tools (core/memory-read): named in words, like the mail's. */
+/** The memory's tools (core/memory-read, memory-remember): named in words, like the mail's. */
 const MEMORY_TOOL_NAMES = [
   "search_memory",
   "memory_card",
   "list_commitments",
   "list_cards",
+  "remember",
 ] as const;
 const isMemoryTool = (
   name: string

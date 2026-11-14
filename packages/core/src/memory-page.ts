@@ -422,7 +422,7 @@ const NOTE_WAIT_MS = 20_000;
 const NOTE_POLL_MS = 400;
 
 /** The write's status once the queue has read it, or `queued` still at `until`. */
-const settled = async (
+export const settled = async (
   ownerId: string,
   id: string,
   until: number

@@ -75,6 +75,7 @@ import {
   memoryShowTools,
   memoryTools,
 } from "@metobe/core/memory-read";
+import { rememberTool } from "@metobe/core/memory-remember";
 import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
@@ -196,6 +197,7 @@ const textOf = (message: ChatMessage) =>
  */
 const chatMemoryOf = async (
   userId: string,
+  chatId: string,
   message: ChatMessage | null | undefined,
   timeZone: string
 ) => {
@@ -217,6 +219,15 @@ const chatMemoryOf = async (
     tools: {
       ...memoryTools(userId, timeZone),
       ...memoryShowTools(userId, timeZone),
+      // «Запиши», «напомни»: the message is kept now, and the answer says what was kept (D44).
+      ...(message
+        ? rememberTool({
+            chatId,
+            messageId: message.id,
+            ownerId: userId,
+            timeZone,
+          })
+        : {}),
     },
   };
 };
@@ -628,7 +639,7 @@ export const POST = async (request: Request) => {
           tools: model.capabilities.tools !== false,
         }
       );
-      const memory = await chatMemoryOf(session.user.id, message, timeZone);
+      const memory = await chatMemoryOf(session.user.id, id, message, timeZone);
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}

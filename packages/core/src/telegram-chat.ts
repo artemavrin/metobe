@@ -38,6 +38,7 @@ import {
 import { CHAT_SOURCE } from "./memory";
 import { queueMemoryWrite } from "./memory-queue";
 import { memoryBrief, memoryShowTools, memoryTools } from "./memory-read";
+import { rememberTool } from "./memory-remember";
 import { chatMemoryNote, isMemoryOnFor } from "./memory-write";
 import { webToolsOn } from "./web-settings";
 
@@ -112,9 +113,10 @@ const withBrief = (messages: ModelMessage[], brief: string) => {
 const toolsFor = async (
   userId: string,
   model: ChatModel,
-  text: string,
+  said: { text: string; chatId: string; messageId: string },
   timeZone: string
 ) => {
+  const { text } = said;
   const [memoryOn, web] = await Promise.all([
     isMemoryOnFor(userId),
     webToolsOn(),
@@ -140,6 +142,12 @@ const toolsFor = async (
       ? {
           ...memoryTools(userId, timeZone),
           ...memoryShowTools(userId, timeZone),
+          ...rememberTool({
+            chatId: said.chatId,
+            messageId: said.messageId,
+            ownerId: userId,
+            timeZone,
+          }),
         }
       : {}),
     ...(room
@@ -195,7 +203,7 @@ export const answerTelegram = async ({
   await saveMessages(chatId, [question]);
   const [history, { brief, note, tools }, languageModel] = await Promise.all([
     listMessages(chatId),
-    toolsFor(userId, model, text, timeZone),
+    toolsFor(userId, model, { chatId, messageId: question.id, text }, timeZone),
     getLanguageModel(model.sourceId, model.modelId),
   ]);
   const messages = withBrief(
