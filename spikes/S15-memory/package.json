@@ -13,7 +13,8 @@
     "types": "node --env-file=../../.env --import tsx types.ts",
     "dates": "node --env-file=../../.env --import tsx dates.ts",
     "summary": "node --env-file=../../.env --import tsx summary.ts",
-    "reminders": "node --env-file=../../.env --import tsx reminders.ts"
+    "reminders": "node --env-file=../../.env --import tsx reminders.ts",
+    "answer": "node --env-file=../../.env --import tsx answer.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",

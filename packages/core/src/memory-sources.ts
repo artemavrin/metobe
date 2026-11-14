@@ -1,12 +1,14 @@
 import "server-only";
 import { messages } from "@metobe/db/schema/chat";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
 
 import { getDb } from "./db";
 import { CHAT_SOURCE, NOTE_SOURCE, listEntities, materialOf } from "./memory";
 import type { QueuedWrite } from "./memory";
 import { CONTEXT_TURNS, RULE_TURN, noteTurn } from "./memory-extract";
 import type { ChatTurn } from "./memory-extract";
+import { retoldOf } from "./memory-retold";
+import type { AnswerPart } from "./memory-retold";
 import { announceMemory } from "./task-events";
 
 // Where the memory's material comes from (ARCH §19.9.5). A chat's message, a letter, a meeting's transcript are ways
@@ -26,6 +28,11 @@ export interface MemoryInput {
   about?: string;
   /** Cards the person named with `@` (Д4), by id: they are among the candidates whatever the words say. */
   named?: string[];
+  /**
+   * The assistant's answer after it, when it retells what a reading tool found (Г1.6а): it may only settle an open
+   * commitment as «ждёт проверки» (`memory-retold.ts`).
+   */
+  retold?: string;
 }
 
 export interface MemorySource {
@@ -69,6 +76,19 @@ const chatBefore = async (chatId: string, sentAt: Date) => {
   });
 };
 
+/** The assistant's answer to the message — the first after it — as a retelling of what a tool read, if it is one. */
+const answerAfter = async (chatId: string, sentAt: Date) => {
+  const [answer] = await getDb()
+    .db.select({ parts: messages.parts, role: messages.role })
+    .from(messages)
+    .where(and(eq(messages.chatId, chatId), gt(messages.createdAt, sentAt)))
+    .orderBy(asc(messages.createdAt))
+    .limit(1);
+  return answer?.role === "assistant"
+    ? (retoldOf(answer.parts as AnswerPart[]) ?? undefined)
+    : undefined;
+};
+
 const chat: MemorySource = {
   announce: async (ownerId, write) => {
     // An open chat shows «Запомнено» or asks its question at once (P18).
@@ -98,10 +118,15 @@ const chat: MemorySource = {
     if (!(message && text)) {
       return null;
     }
+    const [context, retold] = await Promise.all([
+      chatBefore(write.chatId, message.createdAt),
+      answerAfter(write.chatId, message.createdAt),
+    ]);
     return {
       at: message.createdAt,
-      context: await chatBefore(write.chatId, message.createdAt),
+      context,
       named: message.metadata?.cards?.map((c) => c.id),
+      retold,
       text,
     };
   },
