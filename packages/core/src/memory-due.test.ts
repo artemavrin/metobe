@@ -38,6 +38,46 @@ const promise = (id: string, over: Partial<MemoryRecord> = {}) =>
 const at = (iso: string) => new Date(iso);
 
 describe("scheduleOf", () => {
+  it("lists the person's own reminders that closed themselves when they came, in the last week", () => {
+    const mine = [{ entityId: "me", role: "debtor" as const }];
+    const sent = at("2026-11-10T07:00:00Z");
+    const s = scheduleOf(
+      [
+        promise("bank", {
+          doneAt: at("2026-11-10T07:00:01Z"),
+          entities: mine,
+          remindedAt: sent,
+          status: "done",
+        }),
+        // Done by the person later: not closed by sending.
+        promise("later", {
+          doneAt: at("2026-11-10T12:00:00Z"),
+          entities: mine,
+          remindedAt: sent,
+          status: "done",
+        }),
+        // Owed to someone: it is never closed by sending.
+        promise("olga", {
+          doneAt: at("2026-11-10T07:00:01Z"),
+          remindedAt: sent,
+          status: "done",
+        }),
+        promise("old", {
+          doneAt: at("2026-11-01T07:00:01Z"),
+          entities: mine,
+          remindedAt: at("2026-11-01T07:00:00Z"),
+          status: "done",
+        }),
+      ],
+      CARDS,
+      NOW,
+      TZ
+    );
+    expect(s.closedBySend).toEqual([
+      { id: "bank", remindedAt: sent.toISOString(), text: "bank" },
+    ]);
+  });
+
   it("takes the open ones with a deadline, the nearest first, and counts the dateless", () => {
     const s = scheduleOf(
       [

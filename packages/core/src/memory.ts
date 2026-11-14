@@ -10,8 +10,10 @@ import type {
   MemoryRuleKind,
   MemoryStatus,
   MemoryWriteStatus,
+  ReminderRepeat,
 } from "@metobe/contracts/memory";
 import type { Db } from "@metobe/db/client";
+import { user } from "@metobe/db/schema/auth";
 import {
   memoryChanges,
   memoryDismissals,
@@ -42,6 +44,8 @@ import { z } from "zod";
 import { getDb } from "./db";
 import { likelySame } from "./memory-candidates";
 import { memoryAad, newDataKey, openField, sealField } from "./memory-crypto";
+import { localMidnight } from "./memory-extract";
+import { nextReminder, wallClock } from "./memory-repeat";
 import { memoryKeyAad, openWithMasterKey, sealWithMasterKey } from "./secrets";
 import { parseKey } from "./secrets-crypto";
 import type { SecretsKey } from "./secrets-crypto";
@@ -379,6 +383,8 @@ export interface MemoryRecordInput {
   dueAt?: Date;
   /** A commitment the person asked to be reminded of: the moment to remind them at (on or before its day). */
   remindAt?: Date;
+  /** A reminder that comes again (needs `remindAt`): how often. */
+  remindRepeat?: ReminderRepeat;
   /** Commitments only; open unless said otherwise. */
   status?: MemoryStatus;
   /** Commitments only: the person said it is important, or marked it so. */
@@ -411,6 +417,8 @@ export interface MemoryRecord {
   /** When to remind the person (they asked), and when it was sent; null — no reminder / not sent yet. */
   remindAt: Date | null;
   remindedAt: Date | null;
+  /** A reminder that comes again: how often; null — once. */
+  remindRepeat: ReminderRepeat | null;
   status: MemoryStatus | null;
   important: boolean;
   /** Set on a fact about who its card is now. */
@@ -441,7 +449,7 @@ const ruleOfRow = (
     return {
       days: 0,
       kind: "date",
-      repeat: row.repeat,
+      repeat: row.repeat as MemoryRepeat,
       workingDays: false,
     };
   }
@@ -478,6 +486,8 @@ const toRecord = (
     occurredPrecision: row.occurredPrecision,
     recordedAt: row.recordedAt,
     remindAt: row.remindAt,
+    remindRepeat:
+      row.kind === "commitment" ? (row.repeat as ReminderRepeat | null) : null,
     remindedAt: row.remindedAt,
     role: body.role ?? null,
     rule: ruleOfRow(row),
@@ -580,6 +590,17 @@ const ruleColumns = (rule: MemoryRecordInput["rule"]) => ({
   workingDays: rule?.workingDays ?? false,
 });
 
+/** A commitment's reminder, and how often it comes again (after `ruleColumns`: it sets `repeat` for a rule). */
+const remindColumns = (input: MemoryRecordInput) =>
+  input.kind === "commitment"
+    ? {
+        remindAt: input.remindAt,
+        ...(input.remindAt && input.remindRepeat
+          ? { repeat: input.remindRepeat }
+          : {}),
+      }
+    : {};
+
 const insertRecord = async (
   tx: Tx,
   ownerId: string,
@@ -634,7 +655,7 @@ const insertRecord = async (
       ownerId,
       // The moment of this insert, not of the transaction: what one message added keeps the order it was said in.
       recordedAt: sql`clock_timestamp()`,
-      remindAt: input.kind === "commitment" ? input.remindAt : undefined,
+      ...remindColumns(input),
       ruleKind: input.rule?.kind ?? null,
       sealed: sealField(
         JSON.stringify(
@@ -715,13 +736,102 @@ export interface CommitmentPatch {
   important?: boolean;
   /** A new moment to remind at (null — no reminder): it is sent again, whether it was or not. */
   remindAt?: Date | null;
+  /** How often the reminder comes again; null — once. Taking the reminder off takes this off too. */
+  repeat?: ReminderRepeat | null;
 }
+
+/** The owner's time zone: where a reminder's days and time of day are read. */
+const zoneOf = async (tx: Tx, ownerId: string) => {
+  const [row] = await tx
+    .select({ timeZone: user.timeZone })
+    .from(user)
+    .where(eq(user.id, ownerId))
+    .limit(1);
+  return row?.timeZone ?? "UTC";
+};
+
+/**
+ * «Готово» on a reminder that comes again: not closed — its deadline and reminder go on to the first time after the
+ * deadline's day that is still ahead (an occurrence missed for weeks is not owed many times over).
+ */
+const doneOnce = async (
+  tx: Tx,
+  ownerId: string,
+  row: typeof memoryRecords.$inferSelect,
+  repeat: ReminderRepeat,
+  remindAt: Date
+) => {
+  const timeZone = await zoneOf(tx, ownerId);
+  return nextReminder({
+    after: wallClock(row.dueAt ?? remindAt, timeZone).day,
+    now: new Date(),
+    remindAt,
+    repeat,
+    timeZone,
+  });
+};
 
 const asText = (v: MemoryStatus | Date | boolean | null) => {
   if (v === null) {
     return null;
   }
   return v instanceof Date ? v.toISOString() : String(v);
+};
+
+type ChangeLine = (
+  field: MemoryChangeField,
+  before: MemoryStatus | Date | boolean | null,
+  after: MemoryStatus | Date | boolean | null
+) => void;
+
+/** «Готово» on a reminder that comes again: its next time; null — any other change. */
+const repeatingDone = (
+  tx: Tx,
+  ownerId: string,
+  row: typeof memoryRecords.$inferSelect,
+  patch: CommitmentPatch
+) => {
+  const repeat = patch.repeat === undefined ? row.repeat : patch.repeat;
+  const remindAt = patch.remindAt === undefined ? row.remindAt : patch.remindAt;
+  return patch.status === "done" && repeat && remindAt
+    ? doneOnce(tx, ownerId, row, repeat as ReminderRepeat, remindAt)
+    : Promise.resolve(null);
+};
+
+/** The columns a patch sets, each change to status, deadline and «важно» told to `line` for the history. */
+const patchColumns = (
+  row: typeof memoryRecords.$inferSelect,
+  patch: CommitmentPatch,
+  line: ChangeLine,
+  writeId: string | undefined
+) => {
+  const set: Partial<typeof memoryRecords.$inferInsert> = {};
+  if (patch.status && patch.status !== row.status) {
+    line("status", row.status, patch.status);
+    set.status = patch.status;
+    set.doneAt = ENDED.has(patch.status) ? new Date() : null;
+    set.closedByWrite = patch.status === "open" ? null : (writeId ?? null);
+  }
+  if (patch.dueAt !== undefined) {
+    line("due", row.dueAt, patch.dueAt);
+    set.dueAt = patch.dueAt;
+  }
+  if (patch.important !== undefined) {
+    line("important", row.important, patch.important);
+    set.important = patch.important;
+  }
+  if (patch.remindAt !== undefined) {
+    // Not a line of the history: the reminder is a delivery, not a fact about the promise.
+    set.remindAt = patch.remindAt;
+    set.remindedAt = null;
+  }
+  // A repeat lives only with a reminder: taking the reminder off takes it off.
+  if (patch.repeat !== undefined || (patch.remindAt === null && row.repeat)) {
+    const remindAt =
+      patch.remindAt === undefined ? row.remindAt : patch.remindAt;
+    set.repeat = remindAt ? (patch.repeat ?? null) : null;
+  }
+  return set;
 };
 
 /**
@@ -756,7 +866,6 @@ const changeCommitment = async (
     return false;
   }
   const lines: (typeof memoryChanges.$inferInsert)[] = [];
-  const set: Partial<typeof memoryRecords.$inferInsert> = {};
   const line = (
     field: MemoryChangeField,
     before: MemoryStatus | Date | boolean | null,
@@ -773,25 +882,14 @@ const changeCommitment = async (
       });
     }
   };
-  if (patch.status && patch.status !== row.status) {
-    line("status", row.status, patch.status);
-    set.status = patch.status;
-    set.doneAt = ENDED.has(patch.status) ? new Date() : null;
-    set.closedByWrite = patch.status === "open" ? null : (writeId ?? null);
+  const next = await repeatingDone(tx, ownerId, row, patch);
+  if (next) {
+    // It stays open: done this time, it is due the next.
+    line("due", row.dueAt, next.dueAt);
   }
-  if (patch.dueAt !== undefined) {
-    line("due", row.dueAt, patch.dueAt);
-    set.dueAt = patch.dueAt;
-  }
-  if (patch.important !== undefined) {
-    line("important", row.important, patch.important);
-    set.important = patch.important;
-  }
-  if (patch.remindAt !== undefined) {
-    // Not a line of the history: the reminder is a delivery, not a fact about the promise.
-    set.remindAt = patch.remindAt;
-    set.remindedAt = null;
-  }
+  const set = next
+    ? { dueAt: next.dueAt, remindAt: next.remindAt, remindedAt: null }
+    : patchColumns(row, patch, line, writeId);
   if (Object.keys(set).length > 0) {
     await tx.update(memoryRecords).set(set).where(eq(memoryRecords.id, id));
   }
@@ -1971,6 +2069,10 @@ export const correctRecord = async (
         : undefined,
     // A reminder still to go off goes with the new version; one that has gone off does not go off again.
     remindAt: old.remindedAt ? undefined : (old.remindAt ?? undefined),
+    remindRepeat:
+      old.remindedAt || !old.remindAt
+        ? undefined
+        : (old.remindRepeat ?? undefined),
     role: old.role ?? undefined,
     status: old.status ?? undefined,
     text,
@@ -2236,6 +2338,50 @@ export const dueReminders = async (now: Date) => {
     .limit(200);
   return rows;
 };
+
+/**
+ * A reminder that comes again is claimed by moving it on: its deadline becomes the day it goes off now, its reminder
+ * the next time — in one update that only the process that read this moment can make. True for that process.
+ */
+export const rollReminder = (
+  ownerId: string,
+  id: string,
+  at: Date,
+  repeat: ReminderRepeat,
+  now = new Date()
+) =>
+  getDb().db.transaction(async (tx) => {
+    const timeZone = await zoneOf(tx, ownerId);
+    const { day } = wallClock(at, timeZone);
+    const next = nextReminder({
+      after: day,
+      now,
+      remindAt: at,
+      repeat,
+      timeZone,
+    });
+    const rows = await tx
+      .update(memoryRecords)
+      .set(
+        next
+          ? {
+              dueAt: localMidnight(day, timeZone) ?? at,
+              remindAt: next.remindAt,
+              remindedAt: null,
+            }
+          : { remindedAt: now }
+      )
+      .where(
+        and(
+          eq(memoryRecords.id, id),
+          eq(memoryRecords.ownerId, ownerId),
+          eq(memoryRecords.remindAt, at),
+          isNull(memoryRecords.remindedAt)
+        )
+      )
+      .returning({ id: memoryRecords.id });
+    return rows.length > 0;
+  });
 
 /** A reminder is claimed before it is sent: true for the one process that got it (two ticks must not both tell). */
 export const claimReminder = async (ownerId: string, id: string) => {

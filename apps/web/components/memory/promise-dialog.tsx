@@ -1,6 +1,11 @@
 "use client";
 
-import type { MemoryCardItem, MemoryDue } from "@metobe/contracts/memory";
+import { reminderRepeats } from "@metobe/contracts/memory";
+import type {
+  MemoryCardItem,
+  MemoryDue,
+  ReminderRepeat,
+} from "@metobe/contracts/memory";
 import { localInstant } from "@metobe/core/memory-extract";
 import { Button } from "@metobe/ui/components/button";
 import { Calendar } from "@metobe/ui/components/calendar";
@@ -25,7 +30,15 @@ import {
 import { cn } from "@metobe/ui/lib/utils";
 import { format } from "date-fns";
 import { enUS, ru } from "date-fns/locale";
-import { Bell, CalendarDays, Check, Trash2, UserRound, X } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  Check,
+  Repeat,
+  Trash2,
+  UserRound,
+  X,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
@@ -36,7 +49,8 @@ import { dayKey } from "@/lib/memory-dates";
 // prototype memory-promise-dialog): the title is typed straight into the top field, each line is an icon and a value,
 // the kind is two words, not a switch. The deadline is a day; a reminder is a day and a time of its own — in the
 // person's zone. Who owes is chosen when the promise is made and read-only after it (the cards' own page moves it).
-// Done and delete are two icons in the footer, with «Вернуть» in the toast.
+// Done and delete are two icons in the footer, with «Вернуть» in the toast. A reminder can come again («Повторять»,
+// P29): every day, on working days, every week, month or year — counted from its day.
 
 type Row = MemoryDue["rows"][number];
 
@@ -55,6 +69,8 @@ export interface PromiseDraft {
   remindDay: string;
   /** `HH:mm`. */
   time: string;
+  /** How often the reminder comes again; null — once. */
+  repeat: ReminderRepeat | null;
 }
 
 const DEFAULT_TIME = "10:00";
@@ -68,6 +84,7 @@ export const newDraft = (day: string, time?: string): PromiseDraft => ({
   kind: time ? "reminder" : "promise",
   remind: Boolean(time),
   remindDay: day,
+  repeat: null,
   side: "mine",
   text: "",
   time: time ?? DEFAULT_TIME,
@@ -81,9 +98,12 @@ export const draftOf = (row: Row, timeZone: string): PromiseDraft => {
     card: row.who?.id ?? null,
     day,
     id: row.id,
-    kind: "promise",
+    // The person's own, owed to nobody, with a time: a reminder — only its time and repeat are shown.
+    kind:
+      row.side === "mine" && !row.who && row.remindAt ? "reminder" : "promise",
     remind: at !== null,
     remindDay: at ? dayKey(at, timeZone) : day,
+    repeat: row.repeat,
     side: row.side === "theirs" ? "theirs" : "mine",
     text: row.text,
     time: at
@@ -105,6 +125,40 @@ export const remindOf = (draft: PromiseDraft, timeZone: string) =>
     : null;
 
 const toDate = (key: string) => new Date(`${key}T12:00:00`);
+
+/** «каждую неделю, пн», «каждый месяц, 17-го»: how a repeat reads, counted from its day. */
+export const useRepeatWords = () => {
+  const t = useTranslations("memory");
+  const locale = useLocale();
+  const dates = locale === "ru" ? ru : enUS;
+  return (repeat: ReminderRepeat | null, day: string) => {
+    const at = toDate(day);
+    switch (repeat) {
+      case null: {
+        return t("repeatNone");
+      }
+      case "day": {
+        return t("repeatDay");
+      }
+      case "weekdays": {
+        return t("repeatWeekdays");
+      }
+      case "week": {
+        return t("repeatWeek", {
+          weekday: format(at, "EEEEEE", { locale: dates }),
+        });
+      }
+      case "month": {
+        return t("repeatMonth", { day: at.getDate() });
+      }
+      default: {
+        return t("repeatYear", {
+          date: format(at, "d MMMM", { locale: dates }),
+        });
+      }
+    }
+  };
+};
 const toKey = (date: Date) => format(date, "yyyy-MM-dd");
 
 type Change = (patch: Partial<PromiseDraft>) => void;
@@ -332,13 +386,55 @@ const RemindLine = ({
         <button
           aria-label={t("promiseRemindOff")}
           className="text-muted-foreground hover:text-foreground ms-auto p-1"
-          onClick={() => onChange({ remind: false })}
+          onClick={() => onChange({ remind: false, repeat: null })}
           title={t("promiseRemindOff")}
           type="button"
         >
           <X className="size-3.5" />
         </button>
       )}
+    </Line>
+  );
+};
+
+const ONCE = "once";
+
+/** «Повторять»: under a reminder that is on — once, or how often it comes again. */
+const RepeatLine = ({
+  draft,
+  onChange,
+}: {
+  draft: PromiseDraft;
+  onChange: Change;
+}) => {
+  const t = useTranslations("memory");
+  const words = useRepeatWords();
+  return (
+    <Line icon={Repeat}>
+      <Select
+        onValueChange={(v) =>
+          onChange({ repeat: v === ONCE ? null : (v as ReminderRepeat) })
+        }
+        value={draft.repeat ?? ONCE}
+      >
+        <SelectTrigger
+          aria-label={t("promiseRepeat")}
+          className={cn(
+            "w-auto border-0 shadow-none",
+            !draft.repeat && "text-muted-foreground"
+          )}
+        >
+          <SelectValue>{words(draft.repeat, draft.remindDay)}</SelectValue>
+        </SelectTrigger>
+        <SelectContent className="w-auto min-w-52">
+          <SelectItem value={ONCE}>{words(null, draft.remindDay)}</SelectItem>
+          {reminderRepeats.map((r) => (
+            <SelectItem key={r} value={r}>
+              {words(r, draft.remindDay)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </Line>
   );
 };
@@ -381,6 +477,7 @@ const PromiseLines = ({
         </Line>
       )}
       <RemindLine draft={draft} fixed={reminder} onChange={onChange} />
+      {draft.remind ? <RepeatLine draft={draft} onChange={onChange} /> : null}
     </div>
   );
 };
@@ -465,7 +562,7 @@ export const PromiseDialog = ({
 }) => {
   const t = useTranslations("memory");
   const edit = draft?.id !== null && draft?.id !== undefined;
-  const reminder = !edit && draft?.kind === "reminder";
+  const reminder = draft?.kind === "reminder";
   const ready =
     draft !== null &&
     draft.text.trim().length > 0 &&
@@ -485,7 +582,7 @@ export const PromiseDialog = ({
           >
             {edit ? (
               <DialogTitle className="text-muted-foreground text-xs font-normal">
-                {t("promiseEdit")}
+                {t(reminder ? "kindReminder" : "promiseEdit")}
               </DialogTitle>
             ) : (
               <>

@@ -7,6 +7,7 @@ import type {
   MemoryRole,
   MemoryRepeat,
   MemoryRuleKind,
+  ReminderRepeat,
   MemoryStatus,
   MemoryWriteStatus,
 } from "@metobe/contracts/memory";
@@ -178,8 +179,9 @@ export const memoryRecords = pgTable(
      * reminder. `reminded_at` — when it was sent; changing `remind_at` makes it null again. */
     remindAt: timestamp("remind_at", { withTimezone: true }),
     remindedAt: timestamp("reminded_at", { withTimezone: true }),
-    /** A `date` rule: how often its day (`occurred_at`) comes again; null — not a `date` rule (ARCH §19.8.7). */
-    repeat: text("repeat").$type<MemoryRepeat>(),
+    /** A `date` rule: how often its day (`occurred_at`) comes again (ARCH §19.8.7); a commitment with a reminder: how
+     * often the reminder comes again (шаг 6); null — neither. */
+    repeat: text("repeat").$type<MemoryRepeat | ReminderRepeat>(),
     /** A rule «Не упустить» counts days by (ARCH §19.6); null — a rule it does not, or not a rule. */
     ruleKind: text("rule_kind").$type<MemoryRuleKind>(),
     /** `{ text }`, sealed. */
@@ -241,7 +243,9 @@ export const memoryRecords = pgTable(
             (${table.ruleKind} in ('rhythm', 'wait') and ${table.intervalDays} > 0)
             or (${table.ruleKind} = 'date' and ${table.intervalDays} is null and ${table.repeat} in ('year', 'month', 'week') and ${table.occurredAt} is not null))))
           and (${table.intervalDays} is null or ${table.kind} = 'rule')
-          and (${table.repeat} is null or ${table.ruleKind} = 'date')`
+          and (${table.repeat} is null or ${table.ruleKind} = 'date'
+            or (${table.kind} = 'commitment' and ${table.remindAt} is not null
+              and ${table.repeat} in ('day', 'weekdays', 'week', 'month', 'year')))`
       ),
     ];
   }

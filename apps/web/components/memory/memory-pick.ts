@@ -6,9 +6,10 @@ export type Pick =
   | { type: "me" }
   | { type: "questions" }
   | { type: "due" }
+  | { type: "reminders" }
   | { type: "rules" };
 
-const VIEWS = ["me", "questions", "due", "rules"] as const;
+const VIEWS = ["me", "questions", "due", "reminders", "rules"] as const;
 
 export const pickFromParams = (params: {
   get: (k: string) => string | null;

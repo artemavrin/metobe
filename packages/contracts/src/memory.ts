@@ -61,6 +61,19 @@ export type MemoryRuleKind = (typeof memoryRuleKinds)[number];
 export const memoryRepeats = ["year", "month", "week"] as const;
 export type MemoryRepeat = (typeof memoryRepeats)[number];
 
+/**
+ * A reminder that comes again («каждый понедельник в 10 — отчёт», шаг 6): its commitment keeps the next time in
+ * `due_at` and `remind_at`; sending it, or «Готово», moves both to the time after.
+ */
+export const reminderRepeats = [
+  "day",
+  "weekdays",
+  "week",
+  "month",
+  "year",
+] as const;
+export type ReminderRepeat = (typeof reminderRepeats)[number];
+
 /** What of a commitment its history tracks; a text correction is a new version of the record instead. */
 export const memoryChangeFields = ["status", "due", "important"] as const;
 export type MemoryChangeField = (typeof memoryChangeFields)[number];
@@ -327,11 +340,16 @@ export const memoryPromiseCreateSchema = z
     dueAt: z.iso.datetime({ offset: true }),
     important: z.boolean().optional(),
     remindAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    /** How often the reminder comes again; needs `remindAt`. */
+    repeat: z.enum(reminderRepeats).nullable().optional(),
     side: z.enum(["mine", "theirs"]),
     text: z.string().trim().min(1).max(2000),
   })
   .refine((p) => p.side === "mine" || Boolean(p.card), {
     message: "a promise to the person needs a card",
+  })
+  .refine((p) => !p.repeat || Boolean(p.remindAt), {
+    message: "a repeat needs a reminder",
   });
 export type MemoryPromiseCreate = z.infer<typeof memoryPromiseCreateSchema>;
 
@@ -342,6 +360,8 @@ export const memoryRecordPatchSchema = z
     important: z.boolean().optional(),
     /** When the reminder goes off; null takes it back. A new time makes it go off again. */
     remindAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    /** How often the reminder comes again; null — once. Taking the reminder off takes it off too. */
+    repeat: z.enum(reminderRepeats).nullable().optional(),
     status: z.enum(memoryStatuses).optional(),
     text: z.string().trim().min(1).max(2000).optional(),
   })
@@ -491,9 +511,16 @@ export interface MemoryDue {
     /** When the reminder goes off, if one was asked for, and whether it has gone off. */
     remindAt: string | null;
     reminded: boolean;
+    /** How often the reminder comes again; null — once. One that comes again keeps its next time in `remindAt`. */
+    repeat: ReminderRepeat | null;
   })[];
   /** Open with no deadline. */
   none: number;
+  /**
+   * The person's own reminders that closed themselves when they came, in the last week — «Не сделано» opens one again.
+   * The newest first.
+   */
+  closedBySend: { id: string; text: string; remindedAt: string }[];
 }
 
 /** An open commitment nothing has happened to for a long time (`GET /api/memory/stale`). */

@@ -1,11 +1,12 @@
 // S15 part «напоминания» (D43): a message asks to be reminded — «напомни мне завтра в 15:00 позвонить Ольге» — and the
 // writer makes a promise of the user with its day as the deadline and the time of day in `remind`; a message that only
-// names a thing to do, or a meeting, does not get one. 16 messages, now is Monday 9 November 2026, 12:00 in Moscow; the
+// names a thing to do, or a meeting, does not get one; one to come again («каждый понедельник в 10») gets its repeat. 21
+// messages, now is Monday 9 November 2026, 12:00 in Moscow; the
 // model is shown what the writer shows it (the rule on reminders only for a message `asksReminder` finds), its answer
 // judged as `planWrite` takes it. Gateway only.
 //
 //   DRY=1 pnpm run reminders      # no model: which messages get the rule in the prompt
-//   pnpm run reminders            # meta/muse-ember — about $0.01 for 16 messages
+//   pnpm run reminders            # meta/muse-ember — about $0.01 for 21 messages
 //   SHOW=1 pnpm run reminders     # with what the model answered for each miss
 
 import { createGateway } from "@ai-sdk/gateway";
@@ -18,6 +19,7 @@ import {
   memoryPrompt,
   asksReminder,
   planWrite,
+  repeatsDate,
 } from "../../packages/core/src/memory-extract.ts";
 import type { KnownCard } from "../../packages/core/src/memory-extract.ts";
 import { TIMEZONE } from "../S13-jev/extract-cases.ts";
@@ -48,8 +50,11 @@ const cards = [
   card("svetlana_petrova", "person", "Светлана Петрова", "главный бухгалтер"),
 ];
 
-/** What a case wants: a promise of the user with a reminder at this moment (an ISO instant), or none. */
-type Want = { at: string } | { none: true };
+/**
+ * What a case wants: a promise of the user with a reminder at this moment (an ISO instant) — coming again as `repeat`
+ * says, or once when it says nothing (шаг 6) — or none.
+ */
+type Want = { at: string; repeat?: "day" | "weekdays" | "week" | "month" | "year" } | { none: true };
 
 // Now is Monday 2026-11-09 12:00 in Moscow (UTC+3).
 const cases: { text: string; want: Want }[] = [
@@ -63,6 +68,12 @@ const cases: { text: string; want: Want }[] = [
   { text: "Remind me tomorrow at 4pm to call Marina", want: { at: "2026-11-10T13:00:00Z" } },
   { text: "напомни в 10 завтра про встречу с Владом", want: { at: "2026-11-10T07:00:00Z" } },
   { text: "Напомни завтра в 10 вечера выключить сервер", want: { at: "2026-11-10T19:00:00Z" } },
+  // Coming again (шаг 6): one promise with its first time, not a rule of kind date.
+  { text: "Напоминай каждый понедельник в 10 про отчёт по закупкам", want: { at: "2026-11-16T07:00:00Z", repeat: "week" } },
+  { text: "Каждый день в 9 утра напоминай проверить почту склада", want: { at: "2026-11-10T06:00:00Z", repeat: "day" } },
+  { text: "Напоминай по будням в 18:00 заполнить таймшит", want: { at: "2026-11-09T15:00:00Z", repeat: "weekdays" } },
+  { text: "Напоминай 25 числа каждого месяца в 12:00 оплатить аренду", want: { at: "2026-11-25T09:00:00Z", repeat: "month" } },
+  { text: "Каждую пятницу в 16:00 напоминай отправить Игорю сводку", want: { at: "2026-11-13T13:00:00Z", repeat: "week" } },
   { text: "Ольга Ли обещала прислать договор к пятнице", want: { none: true } },
   { text: "Мне нужно позвонить Ольге завтра", want: { none: true } },
   { text: "Не напоминай мне про отчёт, я помню", want: { none: true } },
@@ -80,7 +91,13 @@ const shown: KnownCard[] = cards.map((e) => ({
   role: e.role,
 }));
 const instructions = (text: string) =>
-  memoryInstructions({ cards: shown, reminding: asksReminder(text), sentAt: NOW, timeZone: TIMEZONE });
+  memoryInstructions({
+    cards: shown,
+    reminding: asksReminder(text),
+    repeating: repeatsDate(text),
+    sentAt: NOW,
+    timeZone: TIMEZONE,
+  });
 
 type Out = (typeof extractionSchema)["_output"];
 
@@ -90,9 +107,12 @@ const judge = (c: (typeof cases)[number], out: Out) => {
   const w = c.want;
   if ("none" in w) return reminded.length === 0 ? null : `a reminder where none was asked: «${reminded[0]?.text}» at ${reminded[0]?.remindAt?.toISOString()}`;
   const hit = reminded.find((r) => r.remindAt?.getTime() === new Date(w.at).getTime());
-  return hit
-    ? null
-    : `no reminder at ${w.at}; got ${JSON.stringify(plan.records.filter((r) => r.kind === "commitment").map((r) => [r.text, r.remindAt?.toISOString(), r.dueAt?.toISOString()]))}`;
+  if (!hit) {
+    return `no reminder at ${w.at}; got ${JSON.stringify(plan.records.filter((r) => r.kind === "commitment").map((r) => [r.text, r.remindAt?.toISOString(), r.dueAt?.toISOString(), r.remindRepeat]))}`;
+  }
+  if (hit.remindRepeat !== w.repeat) return `repeat ${hit.remindRepeat ?? "none"}, wanted ${w.repeat ?? "none"}`;
+  const dateRule = plan.records.find((r) => r.kind === "rule" && r.rule?.kind === "date");
+  return w.repeat && dateRule ? `a date rule beside the reminder: «${dateRule.text}»` : null;
 };
 
 if (DRY) {
@@ -139,7 +159,7 @@ await Promise.all(
       if (miss) {
         console.log(`  ✗ ${i + 1}. ${c.text} → ${miss}`);
         if (process.env.SHOW) {
-          console.log(`      ${JSON.stringify(r.output.items.map((x) => [x.kind, x.text, x.remind, x.due, x.debtor]))}`);
+          console.log(`      ${JSON.stringify(r.output.items.map((x) => [x.kind, x.text, x.remind, x.repeat, x.due, x.debtor]))}`);
         }
       } else {
         right += 1;

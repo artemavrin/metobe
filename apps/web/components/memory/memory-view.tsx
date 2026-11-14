@@ -18,7 +18,6 @@ import {
 import { cn } from "@metobe/ui/lib/utils";
 import {
   ChevronDown,
-  ChevronLeft,
   LoaderCircle,
   Mail,
   MailCheck,
@@ -44,6 +43,7 @@ import {
   sidesOf,
 } from "./card-parts";
 import { DueView } from "./due-view";
+import { Header } from "./memory-header";
 import { MemoryRows, NewCardDialog, NewRuleDialog } from "./memory-list";
 import {
   ENTER,
@@ -58,6 +58,7 @@ import {
 } from "./memory-record";
 import { useMemoryStore } from "./memory-store";
 import { CardMenu } from "./merge-dialog";
+import { RemindersView } from "./reminders-view";
 import type { T } from "./use-memory-actions";
 
 // The «Память» page (P16 «Карточки», D39): people, organizations and projects on the left with their open and overdue
@@ -95,48 +96,6 @@ const Folded = ({
       </button>
       {open && <ul className="flex flex-col">{children}</ul>}
     </div>
-  );
-};
-
-const Header = ({
-  title,
-  hint,
-  onBack,
-  avatar,
-  action,
-}: {
-  title: string;
-  hint?: React.ReactNode;
-  onBack?: () => void;
-  avatar?: React.ReactNode;
-  action?: React.ReactNode;
-}) => {
-  const t = useTranslations("memory");
-  return (
-    <header className="flex items-center gap-3">
-      {onBack && (
-        <Button
-          aria-label={t("back")}
-          onClick={onBack}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <ChevronLeft />
-        </Button>
-      )}
-      {avatar}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <h2 className="text-lg font-semibold tracking-tight break-words">
-          {title}
-        </h2>
-        {typeof hint === "string" ? (
-          <span className="text-muted-foreground text-sm">{hint}</span>
-        ) : (
-          hint
-        )}
-      </div>
-      {action}
-    </header>
   );
 };
 
@@ -1048,6 +1007,15 @@ export const MemoryView = () => {
         merges={overview.merges}
         onBack={back}
         questions={overview.questions}
+      />
+    ),
+    reminders: (
+      <RemindersView
+        cards={overview.cards}
+        due={due}
+        onBack={back}
+        reread={reread}
+        timeZone={timeZone}
       />
     ),
     rules: <Rules onBack={back} rules={overview.rules} send={actions.rule} />,

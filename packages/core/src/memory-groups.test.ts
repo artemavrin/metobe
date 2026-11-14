@@ -25,6 +25,7 @@ const fact = (
   occurredPrecision: null,
   recordedAt: new Date("2026-11-01T00:00:00Z"),
   remindAt: null,
+  remindRepeat: null,
   remindedAt: null,
   role: null,
   rule: null,

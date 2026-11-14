@@ -49,6 +49,42 @@ const byImportance = (a: MemoryPromiseRow, b: MemoryPromiseRow) =>
   (a.dueAt ?? "").localeCompare(b.dueAt ?? "") ||
   a.text.localeCompare(b.text);
 
+/** «Пришли и закрылись сами» looks back this far. */
+const CLOSED_DAYS = 7;
+/** A reminder done this soon after it went off was closed by its sending (`memory-reminders`), not by the person. */
+const CLOSED_BY_SEND_MS = 120_000;
+
+/** The person's own reminders, owed to nobody, that closed themselves when they came — the newest first. */
+const closedBySendOf = (
+  records: MemoryRecord[],
+  cards: Map<string, MemoryEntity>,
+  now: Date
+): MemoryDue["closedBySend"] => {
+  const since = now.getTime() - CLOSED_DAYS * 86_400_000;
+  return (
+    records
+      .flatMap((r) => {
+        if (
+          r.kind !== "commitment" ||
+          r.status !== "done" ||
+          !r.remindedAt ||
+          !r.doneAt ||
+          r.doneAt.getTime() < since ||
+          Math.abs(r.doneAt.getTime() - r.remindedAt.getTime()) >
+            CLOSED_BY_SEND_MS
+        ) {
+          return [];
+        }
+        const { side, who } = sidesOf(r, cards);
+        return side === "mine" && (!who || who.kind === "self")
+          ? [{ id: r.id, remindedAt: r.remindedAt.toISOString(), text: r.text }]
+          : [];
+      })
+      // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array `flatMap` made; toSorted is past the ES2022 target
+      .sort((a, b) => b.remindedAt.localeCompare(a.remindedAt))
+  );
+};
+
 /**
  * The open commitments for a calendar: each with a deadline, the nearest first, and the number of those with none.
  * What day a deadline falls on is the screen's to say, in the person's zone.
@@ -72,6 +108,7 @@ export const scheduleOf = (
         dueAt: r.dueAt.toISOString(),
         remindAt: r.remindAt?.toISOString() ?? null,
         reminded: r.remindedAt !== null,
+        repeat: r.remindRepeat,
       });
     } else {
       none += 1;
@@ -79,7 +116,12 @@ export const scheduleOf = (
   }
   // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own array; toSorted is past the ES2022 target
   rows.sort(byImportance);
-  return { none, rows, today: dayKey(now, timeZone) };
+  return {
+    closedBySend: closedBySendOf(records, cards, now),
+    none,
+    rows,
+    today: dayKey(now, timeZone),
+  };
 };
 
 /**
@@ -232,6 +274,7 @@ export const createPromise = async (
     important: input.important,
     kind: "commitment",
     remindAt: input.remindAt ? new Date(input.remindAt) : undefined,
+    remindRepeat: (input.remindAt && input.repeat) || undefined,
     text: input.text,
   });
   return record.id;

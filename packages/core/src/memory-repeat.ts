@@ -1,4 +1,6 @@
-import type { MemoryRepeat } from "@metobe/contracts/memory";
+import type { MemoryRepeat, ReminderRepeat } from "@metobe/contracts/memory";
+
+import { localInstant } from "./memory-extract";
 
 // When a `date` rule's day comes next (ARCH §19.8.7). Days are `2026-11-14` in the person's zone; the functions read
 // no clock and no base: the caller says what today is.
@@ -54,4 +56,87 @@ export const REACH: Record<MemoryRepeat, number> = {
   month: 1,
   week: 1,
   year: 3,
+};
+
+const isWeekend = (day: string) =>
+  [0, 6].includes(new Date(utc(day)).getUTCDay());
+
+/**
+ * The day a reminder that comes again comes next, after `after`: a day's — the next day; working days' — the next
+ * Monday to Friday; a week's, a month's, a year's — the next day the anchor's weekday, day of the month or day of the
+ * year falls on (as `nextRepeat` reads them). The anchor is the day it came last: a month's 31st that came on the 30th
+ * comes on the 30th from then on.
+ */
+export const nextReminderDay = (
+  anchor: string,
+  repeat: ReminderRepeat,
+  after: string
+): string => {
+  let day = keyOf(utc(after) + DAY_MS);
+  if (repeat === "day") {
+    return day;
+  }
+  if (repeat === "weekdays") {
+    while (isWeekend(day)) {
+      day = keyOf(utc(day) + DAY_MS);
+    }
+    return day;
+  }
+  return nextRepeat(anchor, repeat, day);
+};
+
+/** A day in a zone, `2026-11-14`, and its time of day, `10:00`. */
+export const wallClock = (at: Date, timeZone: string) => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+      minute: "2-digit",
+      month: "2-digit",
+      timeZone,
+      year: "numeric",
+    })
+      .formatToParts(at)
+      .map((p) => [p.type, p.value])
+  );
+  return {
+    day: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`,
+  };
+};
+
+/** Enough steps for a daily reminder a few years behind; a guard, not a limit anyone meets. */
+const MAX_STEPS = 2000;
+
+/**
+ * The next time of a reminder that comes again: the first after the day `after` whose moment — the same time of day as
+ * `remindAt` — is later than `now`. `dueAt` is that day's midnight in the zone, as a deadline is kept.
+ */
+export const nextReminder = ({
+  after,
+  now,
+  remindAt,
+  repeat,
+  timeZone,
+}: {
+  remindAt: Date;
+  repeat: ReminderRepeat;
+  after: string;
+  now: Date;
+  timeZone: string;
+}) => {
+  const { day: anchor, time } = wallClock(remindAt, timeZone);
+  let day = nextReminderDay(anchor, repeat, after);
+  for (let step = 0; step < MAX_STEPS; step += 1) {
+    const at = localInstant(day, time, timeZone);
+    if (at && at.getTime() > now.getTime()) {
+      return {
+        dueAt: localInstant(day, "00:00", timeZone) ?? at,
+        remindAt: at,
+      };
+    }
+    day = nextReminderDay(anchor, repeat, day);
+  }
+  return null;
 };

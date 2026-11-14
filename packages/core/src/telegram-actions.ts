@@ -99,10 +99,13 @@ export const runAction = async (
   }
   // A reminder: «Через час» — the same promise, told again in an hour; «Завтра» — a day on, at the same time.
   const [record] = await listRecords(ownerId, { ids: [press.id] });
+  // A reminder that closed itself when it came is open again: the person wants it once more.
+  const reopen = record?.status === "done" ? { status: "open" as const } : {};
   if (press.action === "snooze") {
     return record?.kind === "commitment" &&
       (await editCommitment(ownerId, press.id, {
         remindAt: new Date(now.getTime() + HOUR_MS),
+        ...reopen,
       }))
       ? "snooze"
       : "gone";
@@ -113,21 +116,29 @@ export const runAction = async (
       ? new Date(Math.max(record.remindAt.getTime(), now.getTime()) + DAY_MS)
       : undefined;
     return dueAt &&
-      (await editCommitment(ownerId, press.id, { dueAt, remindAt }))
+      (await editCommitment(ownerId, press.id, { dueAt, remindAt, ...reopen }))
       ? "tomorrow"
       : "gone";
   }
   return (await dismissSuggestion(ownerId, press.id)) ? "dismiss" : "gone";
 };
 
-/** The one row under a reminder: done, in an hour, tomorrow. */
+/**
+ * The one row under a reminder: done, in an hour, tomorrow. One that comes again has «Готово» only: moving it would
+ * move its time of day for every time after.
+ */
 export const reminderButtons = (
   id: string,
-  words: { done: string; snooze: string; tomorrow: string }
+  words: { done: string; snooze: string; tomorrow: string },
+  repeats = false
 ) => [
   [
     { data: actionData("done", id), text: words.done },
-    { data: actionData("snooze", id), text: words.snooze },
-    { data: actionData("tomorrow", id), text: words.tomorrow },
+    ...(repeats
+      ? []
+      : [
+          { data: actionData("snooze", id), text: words.snooze },
+          { data: actionData("tomorrow", id), text: words.tomorrow },
+        ]),
   ],
 ];

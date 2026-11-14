@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { REACH, nextRepeat } from "./memory-repeat";
+import {
+  REACH,
+  nextReminder,
+  nextReminderDay,
+  nextRepeat,
+} from "./memory-repeat";
 
 describe("nextRepeat", () => {
   it("a year: this year's day if it has not passed, else next year's", () => {
@@ -33,5 +38,41 @@ describe("nextRepeat", () => {
     expect(REACH.year).toBe(3);
     expect(REACH.week).toBe(1);
     expect(REACH.month).toBe(1);
+  });
+});
+
+describe("a reminder that comes again (шаг 6)", () => {
+  it("goes on to the next day, working day, week, month or year after the one given", () => {
+    // Friday 13 November 2026.
+    expect(nextReminderDay("2026-11-13", "day", "2026-11-13")).toBe(
+      "2026-11-14"
+    );
+    expect(nextReminderDay("2026-11-13", "weekdays", "2026-11-13")).toBe(
+      "2026-11-16"
+    );
+    expect(nextReminderDay("2026-11-13", "week", "2026-11-13")).toBe(
+      "2026-11-20"
+    );
+    expect(nextReminderDay("2026-10-31", "month", "2026-10-31")).toBe(
+      "2026-11-30"
+    );
+    expect(nextReminderDay("2026-11-13", "year", "2026-11-13")).toBe(
+      "2027-11-13"
+    );
+  });
+
+  it("keeps the time of day in the person's zone, and skips the times already past", () => {
+    // Monday 10:00 in Moscow, every week; three weeks were missed.
+    const next = nextReminder({
+      after: "2026-10-19",
+      now: new Date("2026-11-10T12:00:00Z"),
+      remindAt: new Date("2026-10-19T07:00:00Z"),
+      repeat: "week",
+      timeZone: "Europe/Moscow",
+    });
+    expect(next).toEqual({
+      dueAt: new Date("2026-11-15T21:00:00Z"),
+      remindAt: new Date("2026-11-16T07:00:00Z"),
+    });
   });
 });

@@ -47,6 +47,7 @@ const record = (
   occurredPrecision: null,
   recordedAt: daysAgo(60),
   remindAt: null,
+  remindRepeat: null,
   remindedAt: null,
   role: null,
   rule: null,

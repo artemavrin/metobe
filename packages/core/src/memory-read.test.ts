@@ -198,6 +198,7 @@ const record = (patch: Partial<MemoryRecord>): MemoryRecord => {
     occurredPrecision: null,
     recordedAt: NOW,
     remindAt: null,
+    remindRepeat: null,
     remindedAt: null,
     role: null,
     rule: null,

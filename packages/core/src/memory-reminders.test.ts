@@ -55,6 +55,7 @@ describe.skipIf(!URL)("the reminders people asked for (D43)", () => {
         id,
         locale: "ru",
         name: id,
+        timeZone: "Europe/Moscow",
       }))
     );
   });
@@ -144,9 +145,12 @@ describe.skipIf(!URL)("the reminders people asked for (D43)", () => {
       reminders.sendDueReminders(NOW),
     ]);
     expect(told.reduce((a, b) => a + b, 0)).toBe(1);
-    // «Через час»: a new moment makes it unsent again.
+    // «Через час» (as the Telegram button does it): a new moment makes it unsent — and open — again.
     expect(
-      await memory.editCommitment(ana, r.id, { remindAt: minutes(60) })
+      await memory.editCommitment(ana, r.id, {
+        remindAt: minutes(60),
+        status: "open",
+      })
     ).toBe(true);
     notify.mockClear();
     expect(await reminders.sendDueReminders(minutes(61))).toBe(1);
@@ -166,5 +170,106 @@ describe.skipIf(!URL)("the reminders people asked for (D43)", () => {
       .from(user)
       .where(eq(user.id, ana));
     expect(row?.id).toBe(ana);
+  });
+
+  const statusOf = async (id: string) => {
+    const [record] = await memory.listRecords(ana, { ids: [id] });
+    return record;
+  };
+  const statusIs = async (id: string) => {
+    const record = await statusOf(id);
+    return record?.status;
+  };
+
+  it("closes a plain reminder once it has reached the person, and leaves a promise to someone open", async () => {
+    const plain = await promise(ana, "Позвонить в банк", minutes(-1));
+    const self = await memory.ensureSelf(ana, "Я");
+    const olga = await memory.createEntity(ana, {
+      kind: "person",
+      name: "Ольга Ли",
+    });
+    const owed = await memory.addRecord(ana, {
+      dueAt: new Date("2026-11-12T00:00:00Z"),
+      entities: [
+        { entityId: self.id, role: "debtor" },
+        { entityId: olga.id, role: "creditor" },
+      ],
+      kind: "commitment",
+      remindAt: minutes(-1),
+      text: "Согласовать смету",
+    });
+    expect(await reminders.sendDueReminders(NOW)).toBe(2);
+    expect(await statusIs(plain.id)).toBe("done");
+    expect(await statusIs(owed.id)).toBe("open");
+  });
+
+  it("leaves a plain reminder open when it reached nobody", async () => {
+    const plain = await promise(ana, "Некому сказать", minutes(-1));
+    notify.mockResolvedValue({ mail: false, telegram: false });
+    await reminders.sendDueReminders(NOW);
+    expect(await statusIs(plain.id)).toBe("open");
+  });
+
+  it("moves a reminder that comes again on to its next time as it is told, with «Готово» alone under it", async () => {
+    // Thursday 12 November, 15:00 in Moscow, every week.
+    const self = await memory.ensureSelf(ana, "Я");
+    const weekly = await memory.addRecord(ana, {
+      dueAt: new Date("2026-11-11T21:00:00Z"),
+      entities: [{ entityId: self.id, role: "debtor" }],
+      kind: "commitment",
+      remindAt: minutes(-60),
+      remindRepeat: "week",
+      text: "Отчёт по закупкам",
+    });
+    expect(await reminders.sendDueReminders(NOW)).toBe(1);
+    const [, notice] = notify.mock.calls[0] as [
+      string,
+      { buttons: { data: string }[][] },
+    ];
+    expect(notice.buttons[0]?.map((b) => b.data)).toEqual([`d:${weekly.id}`]);
+    const after = await statusOf(weekly.id);
+    expect(after).toMatchObject({
+      dueAt: new Date("2026-11-11T21:00:00Z"),
+      remindAt: new Date("2026-11-19T11:00:00Z"),
+      remindRepeat: "week",
+      remindedAt: null,
+      status: "open",
+    });
+    // Not again this week; again a week on, its deadline that day.
+    expect(await reminders.sendDueReminders(minutes(60))).toBe(0);
+    expect(
+      await reminders.sendDueReminders(new Date("2026-11-19T11:01:00Z"))
+    ).toBe(1);
+    expect(await statusOf(weekly.id)).toMatchObject({
+      dueAt: new Date("2026-11-18T21:00:00Z"),
+      remindAt: new Date("2026-11-26T11:00:00Z"),
+    });
+  });
+
+  it("takes «Готово» on one that comes again as done this time: it stays, due the next", async () => {
+    const self = await memory.ensureSelf(ana, "Я");
+    // Every day at a time still ahead today, so the next is tomorrow's.
+    const later = new Date(Date.now() + 2 * 3_600_000);
+    const daily = await memory.addRecord(ana, {
+      dueAt: new Date(later.getTime() - 3_600_000),
+      entities: [{ entityId: self.id, role: "debtor" }],
+      kind: "commitment",
+      remindAt: later,
+      remindRepeat: "day",
+      text: "Заполнить таймшит",
+    });
+    expect(await memory.editCommitment(ana, daily.id, { status: "done" })).toBe(
+      true
+    );
+    const after = await statusOf(daily.id);
+    expect(after?.status).toBe("open");
+    expect(after?.remindRepeat).toBe("day");
+    expect(after?.remindAt && after.remindAt.getTime() > later.getTime()).toBe(
+      true
+    );
+    // Taking the reminder off takes the repeat off; cancelling ends it.
+    await memory.editCommitment(ana, daily.id, { remindAt: null });
+    const off = await statusOf(daily.id);
+    expect(off?.remindRepeat).toBeNull();
   });
 });

@@ -123,9 +123,9 @@ export const extractionSchema = z.object({
           "«none» for almost every item; the ref of a listed current fact or coming event («f1», «e2») only when the message says that one is no longer true and this item is true instead"
         ),
       repeat: z
-        .enum(["none", "year", "month", "week"])
+        .enum(["none", "year", "month", "week", "day", "weekdays"])
         .describe(
-          "Rule of kind date only: how often its day comes again — year (a birthday), month (the 20th of every month), week (every Friday). «none» for everything else"
+          "Rule of kind date: how often its day comes again — year (a birthday), month (the 20th of every month), week (every Friday). A commitment with remind: how often the reminder comes again — day, weekdays (Monday to Friday), week, month, year. «none» for everything else"
         ),
       remind: z
         .string()
@@ -414,7 +414,7 @@ export const asksReminder = (text: string) =>
   /напомин|напомн|remind/iu.test(text);
 
 const REMIND_RULE = (now: string) => `
-- The user asks to be reminded («напомни мне завтра в 15:00 позвонить Ольге», «напомни в пятницу про отчёт»). Make it a commitment of the user (debtor «user»), the thing to do as its text. Its deadline (due) is the DAY the reminder goes off, precision day — «через два часа» or «сегодня в 18:00» is today, «завтра» tomorrow; a time of day already past today means tomorrow. Put the time of day in remind as HH:MM in 24 hours («в 15:00» — «15:00», «в три часа дня» — «15:00»); when no time is named, «morning». It is ${now} now (the user's local time). Do not add a second item for the same thing.`;
+- The user asks to be reminded («напомни мне завтра в 15:00 позвонить Ольге», «напомни в пятницу про отчёт»). Make it a commitment of the user (debtor «user»), the thing to do as its text. Its deadline (due) is the DAY the reminder goes off, precision day — «через два часа» or «сегодня в 18:00» is today, «завтра» tomorrow; a time of day already past today means tomorrow. Put the time of day in remind as HH:MM in 24 hours («в 15:00» — «15:00», «в три часа дня» — «15:00»); when no time is named, «morning». A reminder that is to come again («каждый понедельник в 10», «каждый день в 9», «по будням в 18:00», «двадцать пятого каждого месяца») is still this one commitment: repeat day, weekdays, week, month or year, and its due the first day it goes off — not a rule of kind date. It is ${now} now (the user's local time). Do not add a second item for the same thing.`;
 
 /** A message that may name a day which comes again: a birthday, a payment day, «каждую пятницу». */
 export const repeatsDate = (text: string) =>
@@ -423,7 +423,7 @@ export const repeatsDate = (text: string) =>
   );
 
 const REPEAT_RULE = `
-- The message names a day that comes again — a birthday, a payment day, «каждую пятницу», «двадцатого каждого месяца». Add a rule: kind rule, rule_kind date, the card it is about (or "user" for the user's own) in about, the day in when with precision day (a birthday — that day of the year; «каждую пятницу» — the nearest such day), and repeat: year for a birthday or anniversary, month for a day of every month, week for a weekday of every week. A date said only as a one-time event («встреча 14 ноября») is not a rule. A birthday is both: a fact for the person and this rule.`;
+- The message names a day that comes again — a birthday, a payment day, «каждую пятницу», «двадцатого каждого месяца». Add a rule: kind rule, rule_kind date, the card it is about (or "user" for the user's own) in about, the day in when with precision day (a birthday — that day of the year; «каждую пятницу» — the nearest such day), and repeat: year for a birthday or anniversary, month for a day of every month, week for a weekday of every week. A date said only as a one-time event («встреча 14 ноября») is not a rule, nor is a day the user asks to be reminded on — that is a reminder. A birthday is both: a fact for the person and this rule.`;
 
 const QUOTED_RULE = `
 - The message has someone else's text inside <quoted>: a letter, a forwarded message or a quote. It speaks in its author's voice: «я», «мы», «наша компания» there are the author, never the user. An author's promise is the author's commitment, to the user unless it names someone else; a request to the user is the user's commitment to the author. The user's own words are inside <user>. A long quoted text gives the few items that matter to the user, not one per sentence.`;
@@ -599,7 +599,10 @@ const ruleOf = (
 ): Planned["rule"] => {
   // A day that comes again: it needs the day itself, and how often.
   if (item.kind === "rule" && item.rule_kind === "date") {
-    return item.repeat !== "none" && at?.precision === "day"
+    return (item.repeat === "year" ||
+      item.repeat === "month" ||
+      item.repeat === "week") &&
+      at?.precision === "day"
       ? { days: 0, kind: "date", repeat: item.repeat, workingDays: false }
       : undefined;
   }
@@ -819,6 +822,9 @@ const toPlanned = (
     record.givenAt = at?.at;
     record.dueAt = day(item.due)?.at;
     record.remindAt = remindOf(item, clock);
+    if (record.remindAt && item.repeat !== "none") {
+      record.remindRepeat = item.repeat;
+    }
     if (item.important) {
       record.important = true;
     }
