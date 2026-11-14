@@ -25,6 +25,8 @@ export interface WelcomeData {
   suggestions?: MemorySuggestion[];
   /** How many promises have been open a long time: the «Сверка» row of «Не упустить». */
   review?: number;
+  /** «Замечать письма без ответа?» (Г3.1, P24 «Предложение»): a box is there and the memory reads none. */
+  mailOffer?: boolean;
   /** The person's zone: «завтра» and «в понедельник» are counted in it. */
   timeZone?: string;
   /** A request another page put into the address (`/?say=`, «Сверка» on the «Память» page): it waits in the composer. */
@@ -135,9 +137,11 @@ export const Welcome = ({
           <LineOfDay />
         </div>
         {((data.suggestions && data.suggestions.length > 0) ||
-          (data.review ?? 0) > 0) && (
+          (data.review ?? 0) > 0 ||
+          data.mailOffer) && (
           <TodayRows
             items={data.suggestions ?? []}
+            mailOffer={data.mailOffer ? data.mailboxes : []}
             review={data.review ?? 0}
             put={(text) => composer.current?.say(text)}
             timeZone={data.timeZone ?? "UTC"}

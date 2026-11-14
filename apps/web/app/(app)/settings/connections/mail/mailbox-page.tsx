@@ -29,13 +29,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@metobe/ui/components/select";
+import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
 import { CircleAlert, Mail } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 
-import { deleteMailbox, setMailboxToolPolicy } from "@/app/(app)/mail-actions";
+import {
+  deleteMailbox,
+  setMailboxMemoryReads,
+  setMailboxToolPolicy,
+} from "@/app/(app)/mail-actions";
 import { MailboxForm } from "@/components/mail/mailbox-form";
 import { Row, Rows, Section } from "@/components/settings/rows";
 
@@ -122,14 +127,62 @@ const ToolPolicies = ({
   );
 };
 
+interface MemoryReads {
+  on: boolean;
+  checkedAt: string | null;
+  /** Letters of this box with no answer now. */
+  waits: number;
+}
+
+/**
+ * «Замечать письма без ответа» (Г3.1, P24): the memory reads this box's envelopes — who was written to and whether they
+ * answered, never a letter's text — and the time of its last look.
+ */
+const MemorySection = ({ id, memory }: { id: string; memory: MemoryReads }) => {
+  const t = useTranslations("mail.page.memory");
+  const format = useFormatter();
+  const now = useNow({ updateInterval: 60_000 });
+  const [, start] = useTransition();
+  const [on, setOn] = useOptimistic(memory.on);
+  const checked = memory.checkedAt
+    ? t("checked", {
+        when: format.relativeTime(new Date(memory.checkedAt), now),
+      })
+    : t("notChecked");
+  return (
+    <Section title={t("title")}>
+      <Rows>
+        <Row
+          hint={`${t("hint")}${on ? ` ${checked}${memory.waits > 0 ? ` · ${t("waits", { count: memory.waits })}` : ""}` : ""}`}
+          label={t("label")}
+        >
+          <Switch
+            aria-label={t("label")}
+            checked={on}
+            onCheckedChange={(v) =>
+              start(async () => {
+                setOn(v);
+                await setMailboxMemoryReads(id, v);
+              })
+            }
+          />
+        </Row>
+      </Rows>
+    </Section>
+  );
+};
+
 /** `off` — the admin turned own connections off; `defaults` — their «ask first?» under what the box sets. */
 export const MailboxPage = ({
   box,
   defaults,
+  memory,
   off,
 }: {
   box: Box;
   defaults: MailDefaults;
+  /** null — the person's memory is off: nothing to read the box for. */
+  memory: MemoryReads | null;
   off: boolean;
 }) => {
   const t = useTranslations("mail.page");
@@ -174,6 +227,8 @@ export const MailboxPage = ({
       )}
 
       <ToolPolicies box={box} defaults={defaults} />
+
+      {memory && <MemorySection id={box.id} memory={memory} />}
 
       <Section title={t("servers")}>
         <Rows>

@@ -5,6 +5,7 @@ import { mailboxInputSchema, mailTools } from "@metobe/contracts/email";
 import {
   removeMailbox,
   saveMailbox,
+  setMailboxMemory,
   setMailboxPolicy,
 } from "@metobe/core/mailboxes";
 import type { SaveResult } from "@metobe/core/mailboxes";
@@ -72,6 +73,18 @@ export const setMailboxToolPolicy = async (
     parsed.data.tool,
     parsed.data.policy
   );
+  refresh();
+  return done;
+};
+
+/** «Замечать письма без ответа» on one of the user's boxes (Г3.1). */
+export const setMailboxMemoryReads = async (mailboxId: string, on: boolean) => {
+  const id = await userId();
+  const parsed = z.uuid().safeParse(mailboxId);
+  if (!(id && parsed.success)) {
+    return false;
+  }
+  const done = await setMailboxMemory(id, parsed.data, on);
   refresh();
   return done;
 };

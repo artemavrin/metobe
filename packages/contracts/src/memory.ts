@@ -460,7 +460,7 @@ export interface MemorySuggestion {
   key: string;
   /** The commitment's id, or the rule's. */
   id: string;
-  kind: "commitment" | "rhythm" | "date";
+  kind: "commitment" | "rhythm" | "date" | "mail";
   reason: MemorySuggestionReason;
   /** Days past the deadline (`overdue`), of waiting (`waiting`), since the reminder letter (`reminded`), since the last contact (`rhythm`). */
   days: number;
@@ -481,6 +481,16 @@ export interface MemorySuggestion {
   chatId?: string | null;
   /** A `date` row (ARCH §19.8.7): the day it comes next, `yyyy-mm-dd` in the person's zone, and how it repeats. */
   date?: { day: string; repeat: MemoryRepeat } | null;
+  /**
+   * A `mail` row (Г3.1): a letter the person sent with no answer — `id` is the wait's. The box it went from, its
+   * subject, the person's last letter in the thread (ISO), and whether `days` are working days.
+   */
+  mail?: {
+    box: string;
+    subject: string;
+    sentAt: string;
+    workingDays: boolean;
+  } | null;
 }
 
 // --- «Сроки» (Д6, P27) and «Сверка» (Д2, P20) -----------------------------------------------------------------------

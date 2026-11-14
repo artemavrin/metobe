@@ -1,4 +1,6 @@
 import { listMailboxes } from "@metobe/core/mailboxes";
+import { listMailWaits } from "@metobe/core/memory";
+import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -14,14 +16,18 @@ const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
   if (!(user && z.uuid().safeParse(id).success)) {
     notFound();
   }
-  const [boxes, personal] = await Promise.all([
+  const [boxes, personal, memoryOn] = await Promise.all([
     listMailboxes(user.id),
     getPersonalPolicy(),
+    isMemoryOnFor(user.id),
   ]);
   const box = boxes.find((b) => b.id === id);
   if (!box) {
     notFound();
   }
+  // «Замечать письма без ответа» (Г3.1): only while the memory is on; how many letters of this box have no answer.
+  const letters = memoryOn ? await listMailWaits(user.id).catch(() => []) : [];
+  const waits = letters.filter((w) => w.mailboxId === box.id).length;
   return (
     <SettingsPageFrame>
       <MailboxPage
@@ -39,6 +45,15 @@ const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
         }}
         defaults={personal.approvals}
         key={box.id}
+        memory={
+          memoryOn
+            ? {
+                checkedAt: box.memoryCheckedAt?.toISOString() ?? null,
+                on: box.memoryReads,
+                waits,
+              }
+            : null
+        }
         off={personal.mode === "off"}
       />
     </SettingsPageFrame>

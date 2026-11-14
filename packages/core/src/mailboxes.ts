@@ -13,7 +13,7 @@ import type {
 } from "@metobe/contracts/email";
 import { mailboxes } from "@metobe/db/schema/mail";
 import type { Mailbox } from "@metobe/db/schema/mail";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, lt, or } from "drizzle-orm";
 import { ImapFlow } from "imapflow";
 import { parseHTML } from "linkedom";
 import { simpleParser } from "mailparser";
@@ -218,6 +218,44 @@ export const setMailboxPolicy = async (
   return true;
 };
 
+/** «Замечать письма без ответа» on a box of the user's (Г3.1); false when there is no such box. */
+export const setMailboxMemory = async (
+  userId: string,
+  id: string,
+  on: boolean
+) => {
+  const rows = await getDb()
+    .db.update(mailboxes)
+    .set({ memoryReads: on })
+    .where(and(eq(mailboxes.id, id), eq(mailboxes.userId, userId)))
+    .returning({ id: mailboxes.id });
+  return rows.length > 0;
+};
+
+/** The boxes the memory reads whose last look was before `before` (or never), the longest ago first. */
+export const boxesForMemory = (before: Date) =>
+  getDb()
+    .db.select()
+    .from(mailboxes)
+    .where(
+      and(
+        eq(mailboxes.memoryReads, true),
+        eq(mailboxes.status, "active"),
+        or(
+          isNull(mailboxes.memoryCheckedAt),
+          lt(mailboxes.memoryCheckedAt, before)
+        )
+      )
+    )
+    .orderBy(asc(mailboxes.memoryCheckedAt));
+
+/** Notes the memory's look at a box, done or failed: the next is an hour on either way. */
+export const markMemoryChecked = (id: string, at: Date) =>
+  getDb()
+    .db.update(mailboxes)
+    .set({ memoryCheckedAt: at })
+    .where(eq(mailboxes.id, id));
+
 /** Removes a box of the user's and its password; false when there was none. */
 export const removeMailbox = async (userId: string, id: string) => {
   const { db } = getDb();
@@ -345,6 +383,38 @@ export const sendEmail = async (
     sendVia(box.smtp, auth, box.address, input)
   );
 };
+
+/**
+ * A reply in a thread from a given box (Г3.1 «Напомнить»): `In-Reply-To` and `References` tie it to the letter, so
+ * the other side's mail shows it under the first one.
+ */
+export const replyEmail = (
+  box: Mailbox,
+  input: {
+    to: string;
+    subject: string;
+    text: string;
+    inReplyTo: string;
+    references: string[];
+  }
+) =>
+  withBox(box, "smtp", async (auth) => {
+    const transport = await smtpOf(box.smtp, auth);
+    try {
+      const info = await transport.sendMail({
+        from: box.address,
+        html: letterHtml(input.text),
+        inReplyTo: input.inReplyTo,
+        references: input.references,
+        subject: input.subject,
+        text: input.text,
+        to: input.to,
+      });
+      return { from: box.address, messageId: info.messageId, sent: true };
+    } finally {
+      transport.close();
+    }
+  });
 
 /** A signed-in IMAP client, logged out after `fn`. */
 const withImap = async <T>(

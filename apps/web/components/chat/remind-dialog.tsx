@@ -29,9 +29,16 @@ import { useRef, useState } from "react";
 // calendar's («Строки»): who to, from which box, the subject — a line each — and the words under them. The model of
 // the slot «Память» writes them; «Короче» and «Мягче» ask it again. Where and when it was promised is shown to the
 // person and does not go in the letter. No address on the card — a field, and the address is kept on the card; no mail
-// — the letter is still there to copy, and «Подключить почту».
+// — the letter is still there to copy, and «Подключить почту». A letter with no answer (Г3.1, `kind: "mail"`) is
+// answered in its own thread from the box it went from, by the template: no model reads the person's mail.
 
 type Tone = "base" | "short" | "soft";
+
+/** Where a row's letter is asked for and sent: a promise's, or a letter's with no answer. */
+const baseOf = (row: MemorySuggestion) =>
+  row.kind === "mail"
+    ? `/api/memory/mail/${row.id}`
+    : `/api/memory/records/${row.id}`;
 
 const ENTER =
   "animate-in fade-in slide-in-from-bottom-1 motion-reduce:slide-in-from-bottom-0 fill-mode-both duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]";
@@ -147,11 +154,11 @@ export const useRemind = () => {
   const [text, setText] = useState("");
   const asked = useRef(0);
   const t = useTranslations("memory");
-  const load = async (id: string, next: Tone) => {
+  const load = async (of: MemorySuggestion, next: Tone) => {
     asked.current += 1;
     const mine = asked.current;
     setBusy(true);
-    const response = await send(`/api/memory/records/${id}/reminder`, "POST", {
+    const response = await send(`${baseOf(of)}/reminder`, "POST", {
       tone: next,
     }).catch(() => null);
     const got = response?.ok
@@ -188,12 +195,12 @@ export const useRemind = () => {
       setSubject("");
       setText("");
       setTone("base");
-      void load(next.id, "base");
+      void load(next, "base");
     },
     pickTone: (next: Tone) => {
       setTone(next);
       if (row) {
-        void load(row.id, next);
+        void load(row, next);
       }
     },
     row,
@@ -318,16 +325,12 @@ const useSend = (row: MemorySuggestion, onSent: () => void) => {
           email: input.to,
         });
       }
-      const response = await send(
-        `/api/memory/records/${row.id}/reminder/send`,
-        "POST",
-        {
-          mailbox: input.mailbox,
-          subject: input.subject,
-          text: input.text,
-          to: input.to,
-        }
-      ).catch(() => null);
+      const response = await send(`${baseOf(row)}/reminder/send`, "POST", {
+        mailbox: input.mailbox,
+        subject: input.subject,
+        text: input.text,
+        to: input.to,
+      }).catch(() => null);
       setSending(false);
       if (response?.ok) {
         toast(t("sent", { name: input.draft.to.name }));

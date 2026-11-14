@@ -85,12 +85,17 @@ const labelOf = (row: MemorySuggestion) => {
 export const digestBlocks = (
   rows: MemorySuggestion[],
   why: (row: MemorySuggestion) => string,
-  more: (count: number) => string
+  more: (count: number) => string,
+  /** A letter row's words («Нет ответа: «Договор»»): the subject is not a promise to put a name before. */
+  mailLabel: (row: MemorySuggestion) => string = (row) => row.text
 ): LetterBlock[] => {
   const shown = rows.slice(0, MAX_ROWS);
   const blocks: LetterBlock[] = [
     {
-      items: shown.map((r) => ({ strong: labelOf(r), text: `— ${why(r)}` })),
+      items: shown.map((r) => ({
+        strong: r.kind === "mail" ? mailLabel(r) : labelOf(r),
+        text: `— ${why(r)}`,
+      })),
       type: "list",
     },
   ];
@@ -177,8 +182,16 @@ const sendOne = async (
   const t = await getTranslator(locale);
   const blocks = digestBlocks(
     rows,
-    (r) => t(`memory.forToday.why.${r.reason}`, { days: r.days }),
-    (count) => t("digest.more", { count })
+    (r) =>
+      r.kind === "mail"
+        ? t("memory.forToday.why.mail", {
+            days: r.days,
+            name: r.who?.name ?? "",
+            working: r.mail?.workingDays ? "yes" : "no",
+          })
+        : t(`memory.forToday.why.${r.reason}`, { days: r.days }),
+    (count) => t("digest.more", { count }),
+    (r) => t("memory.forToday.mailLabel", { subject: r.text })
   );
   const heading = t("digest.heading", { count: rows.length });
   const app = new URL("/", getEnv().BETTER_AUTH_URL).toString();

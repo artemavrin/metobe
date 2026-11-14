@@ -2,6 +2,7 @@ import { getLastModelIds, listChats } from "@metobe/core/chat";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers } from "@metobe/core/mcp";
 import { reviewCount } from "@metobe/core/memory-due";
+import { offersMailReading } from "@metobe/core/memory-mail-check";
 import { todaySuggestions } from "@metobe/core/memory-today";
 import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { skillsForChat } from "@metobe/core/skills";
@@ -32,7 +33,8 @@ const NewChatPage = async ({
   if (!user) {
     return null;
   }
-  const [picker, last, servers, chats, boxes, skills, today, review] =
+  const memoryOn = await isMemoryOnFor(user.id);
+  const [picker, last, servers, chats, boxes, skills, today, review, offer] =
     await Promise.all([
       getPickerData(user.id),
       getLastModelIds(user.id),
@@ -41,23 +43,21 @@ const NewChatPage = async ({
       listMailboxes(user.id),
       skillsForChat(user.id),
       // «На сегодня» (P17): only while the person's memory is on; a broken read leaves the screen as it was.
-      (async () =>
-        (await isMemoryOnFor(user.id))
-          ? todaySuggestions(user.id, prefs.timeZone).catch(
-              (error: unknown) => {
-                console.error("memory: could not gather «На сегодня»", error);
-                return [];
-              }
-            )
-          : [])(),
+      memoryOn
+        ? todaySuggestions(user.id, prefs.timeZone).catch((error: unknown) => {
+            console.error("memory: could not gather «На сегодня»", error);
+            return [];
+          })
+        : [],
       // «Сверка» (В2.1): how many promises have been open a long time; a broken read leaves the row out.
-      (async () =>
-        (await isMemoryOnFor(user.id))
-          ? reviewCount(user.id, prefs.timeZone).catch((error: unknown) => {
-              console.error("memory: could not count «Сверка»", error);
-              return 0;
-            })
-          : 0)(),
+      memoryOn
+        ? reviewCount(user.id, prefs.timeZone).catch((error: unknown) => {
+            console.error("memory: could not count «Сверка»", error);
+            return 0;
+          })
+        : 0,
+      // «Замечать письма без ответа?» (Г3.1): offered in «Не упустить» while the memory reads no box.
+      memoryOn ? offersMailReading(user.id).catch(() => false) : false,
     ]);
   const model = pickModel(picker.models, [...last, picker.favorites[0]]);
   // The layout shows «not ready» when chat has no model; a page without one never renders.
@@ -89,6 +89,7 @@ const NewChatPage = async ({
             hasName: name ? "yes" : "no",
             name,
           }),
+          mailOffer: offer,
           mailboxes: boxes.map((b) => b.address),
           review,
           say: typeof say === "string" ? say.slice(0, 4000) : undefined,

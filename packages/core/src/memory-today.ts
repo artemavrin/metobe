@@ -4,17 +4,21 @@ import type {
   MemorySuggestionReason,
 } from "@metobe/contracts/memory";
 
+import { listMailboxes } from "./mailboxes";
 import {
   dateKey,
   dismissalKey,
   listDismissals,
   listEntities,
+  listMailWaits,
   listRecords,
+  mailKey,
   remindedKey,
   writeChats,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord } from "./memory";
 import { groupMembers } from "./memory-groups";
+import { DEFAULT_WAIT, waitedPast, workingDaysBetween } from "./memory-mail";
 import { REACH, nextRepeat } from "./memory-repeat";
 
 // «Не упустить» on the new chat screen (ARCH §19.6, P17): open commitments that need the person now — past their day,
@@ -47,23 +51,6 @@ const ORDER: Record<MemorySuggestionReason, number> = {
   tomorrow: 4,
   unconfirmed: 1,
   waiting: 2,
-};
-
-/** Working days after `from`, up to and including `to`: Saturdays and Sundays do not count. */
-const workingDaysBetween = (from: string, to: string) => {
-  let count = 0;
-  const end = Date.parse(`${to}T00:00:00Z`);
-  for (
-    let at = Date.parse(`${from}T00:00:00Z`) + DAY_MS;
-    at <= end;
-    at += DAY_MS
-  ) {
-    const weekday = new Date(at).getUTCDay();
-    if (weekday !== 0 && weekday !== 6) {
-      count += 1;
-    }
-  }
-  return count;
 };
 
 type Rule = NonNullable<MemoryRecord["rule"]>;
@@ -359,6 +346,65 @@ const dateRows = (
 };
 
 /**
+ * Letters the person sent with no answer longer than the wait rule for whom they went to (or for anyone, or five
+ * working days) — Г3.1. «Убрать» keeps one away until the person writes again in the thread.
+ */
+const mailRows = async (
+  ownerId: string,
+  cards: Map<string, MemoryEntity>,
+  dismissed: Awaited<ReturnType<typeof listDismissals>>,
+  {
+    waits,
+    timeZone,
+    today,
+  }: { waits: Map<string, MemoryRecord>; timeZone: string; today: string }
+): Promise<MemorySuggestion[]> => {
+  const letters = await listMailWaits(ownerId);
+  if (letters.length === 0) {
+    return [];
+  }
+  const owned = await listMailboxes(ownerId);
+  const boxes = new Map(owned.map((b) => [b.id, b.address]));
+  return letters.flatMap((w): MemorySuggestion[] => {
+    const card = cards.get(w.entityId);
+    const box = boxes.get(w.mailboxId);
+    const gone = dismissed.get(mailKey(w.mailboxId, w.key));
+    const rule = waitOf(waits, w.entityId) ?? DEFAULT_WAIT;
+    const days = waitedPast(dayKey(w.sentAt, timeZone), today, rule);
+    if (
+      !(card && box) ||
+      days === null ||
+      gone?.dueAt?.getTime() === w.sentAt.getTime()
+    ) {
+      return [];
+    }
+    return [
+      {
+        days,
+        dueAt: null,
+        email: w.to,
+        id: w.id,
+        important: false,
+        key: mailKey(w.mailboxId, w.key),
+        kind: "mail",
+        mail: {
+          box,
+          sentAt: w.sentAt.toISOString(),
+          subject: w.subject,
+          workingDays: Boolean(rule.workingDays),
+        },
+        reason: "waiting",
+        rhythm: null,
+        side: "theirs",
+        status: null,
+        text: w.subject,
+        who: cardOf(card),
+      },
+    ];
+  });
+};
+
+/**
  * A card's «что сейчас» (P22): the last contact with it — the latest event it took part in, up to now — and how often a
  * rhythm rule wants one, in days (its own rule, or its group's). `events` — the card's own events.
  */
@@ -511,6 +557,7 @@ export const todaySuggestions = async (
   });
   await attachChats(ownerId, records, rows);
   rows.push(
+    ...(await mailRows(ownerId, cards, dismissed, { timeZone, today, waits })),
     ...dateRows(rules, cards, dismissed, { timeZone, today }),
     ...rhythmRows(rules, events, cards, dismissed, {
       expand,

@@ -28,6 +28,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { chats } from "./chat";
+import { mailboxes } from "./mail";
 
 // ARCH §19, D39 — the memory: people, organizations and projects from conversations, and what is known and promised
 // about them. Every row is its owner's alone (`owner_id`, gone with the user). Texts and names are sealed with the
@@ -413,4 +414,35 @@ export const memorySummaries = pgTable(
     sealed: text("sealed").notNull(),
   },
   (table) => [index("memory_summaries_owner").on(table.ownerId)]
+);
+
+/**
+ * A letter the person sent someone from the memory, with no answer yet (Г3.1, S16): found by envelopes and headers
+ * alone — no letter's text is read or kept. `key` — the letter's `Message-ID` under the installation's HMAC, for the
+ * row and for «Убрать» (`mail:<box>:<key>`); `sent_at` — the person's last letter in the thread, the wait counts from
+ * it; `answered_at` — an answer came (or the letter is no longer one to wait on), the row is gone from «Не упустить».
+ * `sealed` is `{ subject, to, messageId, references }`.
+ */
+export const memoryMailWaits = pgTable(
+  "memory_mail_waits",
+  {
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    entityId: uuid("entity_id")
+      .notNull()
+      .references(() => memoryEntities.id, { onDelete: "cascade" }),
+    id: uuid("id").primaryKey().defaultRandom(),
+    key: text("key").notNull(),
+    mailboxId: uuid("mailbox_id")
+      .notNull()
+      .references(() => mailboxes.id, { onDelete: "cascade" }),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sealed: text("sealed").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("memory_mail_waits_owner").on(table.ownerId),
+    uniqueIndex("memory_mail_waits_letter").on(table.mailboxId, table.key),
+  ]
 );

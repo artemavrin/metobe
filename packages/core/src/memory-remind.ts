@@ -7,12 +7,14 @@ import { generateText, Output } from "ai";
 
 import { getLanguageModel } from "./ai";
 import { recordRun } from "./chat-run";
-import { listMailboxes, sendEmail } from "./mailboxes";
+import { listMailboxes, replyEmail, sendEmail } from "./mailboxes";
 import {
   listEntities,
+  listMailWaits,
   listRecords,
   markReminded,
   recordContact,
+  touchMailWait,
 } from "./memory";
 import { localMidnight } from "./memory-extract";
 import {
@@ -216,5 +218,102 @@ export const sendReminder = async (
     );
   }
   await markReminded(ownerId, recordId);
+  return { from: box.address, sent: true as const };
+};
+
+// ── A letter with no answer (Г3.1): «Напомнить» is a reply in its thread, from the box it went from ─────────────────
+
+/** The wait, its card, and its box — while it can be sent from; null — no such wait, or its box no longer sends. */
+const waitOf = async (ownerId: string, waitId: string) => {
+  const [[wait], entities, boxes] = await Promise.all([
+    listMailWaits(ownerId, waitId),
+    listEntities(ownerId),
+    sendingBoxes(ownerId),
+  ]);
+  const who = entities.find((e) => e.id === wait?.entityId);
+  if (!(wait && who)) {
+    return null;
+  }
+  return { box: boxes.find((b) => b.id === wait.mailboxId) ?? null, wait, who };
+};
+
+/** «Re: Договор» stays as it is; «Договор» becomes «Re: Договор». */
+const replySubject = (subject: string) =>
+  /^\s*re\s*:/iu.test(subject) ? subject : `Re: ${subject}`;
+
+/** Days in the person's zone, for the words of the letter and the event. */
+const today = (timeZone: string) =>
+  localMidnight(
+    new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date()),
+    timeZone
+  );
+
+/**
+ * The reply for the window: by the template — no model reads the person's mail (Г3.1). The box is the one the letter
+ * went from; none — it no longer sends, and the letter is there to copy.
+ */
+export const mailReminderDraft = async (
+  ownerId: string,
+  waitId: string,
+  { locale, timeZone }: { locale: Locale; timeZone: string }
+): Promise<MemoryReminderDraft | null> => {
+  const found = await waitOf(ownerId, waitId);
+  if (!found) {
+    return null;
+  }
+  const { box, wait, who } = found;
+  const t = await getTranslator(locale);
+  const sent = dayOf(wait.sentAt, locale, timeZone);
+  return {
+    boxes: box ? [box.address] : [],
+    by: "template",
+    chat: null,
+    due: null,
+    given: null,
+    subject: replySubject(wait.subject),
+    text: [
+      who.kind === "person"
+        ? t("memory.letter.hello", { name: who.name })
+        : t("memory.letter.helloAll"),
+      t("memory.letter.mailBody", { sent, subject: wait.subject }),
+      t("memory.letter.thanks"),
+    ].join("\n\n"),
+    to: { email: wait.to, id: who.id, name: who.name },
+  };
+};
+
+/** Sends the reply in the thread, notes it on the card, and the wait counts from now. */
+export const sendMailReminder = async (
+  ownerId: string,
+  waitId: string,
+  input: { subject: string; text: string },
+  { locale, timeZone }: { locale: Locale; timeZone: string }
+) => {
+  const found = await waitOf(ownerId, waitId);
+  if (!found) {
+    return null;
+  }
+  const { box, wait, who } = found;
+  if (!box) {
+    throw new Error("no mailbox to send from");
+  }
+  await replyEmail(box, {
+    inReplyTo: wait.messageId,
+    references: wait.references,
+    subject: input.subject,
+    text: input.text,
+    to: wait.to,
+  });
+  const t = await getTranslator(locale);
+  const day = today(timeZone);
+  if (day) {
+    await recordContact(
+      ownerId,
+      who.id,
+      day,
+      t("memory.letter.mailEvent", { subject: wait.subject })
+    );
+  }
+  await touchMailWait(ownerId, waitId, new Date());
   return { from: box.address, sent: true as const };
 };

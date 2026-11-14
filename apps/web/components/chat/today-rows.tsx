@@ -25,6 +25,7 @@ import {
   FolderKanban,
   Mail,
   MailCheck,
+  MailQuestion,
   Star,
   Users,
   X,
@@ -42,7 +43,9 @@ import { RemindDialog, useRemind } from "./remind-dialog";
 // right; a click puts the request into the composer, the person sends it. The menu: done (or confirmed), move the
 // deadline, open the card, take it away — each with «Вернуть». A rhythm row (a rule, ARCH §19.6): «Уже было» notes a
 // contact today, open the card, take it away until the next contact. A row where someone owes the person has
-// «Напомнить» (Г2.4, P23 «Окно»): a letter to them in a window, sent from the person's box.
+// «Напомнить» (Г2.4, P23 «Окно»): a letter to them in a window, sent from the person's box. A letter the person sent
+// with no answer (Г3.1, P24 «Предложение») is a row too — «Напомнить» replies in its thread; while the memory reads no
+// box, «Замечать письма без ответа?» is offered at the top.
 
 /** The same rows as «Начать с»; on a phone the text wraps and «why» goes under it. */
 const ROW =
@@ -61,9 +64,11 @@ const send = (url: string, method: string, body?: object) =>
     method,
   });
 
-const Face = ({ who }: { who: Item["who"] }) => {
+const Face = ({ who, mail }: { who: Item["who"]; mail?: boolean }) => {
   let face: React.ReactNode = <BookUser className="size-3" />;
-  if (who?.kind === "org") {
+  if (mail) {
+    face = <Mail className="size-3" />;
+  } else if (who?.kind === "org") {
     face = <Building2 className="size-3" />;
   } else if (who?.kind === "project") {
     face = <FolderKanban className="size-3" />;
@@ -120,6 +125,17 @@ const usePrompt = (timeZone: string) => {
       : null;
     // The other side is a badge in the composer, so the chat knows which card it is.
     const name = s.who ? cardMarker(s.who) : null;
+    if (s.mail) {
+      return t("askMail", {
+        name: name ?? "—",
+        sent: format.dateTime(new Date(s.mail.sentAt), {
+          day: "numeric",
+          month: "long",
+          timeZone,
+        }),
+        subject: s.mail.subject,
+      });
+    }
     if (s.date) {
       return s.date.repeat === "year" && name
         ? t("askBirthday", { name, text: s.text })
@@ -166,17 +182,24 @@ const Why = ({ s }: { s: Item }) => {
       {s.important && (
         <Star className="fill-warning text-warning me-1 inline size-3 -translate-y-px" />
       )}
-      {t(`why.${s.reason}`, { days: s.days })}
+      {s.mail
+        ? t("why.mail", {
+            days: s.days,
+            name: s.who?.name ?? "",
+            working: s.mail.workingDays ? "yes" : "no",
+          })
+        : t(`why.${s.reason}`, { days: s.days })}
     </span>
   );
 };
 
 /** Someone owes the person, it is open, and it is known who: a letter can remind them. */
 const remindable = (s: Item) =>
-  s.kind === "commitment" &&
-  s.side === "theirs" &&
-  s.status === "open" &&
-  s.who !== null;
+  s.kind === "mail" ||
+  (s.kind === "commitment" &&
+    s.side === "theirs" &&
+    s.status === "open" &&
+    s.who !== null);
 
 /** «Напомнить» left of the menu: shown on hover on a computer, an icon always there on a phone. */
 const RemindButton = ({ onClick }: { onClick: () => void }) => {
@@ -347,6 +370,82 @@ const DateMenu = ({ s, act }: { s: Item; act: ReturnType<typeof useAct> }) => {
   );
 };
 
+/** A letter with no answer (Г3.1): the card, and «Убрать» — until the person writes again in its thread. */
+const MailMenu = ({ s, act }: { s: Item; act: ReturnType<typeof useAct> }) => {
+  const today = useTranslations("memory.forToday");
+  const dismiss = `/api/memory/mail/${s.id}/dismiss`;
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        {s.who && (
+          <DropdownMenuItem render={<Link href={`/memory?card=${s.who.id}`} />}>
+            <BookUser /> {today("open")}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () => send(dismiss, "POST"),
+              today("dismissed"),
+              () => send(dismiss, "DELETE")
+            )
+          }
+        >
+          <X /> {today("dismiss")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+/**
+ * «Замечать письма без ответа?» (P24 «Предложение»): «Включить» turns the reading on for the person's boxes, «Не
+ * надо» — not offered again; either way the switch stays on each box's page.
+ */
+const MailOffer = ({
+  boxes,
+  onGone,
+}: {
+  boxes: string[];
+  onGone: () => void;
+}) => {
+  const t = useTranslations("memory.forToday.mailOffer");
+  const memory = useTranslations("memory");
+  const answer = async (on: boolean) => {
+    onGone();
+    const response = await send("/api/memory/mail/offer", "POST", { on });
+    if (!response.ok) {
+      toast.error(memory("failed"));
+      return;
+    }
+    toast(on ? t("onDone") : t("offDone"));
+  };
+  return (
+    <div
+      className={cn(
+        "bg-muted/40 flex flex-col gap-2 rounded-lg border border-dashed px-3.5 py-3 text-sm",
+        ENTER
+      )}
+    >
+      <span className="flex items-center gap-2 font-medium">
+        <MailQuestion className="text-muted-foreground size-4 shrink-0" />{" "}
+        {t("title")}
+      </span>
+      <span className="text-muted-foreground text-xs">{t("hint")}</span>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => answer(true)} size="sm">
+          {boxes.length === 1 ? t("onFor", { box: boxes[0] ?? "" }) : t("on")}
+        </Button>
+        <Button onClick={() => answer(false)} size="sm" variant="ghost">
+          {t("off")}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const Menu = ({
   s,
   timeZone,
@@ -366,6 +465,9 @@ const Menu = ({
   const record = `/api/memory/records/${s.id}`;
   if (s.date) {
     return <DateMenu act={act} s={s} />;
+  }
+  if (s.mail) {
+    return <MailMenu act={act} s={s} />;
   }
   if (s.rhythm) {
     return <RhythmMenu act={act} s={s} />;
@@ -468,14 +570,19 @@ const ReviewMenu = ({
   );
 };
 
+const NO_BOXES: string[] = [];
+
 /** The section, or nothing once every row is gone. `put` — the composer takes the request. */
 export const TodayRows = ({
   items,
+  mailOffer = NO_BOXES,
   review = 0,
   timeZone,
   put,
 }: {
   items: Item[];
+  /** The person's boxes, while «Замечать письма без ответа?» is offered; empty — it is not. */
+  mailOffer?: string[];
   /** Promises open a long time: the «Сверка» row after the others, while there are any and it is not put away. */
   review?: number;
   timeZone: string;
@@ -486,10 +593,12 @@ export const TodayRows = ({
   const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
   const [all, setAll] = useState(false);
   const [reviewGone, setReviewGone] = useState(false);
+  const [offerGone, setOfferGone] = useState(false);
   const remind = useRemind();
   const left = items.filter((s) => !gone.has(s.key));
   const reviewing = review > 0 && !reviewGone;
-  if (left.length === 0 && !reviewing) {
+  const offering = mailOffer.length > 0 && !offerGone;
+  if (left.length === 0 && !reviewing && !offering) {
     return null;
   }
   const shown = all ? left : left.slice(0, FIRST);
@@ -507,6 +616,9 @@ export const TodayRows = ({
         {t("title")}
       </h2>
       <div className="flex flex-col gap-2">
+        {offering && (
+          <MailOffer boxes={mailOffer} onGone={() => setOfferGone(true)} />
+        )}
         {shown.map((s) => (
           <div className={cn("group relative", ENTER)} key={s.key}>
             <button
@@ -514,9 +626,13 @@ export const TodayRows = ({
               onClick={() => put(prompt(s))}
               type="button"
             >
-              <Face who={s.who} />
+              <Face mail={Boolean(s.mail)} who={s.who} />
               <span className="flex min-w-0 flex-1 items-center gap-3 max-sm:flex-col max-sm:items-start max-sm:gap-0.5">
-                <span className="min-w-0 flex-1 sm:truncate">{labelOf(s)}</span>
+                <span className="min-w-0 flex-1 sm:truncate">
+                  {s.mail
+                    ? t("mailLabel", { subject: s.mail.subject })
+                    : labelOf(s)}
+                </span>
                 <Why s={s} />
               </span>
             </button>

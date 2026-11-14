@@ -1835,7 +1835,15 @@
       "leaveTitle": "Disconnect {address}?",
       "leaveConfirm": "Disconnect",
       "cancel": "Cancel",
-      "off": "Own connections are turned off by the administrator: the model does not use this box."
+      "off": "Own connections are turned off by the administrator: the model does not use this box.",
+      "memory": {
+        "title": "Memory",
+        "label": "Notice letters with no answer",
+        "hint": "The memory looks at whom you wrote and whether they answered — by addresses and subjects. It never reads or keeps a letter's text.",
+        "checked": "Checked {when}.",
+        "notChecked": "Not checked yet.",
+        "waits": "no answer: {count}"
+      }
     },
     "status": {
       "active": "Works",
@@ -2875,6 +2883,7 @@
         "tomorrow": "tomorrow",
         "important": "important",
         "waiting": "waiting {days} d",
+        "mail": "{working, select, yes {{days} working d} other {{days} d}} · {name}",
         "reminded": "reminded {days} d ago",
         "rhythm": "{days} d since",
         "date": "{days, plural, =0 {today} =1 {tomorrow} other {in # d}}"
@@ -2892,7 +2901,18 @@
       "contactText": "Contact: {name}",
       "savedContact": "Contact noted: {name}",
       "askBirthday": "Write a short, warm greeting.\nTo: {name}\nOccasion: {text}.",
-      "askDate": "Help me get ready: {text}. Where do I start?"
+      "askDate": "Help me get ready: {text}. Where do I start?",
+      "askMail": "Write a short polite reminder asking for an answer to my letter.\nTo: {name}\nSubject: {subject}\nSent: {sent}.",
+      "mailLabel": "No answer: “{subject}”",
+      "mailOffer": {
+        "title": "Notice letters with no answer?",
+        "hint": "When someone from the memory takes longer than usual to answer your letter, it shows up here. The memory looks only at addresses and subjects; it never reads or keeps a letter's text.",
+        "on": "Turn on",
+        "onFor": "Turn on for {box}",
+        "off": "No, thanks",
+        "onDone": "Turned on. The first check is within an hour",
+        "offDone": "It won't be offered again. You can turn it on on the mailbox page"
+      }
     },
     "members": "Members",
     "noMembers": "No members yet. Add them with a message in the chat: «Pavel is on my team».",
@@ -3060,7 +3080,9 @@
       "helloAll": "Hello,",
       "body": "A reminder: {text}{due, select, none {} other {{late, select, yes { — it was due {due}} other { — due {due}}}}}{given, select, none {} other {, as agreed on {given}}}. Could you tell me how it is going?",
       "thanks": "Thank you!",
-      "event": "Reminded by mail: {text}"
+      "event": "Reminded by mail: {text}",
+      "mailBody": "A reminder about my letter “{subject}” of {sent}. Is there any news?",
+      "mailEvent": "Reminded by mail about the letter “{subject}”"
     },
     "remind": {
       "action": "Remind",

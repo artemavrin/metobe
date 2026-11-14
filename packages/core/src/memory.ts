@@ -20,6 +20,7 @@ import {
   memoryDrafts,
   memoryEntities,
   memoryKeys,
+  memoryMailWaits,
   memoryMerges,
   memoryRecordEntities,
   memoryRecords,
@@ -37,6 +38,7 @@ import {
   lt,
   lte,
   notExists,
+  notInArray,
   sql,
 } from "drizzle-orm";
 import { z } from "zod";
@@ -2584,6 +2586,177 @@ export const remindedKey = (recordId: string) => `reminded:${recordId}`;
 /** Notes the letter: when it went, and the deadline and status it was about. */
 export const markReminded = (ownerId: string, recordId: string) =>
   snapshotOpen(ownerId, recordId, remindedKey(recordId));
+
+// --- letters with no answer (Г3.1) ----------------------------------------------------------------------------------
+
+const MAIL_WAITS = "memory_mail_waits";
+
+const mailWaitBody = z.object({
+  messageId: z.string(),
+  references: z.array(z.string()),
+  subject: z.string(),
+  to: z.string(),
+});
+
+/** A letter that waits for an answer, as kept: whom, which box, since when, and the thread's headers to reply in. */
+export interface MemoryMailWait extends z.infer<typeof mailWaitBody> {
+  id: string;
+  mailboxId: string;
+  entityId: string;
+  key: string;
+  sentAt: Date;
+}
+
+/** A letter row's key in `memory_dismissals`: the box and the letter. */
+export const mailKey = (mailboxId: string, key: string) =>
+  `mail:${mailboxId}:${key}`;
+
+/**
+ * What a look at a box found: the letters that wait now are kept (a wait already kept keeps its row and takes the
+ * later of the two times — a reminder sent from here counts even when the box keeps no copy of it); those kept before
+ * and not found now are answered. `key` — the letter's id under the installation's HMAC.
+ */
+export const saveMailWaits = async (
+  ownerId: string,
+  mailboxId: string,
+  waits: {
+    key: string;
+    entityId: string;
+    sentAt: Date;
+    body: z.infer<typeof mailWaitBody>;
+  }[],
+  now = new Date()
+) => {
+  const key = waits.length > 0 ? await dataKey(ownerId, false) : null;
+  await getDb().db.transaction(async (tx) => {
+    for (const w of key ? waits : []) {
+      const id = crypto.randomUUID();
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one transaction, a handful of rows
+      await tx
+        .insert(memoryMailWaits)
+        .values({
+          entityId: w.entityId,
+          id,
+          key: w.key,
+          mailboxId,
+          ownerId,
+          sealed: sealField(
+            JSON.stringify(w.body),
+            memoryAad(ownerId, MAIL_WAITS, id, BODY),
+            key as SecretsKey
+          ),
+          sentAt: w.sentAt,
+        })
+        .onConflictDoUpdate({
+          // The row keeps its id and sealed body: the body is sealed to the id.
+          set: {
+            answeredAt: null,
+            entityId: w.entityId,
+            sentAt: sql`greatest(${memoryMailWaits.sentAt}, excluded.sent_at)`,
+          },
+          target: [memoryMailWaits.mailboxId, memoryMailWaits.key],
+        });
+    }
+    const found = key ? waits.map((w) => w.key) : [];
+    await tx
+      .update(memoryMailWaits)
+      .set({ answeredAt: now })
+      .where(
+        and(
+          eq(memoryMailWaits.ownerId, ownerId),
+          eq(memoryMailWaits.mailboxId, mailboxId),
+          isNull(memoryMailWaits.answeredAt),
+          found.length > 0 ? notInArray(memoryMailWaits.key, found) : undefined
+        )
+      );
+  });
+};
+
+/** The letters that wait now, in every box of the owner's (one — `id`). */
+export const listMailWaits = async (
+  ownerId: string,
+  id?: string
+): Promise<MemoryMailWait[]> => {
+  const rows = await getDb()
+    .db.select()
+    .from(memoryMailWaits)
+    .where(
+      and(
+        eq(memoryMailWaits.ownerId, ownerId),
+        isNull(memoryMailWaits.answeredAt),
+        id ? eq(memoryMailWaits.id, id) : undefined
+      )
+    );
+  const key = rows.length > 0 ? await dataKey(ownerId, false) : null;
+  if (!key) {
+    return [];
+  }
+  return rows.map((r) => ({
+    ...mailWaitBody.parse(
+      JSON.parse(
+        openField(r.sealed, memoryAad(ownerId, MAIL_WAITS, r.id, BODY), key)
+      )
+    ),
+    entityId: r.entityId,
+    id: r.id,
+    key: r.key,
+    mailboxId: r.mailboxId,
+    sentAt: r.sentAt,
+  }));
+};
+
+/** A reminder went in the thread now: the wait counts from it. */
+export const touchMailWait = (ownerId: string, id: string, at: Date) =>
+  getDb()
+    .db.update(memoryMailWaits)
+    .set({ sentAt: at })
+    .where(
+      and(eq(memoryMailWaits.ownerId, ownerId), eq(memoryMailWaits.id, id))
+    );
+
+/** «Убрать» on a letter row: away while the person's last letter in the thread is the one it was (`sentAt`). */
+export const dismissMailWait = async (ownerId: string, id: string) => {
+  const [wait] = await listMailWaits(ownerId, id);
+  if (!wait) {
+    return false;
+  }
+  const snapshot = { dueAt: wait.sentAt, entityId: null, status: null };
+  await getDb()
+    .db.insert(memoryDismissals)
+    .values({ ...snapshot, key: mailKey(wait.mailboxId, wait.key), ownerId })
+    .onConflictDoUpdate({
+      set: { ...snapshot, at: new Date() },
+      target: memoryDismissals.key,
+    });
+  return true;
+};
+
+/** «Вернуть» after it. */
+export const undismissMailWait = async (ownerId: string, id: string) => {
+  const [wait] = await listMailWaits(ownerId, id);
+  if (!wait) {
+    return false;
+  }
+  await getDb()
+    .db.delete(memoryDismissals)
+    .where(
+      and(
+        eq(memoryDismissals.ownerId, ownerId),
+        eq(memoryDismissals.key, mailKey(wait.mailboxId, wait.key))
+      )
+    );
+  return true;
+};
+
+/** «Не надо» on the offer to notice letters with no answer: it is not offered again. */
+export const MAIL_OFFER_KEY = "offer:mail";
+
+export const dismissMailOffer = async (ownerId: string) => {
+  await getDb()
+    .db.insert(memoryDismissals)
+    .values({ key: `${MAIL_OFFER_KEY}:${ownerId}`, ownerId })
+    .onConflictDoNothing();
+};
 
 /** «Вернуть» after «Оставить». */
 export const unkeepOpen = async (ownerId: string, recordId: string) => {
