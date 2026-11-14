@@ -239,6 +239,8 @@
       "failedDetail": "The file is damaged or could not be read."
     },
     "table": {
+      "copy": "Copy table",
+      "copied": "Copied",
       "building": "Building the table…",
       "rows": "{count, plural, one {# row} other {# rows}}",
       "shown": "{shown} of {total}",
@@ -2490,7 +2492,7 @@
         "text": "«Service models» has a new job, «Compacting chats» — pick a model with a large context window. What compacting costs is a line of its own in «Usage»."
       },
       "tasks": {
-        "short": "Tasks",
+        "short": "Scheduled tasks",
         "title": "Regular work can become a task",
         "text": "Describe in a chat what to do and how often: the task runs on a schedule and prepares a result. A new result, a question or a request to sign in to a service shows up in the sidebar — the task’s coloured dot pulses."
       }
@@ -2576,8 +2578,8 @@
     }
   },
   "tasks": {
-    "nav": "Tasks",
-    "title": "Tasks",
+    "nav": "Scheduled tasks",
+    "title": "Scheduled tasks",
     "waiting": "waiting for you",
     "next": "next run {when}",
     "todayAt": "today at {time}",
@@ -2686,7 +2688,7 @@
       "open": "Open task",
       "older": "Task draft · a newer one is below",
       "createFailed": "The task was not created. Try again.",
-      "introEyebrow": "Tasks",
+      "introEyebrow": "Scheduled tasks",
       "introTitle": "What should be done regularly?",
       "introText": "Describe the task in your own words.",
       "placeholder": "Describe the task…",
@@ -2895,8 +2897,8 @@
       "more": "{count} more",
       "askConfirm": "Write a short request to confirm it is done.\nTo: {name}\nWhat: {text}.",
       "askMine": "Help me do this: {text}.{due, select, none {} other { Due {due}.}} Where do I start?",
-      "askRemind": "Write a short polite reminder. To: {name}. About: {text}.{due, select, none {} other {{late, select, yes { It was due {due}.} other { Due {due}.}}}}",
-      "askMeet": "Write a short message to set up a meeting. To: {name}.{since, select, none { We have not met yet.} other { We last met on {since}.}} I want to meet at least every {every} days.",
+      "askRemind": "Write a short polite reminder.\nTo: {name}\nAbout: {text}.{due, select, none {} other {{late, select, yes { It was due {due}.} other { Due {due}.}}}}",
+      "askMeet": "Write a short message to set up a meeting.\nTo: {name}\n{since, select, none {We have not met yet.} other {We last met on {since}.}} I want to meet at least every {every} days.",
       "contacted": "Already done",
       "contactText": "Contact: {name}",
       "savedContact": "Contact noted: {name}",
