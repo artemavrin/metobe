@@ -100,42 +100,180 @@ const selfLines = (self: MemoryEntity | undefined, records: MemoryRecord[]) =>
         .map((r) => `  - «${r.text}»`)
     : [];
 
+/** «Saturday»: what day of the week it is in the user's zone. */
+const weekday = (at: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-US", { timeZone, weekday: "long" }).format(at);
+
+/** The standing part (Г2.3): about 600 tokens, a token taken as three characters of Russian text. */
+const STANDING_CHARS = 1800;
+const MAX_RULES = 5;
+const MAX_NEAR = 8;
+const NEAR_DAYS = 7;
+const MAX_MAIN = 5;
+const MAIN_DAYS = 30;
+const DAY_MS = 86_400_000;
+
+/** Promises due within a week or overdue, both ways: «важно» first, then the nearest deadline. */
+const nearLines = (
+  records: MemoryRecord[],
+  names: Map<string, MemoryEntity>,
+  now: Date,
+  timeZone: string
+) => {
+  const today = day(now, timeZone) ?? "";
+  const until = day(new Date(now.getTime() + NEAR_DAYS * DAY_MS), timeZone);
+  const near = records.flatMap((r) => {
+    const due = day(r.dueAt, timeZone);
+    return r.kind === "commitment" &&
+      OPEN.has(r.status ?? "") &&
+      due &&
+      until &&
+      due <= until
+      ? [{ due, r }]
+      : [];
+  });
+  return (
+    near
+      // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own array
+      .sort(
+        (a, b) =>
+          Number(b.r.important) - Number(a.r.important) ||
+          a.due.localeCompare(b.due)
+      )
+      .slice(0, MAX_NEAR)
+      .map(
+        ({ due, r }) =>
+          `  - ${lineOf(r, names, timeZone)}${due < today ? " — overdue" : ""}`
+      )
+  );
+};
+
+/** The cards with the most recorded of late — a name and who they are, no records. */
+const mainLines = (
+  entities: MemoryEntity[],
+  records: MemoryRecord[],
+  skip: Set<string>,
+  now: Date
+) => {
+  const since = now.getTime() - MAIN_DAYS * DAY_MS;
+  const counts = new Map<string, number>();
+  for (const r of records) {
+    if (r.recordedAt.getTime() >= since) {
+      for (const e of r.entities) {
+        counts.set(e.entityId, (counts.get(e.entityId) ?? 0) + 1);
+      }
+    }
+  }
+  return (
+    entities
+      .filter(
+        (e) =>
+          e.kind !== "self" && !skip.has(e.id) && (counts.get(e.id) ?? 0) > 0
+      )
+      // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array `filter` made
+      .sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0))
+      .slice(0, MAX_MAIN)
+      .map((e) => `  - ${e.name} ${tag(e)}${e.role ? ` — ${e.role}` : ""}`)
+  );
+};
+
 /**
- * The block in front of the person's message: what they told about themselves, then the cards the message mentions
- * and what is kept about them. Empty when there is neither — the model can still search.
+ * What goes with every message, whatever it names (Г2.3): what the user told about themselves, the rules of how they
+ * want things done, what is due within a week or overdue, and who they deal with most. Over about 600 tokens the
+ * main cards go first, then the farthest promises. No database: the records are given.
+ */
+export const standingParts = ({
+  entities,
+  now,
+  records,
+  skip,
+  timeZone,
+}: {
+  entities: MemoryEntity[];
+  records: MemoryRecord[];
+  /** Cards the message names: they come in full after this part. */
+  skip: Set<string>;
+  now: Date;
+  timeZone: string;
+}) => {
+  const names = new Map(entities.map((e) => [e.id, e]));
+  const self = entities.find((e) => e.kind === "self");
+  const own = selfLines(self, records);
+  const rules = records
+    .filter((r) => r.kind === "rule" && !r.rule && !r.validTo)
+    .slice(0, MAX_RULES)
+    .map((r) => `  - «${r.text}»`);
+  const near = nearLines(records, names, now, timeZone);
+  const main = mainLines(entities, records, skip, now);
+  const build = () =>
+    [
+      own.length > 0 &&
+        `About the user — their goals and ways of working, from what they told; keep them in mind:\n${own.join("\n")}`,
+      rules.length > 0 &&
+        `How the user wants things done — follow it when it applies:\n${rules.join("\n")}`,
+      near.length > 0 &&
+        `Due within a week or overdue — the nearest, not all that is open (${LIST_COMMITMENTS} has the rest):\n${near.join("\n")}`,
+      main.length > 0 &&
+        `Who the user deals with most of late:\n${main.join("\n")}`,
+    ].filter((p): p is string => Boolean(p));
+  let parts = build();
+  while (
+    parts.join("\n").length > STANDING_CHARS &&
+    (main.length > 0 || near.length > 0)
+  ) {
+    if (main.length > 0) {
+      main.pop();
+    } else {
+      near.pop();
+    }
+    parts = build();
+  }
+  return parts;
+};
+
+/**
+ * The block in front of the person's message: what goes with every message (`standingParts`), then the cards the
+ * message mentions and what is kept about them. Empty when there is neither — the model can still search.
  */
 export const memoryBrief = async (
   ownerId: string,
   text: string,
   timeZone: string,
   /** Cards the person named with `@` (Д4), by id: they come first, whatever the words say. */
-  named: string[] = []
+  named: string[] = [],
+  now = new Date()
 ) => {
   const entities = await listEntities(ownerId);
+  if (entities.length === 0) {
+    return "";
+  }
   const cards = [
     ...new Set([
       ...entities.filter((e) => e.kind !== "self" && named.includes(e.id)),
       ...mentionedCards(entities, text),
     ]),
   ].slice(0, MAX_CARDS);
-  const self = entities.find((e) => e.kind === "self");
-  if (cards.length === 0 && !self) {
-    return "";
-  }
   const records = await listRecords(ownerId);
-  const own = selfLines(self, records);
-  if (cards.length === 0 && own.length === 0) {
-    return "";
-  }
   const names = new Map(entities.map((e) => [e.id, e]));
   const parts = [
-    own.length > 0 &&
-      `About the user — their goals and ways of working, from what they told; keep them in mind:\n${own.join("\n")}`,
-    cards.length > 0 &&
-      `About who this message mentions:\n${cards.map((c) => cardBlock(c, records, names, timeZone)).join("\n")}`,
-  ].filter(Boolean);
+    ...standingParts({
+      entities,
+      now,
+      records,
+      skip: new Set(cards.map((c) => c.id)),
+      timeZone,
+    }),
+    ...(cards.length > 0
+      ? [
+          `About who this message mentions:\n${cards.map((c) => cardBlock(c, records, names, timeZone)).join("\n")}`,
+        ]
+      : []),
+  ];
+  if (parts.length === 0) {
+    return "";
+  }
   return `<memory>
-What you remember of the user's work (dates are days in ${timeZone}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD}, ${LIST_COMMITMENTS} or ${LIST_CARDS} for more. The [ids] are for ${MEMORY_CARD}; never show them to the user. It may be out of date or wrong — the user's words now come first.
+What you remember of the user's work (dates are days in ${timeZone}; today is ${weekday(now, timeZone)}, ${day(now, timeZone)}; «the user» is the person you talk to). Use it when it helps; ask ${SEARCH_MEMORY}, ${MEMORY_CARD}, ${LIST_COMMITMENTS} or ${LIST_CARDS} for more. The [ids] are for ${MEMORY_CARD}; never show them to the user. It may be out of date or wrong — the user's words now come first.
 ${parts.join("\n")}
 </memory>`;
 };

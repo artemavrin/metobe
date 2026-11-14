@@ -1,9 +1,14 @@
 import type { MemoryCard, MemoryRecordView } from "@metobe/contracts/memory";
 import { describe, expect, it, vi } from "vitest";
 
-import type { MemoryEntity } from "./memory";
+import type { MemoryEntity, MemoryRecord } from "./memory";
 import { mentionedCards } from "./memory-candidates";
-import { shownCard, shownPromises, toldOfShown } from "./memory-read";
+import {
+  shownCard,
+  shownPromises,
+  standingParts,
+  toldOfShown,
+} from "./memory-read";
 
 vi.mock("server-only", () => ({}));
 
@@ -166,5 +171,159 @@ describe("a card and the open promises in the answer (Д1)", () => {
       "Europe/Moscow"
     );
     expect(String(told.value)).toContain("Nothing open.");
+  });
+});
+
+const NOW = new Date("2026-11-14T09:00:00Z");
+const TZ = "Europe/Moscow";
+const ME = card("Я", "self");
+const OLGA = card("Ольга Ли");
+const SEDOV = card("Андрей Седов");
+const VECTOR = card("ООО «Вектор»", "org");
+
+let n = 0;
+const record = (patch: Partial<MemoryRecord>): MemoryRecord => {
+  n += 1;
+  return {
+    closedByWrite: null,
+    deletedAt: null,
+    doneAt: null,
+    dueAt: null,
+    entities: [],
+    givenAt: null,
+    id: `r${n}`,
+    important: false,
+    kind: "fact",
+    occurredAt: null,
+    occurredPrecision: null,
+    recordedAt: NOW,
+    remindAt: null,
+    remindedAt: null,
+    role: null,
+    rule: null,
+    status: null,
+    supersededAt: null,
+    supersededBy: null,
+    text: `запись ${n}`,
+    validFrom: null,
+    validTo: null,
+    writeId: null,
+    ...patch,
+  };
+};
+const owed = (text: string, due: string, patch: Partial<MemoryRecord> = {}) =>
+  record({
+    dueAt: new Date(due),
+    entities: [
+      { entityId: OLGA.id, role: "debtor" },
+      { entityId: ME.id, role: "creditor" },
+    ],
+    kind: "commitment",
+    status: "open",
+    text,
+    ...patch,
+  });
+const about = (id: string) => [{ entityId: id, role: "about" as const }];
+const standing = (
+  records: MemoryRecord[],
+  entities = [ME, OLGA, SEDOV, VECTOR],
+  skip: string[] = []
+) =>
+  standingParts({
+    entities,
+    now: NOW,
+    records,
+    skip: new Set(skip),
+    timeZone: TZ,
+  }).join("\n");
+
+describe("what goes with every message (Г2.3)", () => {
+  it("is nothing for an empty memory", () => {
+    expect(standing([], [])).toBe("");
+    expect(standing([])).toBe("");
+  });
+
+  it("gives the rules with no period, and not the ones «Не упустить» counts days by", () => {
+    const text = standing([
+      record({ kind: "rule", text: "В письма клиентам ставлю в копию Ирину" }),
+      record({
+        kind: "rule",
+        rule: { days: 14, kind: "rhythm", workingDays: false },
+        text: "С Ольгой — раз в две недели",
+      }),
+    ]);
+    expect(text).toContain("How the user wants things done");
+    expect(text).toContain("«В письма клиентам ставлю в копию Ирину»");
+    expect(text).not.toContain("раз в две недели");
+    // Rules only: no cards, no promises.
+    expect(text).not.toContain("Due within a week");
+  });
+
+  it("gives what is overdue or due within a week, the important first, then the nearest", () => {
+    const text = standing([
+      owed("Прислать акт", "2026-11-16T21:00:00Z"),
+      owed("Прислать договор", "2026-11-10T21:00:00Z"),
+      owed("Прислать смету", "2026-11-20T21:00:00Z", { important: true }),
+      owed("Прислать отчёт", "2026-11-25T21:00:00Z"),
+      owed("Прислать NDA", "2026-11-01T21:00:00Z", { status: "done" }),
+      record({ kind: "commitment", status: "open", text: "Без срока" }),
+    ]);
+    const lines = text.split("\n").filter((l) => l.includes("promise:"));
+    expect(lines.map((l) => /«(?<text>.+?)»/u.exec(l)?.groups?.text)).toEqual([
+      "Прислать смету",
+      "Прислать договор",
+      "Прислать акт",
+    ]);
+    expect(lines[1]).toMatch(/— overdue$/u);
+    expect(lines[2]).not.toContain("overdue");
+  });
+
+  it("names the cards with the most of late, not the ones the message names nor the user", () => {
+    const text = standing(
+      [
+        record({ entities: about(SEDOV.id) }),
+        record({ entities: about(SEDOV.id) }),
+        record({ entities: about(VECTOR.id) }),
+        record({ entities: about(OLGA.id) }),
+        record({ entities: about(ME.id) }),
+        record({
+          entities: about(OLGA.id),
+          recordedAt: new Date("2026-09-01T00:00:00Z"),
+        }),
+      ],
+      [ME, OLGA, SEDOV, VECTOR],
+      [OLGA.id]
+    );
+    const [, main] = text.split("Who the user deals with most of late:\n");
+    expect(main?.split("\n").map((l) => l.trim().split(" [")[0])).toEqual([
+      "- Андрей Седов",
+      "- ООО «Вектор»",
+    ]);
+  });
+
+  it("keeps to about 600 tokens: the main cards go first, then the farthest promises", () => {
+    const long = "очень длинное обещание ".repeat(10);
+    const promises = Array.from({ length: 8 }, (_, i) =>
+      owed(
+        `${long}${i}`,
+        `2026-11-${String(15 + i).padStart(2, "0")}T00:00:00Z`
+      )
+    );
+    const many = Array.from({ length: 5 }, (_, i) =>
+      card(`Карточка ${i}`, "person")
+    );
+    const text = standing(
+      [
+        ...promises,
+        ...many.map((c) =>
+          record({ entities: [{ entityId: c.id, role: "about" }] })
+        ),
+      ],
+      [ME, OLGA, ...many]
+    );
+    expect(text.length).toBeLessThanOrEqual(1800);
+    expect(text).not.toContain("Who the user deals with most");
+    expect(text).toContain(`${long}0`);
+    expect(text).not.toContain(`${long}7`);
   });
 });

@@ -1231,9 +1231,13 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     expect(brief).toContain(
       "promise: «Ольга Ли пришлёт акт» (by Ольга Ли to the user, due"
     );
-    // Closed ones stay out of the block; a message about no one has none.
+    // Closed ones stay out of the block. A message about no one still gets what goes with every message (Г2.3) —
+    // here Olga as a card the person deals with — but no one's records.
     expect(brief).not.toContain("прислала счёт");
-    expect(await read.memoryBrief(cleo, "посчитай 15%", "UTC")).toBe("");
+    const none = await read.memoryBrief(cleo, "посчитай 15%", "UTC");
+    expect(none).not.toContain("About who this message mentions");
+    expect(none).toContain(`- Ольга Ли [${read.shortId(olga.id)}]`);
+    expect(await read.memoryBrief(bob, "посчитай 15%", "UTC")).toBe("");
     const tools = read.memoryTools(cleo, "Europe/Moscow");
     const run = (name: string, input: object) => {
       const execute = tools[name]?.execute as
