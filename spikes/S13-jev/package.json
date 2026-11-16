@@ -9,6 +9,7 @@
     "context": "node --env-file=../../.env --import tsx context.ts",
     "status": "node --env-file=../../.env --import tsx status.ts",
     "self": "node --env-file=../../.env --import tsx self.ts",
+    "gate": "node --env-file=../../.env --import tsx gate.ts",
     "groups": "node --env-file=../../.env --import tsx groups.ts"
   },
   "dependencies": {

@@ -15,7 +15,8 @@
     "summary": "node --env-file=../../.env --import tsx summary.ts",
     "reminders": "node --env-file=../../.env --import tsx reminders.ts",
     "answer": "node --env-file=../../.env --import tsx answer.ts",
-    "sources": "node --env-file=../../.env --import tsx sources.ts"
+    "sources": "node --env-file=../../.env --import tsx sources.ts",
+    "gate-short": "node --env-file=../../.env --import tsx gate-short.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.91",

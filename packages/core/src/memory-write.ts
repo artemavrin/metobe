@@ -40,7 +40,13 @@ import {
   repeatsDate,
   splitQuoted,
 } from "./memory-extract";
-import type { KnownCard, KnownRecord, OpenCommitment } from "./memory-extract";
+import type {
+  ChatTurn,
+  KnownCard,
+  KnownRecord,
+  OpenCommitment,
+} from "./memory-extract";
+import { GATE_QUESTIONS, gateState, nothingToKeep } from "./memory-gate";
 import { groupMembers } from "./memory-groups";
 import {
   memoryPromptOf,
@@ -203,6 +209,67 @@ const decisionUsage = (
   outputTokens: 0,
   totalTokens: inputTokens,
 });
+
+const GATE_TIMEOUT_MS = 15_000;
+
+/**
+ * The first step (ARCH §19.4, Б2b): with a model in «Решения», it answers the gate's yes/no questions, and only a sure
+ * «no» to all of them keeps the «Память» model from reading the message. No model, a failure or a timeout — the
+ * message is read as before: the step only saves, it never loses a message.
+ */
+const nothingToKeepSaid = async (
+  job: Reading,
+  text: string,
+  before: ChatTurn[],
+  sentAt: Date
+) => {
+  const model = await getSlotModel("decisions");
+  if (!model) {
+    return false;
+  }
+  const started = Date.now();
+  const today = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    timeZone: job.timeZone,
+    weekday: "long",
+    year: "numeric",
+  }).format(sentAt);
+  try {
+    const result = await evaluate({
+      abortSignal: AbortSignal.timeout(GATE_TIMEOUT_MS),
+      maxRetries: 1,
+      model: await getEvaluationModel(model.sourceId, model.modelId),
+      providerOptions: { gateway: { zeroDataRetention: true } },
+      questions: GATE_QUESTIONS,
+      state: gateState(text.slice(0, MAX_TEXT), today, before),
+    });
+    await recordRun({
+      chatId: job.chatId,
+      latencyMs: Date.now() - started,
+      model,
+      providerMetadata: result.providerMetadata,
+      purpose: "decide",
+      status: "ok",
+      usage: decisionUsage(result.usage.inputTokens),
+      userId: job.ownerId,
+    });
+    return nothingToKeep(result.answers);
+  } catch (error) {
+    console.error("memory: the decision model did not answer", error);
+    await recordRun({
+      chatId: job.chatId,
+      latencyMs: null,
+      model,
+      purpose: "decide",
+      status: "error",
+      userId: job.ownerId,
+    }).catch((recordError: unknown) =>
+      console.error("memory: could not record the run", recordError)
+    );
+    return false;
+  }
+};
 
 const RELATION_TIMEOUT_MS = 10_000;
 
@@ -469,6 +536,15 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
   const { db } = getDb();
   // A sure «nothing to keep» from the decision model: the «Память» model does not read it (Б2b). Not asked of what was
   // written to be remembered.
+  // A sure «nothing to keep» from the decision model: the «Память» model does not read it (Б2b). Not asked of what was
+  // written to be remembered, nor when the answer retells what a tool found — that may settle a promise (Г1.6а).
+  if (
+    !(source.meant || input.retold) &&
+    (await nothingToKeepSaid(job, text, before, at))
+  ) {
+    await markWrite(job.ownerId, write.id, "skipped");
+    return "skipped";
+  }
   const [entities, records] = await Promise.all([
     listEntities(job.ownerId),
     listRecords(job.ownerId),
