@@ -55,7 +55,7 @@ const TabsView = () => {
           { icon: UserRound, id: "me", label: "Обо мне" },
           { icon: ListChecks, id: "rules", label: "Правила" },
         ]}
-        note="Напоминания приходят в Telegram и на почту; даты и ритмы — в «Не упустить», когда подойдёт время."
+        note="Напоминания отправляются в Telegram и на почту; даты и ритмы — в «Не упустить», когда подойдёт время."
         title="Расписание"
       >
         {list.length === 0 ? (
@@ -68,7 +68,7 @@ const TabsView = () => {
               <TabsTrigger value="rhythms">Ритмы {rhythms.length}</TabsTrigger>
             </TabsList>
             <TabsContent className="flex flex-col gap-6 pt-4" value="reminders">
-              <Group count={sent.length} title="Пришли, не отмечены">
+              <Group count={sent.length} title="Отправлено, не отмечено">
                 {sent.map((x, i) => (
                   <ItemRow actions={actions} i={i} item={x} key={x.id} showKind={false} when={whenOf(x)} />
                 ))}

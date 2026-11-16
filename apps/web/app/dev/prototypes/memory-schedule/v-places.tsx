@@ -39,7 +39,7 @@ const Calendar = ({ reminders }: { reminders: ReminderItem[] }) => (
               {bell && (
                 <span className={cn("inline-flex items-center gap-1", bell.sent && "text-amber-600 dark:text-amber-400")}>
                   <BellRing className="size-3" />
-                  {bell.sent ? "пришло" : "напомню"} {bell.time}
+                  {bell.sent ? "отправлено" : "напоминание"} {bell.time}
                 </span>
               )}
             </span>

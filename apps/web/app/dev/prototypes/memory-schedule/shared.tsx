@@ -105,7 +105,7 @@ export const subline = (item: Item) => {
 export const whenOf = (item: Item) => {
   const d = nextDay(item);
   if (item.kind === "rhythm") {
-    return d <= 0 ? (d === 0 ? "пора" : `пора, +${-d} дн.`) : shortDay(d);
+    return d <= 0 ? (d === 0 ? "сегодня" : `на ${-d} дн.`) : shortDay(d);
   }
   return item.kind === "reminder" ? `${shortDay(d)}, ${item.time}` : shortDay(d);
 };
@@ -248,7 +248,7 @@ export const Empty = ({ text }: { text: string }) => (
 );
 
 export const EMPTY_TEXT =
-  "Напишите в чате «напомни завтра в 10 позвонить в банк», «у Ольги день рождения 14 ноября» или «с Андреем раз в две недели» — это появится здесь и придёт само.";
+  "Напишите в чате «напомни завтра в 10 позвонить в банк», «у Ольги день рождения 14 ноября» или «с Андреем раз в две недели» — это появится здесь.";
 
 export const byNext = (a: Item, b: Item) =>
   nextDay(a) - nextDay(b) || (a.kind === "reminder" && b.kind === "reminder" ? a.time.localeCompare(b.time) : 0);
