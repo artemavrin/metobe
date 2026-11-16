@@ -2443,6 +2443,60 @@
     "replay": "Show again",
     "again": "Again",
     "changes": {
+      "memory": {
+        "short": "Memory",
+        "title": "Metobe remembers people and promises",
+        "text": "From your chat messages Metobe keeps people, projects and promises — a line under the message shows what was kept, and you can undo it. In later conversations the assistant remembers it, and everything is on the «Memory» page."
+      },
+      "forToday": {
+        "short": "Don't miss",
+        "title": "What matters today, on the new chat screen",
+        "text": "Above the input: overdue and today's promises, people you haven't met for a while, birthdays. Click a line and a ready request appears in the input: a reminder, a meeting, a greeting."
+      },
+      "calendar": {
+        "short": "Calendar",
+        "title": "Promise deadlines on a calendar",
+        "text": "In «Memory» promises stand on a calendar by their deadlines, overdue ones in red. Drag a promise to another day to move its deadline, or add a new one right in the grid."
+      },
+      "schedule": {
+        "short": "Schedule",
+        "title": "Reminders, dates and rhythms in one list",
+        "text": "Write «remind me tomorrow at 10 to call the bank» or «every Monday — the report» and the reminder comes to Telegram or email. In «Schedule», next to reminders, are birthdays and how often you want to meet people."
+      },
+      "telegram": {
+        "short": "Telegram",
+        "title": "Write to the Telegram bot as to the chat",
+        "text": "Link Telegram in your account settings, under «Notifications». The bot answers as the Metobe chat does, sends reminders with «Done», «In an hour» and «Tomorrow», and what you forward to it goes to memory."
+      },
+      "mailWaits": {
+        "short": "Mail",
+        "title": "Letters with no answer don't get lost",
+        "text": "Turn on mail checking in «Don't miss»: when someone from memory takes longer than usual to answer your letter, it shows up in the list. Metobe looks only at addresses and subjects, never at the text."
+      },
+      "meetingPrep": {
+        "title": "«Before a meeting» on a card",
+        "text": "A button on a person's card opens a new chat that gets you ready for the talk: what you owe each other, what changed since last time and how best to speak."
+      },
+      "mentionCard": {
+        "title": "Mention a card with @",
+        "text": "Type @ in the input and pick a person or project from memory — the assistant gets the card with your question."
+      },
+      "tableCopy": {
+        "title": "Tables copy as cells",
+        "text": "A table from an answer can be copied and pasted into Excel or Google Sheets cell by cell; wide tables scroll."
+      },
+      "sidebarWidth": {
+        "title": "The sidebar can be resized",
+        "text": "Drag the sidebar's edge — the width is remembered."
+      },
+      "memorySlots": {
+        "title": "«Memory» and «Decisions» models",
+        "text": "Memory turns on when a «Memory» model is chosen in «Service models»; without it memory is off for everyone. The «Decisions» model is optional: it first says whether a message has anything to keep, saving «Memory» calls."
+      },
+      "telegramBot": {
+        "title": "A Telegram bot for the installation",
+        "text": "For people to link Telegram, set the bot token in the TELEGRAM_BOT_TOKEN environment variable; one bot per installation."
+      },
       "shareChat": {
         "short": "Share",
         "title": "Send a chat to a colleague",
@@ -2499,6 +2553,49 @@
       }
     },
     "demo": {
+      "memory": {
+        "message": "Olga promised to send the supply contract by Friday",
+        "reply": "Noted: Olga Lee will send the supply contract by Friday.",
+        "kept": "Kept",
+        "record": "Olga Lee will send the supply contract by Friday",
+        "undo": "Undo",
+        "undone": "Undone"
+      },
+      "forToday": {
+        "late": "Supply contract",
+        "lateWho": "Olga Lee",
+        "lateWhy": "2 d overdue",
+        "today": "October sales report",
+        "todayWhy": "today",
+        "rhythm": "Andrey Sedov",
+        "rhythmWhy": "not met for 18 d",
+        "ask": "Write a short polite reminder. To: Olga Lee. About: the supply contract."
+      },
+      "calendar": {
+        "report": "Sales report",
+        "contract": "Supply contract",
+        "moved": "Deadline moved"
+      },
+      "schedule": {
+        "rhythm": "Meet Andrey every two weeks",
+        "rhythmLine": "every 14 d · met 18 days ago",
+        "bank": "Call the bank about the limit",
+        "birthday": "Olga Lee's birthday",
+        "birthdayLine": "every year"
+      },
+      "telegram": {
+        "bot": "Metobe",
+        "text": "Call the bank about the limit",
+        "snoozed": "Will remind you in an hour",
+        "asked": "remind me on Friday at 10 to send the report",
+        "answer": "Will remind you on Friday at 10:00"
+      },
+      "mailWaits": {
+        "subject": "November invoice",
+        "why": "6 work d · Irina Belova",
+        "letter": "Hello Irina, a reminder about the November invoice. When could you send it?",
+        "send": "Send"
+      },
       "chatTitle": "Spring newsletter plan",
       "question": "Plan a spring newsletter for our customers",
       "answer": "Three emails over two weeks: an announcement, a roundup and a reminder — subjects and send days below.",

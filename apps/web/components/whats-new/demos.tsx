@@ -19,11 +19,16 @@ import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
 import {
   ArrowUp,
+  BellRing,
+  BookUser,
   CalendarClock,
+  CalendarHeart,
   Check,
   Copy,
+  Mail,
   Plus,
   RotateCcw,
+  UsersRound,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useRef, useState } from "react";
@@ -504,12 +509,357 @@ const GreetingDemo = () => {
   );
 };
 
+// ——— Memory (0.9.0) ———
+
+/** A message, the answer, and under it what was kept — «Отменить» takes it back. */
+const MemoryDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const [undone, setUndone] = useState(false);
+  return (
+    <Contained className="bg-background flex flex-col justify-end gap-3 px-6 pt-12 pb-14">
+      <div className="bg-muted ml-auto max-w-[80%] rounded-2xl px-4 py-2.5 text-sm">
+        {t("memory.message")}
+      </div>
+      <p className="text-sm leading-relaxed">{t("memory.reply")}</p>
+      <div
+        className={cn(
+          "text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs transition-opacity duration-200",
+          undone && "opacity-50"
+        )}
+      >
+        <BookUser className="size-3.5" />
+        <span className="font-medium">
+          {undone ? t("memory.undone") : t("memory.kept")}
+        </span>
+        <span
+          className={cn(
+            "bg-muted rounded-md px-2 py-0.5",
+            undone && "line-through"
+          )}
+        >
+          {t("memory.record")}
+        </span>
+        {!undone && (
+          <Button
+            className="h-6 px-2 text-xs"
+            data-demo="memory-undo"
+            onClick={() => setUndone(true)}
+            size="xs"
+            variant="ghost"
+          >
+            {t("memory.undo")}
+          </Button>
+        )}
+      </div>
+      {undone && <Again onClick={() => setUndone(false)} />}
+    </Contained>
+  );
+};
+
+/** «Не упустить» over the new chat's input: a click on a line puts a ready request into it. */
+const ForTodayDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const forToday = useTranslations("memory.forToday");
+  const [asked, setAsked] = useState(false);
+  const rows = [
+    {
+      demo: "today-late",
+      text: `${t("forToday.lateWho")} · ${t("forToday.late")}`,
+      warn: true,
+      why: t("forToday.lateWhy"),
+    },
+    { text: t("forToday.today"), why: t("forToday.todayWhy") },
+    { text: t("forToday.rhythm"), why: t("forToday.rhythmWhy") },
+  ];
+  return (
+    <Contained className="bg-background flex flex-col justify-end gap-3 px-6 pt-12 pb-6">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-muted-foreground px-2 text-xs font-medium">
+          {forToday("title")}
+        </span>
+        {rows.map((r) => (
+          <button
+            className="hover:bg-muted/60 flex items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-150"
+            data-demo={r.demo}
+            key={r.text}
+            onClick={() => setAsked(true)}
+            type="button"
+          >
+            <span className="min-w-0 flex-1 truncate">{r.text}</span>
+            <span
+              className={cn(
+                "shrink-0 text-xs",
+                r.warn ? "text-destructive" : "text-muted-foreground"
+              )}
+            >
+              {r.why}
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="bg-background flex min-h-11 items-center gap-1 rounded-3xl border p-1.5 shadow-xs">
+        <span className="text-muted-foreground grid size-8 place-items-center">
+          <Plus className="size-4" />
+        </span>
+        <span
+          className={cn(
+            "flex-1 px-1 text-sm",
+            !asked && "text-muted-foreground"
+          )}
+        >
+          {asked ? t("forToday.ask") : null}
+        </span>
+        <span className="bg-primary/60 text-primary-foreground grid size-8 shrink-0 place-items-center rounded-full">
+          <ArrowUp className="size-4" />
+        </span>
+      </div>
+      {asked && (
+        <Again className="top-3 bottom-auto" onClick={() => setAsked(false)} />
+      )}
+    </Contained>
+  );
+};
+
+/** A week of deadlines; a click on a promise moves it a day on, as dragging it does. */
+const CalendarDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const [moved, setMoved] = useState(false);
+  // The reader's own week, Monday to Friday, in their language.
+  const days = useMemo(() => {
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    return Array.from({ length: 5 }, (_, i) => {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      return new Intl.DateTimeFormat(undefined, {
+        day: "numeric",
+        weekday: "short",
+      }).format(day);
+    });
+  }, []);
+  const chip =
+    "rounded-md border bg-background px-2 py-1 text-left text-xs shadow-xs";
+  return (
+    <Contained className="bg-background flex flex-col gap-3 px-6 pt-12 pb-14">
+      <div className="grid flex-1 grid-cols-5 overflow-hidden rounded-lg border">
+        {days.map((d, i) => (
+          <div
+            className={cn("flex flex-col gap-1.5 p-1.5", i > 0 && "border-l")}
+            key={d}
+          >
+            <span className="text-muted-foreground text-[11px]">{d}</span>
+            {i === 1 && <span className={chip}>{t("calendar.contract")}</span>}
+            {i === (moved ? 3 : 2) && (
+              <button
+                className={cn(
+                  chip,
+                  "wn-chip hover:bg-muted transition-colors duration-150"
+                )}
+                data-demo="calendar-chip"
+                key={moved ? "moved" : "here"}
+                onClick={() => setMoved(true)}
+                type="button"
+              >
+                {t("calendar.report")}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {moved && (
+        <>
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <Check className="size-3.5" /> {t("calendar.moved")}
+          </p>
+          <Again onClick={() => setMoved(false)} />
+        </>
+      )}
+    </Contained>
+  );
+};
+
+/** A line of the schedule demo: the kind's tile, the text and its line, when, and an action. */
+const scheduleRow = (
+  icon: ReactNode,
+  text: string,
+  line: string,
+  when: string,
+  action?: ReactNode
+) => (
+  <li className="flex items-center gap-3 py-1.5">
+    <span className="text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md border">
+      {icon}
+    </span>
+    <div className="flex min-w-0 flex-1 flex-col">
+      <span className="truncate text-sm">{text}</span>
+      <span className="text-muted-foreground text-xs">{line}</span>
+    </div>
+    <span className="text-muted-foreground shrink-0 text-xs">{when}</span>
+    {action}
+  </li>
+);
+
+const scheduleGroup = (title: string, children: ReactNode) => (
+  <section className="flex flex-col">
+    <h3 className="text-muted-foreground text-xs font-medium">{title}</h3>
+    <ul>{children}</ul>
+  </section>
+);
+
+/** «Расписание»: a rhythm overdue, a reminder today, a birthday; «Уже было» sends the rhythm on. */
+const ScheduleDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const memory = useTranslations("memory");
+  const [met, setMet] = useState(false);
+  const rhythm = scheduleRow(
+    <UsersRound className="size-3.5" />,
+    t("schedule.rhythm"),
+    met ? memory("scheduleLast", { days: 0 }) : t("schedule.rhythmLine"),
+    met ? "" : memory("scheduleOverdueDays", { days: 4 }),
+    met ? null : (
+      <Button
+        aria-label={memory("scheduleRhythmDone")}
+        data-demo="schedule-met"
+        onClick={() => setMet(true)}
+        size="icon-sm"
+        title={memory("scheduleRhythmDone")}
+        variant="ghost"
+      >
+        <Check />
+      </Button>
+    )
+  );
+  return (
+    <Contained className="bg-background flex flex-col gap-4 px-6 pt-12 pb-14">
+      {!met && scheduleGroup(memory("scheduleOverdue"), rhythm)}
+      {scheduleGroup(
+        memory("remindersToday"),
+        scheduleRow(
+          <BellRing className="size-3.5" />,
+          t("schedule.bank"),
+          "",
+          "15:00"
+        )
+      )}
+      {scheduleGroup(
+        memory("remindersWeek"),
+        scheduleRow(
+          <CalendarHeart className="size-3.5" />,
+          t("schedule.birthday"),
+          t("schedule.birthdayLine"),
+          ""
+        )
+      )}
+      {met && scheduleGroup(memory("remindersLater"), rhythm)}
+      {met && <Again onClick={() => setMet(false)} />}
+    </Contained>
+  );
+};
+
+/** The bot in Telegram: a reminder with its buttons, and a request written to it as to the chat. */
+const TelegramDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const reminder = useTranslations("reminder");
+  const [snoozed, setSnoozed] = useState(false);
+  const bubble = "max-w-[80%] rounded-2xl px-3.5 py-2 text-sm";
+  return (
+    <Contained className="bg-muted/40 flex flex-col justify-end gap-2 px-6 pt-12 pb-14">
+      <div
+        className={cn(bubble, "bg-background flex flex-col gap-1 shadow-xs")}
+      >
+        <span className="text-primary text-xs font-medium">
+          {t("telegram.bot")}
+        </span>
+        <span className="font-medium">{reminder("title")}</span>
+        <span>{t("telegram.text")}</span>
+      </div>
+      <div className="flex max-w-[80%] gap-1">
+        {[reminder("done"), reminder("snooze"), reminder("tomorrow")].map(
+          (label, i) => (
+            <button
+              className="bg-background/80 hover:bg-background flex-1 rounded-lg px-2 py-1.5 text-xs shadow-xs transition-colors duration-150"
+              data-demo={i === 1 ? "telegram-snooze" : undefined}
+              key={label}
+              onClick={() => setSnoozed(true)}
+              type="button"
+            >
+              {label}
+            </button>
+          )
+        )}
+      </div>
+      {snoozed && (
+        <div className={cn(bubble, "bg-background wn-chip shadow-xs")}>
+          {t("telegram.snoozed")}
+        </div>
+      )}
+      <div className={cn(bubble, "bg-primary text-primary-foreground ml-auto")}>
+        {t("telegram.asked")}
+      </div>
+      <div className={cn(bubble, "bg-background shadow-xs")}>
+        {t("telegram.answer")}
+      </div>
+      {snoozed && <Again onClick={() => setSnoozed(false)} />}
+    </Contained>
+  );
+};
+
+/** A letter with no answer in «Не упустить»; «Напомнить» opens a ready letter. */
+const MailWaitsDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const forToday = useTranslations("memory.forToday");
+  const remind = useTranslations("memory.remind");
+  const [open, setOpen] = useState(false);
+  return (
+    <Contained className="bg-background flex flex-col gap-3 px-6 pt-12 pb-14">
+      <span className="text-muted-foreground px-2 text-xs font-medium">
+        {forToday("title")}
+      </span>
+      <div className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm">
+        <Mail className="text-muted-foreground size-4 shrink-0" />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate">
+            {forToday("mailLabel", { subject: t("mailWaits.subject") })}
+          </span>
+          <span className="text-muted-foreground truncate text-xs">
+            {t("mailWaits.why")}
+          </span>
+        </span>
+        <Button
+          data-demo="mail-remind"
+          onClick={() => setOpen(true)}
+          size="xs"
+          variant="outline"
+        >
+          {remind("action")}
+        </Button>
+      </div>
+      {open && (
+        <div className="wn-chip flex flex-col gap-3 rounded-xl border p-4 shadow-xs">
+          <p className="text-sm leading-relaxed">{t("mailWaits.letter")}</p>
+          <Button className="self-end" size="sm">
+            {t("mailWaits.send")}
+          </Button>
+        </div>
+      )}
+      {open && <Again onClick={() => setOpen(false)} />}
+    </Contained>
+  );
+};
+
 /** A change's demo by its id in the release notes; a change without one has no page of its own. */
 export const DEMOS: Record<string, () => ReactNode> = {
   askUser: AskDemo,
+  calendar: CalendarDemo,
   compactChat: CompactDemo,
+  forToday: ForTodayDemo,
   greeting: GreetingDemo,
+  mailWaits: MailWaitsDemo,
+  memory: MemoryDemo,
+  schedule: ScheduleDemo,
   shareChat: ShareDemo,
   tasks: TasksDemo,
+  telegram: TelegramDemo,
   threadMap: MapDemo,
 };
