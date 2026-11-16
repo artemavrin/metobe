@@ -9,12 +9,7 @@ import {
   markMemoryChecked,
 } from "./mailboxes";
 import type { Mailbox } from "./mailboxes";
-import {
-  MAIL_OFFER_KEY,
-  listDismissals,
-  listEntities,
-  saveMailWaits,
-} from "./memory";
+import { listDismissals, listEntities, saveMailWaits } from "./memory";
 import { cardAddresses, waitingLetters } from "./memory-mail";
 import { isMemoryOnFor } from "./memory-write";
 
@@ -113,6 +108,6 @@ export const offersMailReading = async (userId: string) => {
   return (
     boxes.length > 0 &&
     !boxes.some((b) => b.memoryReads) &&
-    !dismissed.has(`${MAIL_OFFER_KEY}:${userId}`)
+    !dismissed.has({ kind: "mail_offer" })
   );
 };

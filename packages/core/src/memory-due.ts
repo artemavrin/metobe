@@ -9,12 +9,10 @@ import type {
 import {
   addRecord,
   ensureSelf,
-  keepKey,
   lastChanges,
   listDismissals,
   listEntities,
   listRecords,
-  reviewKey,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord, MemoryRecordInput } from "./memory";
 import { cardOf, dayKey, daysBetween, sidesOf } from "./memory-today";
@@ -202,7 +200,7 @@ export const memoryStale = async (
   ]);
   const kept = new Map(
     records.flatMap((r): [string, Date][] => {
-      const row = dismissed.get(keepKey(r.id));
+      const row = dismissed.get({ kind: "keep", recordId: r.id });
       return row ? [[r.id, row.at]] : [];
     })
   );
@@ -237,7 +235,7 @@ export const reviewCount = async (
     memoryStale(ownerId, timeZone, now),
     listDismissals(ownerId),
   ]);
-  return dismissed.has(reviewKey(ownerId, weekStart(now, timeZone)))
+  return dismissed.has({ day: weekStart(now, timeZone), kind: "review" })
     ? 0
     : rows.length;
 };

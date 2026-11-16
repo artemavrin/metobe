@@ -8,6 +8,7 @@ import type {
   MemoryRepeat,
   MemoryRuleKind,
   ReminderRepeat,
+  MemoryDismissalKind,
   MemoryStatus,
   MemoryWriteStatus,
 } from "@metobe/contracts/memory";
@@ -15,12 +16,14 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
   integer,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -342,31 +345,62 @@ export const memoryChanges = pgTable(
 );
 
 /**
- * «Убрать» in «На сегодня» (P17): a commitment the person does not want suggested — while its deadline and status
- * stay what they were then. A new deadline or status brings it back; so does «Вернуть» (the row goes).
+ * What the person took away, by kind (`MemoryDismissalKind`), and from what: «Убрать» in «Не упустить» (P17) — a
+ * promise while its deadline and status stay what they were then (`as_of`, `status`), a rhythm row with a card while
+ * the last contact is the one it was (`as_of`), a date for its `day`, a letter while the person's last one in the
+ * thread is the one it was (`as_of`); «Оставить» in «Сверка» (`keep`, from `at`); a reminder letter sent (`reminded`,
+ * `at` and the deadline and status it was about); «Сверка» put away for the week starting `day`; «Не надо» on the offer
+ * to read mail; «Разные» on a pair of cards (`entity_id` < `other_entity_id`). «Вернуть» deletes the row.
  */
 export const memoryDismissals = pgTable(
   "memory_dismissals",
   {
+    /** The moment the row stood on then: a promise's deadline, a rhythm's last contact, a letter's sending. */
+    asOf: timestamp("as_of", { withTimezone: true }),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
-    /** A commitment's deadline then; for a rhythm row — the day of the last contact then. */
-    dueAt: timestamp("due_at", { withTimezone: true }),
-    /** The rhythm row's card: one rule may keep the rhythm with several people («с каждым из команды»). */
+    /** A date's day (`date`), the Monday of the week (`review`). */
+    day: date("day", { mode: "string" }),
+    /** The rhythm row's card, or the first card of a pair. */
     entityId: uuid("entity_id").references(() => memoryEntities.id, {
       onDelete: "cascade",
     }),
-    /** The row: a commitment's id, or a rule's id and the card's (`rule:card`) — portable, unlike a nullable key. */
-    key: text("key").primaryKey(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").$type<MemoryDismissalKind>().notNull(),
+    /** A letter's key in its box (`memory_mail_waits.key`). */
+    letter: text("letter"),
+    mailboxId: uuid("mailbox_id").references(() => mailboxes.id, {
+      onDelete: "cascade",
+    }),
+    /** The second card of a pair. */
+    otherEntityId: uuid("other_entity_id").references(() => memoryEntities.id, {
+      onDelete: "cascade",
+    }),
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    /** Null for a pair of cards said to be different (`merge:<a>:<b>`, ARCH §19.8.5). */
     recordId: uuid("record_id").references(() => memoryRecords.id, {
       onDelete: "cascade",
     }),
     status: text("status").$type<MemoryStatus>(),
   },
-  (table) => [index("memory_dismissals_owner").on(table.ownerId)]
+  (table) => [
+    unique("memory_dismissals_target")
+      .on(
+        table.ownerId,
+        table.kind,
+        table.recordId,
+        table.entityId,
+        table.otherEntityId,
+        table.mailboxId,
+        table.letter,
+        table.day
+      )
+      .nullsNotDistinct(),
+    check(
+      "memory_dismissals_kind",
+      sql`${table.kind} in ('commitment', 'rhythm', 'date', 'keep', 'reminded', 'review', 'mail', 'mail_offer', 'merge_pair')`
+    ),
+  ]
 );
 
 /**
@@ -419,7 +453,7 @@ export const memorySummaries = pgTable(
 /**
  * A letter the person sent someone from the memory, with no answer yet (Г3.1, S16): found by envelopes and headers
  * alone — no letter's text is read or kept. `key` — the letter's `Message-ID` under the installation's HMAC, for the
- * row and for «Убрать» (`mail:<box>:<key>`); `sent_at` — the person's last letter in the thread, the wait counts from
+ * row and for «Убрать» (`memory_dismissals` of kind `mail`); `sent_at` — the person's last letter in the thread, the wait counts from
  * it; `answered_at` — an answer came (or the letter is no longer one to wait on), the row is gone from «Не упустить».
  * `sealed` is `{ subject, to, messageId, references }`.
  */

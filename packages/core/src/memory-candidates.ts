@@ -419,8 +419,8 @@ const samePerson = (a: string[], b: string[]) =>
  */
 export const likelySame = (
   entities: MemoryEntity[],
-  dismissed: Set<string>,
-  pairKey: (a: string, b: string) => string
+  /** Said to be different («Разные»). */
+  different: (a: string, b: string) => boolean
 ) => {
   const cards = entities.filter((e) => e.kind !== "self");
   const names = new Map(
@@ -429,7 +429,7 @@ export const likelySame = (
   const pairs: { keep: MemoryEntity; gone: MemoryEntity }[] = [];
   for (const [i, a] of cards.entries()) {
     for (const b of cards.slice(i + 1)) {
-      if (a.kind !== b.kind || dismissed.has(pairKey(a.id, b.id))) {
+      if (a.kind !== b.kind || different(a.id, b.id)) {
         continue;
       }
       const an = names.get(a.id) ?? [];

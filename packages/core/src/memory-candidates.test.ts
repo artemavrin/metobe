@@ -311,7 +311,7 @@ describe("the promises the «Память» model is shown (ARCH §19.8.3)", () 
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}:${b}` : `${b}:${a}`);
 const pairs = (cards: MemoryEntity[], dismissed: string[] = []) =>
-  likelySame(cards, new Set(dismissed), pairKey).map(
+  likelySame(cards, (a, b) => dismissed.includes(pairKey(a, b))).map(
     (p) => `${p.keep.id}<${p.gone.id}`
   );
 

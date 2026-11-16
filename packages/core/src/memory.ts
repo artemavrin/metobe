@@ -2226,13 +2226,105 @@ export const recordContact = async (
   }
 };
 
-/** The row's key in `memory_dismissals`: a commitment's id, or a rule's and its card's for a rhythm row. */
-export const dismissalKey = (recordId: string, entityId?: string) =>
-  entityId ? `${recordId}:${entityId}` : recordId;
+/**
+ * What a row of `memory_dismissals` takes away (`MemoryDismissalKind`), by the things it names. A pair of cards is kept
+ * in one order, whichever comes first.
+ */
+export type DismissalTarget =
+  | { kind: "commitment" | "keep" | "reminded"; recordId: string }
+  | { kind: "rhythm"; recordId: string; entityId: string }
+  | { kind: "date"; recordId: string; day: string }
+  | { kind: "review"; day: string }
+  | { kind: "mail"; mailboxId: string; letter: string }
+  | { kind: "mail_offer" }
+  | { kind: "merge_pair"; entityId: string; otherEntityId: string };
 
-/** A `date` row's key (ARCH §19.8.7): the rule and the day it comes — taken away for that day only. */
-export const dateKey = (recordId: string, day: string) =>
-  `date:${recordId}:${day}`;
+const targetColumns = (t: DismissalTarget) => {
+  const pair =
+    t.kind === "merge_pair" && t.otherEntityId < t.entityId
+      ? { entityId: t.otherEntityId, otherEntityId: t.entityId }
+      : null;
+  return {
+    day: "day" in t ? t.day : null,
+    entityId: pair?.entityId ?? ("entityId" in t ? t.entityId : null),
+    kind: t.kind,
+    letter: "letter" in t ? t.letter : null,
+    mailboxId: "mailboxId" in t ? t.mailboxId : null,
+    otherEntityId:
+      pair?.otherEntityId ?? ("otherEntityId" in t ? t.otherEntityId : null),
+    recordId: "recordId" in t ? t.recordId : null,
+  };
+};
+
+/** The row's conflict target: every column that names what it takes away (`memory_dismissals_target`). */
+const TARGET = [
+  memoryDismissals.ownerId,
+  memoryDismissals.kind,
+  memoryDismissals.recordId,
+  memoryDismissals.entityId,
+  memoryDismissals.otherEntityId,
+  memoryDismissals.mailboxId,
+  memoryDismissals.letter,
+  memoryDismissals.day,
+];
+
+const is = <T>(column: Parameters<typeof eq>[0], value: T | null) =>
+  value === null ? isNull(column) : eq(column, value);
+
+const targetWhere = (ownerId: string, t: DismissalTarget) => {
+  const c = targetColumns(t);
+  return and(
+    eq(memoryDismissals.ownerId, ownerId),
+    eq(memoryDismissals.kind, c.kind),
+    is(memoryDismissals.recordId, c.recordId),
+    is(memoryDismissals.entityId, c.entityId),
+    is(memoryDismissals.otherEntityId, c.otherEntityId),
+    is(memoryDismissals.mailboxId, c.mailboxId),
+    is(memoryDismissals.letter, c.letter),
+    is(memoryDismissals.day, c.day)
+  );
+};
+
+/** One string per target, for the map `listDismissals` gives: the same columns, in the same order. */
+const targetId = (c: ReturnType<typeof targetColumns>) =>
+  [
+    c.kind,
+    c.recordId,
+    c.entityId,
+    c.otherEntityId,
+    c.mailboxId,
+    c.letter,
+    c.day,
+  ].join("|");
+
+/** What it stood on then: the deadline (or last contact, or letter) and status. Null when nothing — only `at` counts. */
+interface DismissalState {
+  asOf: Date | null;
+  status: MemoryStatus | null;
+}
+
+const NO_STATE: DismissalState = { asOf: null, status: null };
+
+/** Takes it away, or — taken already — takes it again with the state now. */
+const putDismissal = async (
+  ownerId: string,
+  t: DismissalTarget,
+  state = NO_STATE
+) => {
+  await getDb()
+    .db.insert(memoryDismissals)
+    .values({ ...targetColumns(t), ...state, ownerId })
+    .onConflictDoUpdate({ set: { ...state, at: new Date() }, target: TARGET });
+};
+
+/** «Вернуть»: true when there was one to take back. */
+const dropDismissal = async (ownerId: string, t: DismissalTarget) => {
+  const rows = await getDb()
+    .db.delete(memoryDismissals)
+    .where(targetWhere(ownerId, t))
+    .returning({ id: memoryDismissals.id });
+  return rows.length > 0;
+};
 
 /**
  * «Убрать» in «Не упустить» (P17). A commitment stays away while its deadline and status are as they are; a rhythm row
@@ -2245,9 +2337,8 @@ export const dismissSuggestion = async (
   /** A `date` row: the day it was for. */
   date?: string
 ) => {
-  const { db } = getDb();
-  const [row] = await db
-    .select({ dueAt: memoryRecords.dueAt, status: memoryRecords.status })
+  const [row] = await getDb()
+    .db.select({ dueAt: memoryRecords.dueAt, status: memoryRecords.status })
     .from(memoryRecords)
     .where(
       and(
@@ -2261,63 +2352,54 @@ export const dismissSuggestion = async (
   if (!row) {
     return false;
   }
-  let snapshot = {
-    dueAt: row.dueAt,
-    entityId: null as string | null,
-    status: row.status,
-  };
   if (rhythm) {
-    snapshot = { dueAt: rhythm.since, entityId: rhythm.entityId, status: null };
-  } else if (date) {
-    snapshot = { dueAt: null, entityId: null, status: null };
-  }
-  await db
-    .insert(memoryDismissals)
-    .values({
-      ...snapshot,
-      key: date
-        ? dateKey(recordId, date)
-        : dismissalKey(recordId, rhythm?.entityId),
+    await putDismissal(
       ownerId,
-      recordId,
-    })
-    .onConflictDoUpdate({
-      set: { ...snapshot, at: new Date() },
-      target: memoryDismissals.key,
-    });
+      { entityId: rhythm.entityId, kind: "rhythm", recordId },
+      { asOf: rhythm.since, status: null }
+    );
+  } else if (date) {
+    await putDismissal(ownerId, { day: date, kind: "date", recordId });
+  } else {
+    await putDismissal(
+      ownerId,
+      { kind: "commitment", recordId },
+      { asOf: row.dueAt, status: row.status }
+    );
+  }
   return true;
 };
 
 /** «Вернуть» after «Убрать». */
-export const undismissSuggestion = async (
+export const undismissSuggestion = (
   ownerId: string,
   recordId: string,
   entityId?: string,
   date?: string
 ) => {
-  const rows = await getDb()
-    .db.delete(memoryDismissals)
-    .where(
-      and(
-        eq(memoryDismissals.ownerId, ownerId),
-        eq(
-          memoryDismissals.key,
-          date ? dateKey(recordId, date) : dismissalKey(recordId, entityId)
-        )
-      )
-    )
-    .returning({ key: memoryDismissals.key });
-  return rows.length > 0;
+  if (date) {
+    return dropDismissal(ownerId, { day: date, kind: "date", recordId });
+  }
+  return dropDismissal(
+    ownerId,
+    entityId
+      ? { entityId, kind: "rhythm", recordId }
+      : { kind: "commitment", recordId }
+  );
 };
 
-/** What the person took away from «Не упустить», by row key, with the deadline (or last contact) and status then. */
+/** What the person took away, with the state then: `get` and `has` by what it was. */
 export const listDismissals = async (ownerId: string) => {
   const rows = await getDb()
     .db.select()
     .from(memoryDismissals)
     .where(eq(memoryDismissals.ownerId, ownerId));
-  return new Map(rows.map((r) => [r.key, r]));
+  const byTarget = new Map(rows.map((r) => [targetId(r), r]));
+  const get = (t: DismissalTarget) => byTarget.get(targetId(targetColumns(t)));
+  return { get, has: (t: DismissalTarget) => get(t) !== undefined };
 };
+
+export type Dismissals = Awaited<ReturnType<typeof listDismissals>>;
 
 /**
  * The reminders whose moment has come, in every memory: open promises not reminded of yet, oldest first. Which of them
@@ -2519,43 +2601,25 @@ export const loadSummary = async (
   }
 };
 
-/** The key of «Оставить» in «Сверка»: the commitment stays open and out of it for a while. */
-export const keepKey = (recordId: string) => `stale:${recordId}`;
-
 /**
- * «Убрать» on the «Сверка» row of «Не упустить»: the row stays away for the rest of the week that starts on `week`. The
- * key is the table's primary key across every owner, so it names the owner: a week alone would be one row for all.
+ * «Убрать» on the «Сверка» row of «Не упустить»: the row stays away for the rest of the week that starts on `week`.
  */
-export const reviewKey = (ownerId: string, week: string) =>
-  `review:${ownerId}:${week}`;
-
-export const dismissReview = async (ownerId: string, week: string) => {
-  await getDb()
-    .db.insert(memoryDismissals)
-    .values({ key: reviewKey(ownerId, week), ownerId })
-    .onConflictDoUpdate({
-      set: { at: new Date() },
-      target: memoryDismissals.key,
-    });
-};
+export const dismissReview = (ownerId: string, week: string) =>
+  putDismissal(ownerId, { day: week, kind: "review" });
 
 /** «Вернуть» after it. */
 export const undismissReview = async (ownerId: string, week: string) => {
-  await getDb()
-    .db.delete(memoryDismissals)
-    .where(
-      and(
-        eq(memoryDismissals.ownerId, ownerId),
-        eq(memoryDismissals.key, reviewKey(ownerId, week))
-      )
-    );
+  await dropDismissal(ownerId, { day: week, kind: "review" });
 };
 
-/** Keeps a row of `memory_dismissals` for an open commitment of the owner's with its deadline and status now, at now. */
-const snapshotOpen = async (ownerId: string, recordId: string, key: string) => {
-  const { db } = getDb();
-  const [row] = await db
-    .select({ dueAt: memoryRecords.dueAt, status: memoryRecords.status })
+/** Takes an open commitment of the owner's away (`keep`, `reminded`) with its deadline and status now, at now. */
+const snapshotOpen = async (
+  ownerId: string,
+  recordId: string,
+  kind: "keep" | "reminded"
+) => {
+  const [row] = await getDb()
+    .db.select({ dueAt: memoryRecords.dueAt, status: memoryRecords.status })
     .from(memoryRecords)
     .where(
       and(
@@ -2569,27 +2633,24 @@ const snapshotOpen = async (ownerId: string, recordId: string, key: string) => {
   if (!row) {
     return false;
   }
-  const snapshot = { dueAt: row.dueAt, entityId: null, status: row.status };
-  await db
-    .insert(memoryDismissals)
-    .values({ ...snapshot, key, ownerId, recordId })
-    .onConflictDoUpdate({
-      set: { ...snapshot, at: new Date() },
-      target: memoryDismissals.key,
-    });
+  await putDismissal(
+    ownerId,
+    { kind, recordId },
+    { asOf: row.dueAt, status: row.status }
+  );
   return true;
 };
 
 /** «Оставить» in «Сверка» (В2.1): the commitment is not shown there for 30 days. False — it is not an open one of theirs. */
 export const keepOpen = (ownerId: string, recordId: string) =>
-  snapshotOpen(ownerId, recordId, keepKey(recordId));
+  snapshotOpen(ownerId, recordId, "keep");
 
-/** A reminder letter sent to the one who owes (Г2.4): «Не упустить» waits for their answer — `memory-today`. */
-export const remindedKey = (recordId: string) => `reminded:${recordId}`;
-
-/** Notes the letter: when it went, and the deadline and status it was about. */
+/**
+ * A reminder letter sent to the one who owes (Г2.4): «Не упустить» waits for their answer — `memory-today`. Notes the
+ * letter: when it went, and the deadline and status it was about.
+ */
 export const markReminded = (ownerId: string, recordId: string) =>
-  snapshotOpen(ownerId, recordId, remindedKey(recordId));
+  snapshotOpen(ownerId, recordId, "reminded");
 
 // --- letters with no answer (Г3.1) ----------------------------------------------------------------------------------
 
@@ -2610,10 +2671,6 @@ export interface MemoryMailWait extends z.infer<typeof mailWaitBody> {
   key: string;
   sentAt: Date;
 }
-
-/** A letter row's key in `memory_dismissals`: the box and the letter. */
-export const mailKey = (mailboxId: string, key: string) =>
-  `mail:${mailboxId}:${key}`;
 
 /**
  * What a look at a box found: the letters that wait now are kept (a wait already kept keeps its row and takes the
@@ -2724,14 +2781,11 @@ export const dismissMailWait = async (ownerId: string, id: string) => {
   if (!wait) {
     return false;
   }
-  const snapshot = { dueAt: wait.sentAt, entityId: null, status: null };
-  await getDb()
-    .db.insert(memoryDismissals)
-    .values({ ...snapshot, key: mailKey(wait.mailboxId, wait.key), ownerId })
-    .onConflictDoUpdate({
-      set: { ...snapshot, at: new Date() },
-      target: memoryDismissals.key,
-    });
+  await putDismissal(
+    ownerId,
+    { kind: "mail", letter: wait.key, mailboxId: wait.mailboxId },
+    { asOf: wait.sentAt, status: null }
+  );
   return true;
 };
 
@@ -2741,40 +2795,21 @@ export const undismissMailWait = async (ownerId: string, id: string) => {
   if (!wait) {
     return false;
   }
-  await getDb()
-    .db.delete(memoryDismissals)
-    .where(
-      and(
-        eq(memoryDismissals.ownerId, ownerId),
-        eq(memoryDismissals.key, mailKey(wait.mailboxId, wait.key))
-      )
-    );
+  await dropDismissal(ownerId, {
+    kind: "mail",
+    letter: wait.key,
+    mailboxId: wait.mailboxId,
+  });
   return true;
 };
 
 /** «Не надо» on the offer to notice letters with no answer: it is not offered again. */
-export const MAIL_OFFER_KEY = "offer:mail";
-
-export const dismissMailOffer = async (ownerId: string) => {
-  await getDb()
-    .db.insert(memoryDismissals)
-    .values({ key: `${MAIL_OFFER_KEY}:${ownerId}`, ownerId })
-    .onConflictDoNothing();
-};
+export const dismissMailOffer = (ownerId: string) =>
+  putDismissal(ownerId, { kind: "mail_offer" });
 
 /** «Вернуть» after «Оставить». */
-export const unkeepOpen = async (ownerId: string, recordId: string) => {
-  const rows = await getDb()
-    .db.delete(memoryDismissals)
-    .where(
-      and(
-        eq(memoryDismissals.ownerId, ownerId),
-        eq(memoryDismissals.key, keepKey(recordId))
-      )
-    )
-    .returning({ key: memoryDismissals.key });
-  return rows.length > 0;
-};
+export const unkeepOpen = (ownerId: string, recordId: string) =>
+  dropDismissal(ownerId, { kind: "keep", recordId });
 
 // --- merging cards (ARCH §19.8.5) ----------------------------------------------------------------------------------
 
@@ -2791,7 +2826,12 @@ const mergeBody = z.object({
   /** `gone`'s «Убрать» rows: moved to `keep` (`from` → `to`), or dropped as `keep` had one (`row`). */
   dismissals: z.array(
     z.object({
-      from: z.string(),
+      /** Before rows had kinds: the rhythm row's key, `rule:card` — the rule is its first 36 characters. */
+      from: z.string().optional(),
+      /** It went over to `keep` (else `row`: `keep` had one, and this one went). */
+      moved: z.boolean().optional(),
+      /** The rhythm rule. */
+      recordId: z.string().optional(),
       row: z
         .object({
           at: z.string(),
@@ -2911,7 +2951,7 @@ export const mergeEntities = async (
         updatedAt: new Date(),
       })
       .where(eq(memoryEntities.id, keepId));
-    // «Убрать» rows keyed by `gone` (a rhythm row: `rule:card`) follow it; where `keep` has one already, it stays.
+    // «Убрать» rhythm rows with `gone` follow it; where `keep` has one for the same rule already, that one stays.
     const dismissals: z.infer<typeof mergeBody>["dismissals"] = [];
     const goneRows = await tx
       .select()
@@ -2919,27 +2959,30 @@ export const mergeEntities = async (
       .where(
         and(
           eq(memoryDismissals.ownerId, ownerId),
+          eq(memoryDismissals.kind, "rhythm"),
           eq(memoryDismissals.entityId, goneId)
         )
       );
     for (const row of goneRows) {
-      const to = row.key.replace(goneId, keepId);
+      const recordId = row.recordId ?? "";
       // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
       const [taken] = await tx
-        .select({ key: memoryDismissals.key })
+        .select({ id: memoryDismissals.id })
         .from(memoryDismissals)
-        .where(eq(memoryDismissals.key, to))
+        .where(
+          targetWhere(ownerId, { entityId: keepId, kind: "rhythm", recordId })
+        )
         .limit(1);
       if (taken) {
         // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
         await tx
           .delete(memoryDismissals)
-          .where(eq(memoryDismissals.key, row.key));
+          .where(eq(memoryDismissals.id, row.id));
         dismissals.push({
-          from: row.key,
+          recordId,
           row: {
             at: row.at.toISOString(),
-            dueAt: row.dueAt?.toISOString() ?? null,
+            dueAt: row.asOf?.toISOString() ?? null,
             recordId: row.recordId,
             status: row.status,
           },
@@ -2948,9 +2991,9 @@ export const mergeEntities = async (
         // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
         await tx
           .update(memoryDismissals)
-          .set({ entityId: keepId, key: to })
-          .where(eq(memoryDismissals.key, row.key));
-        dismissals.push({ from: row.key, to });
+          .set({ entityId: keepId })
+          .where(eq(memoryDismissals.id, row.id));
+        dismissals.push({ moved: true, recordId });
       }
     }
     await tx
@@ -3076,23 +3119,30 @@ export const undoMerge = async (ownerId: string, mergeId: string) => {
         .where(eq(memoryEntities.id, keep.id));
     }
     for (const d of body.dismissals) {
-      if (d.to) {
+      const recordId = d.recordId ?? d.from?.slice(0, 36) ?? "";
+      if (d.moved || d.to) {
         // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
         await tx
           .update(memoryDismissals)
-          .set({ entityId: merge.goneId, key: d.from })
-          .where(eq(memoryDismissals.key, d.to));
+          .set({ entityId: merge.goneId })
+          .where(
+            targetWhere(ownerId, {
+              entityId: merge.keepId,
+              kind: "rhythm",
+              recordId,
+            })
+          );
       } else if (d.row) {
         // oxlint-disable-next-line eslint/no-await-in-loop -- a handful of rows, one transaction
         await tx
           .insert(memoryDismissals)
           .values({
+            asOf: d.row.dueAt ? new Date(d.row.dueAt) : null,
             at: new Date(d.row.at),
-            dueAt: d.row.dueAt ? new Date(d.row.dueAt) : null,
             entityId: merge.goneId,
-            key: d.from,
+            kind: "rhythm",
             ownerId,
-            recordId: d.row.recordId,
+            recordId,
             status: d.row.status as MemoryStatus | null,
           })
           .onConflictDoNothing();
@@ -3110,35 +3160,21 @@ export const undoMerge = async (ownerId: string, mergeId: string) => {
   });
 };
 
-/** The «Разные» row of a pair: one key whichever card comes first. */
-export const mergePairKey = (a: string, b: string) =>
-  a < b ? `merge:${a}:${b}` : `merge:${b}:${a}`;
-
 /** «Разные» on «Один человек?»: the pair is not offered again. */
-export const dismissMergePair = async (
-  ownerId: string,
-  a: string,
-  b: string
-) => {
-  await getDb()
-    .db.insert(memoryDismissals)
-    .values({ key: mergePairKey(a, b), ownerId })
-    .onConflictDoNothing();
-};
+export const dismissMergePair = (ownerId: string, a: string, b: string) =>
+  putDismissal(ownerId, {
+    entityId: a,
+    kind: "merge_pair",
+    otherEntityId: b,
+  });
 
 /** «Один человек?» in «Не записано» (ARCH §19.8.5): a few pairs of cards that may be one, none said to be different. */
 export const mergeSuggestions = async (ownerId: string) => {
-  const [entities, rows] = await Promise.all([
+  const [entities, dismissed] = await Promise.all([
     listEntities(ownerId),
-    getDb()
-      .db.select({ key: memoryDismissals.key })
-      .from(memoryDismissals)
-      .where(
-        and(
-          eq(memoryDismissals.ownerId, ownerId),
-          sql`${memoryDismissals.key} like 'merge:%'`
-        )
-      ),
+    listDismissals(ownerId),
   ]);
-  return likelySame(entities, new Set(rows.map((r) => r.key)), mergePairKey);
+  return likelySame(entities, (a, b) =>
+    dismissed.has({ entityId: a, kind: "merge_pair", otherEntityId: b })
+  );
 };

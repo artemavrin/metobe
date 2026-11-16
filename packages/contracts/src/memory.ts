@@ -99,6 +99,24 @@ export const memoryWriteStatuses = [
 export type MemoryWriteStatus = (typeof memoryWriteStatuses)[number];
 
 /**
+ * What a row of `memory_dismissals` takes away (P17, ARCH §19.8): a promise, a rhythm row with one card, a date's day,
+ * a promise kept out of «Сверка», a promise reminded of by letter, the «Сверка» row for a week, a letter with no answer,
+ * the offer to read mail, a pair of cards said to be different.
+ */
+export const memoryDismissalKinds = [
+  "commitment",
+  "rhythm",
+  "date",
+  "keep",
+  "reminded",
+  "review",
+  "mail",
+  "mail_offer",
+  "merge_pair",
+] as const;
+export type MemoryDismissalKind = (typeof memoryDismissalKinds)[number];
+
+/**
  * A question the writer could not settle by itself (P18): open until the person answers or turns it away — or until
  * it is old enough to be given up (`expired`, ARCH §19.8.6).
  */

@@ -6,17 +6,13 @@ import type {
 
 import { listMailboxes } from "./mailboxes";
 import {
-  dateKey,
-  dismissalKey,
   listDismissals,
   listEntities,
   listMailWaits,
   listRecords,
-  mailKey,
-  remindedKey,
   writeChats,
 } from "./memory";
-import type { MemoryEntity, MemoryRecord } from "./memory";
+import type { Dismissals, MemoryEntity, MemoryRecord } from "./memory";
 import { groupMembers } from "./memory-groups";
 import { DEFAULT_WAIT, waitedPast, workingDaysBetween } from "./memory-mail";
 import { REACH, nextRepeat } from "./memory-repeat";
@@ -151,11 +147,11 @@ const reasonOf = (
 /** Taken away while its deadline and status were these: not again until one of them changes. */
 const isDismissed = (
   r: MemoryRecord,
-  gone: { dueAt: Date | null; status: string | null } | undefined
+  gone: { asOf: Date | null; status: string | null } | undefined
 ) =>
   Boolean(gone) &&
   gone?.status === r.status &&
-  (gone?.dueAt?.getTime() ?? null) === (r.dueAt?.getTime() ?? null);
+  (gone?.asOf?.getTime() ?? null) === (r.dueAt?.getTime() ?? null);
 
 /** Who is on the other side: the debtor when the person is owed, the creditor when the person owes. */
 export const sidesOf = (r: MemoryRecord, cards: Map<string, MemoryEntity>) => {
@@ -222,7 +218,7 @@ const REMINDED_WAIT = { days: 5, workingDays: true };
  */
 const afterReminder = (
   r: MemoryRecord,
-  letter: { at: Date; dueAt: Date | null; status: string | null } | undefined,
+  letter: { at: Date; asOf: Date | null; status: string | null } | undefined,
   by: { days: number; workingDays?: boolean | null },
   today: string,
   timeZone: string
@@ -230,7 +226,7 @@ const afterReminder = (
   if (
     !letter ||
     letter.status !== r.status ||
-    (letter.dueAt?.getTime() ?? null) !== (r.dueAt?.getTime() ?? null)
+    (letter.asOf?.getTime() ?? null) !== (r.dueAt?.getTime() ?? null)
   ) {
     return null;
   }
@@ -246,7 +242,7 @@ const rhythmRows = (
   rules: MemoryRecord[],
   events: MemoryRecord[],
   cards: Map<string, MemoryEntity>,
-  dismissed: Awaited<ReturnType<typeof listDismissals>>,
+  dismissed: Dismissals,
   {
     expand,
     now,
@@ -274,10 +270,13 @@ const rhythmRows = (
         dayKey(contact ?? r.recordedAt, timeZone),
         today
       );
-      const gone = dismissed.get(dismissalKey(r.id, cardId));
+      const gone = dismissed.get({
+        entityId: cardId,
+        kind: "rhythm",
+        recordId: r.id,
+      });
       const away =
-        gone &&
-        (gone.dueAt?.getTime() ?? null) === (contact?.getTime() ?? null);
+        gone && (gone.asOf?.getTime() ?? null) === (contact?.getTime() ?? null);
       if (days < r.rule.days || away) {
         return [];
       }
@@ -287,7 +286,7 @@ const rhythmRows = (
           dueAt: null,
           id: r.id,
           important: false,
-          key: dismissalKey(r.id, cardId),
+          key: `${r.id}:${cardId}`,
           kind: "rhythm",
           reason: "rhythm",
           rhythm: { every: r.rule.days, since: contact?.toISOString() ?? null },
@@ -303,12 +302,12 @@ const rhythmRows = (
 
 /**
  * Days that come again, near enough to say so (ARCH §19.8.7): a birthday three days before, a monthly or weekly day
- * today and tomorrow. «Уже сделано» (`date:<id>:<day>`) keeps the day away until the next one.
+ * today and tomorrow. «Уже сделано» (a `date` dismissal for that day) keeps the day away until the next one.
  */
 const dateRows = (
   rules: MemoryRecord[],
   cards: Map<string, MemoryEntity>,
-  dismissed: Awaited<ReturnType<typeof listDismissals>>,
+  dismissed: Dismissals,
   { timeZone, today }: { timeZone: string; today: string }
 ): MemorySuggestion[] => {
   const self = new Set(
@@ -321,7 +320,10 @@ const dateRows = (
     }
     const day = nextRepeat(dayKey(r.occurredAt, timeZone), repeat, today);
     const ahead = daysBetween(today, day);
-    if (ahead > REACH[repeat] || dismissed.has(dateKey(r.id, day))) {
+    if (
+      ahead > REACH[repeat] ||
+      dismissed.has({ day, kind: "date", recordId: r.id })
+    ) {
       return [];
     }
     const [subject] = subjectsOf(r, self);
@@ -332,7 +334,7 @@ const dateRows = (
         dueAt: null,
         id: r.id,
         important: false,
-        key: dateKey(r.id, day),
+        key: `date:${r.id}:${day}`,
         kind: "date",
         reason: "date",
         rhythm: null,
@@ -352,7 +354,7 @@ const dateRows = (
 const mailRows = async (
   ownerId: string,
   cards: Map<string, MemoryEntity>,
-  dismissed: Awaited<ReturnType<typeof listDismissals>>,
+  dismissed: Dismissals,
   {
     waits,
     timeZone,
@@ -368,13 +370,17 @@ const mailRows = async (
   return letters.flatMap((w): MemorySuggestion[] => {
     const card = cards.get(w.entityId);
     const box = boxes.get(w.mailboxId);
-    const gone = dismissed.get(mailKey(w.mailboxId, w.key));
+    const gone = dismissed.get({
+      kind: "mail",
+      letter: w.key,
+      mailboxId: w.mailboxId,
+    });
     const rule = waitOf(waits, w.entityId) ?? DEFAULT_WAIT;
     const days = waitedPast(dayKey(w.sentAt, timeZone), today, rule);
     if (
       !(card && box) ||
       days === null ||
-      gone?.dueAt?.getTime() === w.sentAt.getTime()
+      gone?.asOf?.getTime() === w.sentAt.getTime()
     ) {
       return [];
     }
@@ -385,7 +391,7 @@ const mailRows = async (
         email: w.to,
         id: w.id,
         important: false,
-        key: mailKey(w.mailboxId, w.key),
+        key: `mail:${w.mailboxId}:${w.key}`,
         kind: "mail",
         mail: {
           box,
@@ -507,14 +513,14 @@ export const todaySuggestions = async (
     if (r.status !== "open" && r.status !== "unconfirmed") {
       return [];
     }
-    if (isDismissed(r, dismissed.get(r.id))) {
+    if (isDismissed(r, dismissed.get({ kind: "commitment", recordId: r.id }))) {
       return [];
     }
     const days = r.dueAt ? daysBetween(today, dayKey(r.dueAt, timeZone)) : null;
     const { side, who } = sidesOf(r, cards);
     const reminded = afterReminder(
       r,
-      dismissed.get(remindedKey(r.id)),
+      dismissed.get({ kind: "reminded", recordId: r.id }),
       waitOf(waits, who?.id) ?? REMINDED_WAIT,
       today,
       timeZone

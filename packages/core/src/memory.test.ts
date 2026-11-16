@@ -1715,7 +1715,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       "dismiss"
     );
     const dismissed = await memory.listDismissals(hana);
-    expect(dismissed.has(c.id)).toBe(true);
+    expect(dismissed.has({ kind: "commitment", recordId: c.id })).toBe(true);
 
     // A promise that is not there.
     expect(
@@ -1967,12 +1967,14 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     });
     const second = await memory.mergeEntities(gwen, kotova.id, lena.id);
     const moved = await memory.listDismissals(gwen);
-    expect(moved.has(`${rule.id}:${kotova.id}`)).toBe(true);
-    expect(moved.has(`${rule.id}:${lena.id}`)).toBe(false);
+    const rhythm = (entityId: string) =>
+      ({ entityId, kind: "rhythm", recordId: rule.id }) as const;
+    expect(moved.has(rhythm(kotova.id))).toBe(true);
+    expect(moved.has(rhythm(lena.id))).toBe(false);
     expect(await memory.undoMerge(gwen, second?.id as string)).toBe(true);
     const back2 = await memory.listDismissals(gwen);
-    expect(back2.has(`${rule.id}:${lena.id}`)).toBe(true);
-    expect(back2.has(`${rule.id}:${kotova.id}`)).toBe(false);
+    expect(back2.has(rhythm(lena.id))).toBe(true);
+    expect(back2.has(rhythm(kotova.id))).toBe(false);
 
     // «Разные»: the pair is not offered again.
     await memory.dismissMergePair(gwen, lena.id, kotova.id);
