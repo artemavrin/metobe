@@ -2471,7 +2471,7 @@
       "mailWaits": {
         "short": "Mail",
         "title": "Letters with no answer don't get lost",
-        "text": "Turn on mail checking in «Don't miss»: letters to people on your cards that go unanswered longer than usual show up in the list. Only addresses and subjects are used, never the text."
+        "text": "Turn on mail checking in «Don't miss»: when your letter goes unanswered longer than usual, it shows up in the list. Only addresses and subjects are used, never the text."
       },
       "meetingPrep": {
         "title": "«Before a meeting» on a card",
@@ -3007,7 +3007,7 @@
       "mailLabel": "No answer: “{subject}”",
       "mailOffer": {
         "title": "Notice letters with no answer?",
-        "hint": "Letters to people on your cards that go unanswered longer than usual show up here. Only addresses and subjects are used; a letter's text is never read or kept.",
+        "hint": "When your letter goes unanswered longer than usual, it shows up here. Only addresses and subjects are used; a letter's text is never read or kept.",
         "on": "Turn on",
         "onFor": "Turn on for {box}",
         "off": "No, thanks",
