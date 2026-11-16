@@ -149,7 +149,6 @@ const Frame = ({
   when,
   late,
   text,
-  hint,
   onOpen,
   line,
   actions,
@@ -158,8 +157,6 @@ const Frame = ({
   when: string;
   late?: boolean;
   text: string;
-  /** Shown on hover: the words the row stands for, when the text is a name. */
-  hint?: string;
   onOpen?: () => void;
   line: React.ReactNode;
   actions: React.ReactNode;
@@ -170,9 +167,7 @@ const Frame = ({
   );
   const body = (
     <>
-      <span className="line-clamp-2 text-sm" title={hint}>
-        {text}
-      </span>
+      <span className="line-clamp-2 text-sm">{text}</span>
       <span className="text-muted-foreground flex max-w-full flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
         <span className={cn(whenClass, "@lg:hidden")}>{when}</span>
         {line}
@@ -413,15 +408,6 @@ const RhythmItem = ({
   const t = useTranslations("memory");
   const forToday = useTranslations("memory.forToday");
   const day = useDay();
-  // A rhythm's period as it is said: «раз в 2 нед.», «раз в 6 мес.», else in days.
-  const every = (days: number) => {
-    if (days % 30 === 0) {
-      return t("scheduleEveryMonths", { n: days / 30 });
-    }
-    return days % 7 === 0
-      ? t("scheduleEveryWeeks", { n: days / 7 })
-      : t("scheduleEvery", { days });
-  };
   const late = overdueDays(rhythm, today);
   const dismiss = `/api/memory/records/${rhythm.id}/dismiss`;
   const since = rhythm.last
@@ -487,15 +473,17 @@ const RhythmItem = ({
       kind="rhythm"
       late={late > 0}
       line={
-        <span className="inline-flex items-center gap-1">
-          <Repeat className="size-3" />
-          {every(rhythm.every)} ·{" "}
-          {since === null
-            ? t("scheduleNever")
-            : t("scheduleLast", { days: since })}
+        <span className="flex max-w-full min-w-0 items-center gap-1">
+          <Repeat className="size-3 shrink-0" />
+          <span className="truncate">{rhythm.text}</span>
+          <span className="shrink-0">
+            ·{" "}
+            {since === null
+              ? t("scheduleNever")
+              : t("scheduleLast", { days: since })}
+          </span>
         </span>
       }
-      hint={rhythm.text}
       text={rhythm.who.name}
       when={
         late > 0 ? t("scheduleOverdueDays", { days: late }) : day(rhythm.day)

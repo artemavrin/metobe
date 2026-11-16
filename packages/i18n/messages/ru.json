@@ -3140,8 +3140,6 @@
     "schedulePromise": "обещание · {name}",
     "scheduleEvery": "раз в {days} дн.",
     "scheduleLast": "{days, plural, =0 {было сегодня} other {было # дн. назад}}",
-    "scheduleEveryWeeks": "{n, plural, =1 {раз в неделю} other {раз в # нед.}}",
-    "scheduleEveryMonths": "{n, plural, =1 {раз в месяц} other {раз в # мес.}}",
     "scheduleNever": "ещё не было",
     "scheduleDateDone": "Уже сделано",
     "scheduleDateNext": "Следующий раз — {when}",
