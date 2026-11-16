@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/artemavrin/metobe/compare/v0.8.3...v0.9.0) (2026-11-16)
+
+
+### Features
+
+* **memory:** Metobe memory — people, promises, schedule, «Не упустить», Telegram and mail ([#113](https://github.com/artemavrin/metobe/issues/113)) ([338e4ae](https://github.com/artemavrin/metobe/commit/338e4aed3b45088dd12624b7a940e71d3e5611b9))
+
+
+### Bug Fixes
+
+* **memory:** plain words in the mail offer ([#115](https://github.com/artemavrin/metobe/issues/115)) ([def798c](https://github.com/artemavrin/metobe/commit/def798cbd0b25e8137350785979b79787a06ad39))
+
 ## [0.8.3](https://github.com/artemavrin/metobe/compare/v0.8.2...v0.8.3) (2026-11-12)
 
 
