@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.3](https://github.com/artemavrin/metobe/compare/v0.8.2...v0.8.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* **mcp:** a call that finds its client closed is made again on a fresh one ([#111](https://github.com/artemavrin/metobe/issues/111)) ([72810ee](https://github.com/artemavrin/metobe/commit/72810eec5799018d0d0645d2c1efedf734da1408))
+* **worker:** keep the bundle's require shim from clashing with a dependency's createRequire ([#109](https://github.com/artemavrin/metobe/issues/109)) ([5780880](https://github.com/artemavrin/metobe/commit/578088049fb82289c55eacc6f60d069dd782a94b))
+
 ## [0.8.2](https://github.com/artemavrin/metobe/compare/v0.8.1...v0.8.2) (2026-11-06)
 
 
