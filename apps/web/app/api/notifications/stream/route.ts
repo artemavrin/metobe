@@ -1,9 +1,10 @@
-import { onTasksChanged } from "@metobe/core/task-events";
+import { onMemoryChanged, onTasksChanged } from "@metobe/core/task-events";
 import { headers } from "next/headers";
 
 import { getAuth } from "@/lib/auth";
 
-// «Something about your tasks moved» as server-sent events (ARCH §16.5). The word carries no data: the page that hears
+// «Something about your tasks moved» as server-sent events (ARCH §16.5), and the memory's «this chat's memory moved»
+// (ARCH §19). The word carries no data: the page that hears
 // it reads what it needs by its own request, so a stream holds nothing to leak. A line every 20 s keeps proxies from
 // closing it; a page that goes away ends it (the request's signal).
 
@@ -36,10 +37,17 @@ export const GET = async (request: Request) => {
           send("event: tasks\ndata: {}\n\n");
         }
       });
+      // The memory's word names the chat (ARCH §19): only a tab showing it reads again. The chat is the owner's own.
+      const unsubscribeMemory = onMemoryChanged((id, chatId) => {
+        if (id === ownerId) {
+          send(`event: memory\ndata: ${JSON.stringify({ chatId })}\n\n`);
+        }
+      });
       const beat = setInterval(() => send(": ping\n\n"), HEARTBEAT_MS);
       const stop = () => {
         clearInterval(beat);
         unsubscribe();
+        unsubscribeMemory();
         try {
           controller.close();
         } catch {

@@ -8,15 +8,22 @@ import { z } from "zod";
 // pub/sub carries it between processes and forgets what nobody heard, so the pages also look now and then.
 // Without REDIS_URL only this process hears — and there is no worker either.
 
+// The same line carries the memory's word (ARCH §19): «what the memory took from this chat changed» — something put in,
+// a question to ask — with the chat it is about, so only a tab showing that chat reads again.
 const CHANNEL = "tasks:changed";
-const messageSchema = z.object({ ownerId: z.string().min(1) });
+const messageSchema = z.object({
+  chatId: z.string().min(1).optional(),
+  kind: z.enum(["tasks", "memory"]).default("tasks"),
+  ownerId: z.string().min(1),
+});
+type OwnerEvent = z.infer<typeof messageSchema>;
 
-type Handler = (ownerId: string) => void;
+type Handler = (event: OwnerEvent) => void;
 const handlers = new Set<Handler>();
 
-const notify = (ownerId: string) => {
+const notify = (event: OwnerEvent) => {
   for (const handler of handlers) {
-    handler(ownerId);
+    handler(event);
   }
 };
 
@@ -30,7 +37,7 @@ export const receive = (message: string) => {
   }
   const parsed = messageSchema.safeParse(value);
   if (parsed.success) {
-    notify(parsed.data.ownerId);
+    notify(parsed.data);
   }
 };
 
@@ -83,8 +90,7 @@ const listen = async () => {
   }
 };
 
-/** Hears every owner's change (the caller keeps its own); the answer stops hearing. */
-export const onTasksChanged = (handler: Handler) => {
+const hear = (handler: Handler) => {
   handlers.add(handler);
   void listen();
   return () => {
@@ -92,19 +98,44 @@ export const onTasksChanged = (handler: Handler) => {
   };
 };
 
+/** Hears every owner's change (the caller keeps its own); the answer stops hearing. */
+export const onTasksChanged = (handler: (ownerId: string) => void) =>
+  hear((event) => {
+    if (event.kind === "tasks") {
+      handler(event.ownerId);
+    }
+  });
+
+/** Hears the memory's word for every owner: whose, and which chat. */
+export const onMemoryChanged = (
+  handler: (ownerId: string, chatId: string) => void
+) =>
+  hear((event) => {
+    if (event.kind === "memory" && event.chatId) {
+      handler(event.ownerId, event.chatId);
+    }
+  });
+
 /**
  * Says that an owner's tasks moved. With Redis the word goes out and comes back to every process, this one too; without
  * it only this process hears. Never throws: a word that did not go out costs the pages a minute, not a run.
  */
-export const announceTasks = async (ownerId: string) => {
+const announce = async (event: OwnerEvent) => {
   const client = await redis();
   if (!client) {
-    notify(ownerId);
+    notify(event);
     return;
   }
   try {
-    await client.publish(CHANNEL, JSON.stringify({ ownerId }));
+    await client.publish(CHANNEL, JSON.stringify(event));
   } catch (error) {
     console.error("task-events: could not announce", error);
   }
 };
+
+export const announceTasks = (ownerId: string) =>
+  announce({ kind: "tasks", ownerId });
+
+/** Says that what the memory took from a chat changed: a write done, a question asked or answered. Never throws. */
+export const announceMemory = (ownerId: string, chatId: string) =>
+  announce({ chatId, kind: "memory", ownerId });

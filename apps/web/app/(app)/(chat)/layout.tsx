@@ -1,9 +1,12 @@
 import { getAccount } from "@metobe/core/account";
 import { listChats } from "@metobe/core/chat";
+import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { listSidebarTasks } from "@metobe/core/tasks";
 import { availableUpdate } from "@metobe/core/updates";
 import { getWhatsNew } from "@metobe/core/whats-new";
+import { COOKIE } from "@metobe/i18n/config";
 import { getTranslations } from "next-intl/server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ChatShell } from "@/components/chat/chat-shell";
@@ -11,6 +14,7 @@ import { getChatModels } from "@/lib/chat-data";
 import { chatGroupOf } from "@/lib/chat-history";
 import { getPrefs } from "@/lib/prefs";
 import { getSettingsViewer } from "@/lib/settings-access";
+import { parseSidebarWidth } from "@/lib/sidebar-width";
 
 import { NotReady } from "./not-ready";
 
@@ -35,12 +39,13 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
   }
   // Days by the user's calendar, counted here once; the sidebar only keeps the order.
   const now = new Date();
-  const [list, account, update, whatsNew, tasks] = await Promise.all([
+  const [list, account, update, whatsNew, tasks, memory] = await Promise.all([
     listChats(user.id),
     getAccount(user.id),
     admin ? availableUpdate() : null,
     getWhatsNew(user.id),
-    listSidebarTasks(user.id),
+    listSidebarTasks(user.id, prefs.locale === "en" ? "en" : "ru"),
+    isMemoryOnFor(user.id),
   ]);
   // The pinned first, the latest pinned on top of them; the rest keep the order of their last message.
   // toSorted is past the ES2022 target; the filter gives a fresh array to sort.
@@ -56,16 +61,22 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
         ? ("pinned" as const)
         : chatGroupOf(chat.updatedAt, now, prefs.timeZone),
       id: chat.id,
+      memoryOff: chat.memoryOff,
       shared: chat.visibility === "team",
       title: chat.title,
     })
   );
+  const jar = await cookies();
+  const sidebarWidth = parseSidebarWidth(jar.get(COOKIE.sidebarWidth)?.value);
   const roleKey = role === "superuser" || role === "admin" ? role : "user";
   return (
     <ChatShell
       admin={admin}
       chats={chats}
+      memory={memory}
       tasks={tasks}
+      sidebarWidth={sidebarWidth}
+      timeZone={prefs.timeZone}
       sendKey={account?.sendKey === "mod-enter" ? "mod-enter" : "enter"}
       whatsNew={whatsNew}
       user={{

@@ -41,6 +41,7 @@ import {
   isValidSchedule,
   nextRun,
   planDue,
+  scheduleWords,
 } from "./task-schedule";
 
 // Periodic tasks in the database (ARCH §16, D23): a task and its versions, the minute tick that claims what is due,
@@ -492,13 +493,22 @@ export const listTasks = async (ownerId: string) => {
 };
 export type TaskListItem = Awaited<ReturnType<typeof listTasks>>[number];
 
-/** What the sidebar needs of each task: the name, the colour, whether it waits for the person. */
-export const listSidebarTasks = async (ownerId: string) => {
+/**
+ * What the sidebar needs of each task: the name, the colour, whether it waits for the person, whether it is on, whether
+ * a run is going, and when it runs in words.
+ */
+export const listSidebarTasks = async (
+  ownerId: string,
+  locale: "ru" | "en" = "ru"
+) => {
   const list = await listTasks(ownerId);
-  return list.map(({ task, last }) => ({
+  return list.map(({ task, last, going }) => ({
     color: task.color,
+    enabled: task.enabled,
+    going,
     id: task.id,
     name: task.name,
+    schedule: scheduleWords(task.cron, locale),
     waiting: task.enabled && waitsFor(last),
   }));
 };

@@ -22,6 +22,20 @@ export const MAX_FEATURED = 6;
 /** Newest first. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    admin: ["memorySlots", "telegramBot"],
+    date: "2026-11-16",
+    featured: [
+      "memory",
+      "forToday",
+      "calendar",
+      "schedule",
+      "telegram",
+      "mailWaits",
+    ],
+    more: ["meetingPrep", "mentionCard", "tableCopy", "sidebarWidth"],
+    version: "0.9.0",
+  },
+  {
     admin: [],
     date: "2026-11-06",
     featured: ["tasks"],

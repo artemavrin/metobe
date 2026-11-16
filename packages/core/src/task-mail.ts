@@ -11,13 +11,13 @@ import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEnv } from "./env";
 import { letterBlocks } from "./letter-blocks";
-import { isMailConfigured, sendMail } from "./mail";
+import { notify } from "./notify";
 import { scheduleWords } from "./task-schedule";
 import { getRunAnswer } from "./tasks";
 import type { TaskRow, TaskRunRow } from "./tasks";
 
 // A task's letters (ARCH §16.5, P14): a run that waits for the person — a new result, a question, an action — goes to
-// the owner's mail when the task has «Уведомления на почту» on. «Нового нет» never goes, nor a test run. Failures in a
+// the owner when the task has its notifications on: to the mail, the Telegram chat or both, as the owner chose (D43). «Нового нет» never goes, nor a test run. Failures in a
 // row send one letter, at the first; the stop after five is an action and goes too. At the bottom, «Отключить для этой
 // задачи»: a link signed for the task, that works without signing in.
 
@@ -171,35 +171,44 @@ const build = async (
       ? t("email.task.failed", { error: run.error ?? "—" })
       : task.name);
   const off = mailOffUrl(task.id);
-  const letter = await taskLetter({
-    blocks,
-    button: {
-      href: new URL(`/tasks/${task.id}`, getEnv().BETTER_AUTH_URL).toString(),
-      label: t(`email.task.button.${BUTTON[kind]}`),
-    },
-    heading,
-    kind,
-    label: t(`email.task.label.${kind}`),
-    locale,
-    off: { href: off, label: t("email.task.off") },
-    preview: previewOf(blocks, heading),
-    task: {
-      color: hexOf(task.color),
-      meta: t("email.task.meta", {
-        schedule: scheduleWords(task.cron, locale === "en" ? "en" : "ru"),
-        when: runTime(run.scheduledFor, task.timezone, locale),
-      }),
-      name: task.name,
-    },
-    why: t("email.task.why", { task: task.name }),
-  });
-  return {
-    ...letter,
+  const open = {
+    href: new URL(`/tasks/${task.id}`, getEnv().BETTER_AUTH_URL).toString(),
+    label: t(`email.task.button.${BUTTON[kind]}`),
+  };
+  const subject = t("email.task.subject", { heading, task: task.name });
+  // Drawn only when the mail is used: a person who chose Telegram only never needs the HTML.
+  const letter = async () => ({
+    ...(await taskLetter({
+      blocks,
+      button: open,
+      heading,
+      kind,
+      label: t(`email.task.label.${kind}`),
+      locale,
+      off: { href: off, label: t("email.task.off") },
+      preview: previewOf(blocks, heading),
+      task: {
+        color: hexOf(task.color),
+        meta: t("email.task.meta", {
+          schedule: scheduleWords(task.cron, locale === "en" ? "en" : "ru"),
+          when: runTime(run.scheduledFor, task.timezone, locale),
+        }),
+        name: task.name,
+      },
+      why: t("email.task.why", { task: task.name }),
+    })),
     headers: {
       "List-Unsubscribe": `<${mailOffUrl(task.id, "post")}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
-    subject: t("email.task.subject", { heading, task: task.name }),
+    subject,
+  });
+  // The same, as a notice for whichever channel the person chose (D43): the Telegram message is drawn from the blocks.
+  return {
+    blocks,
+    letter,
+    links: [open, { href: off, label: t("email.task.off") }],
+    title: subject,
   };
 };
 
@@ -212,7 +221,6 @@ export const sendRunLetter = async (runId: string) => {
     const { db } = getDb();
     const [row] = await db
       .select({
-        email: user.email,
         locale: user.locale,
         run: taskRuns,
         task: tasks,
@@ -226,14 +234,20 @@ export const sendRunLetter = async (runId: string) => {
       return false;
     }
     const kind = letterKindOf(row.run, row.task.consecutiveFailures);
-    if (!kind || !(await isMailConfigured())) {
+    if (!kind) {
       return false;
     }
     const locale =
       row.locale && isLocale(row.locale) ? row.locale : defaultLocale;
-    const letter = await build(row.task, row.run, kind, locale);
-    await sendMail({ ...letter, to: row.email });
-    return true;
+    const built = await build(row.task, row.run, kind, locale);
+    // Where it goes — the mail, the Telegram chat, both — is the person's choice (`notify`).
+    const sent = await notify(row.task.ownerId, {
+      blocks: built.blocks,
+      links: built.links,
+      mail: built.letter,
+      title: built.title,
+    });
+    return sent.mail || sent.telegram;
   } catch (error) {
     console.error("tasks: the run's letter was not sent", runId, error);
     return false;

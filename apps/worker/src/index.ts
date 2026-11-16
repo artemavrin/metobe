@@ -1,6 +1,11 @@
 import { checkHealth } from "@metobe/core/health";
+import { sendDueDigests } from "@metobe/core/memory-digest";
+import { checkMailWaits } from "@metobe/core/memory-mail-check";
+import { startMemoryWorker } from "@metobe/core/memory-queue";
+import { sendDueReminders } from "@metobe/core/memory-reminders";
 import { ensureSecretsCanary } from "@metobe/core/secrets";
 import { startTasksWorker } from "@metobe/core/tasks-worker";
+import { startTelegramWorker } from "@metobe/core/telegram-bot";
 import { getUpdates } from "@metobe/core/updates";
 
 // Periodic DB check keeps the process alive until BullMQ workers hold the event loop.
@@ -23,16 +28,64 @@ const releases = async () => {
 };
 const updates = setInterval(releases, 60 * 60_000);
 
+// The morning digests and the reminders people asked for (D43): each minute, whatever's time has come. One run at a time.
+let digesting = false;
+const notifyTick = async () => {
+  if (digesting) {
+    return;
+  }
+  digesting = true;
+  try {
+    await sendDueDigests();
+    await sendDueReminders();
+  } catch (error) {
+    console.error("worker: notify tick", error);
+  } finally {
+    digesting = false;
+  }
+};
+const digests = setInterval(notifyTick, 60_000);
+// A restart must not push a reminder a minute on: the first run is at once.
+void notifyTick();
+
+// Letters with no answer (Г3.1): every few minutes, the boxes not looked at for an hour. One run at a time.
+let mailing = false;
+const mailTick = async () => {
+  if (mailing) {
+    return;
+  }
+  mailing = true;
+  try {
+    await checkMailWaits();
+  } catch (error) {
+    console.error("worker: mail tick", error);
+  } finally {
+    mailing = false;
+  }
+};
+const mails = setInterval(mailTick, 5 * 60_000);
+void mailTick();
+
 // Periodic tasks (ARCH §16): the minute tick and the runs, through BullMQ on REDIS_URL.
 let stopTasks: (() => Promise<void>) | null = null;
+// The memory's silent writer (ARCH §19.4), on the same Redis; it reads nothing while no model holds the job.
+let stopMemory: (() => Promise<void>) | null = null;
+// The bot that binds users' Telegram chats (D43): reads its updates while the installation has a token.
+let stopTelegram: (() => void) | null = null;
 
 const shutdown = async () => {
   clearInterval(keepAlive);
   clearInterval(updates);
+  clearInterval(digests);
+  clearInterval(mails);
   console.log("worker stopping");
   // A run in progress is let go: its job comes back to the queue and runs again on the next start.
+  stopTelegram?.();
   await stopTasks?.().catch((error: unknown) =>
     console.error("worker: tasks stop", error)
+  );
+  await stopMemory?.().catch((error: unknown) =>
+    console.error("worker: memory stop", error)
   );
   process.exit(0);
 };
@@ -60,11 +113,16 @@ try {
     `worker started, db: ${health.services.db}, s3: ${health.services.s3}`
   );
   void releases();
+  stopTelegram = startTelegramWorker();
+  if (stopTelegram) {
+    console.log("worker: telegram bot on");
+  }
   if (process.env.REDIS_URL) {
     stopTasks = await startTasksWorker();
-    console.log("worker: tasks on");
+    stopMemory = startMemoryWorker();
+    console.log("worker: tasks and memory on");
   } else {
-    console.log("worker: tasks off — no REDIS_URL");
+    console.log("worker: tasks and memory off — no REDIS_URL");
   }
 } catch (error) {
   console.error(error);

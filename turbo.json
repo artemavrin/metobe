@@ -13,6 +13,7 @@
       "dependsOn": ["^check-types"]
     },
     "test": {
+      "env": ["MEMORY_TEST_DATABASE_URL"],
       "outputs": []
     }
   }

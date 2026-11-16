@@ -25,6 +25,20 @@ describe("chatRequestSchema", () => {
     expect(chatRequestSchema.safeParse(body()).success).toBe(true);
   });
 
+  it("keeps the cards a question mentions, and nothing else of its metadata", () => {
+    const card = { id: crypto.randomUUID(), name: "Андрей Седов" };
+    const sent = body();
+    const parsed = chatRequestSchema.parse({
+      ...sent,
+      message: {
+        ...sent.message,
+        metadata: { cards: [card], createdAt: "2026-11-11T10:00:00.000Z" },
+      },
+    });
+    // The time is the server's to stamp; a card is the client's to name (the memory reads exactly it).
+    expect(parsed.message?.metadata).toEqual({ cards: [card] });
+  });
+
   it("refuses what the client may not send", () => {
     const { message } = body();
     for (const bad of [

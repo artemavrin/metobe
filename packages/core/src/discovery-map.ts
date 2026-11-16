@@ -2,6 +2,7 @@ import type {
   Capabilities,
   CapabilitySource,
   Currency,
+  ModelType,
 } from "@metobe/contracts/models";
 import { unknownCapabilities } from "@metobe/contracts/models";
 
@@ -29,6 +30,8 @@ export interface DiscoveredPrice {
 export interface DiscoveredModel {
   modelId: string;
   title: string;
+  /** `evaluation` — a decision model (only AI Gateway lists them); every other source lists language models. */
+  type?: ModelType;
   provider: ProviderSlug;
   capabilities: Capabilities;
   capabilitiesSource: CapabilitySource;
@@ -60,7 +63,8 @@ export interface GatewayModel {
 /** AI Gateway describes its models itself (S4): capabilities from tags, USD prices per 1 token, the maker in owned_by. */
 export const fromGateway = (models: GatewayModel[]): DiscoveredModel[] =>
   models
-    .filter((m) => m.type === "language")
+    // Decision models too: the «Решения» job takes one (ARCH §19.4); nothing else lists them.
+    .filter((m) => m.type === "language" || m.type === "evaluation")
     .map((m) => {
       const tags = new Set(m.tags);
       const p = m.pricing;
@@ -90,6 +94,10 @@ export const fromGateway = (models: GatewayModel[]): DiscoveredModel[] =>
         provider: providerSlugFor("gateway", m.id, m.owned_by),
         releasedAt: isoDate(m.released),
         title: m.name ?? m.id,
+        type:
+          m.type === "evaluation"
+            ? ("evaluation" as const)
+            : ("language" as const),
       };
     });
 

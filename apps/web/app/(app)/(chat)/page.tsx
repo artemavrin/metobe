@@ -1,6 +1,10 @@
 import { getLastModelIds, listChats } from "@metobe/core/chat";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers } from "@metobe/core/mcp";
+import { reviewCount } from "@metobe/core/memory-due";
+import { offersMailReading } from "@metobe/core/memory-mail-check";
+import { todaySuggestions } from "@metobe/core/memory-today";
+import { isMemoryOnFor } from "@metobe/core/memory-write";
 import { skillsForChat } from "@metobe/core/skills";
 import { getFormatter, getTranslations } from "next-intl/server";
 
@@ -15,7 +19,11 @@ import { getSettingsViewer } from "@/lib/settings-access";
 // A new chat: the welcome over the empty thread and the composer at the bottom. Its id is made in the browser,
 // once — a server render (a refresh after a server action) must not start another chat and wipe the draft; the
 // first message creates the chat under it and the address becomes /chat/<id> without a reload.
-const NewChatPage = async () => {
+const NewChatPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<{ say?: string | string[] }>;
+}) => {
   const [{ user }, prefs, t, format] = await Promise.all([
     getSettingsViewer(),
     getPrefs(),
@@ -25,14 +33,32 @@ const NewChatPage = async () => {
   if (!user) {
     return null;
   }
-  const [picker, last, servers, chats, boxes, skills] = await Promise.all([
-    getPickerData(user.id),
-    getLastModelIds(user.id),
-    listChatServers(user.id),
-    listChats(user.id),
-    listMailboxes(user.id),
-    skillsForChat(user.id),
-  ]);
+  const memoryOn = await isMemoryOnFor(user.id);
+  const [picker, last, servers, chats, boxes, skills, today, review, offer] =
+    await Promise.all([
+      getPickerData(user.id),
+      getLastModelIds(user.id),
+      listChatServers(user.id),
+      listChats(user.id),
+      listMailboxes(user.id),
+      skillsForChat(user.id),
+      // «На сегодня» (P17): only while the person's memory is on; a broken read leaves the screen as it was.
+      memoryOn
+        ? todaySuggestions(user.id, prefs.timeZone).catch((error: unknown) => {
+            console.error("memory: could not gather «На сегодня»", error);
+            return [];
+          })
+        : [],
+      // «Сверка» (В2.1): how many promises have been open a long time; a broken read leaves the row out.
+      memoryOn
+        ? reviewCount(user.id, prefs.timeZone).catch((error: unknown) => {
+            console.error("memory: could not count «Сверка»", error);
+            return 0;
+          })
+        : 0,
+      // «Замечать письма без ответа?» (Г3.1): offered in «Не упустить» while the memory reads no box.
+      memoryOn ? offersMailReading(user.id).catch(() => false) : false,
+    ]);
   const model = pickModel(picker.models, [...last, picker.favorites[0]]);
   // The layout shows «not ready» when chat has no model; a page without one never renders.
   if (!model) {
@@ -40,6 +66,7 @@ const NewChatPage = async () => {
   }
   const now = new Date();
   const name = user.name.trim().split(/\s+/u)[0] ?? "";
+  const { say } = await searchParams;
   return (
     <FreshChat>
       <ChatView
@@ -62,7 +89,12 @@ const NewChatPage = async () => {
             hasName: name ? "yes" : "no",
             name,
           }),
+          mailOffer: offer,
           mailboxes: boxes.map((b) => b.address),
+          review,
+          say: typeof say === "string" ? say.slice(0, 4000) : undefined,
+          suggestions: today,
+          timeZone: prefs.timeZone,
           today: format.dateTime(now, {
             day: "numeric",
             month: "long",

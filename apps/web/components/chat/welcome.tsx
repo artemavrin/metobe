@@ -1,14 +1,16 @@
 "use client";
 
+import type { MemorySuggestion } from "@metobe/contracts/memory";
 import type { ChatServer } from "@metobe/core/mcp";
 import { FileText, Mail } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import type { ComposerHandle } from "@/components/chat/composer";
 import { GreetingFigure } from "@/components/chat/greeting-figure";
+import { TodayRows } from "@/components/chat/today-rows";
 
 /** What a new chat greets the user with, read on the server. */
 export interface WelcomeData {
@@ -19,6 +21,16 @@ export interface WelcomeData {
   first: boolean;
   /** The user's mailboxes: their mail tools are on in every chat. */
   mailboxes: string[];
+  /** «На сегодня» from the memory (P17): empty — no section. */
+  suggestions?: MemorySuggestion[];
+  /** How many promises have been open a long time: the «Сверка» row of «Не упустить». */
+  review?: number;
+  /** «Замечать письма без ответа?» (Г3.1, P24 «Предложение»): a box is there and the memory reads none. */
+  mailOffer?: boolean;
+  /** The person's zone: «завтра» and «в понедельник» are counted in it. */
+  timeZone?: string;
+  /** A request another page put into the address (`/?say=`, «Сверка» on the «Память» page): it waits in the composer. */
+  say?: string;
 }
 
 /** How many of the user's servers «Начать с» offers. */
@@ -86,7 +98,24 @@ export const Welcome = ({
   composer: RefObject<ComposerHandle | null>;
 }) => {
   const t = useTranslations("chat");
-  const { first } = data;
+  const { first, say } = data;
+  // Once, and the address loses it: a reload must not put it in again.
+  const said = useRef(false);
+  useEffect(() => {
+    if (!say) {
+      return;
+    }
+    // A frame later: the composer marks itself empty when it mounts, after this effect.
+    const frame = requestAnimationFrame(() => {
+      if (said.current) {
+        return;
+      }
+      said.current = true;
+      composer.current?.say(say);
+      window.history.replaceState(null, "", "/");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [composer, say]);
   const offered = servers.filter((s) => s.signIn !== "admin").slice(0, SERVERS);
   return (
     <div className="flex min-h-full items-center justify-center px-4 py-8">
@@ -107,6 +136,17 @@ export const Welcome = ({
           </h1>
           <LineOfDay />
         </div>
+        {((data.suggestions && data.suggestions.length > 0) ||
+          (data.review ?? 0) > 0 ||
+          data.mailOffer) && (
+          <TodayRows
+            items={data.suggestions ?? []}
+            mailOffer={data.mailOffer ? data.mailboxes : []}
+            review={data.review ?? 0}
+            put={(text) => composer.current?.say(text)}
+            timeZone={data.timeZone ?? "UTC"}
+          />
+        )}
         <Section title={t("welcome.start")}>
           <div className="flex flex-col gap-2">
             {offered.map((s) => (

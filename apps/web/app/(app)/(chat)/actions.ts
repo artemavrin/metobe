@@ -11,6 +11,7 @@ import {
   getChat,
   renameChat,
   searchChats,
+  setChatMemoryOff,
   setChatPinned,
   setChatVisibility,
   setVote,
@@ -159,6 +160,17 @@ export const pinChatAction = async (id: string, pinned: boolean) => {
   await setChatPinned(user, parsed.data, pinned);
   revalidatePath("/", "layout");
   return { ok: true as const };
+};
+
+/** «Не запоминать этот чат» on, or off again: what the chat gave to the memory before stays. */
+export const memoryOffChatAction = async (id: string, off: boolean) => {
+  const user = await userId();
+  const parsed = chatId.safeParse(id);
+  if (!(user && parsed.success)) {
+    return { ok: false as const };
+  }
+  const ok = await setChatMemoryOff(user, parsed.data, off);
+  return { ok };
 };
 
 export const deleteChatAction = async (id: string) => {

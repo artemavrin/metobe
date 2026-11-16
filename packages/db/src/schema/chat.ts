@@ -31,6 +31,8 @@ export const chats = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     /** A periodic task's run is an ordinary chat (ARCH §16). */
     kind: text("kind").$type<ChatKind>().notNull().default("chat"),
+    /** «Не запоминать этот чат»: its messages are not put in the memory's queue. What it already gave stays. */
+    memoryOff: boolean("memory_off").notNull().default(false),
     /** When the user pinned the chat; pinned chats stand on top, the latest pinned first. Null — not pinned. */
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     title: text("title").notNull(),

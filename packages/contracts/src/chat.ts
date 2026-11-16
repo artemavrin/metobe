@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { ChartInput, ChartOutput } from "./chart";
 import { FILES_PER_MESSAGE } from "./files";
+import type { ShowCardOutput, ShowPromisesOutput } from "./memory";
 import type { MetricsInput, MetricsOutput } from "./metrics";
 import type { TableInput, TableOutput } from "./table";
 import type { TaskDraft, TaskDraftOutput } from "./tasks";
@@ -22,6 +23,11 @@ import type {
  * first word, as the server measured it.
  */
 export const chatMessageMetadataSchema = z.object({
+  /** The memory's cards the question mentions with `@` (Д4), by id: the chat reads exactly those, not whoever shares a name. */
+  cards: z
+    .array(z.object({ id: z.uuid(), name: z.string().max(200) }))
+    .max(10)
+    .optional(),
   createdAt: z.iso.datetime().optional(),
   modelId: z.uuid().optional(),
   reasoningMs: z.number().int().nonnegative().optional(),
@@ -125,6 +131,13 @@ export type ChatTools = {
           note?: string;
         }
       | { error: string };
+  };
+  /** A card in the answer with its open promises, where they are marked done or moved (Д1). */
+  show_card: { input: { id?: string; name?: string }; output: ShowCardOutput };
+  /** The open promises as a list in the answer (Д1). */
+  show_promises: {
+    input: { card?: string; overdueOnly?: boolean };
+    output: ShowPromisesOutput;
   };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_metrics: { input: MetricsInput; output: MetricsOutput };
@@ -265,6 +278,12 @@ const filePartSchema = z.object({
 /** The one message the client sends; the history comes from the database. Text, files, or both. */
 export const userMessageSchema = z.object({
   id: z.uuid(),
+  /**
+   * What the client may say about the message beyond its words: the memory's cards it mentions with `@` (Д4). The
+   * rest of the metadata — the time, the model — is the server's; without this the cards were dropped on the way in,
+   * so the mention was neither kept with the message nor read from the memory by id.
+   */
+  metadata: chatMessageMetadataSchema.pick({ cards: true }).optional(),
   parts: z
     .array(z.union([textPartSchema, filePartSchema]))
     .min(1)

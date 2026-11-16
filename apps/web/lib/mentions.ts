@@ -49,3 +49,31 @@ export const mentionedIn = <S extends { id: string; title: string }>(
     )
   ),
 ];
+
+// A request another page writes for the composer can name a card of the memory: `cardMarker` stands where its badge
+// goes, and the composer turns the marker into the badge (`splitCardMarkers`), so the chat is told which card it is.
+
+const MARKER = /\[\[card:(?<id>[\da-f-]{36})\|(?<name>[^\]|]+)\]\]/gu;
+
+/** A card in a request: `[[card:<id>|<name>]]`. */
+export const cardMarker = (card: { id: string; name: string }) =>
+  `[[card:${card.id}|${card.name.replaceAll(/[\]|]/gu, " ")}]]`;
+
+/** A request cut into its plain pieces and the cards its markers name, in order. */
+export const splitCardMarkers = (
+  text: string
+): (string | { id: string; name: string })[] => {
+  const pieces: (string | { id: string; name: string })[] = [];
+  let at = 0;
+  for (const m of text.matchAll(MARKER)) {
+    if (m.index > at) {
+      pieces.push(text.slice(at, m.index));
+    }
+    pieces.push({ id: m.groups?.id ?? "", name: m.groups?.name ?? "" });
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) {
+    pieces.push(text.slice(at));
+  }
+  return pieces;
+};

@@ -1,6 +1,7 @@
 "use client";
 
 import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
+import type { MemoryCardItem } from "@metobe/contracts/memory";
 import type { ChatServer } from "@metobe/core/mcp";
 import { Button } from "@metobe/ui/components/button";
 import { Kbd } from "@metobe/ui/components/kbd";
@@ -33,11 +34,14 @@ import { SkillMenu } from "@/components/chat/skill-menu";
 import type { ChatSkill } from "@/components/chat/skill-menu";
 import { TokenEditor } from "@/components/chat/token-editor";
 import type { EditorHandle, Trigger } from "@/components/chat/token-editor";
+import { useMemoryCards } from "@/components/chat/use-memory-cards";
 import {
   OAuthWindowDialog,
   useOAuthWindow,
 } from "@/components/mcp/oauth-window";
 import { useHotkeyLabel } from "@/lib/hotkey-label";
+import { splitCardMarkers } from "@/lib/mentions";
+import { tokenizePaste } from "@/lib/paste-tokens";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
@@ -192,15 +196,40 @@ export interface ComposerHandle {
 }
 
 const NO_SKILLS: ChatSkill[] = [];
+/** Cards in the `@` menu after the servers: a short list, the rest by typing more. */
+const MAX_CARDS = 6;
 
 /**
  * What the menu at the caret offers: `@` — the servers not mentioned yet whose title holds the query; `/` — the
  * skills whose name or description holds it (none matching — no menu, the `/` stays text).
  */
+const isAt = (trigger: { at: Trigger } | null) => trigger?.at.char === "@";
+
+const norm = (text: string) => text.toLowerCase().replaceAll("ё", "е");
+
+/** The cards whose name, other name or role has a word that starts with the query — «анд» is Андрей, not «команды». */
+const fitCards = (
+  cards: MemoryCardItem[],
+  taken: Set<string>,
+  query: string
+) => {
+  const q = norm(query);
+  return cards
+    .filter(
+      (c) =>
+        !taken.has(c.id) &&
+        norm([c.name, ...c.aliases, c.role ?? "", c.type ?? ""].join(" "))
+          .split(/[\s·«»]+/u)
+          .some((w) => w.startsWith(q))
+    )
+    .slice(0, MAX_CARDS);
+};
+
 const menuOf = (
   trigger: { at: Trigger; taken: Set<string> } | null,
   servers: ChatServer[],
-  skills: ChatSkill[]
+  skills: ChatSkill[],
+  cards: MemoryCardItem[]
 ) => {
   const items =
     trigger?.at.char === "@"
@@ -219,9 +248,17 @@ const menuOf = (
               s.description.toLowerCase().includes(trigger.at.query))
         )
       : [];
+  const cardItems =
+    trigger?.at.char === "@"
+      ? fitCards(cards, trigger.taken, trigger.at.query)
+      : [];
   return {
+    cardItems,
     items,
-    menuSize: trigger?.at.char === "/" ? skillItems.length : items.length,
+    menuSize:
+      trigger?.at.char === "/"
+        ? skillItems.length
+        : items.length + cardItems.length,
     skillItems,
   };
 };
@@ -237,6 +274,18 @@ const textOf = (handle: EditorHandle | null) =>
     })
     .join("")
     .trim();
+
+/** The memory's cards the draft mentions, as the chat gets them — each once, however often it is named. */
+const cardsOf = (handle: EditorHandle | null) => {
+  const seen = new Set<string>();
+  return (handle?.tokens() ?? []).flatMap((x) => {
+    if (x.kind !== "card" || seen.has(x.id)) {
+      return [];
+    }
+    seen.add(x.id);
+    return [{ id: x.id, name: x.label }];
+  });
+};
 
 export const Composer = ({
   model,
@@ -267,7 +316,9 @@ export const Composer = ({
   /** The text and the files; a mention reads `@Name` — the servers a question names give the model their tools. */
   onSend: (
     text: string,
-    files: ReturnType<typeof useAttachments>["parts"]
+    files: ReturnType<typeof useAttachments>["parts"],
+    /** The memory's cards mentioned with `@`, by id: the chat reads exactly those, not whoever shares a name. */
+    cards: { id: string; name: string }[]
   ) => void;
   onStop: () => void;
   /** ↑ in an empty composer: opens the last question for editing; false when there is none to open. */
@@ -294,7 +345,21 @@ export const Composer = ({
   } | null>(null);
   const [active, setActive] = useState(0);
   const [connecting, setConnecting] = useState<ChatServer | null>(null);
-  const { items, skillItems, menuSize } = menuOf(trigger, servers, skills);
+  const { cards: memoryCards, load: loadCards } = useMemoryCards(isAt(trigger));
+  const { cardItems, items, skillItems, menuSize } = menuOf(
+    trigger,
+    servers,
+    skills,
+    memoryCards
+  );
+  const pickCard = (card: MemoryCardItem) => {
+    editor.current?.insertToken({
+      id: card.id,
+      kind: "card",
+      label: card.name,
+    });
+    setTrigger(null);
+  };
   const pickSkill = (skill: ChatSkill) => {
     editor.current?.insertToken({
       id: skill.id,
@@ -452,13 +517,61 @@ export const Composer = ({
     );
   };
 
+  /**
+   * A pasted text, read as typed: the servers (connected ones, as the menu inserts them), the skills and the memory's
+   * cards it names become badges. The cards are read first, if a name might be one.
+   */
+  const tokenize = async (text: string) => {
+    const cards = text.includes("@") ? await loadCards() : [];
+    return tokenizePaste(text, {
+      cards: cards.map((c) => ({ id: c.id, kind: "card", label: c.name })),
+      servers: servers
+        .filter((s) => s.signIn === "ready")
+        .map((s) => ({ id: s.id, label: s.title, logo: s.logo ?? undefined })),
+      skills: skills.map((k) => ({ id: k.id, kind: "skill", label: k.name })),
+    });
+  };
+
+  /** Enter or Tab in the `@` menu picks the highlighted server or card. */
+  const pickMentionKey = (e: KeyboardEvent | React.KeyboardEvent) => {
+    const server = items[active];
+    const card = cardItems[active - items.length];
+    if (!(server || card) || (e.key !== "Enter" && e.key !== "Tab")) {
+      return false;
+    }
+    e.preventDefault();
+    if (card) {
+      pickCard(card);
+    } else if (server && server.signIn !== "admin") {
+      place.current = "mention";
+      pick(server);
+    }
+    return true;
+  };
   useImperativeHandle(ref, () => ({
     mention: (server) => {
       place.current = "add";
       pick(server);
     },
     pickFiles: () => filesInput.current?.click(),
-    say: (text) => editor.current?.addText(text),
+    say: (text) => {
+      // A request may name cards of the memory: each stands as its badge, so the chat knows which one it is.
+      for (const [i, piece] of splitCardMarkers(text).entries()) {
+        if (typeof piece === "string") {
+          // After a badge, which brings its own space: no second one.
+          editor.current?.addText(
+            i > 0 ? piece.replace(/^ /u, "") : piece,
+            i > 0
+          );
+        } else {
+          editor.current?.addToken({
+            id: piece.id,
+            kind: "card",
+            label: piece.name,
+          });
+        }
+      }
+    },
   }));
 
   const submit = () => {
@@ -469,7 +582,7 @@ export const Composer = ({
       setPending(true);
       return;
     }
-    onSend(textOf(editor.current), attachments.parts);
+    onSend(textOf(editor.current), attachments.parts, cardsOf(editor.current));
     editor.current?.clear();
     attachments.clearSent();
   };
@@ -480,7 +593,7 @@ export const Composer = ({
     }
     const text = textOf(editor.current);
     if (text || attachments.parts.length > 0) {
-      onSend(text, attachments.parts);
+      onSend(text, attachments.parts, cardsOf(editor.current));
       editor.current?.clear();
       attachments.clearSent();
     }
@@ -557,6 +670,7 @@ export const Composer = ({
             <MentionMenu
               active={active}
               box={trigger.box}
+              cards={cardItems}
               items={items}
               nav={nav}
               onHover={setActive}
@@ -564,6 +678,7 @@ export const Composer = ({
                 place.current = "mention";
                 pick(server);
               }}
+              onPickCard={pickCard}
               trigger={trigger.at}
             />
           )}
@@ -632,13 +747,7 @@ export const Composer = ({
                     if (stepKey(e) || pickSkillKey(e)) {
                       return true;
                     }
-                    const current = items[active];
-                    if (current && (e.key === "Enter" || e.key === "Tab")) {
-                      e.preventDefault();
-                      if (current.signIn !== "admin") {
-                        place.current = "mention";
-                        pick(current);
-                      }
+                    if (pickMentionKey(e)) {
                       return true;
                     }
                     if (e.key === "Escape") {
@@ -655,6 +764,7 @@ export const Composer = ({
                   return false;
                 }}
                 onSubmit={submit}
+                tokenize={tokenize}
                 onTrigger={onTrigger}
                 // The phone's line is short: a shorter prompt fits beside the model.
                 placeholder={

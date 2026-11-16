@@ -26,14 +26,27 @@ const SHARE = '[data-demo="share-header"] button:has(svg.lucide-share)';
 const TASK_ROW = '[data-demo="task-row"]';
 const COMPACT = '[data-demo="compact-offer"] button:first-of-type';
 
+/** One press on the demo's own button, then a pause to see what it did. */
+const pressOnce = (target: string, after = 3000): Step[] => [
+  { wait: 1000 },
+  { move: target },
+  { click: target },
+  { wait: after },
+];
+
 const SCRIPTS: Record<string, Step[]> = {
   askUser: [{ wait: 900 }, { move: OPTION }, { click: OPTION }, { wait: 2600 }],
+  calendar: pressOnce('[data-demo="calendar-chip"]'),
   compactChat: [
     { wait: 900 },
     { move: COMPACT },
     { click: COMPACT },
     { wait: 3800 },
   ],
+  forToday: pressOnce('[data-demo="today-late"]'),
+  mailWaits: pressOnce('[data-demo="mail-remind"]'),
+  memory: pressOnce('[data-demo="memory-undo"]'),
+  schedule: pressOnce('[data-demo="schedule-met"]'),
   shareChat: [
     { wait: 700 },
     { move: SHARE },
@@ -52,6 +65,7 @@ const SCRIPTS: Record<string, Step[]> = {
     { click: TASK_ROW },
     { wait: 3000 },
   ],
+  telegram: pressOnce('[data-demo="telegram-snooze"]'),
   threadMap: [
     { wait: 700 },
     { fy: 0.15, move: RAIL },

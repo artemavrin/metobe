@@ -44,6 +44,7 @@ export const listChats = (userId: string, limit = 200) => {
   return db
     .select({
       id: chats.id,
+      memoryOff: chats.memoryOff,
       pinnedAt: chats.pinnedAt,
       title: chats.title,
       updatedAt: chats.updatedAt,
@@ -75,6 +76,32 @@ export const setChatPinned = async (
     .update(chats)
     .set({ pinnedAt: pinned ? new Date() : null })
     .where(own(userId, id));
+};
+
+/** «Не запоминать этот чат»: its messages stop going to the memory, or start again. What it gave before stays. */
+export const setChatMemoryOff = async (
+  userId: string,
+  id: string,
+  off: boolean
+) => {
+  const { db } = getDb();
+  const [changed] = await db
+    .update(chats)
+    .set({ memoryOff: off })
+    .where(own(userId, id))
+    .returning({ id: chats.id });
+  return Boolean(changed);
+};
+
+/** Whether the owner told the memory to leave this chat alone. */
+export const isChatMemoryOff = async (userId: string, id: string) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ off: chats.memoryOff })
+    .from(chats)
+    .where(and(eq(chats.id, id), eq(chats.userId, userId)))
+    .limit(1);
+  return row?.off ?? false;
 };
 
 /** Opens the chat to everyone signed in, by its link (read only), or takes it back to its owner alone. */
@@ -356,7 +383,8 @@ export const saveMessages = async (chatId: string, list: ChatMessage[]) => {
 
 /**
  * Drops a message and everything after it — before the same message is sent again (a retry after an error, and
- * edit / regenerate later), so the model never sees it twice or an answer that no longer follows it.
+ * edit / regenerate later), so the model never sees it twice or an answer that no longer follows it. Answers the
+ * ids it dropped.
  */
 export const deleteMessagesFrom = async (chatId: string, messageId: string) => {
   const { db } = getDb();
@@ -366,13 +394,16 @@ export const deleteMessagesFrom = async (chatId: string, messageId: string) => {
     .where(and(eq(messages.chatId, chatId), eq(messages.id, messageId)))
     .limit(1);
   if (!from) {
-    return;
+    return [];
   }
-  await db
+  // The ids that went: what the memory took from them is undone (ARCH §19).
+  const dropped = await db
     .delete(messages)
     .where(
       and(eq(messages.chatId, chatId), gte(messages.createdAt, from.createdAt))
-    );
+    )
+    .returning({ id: messages.id });
+  return dropped.map((m) => m.id);
 };
 
 /** The models a user ran last — in this chat and anywhere; the caller keeps the first that is still in chat. */
@@ -417,7 +448,7 @@ export const listChatModelLabels = () => {
     .innerJoin(sources, eq(sources.id, models.sourceId))
     .leftJoin(providers, eq(providers.id, models.providerId))
     .where(
-      sql`${models.enabled} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
+      sql`${models.enabled} and ${models.type} = 'language' and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
     )
     .orderBy(
       sql`${models.releasedAt} desc nulls last`,
@@ -470,6 +501,8 @@ export const getChatModel = async (id: string) => {
       and(
         eq(models.id, id),
         eq(models.enabled, true),
+        // A decision model writes no answers (ARCH §19.4).
+        eq(models.type, "language"),
         eq(sources.enabled, true),
         sql`coalesce(${sources.health}->>'state', '') <> 'error'`
       )

@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, index, integer, jsonb } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -23,6 +23,17 @@ export const user = pgTable("user", {
   // «Не показывать после обновлений».
   whatsNewSeen: text("whats_new_seen"),
   whatsNewOff: boolean("whats_new_off").default(false).notNull(),
+  // The person's own switch of the memory (ARCH §19.1): on — nothing of theirs is written or read; what is kept waits.
+  memoryOff: boolean("memory_off").default(false).notNull(),
+  // Where Metobe writes to the person (D43): what a task or a digest sends goes to the mail, to the Telegram chat the
+  // person bound, or both. A switch is off only when the person turned it off; Telegram also needs a bound chat.
+  notifyEmail: boolean("notify_email").default(true).notNull(),
+  notifyTelegram: boolean("notify_telegram").default(true).notNull(),
+  // The morning digest of «Не упустить» (D43): at what local time it goes (`09:00`; null — off), the local day it last
+  // went and the rows it carried — it goes again only when a row is new.
+  digestTime: text("digest_time"),
+  digestSentOn: text("digest_sent_on"),
+  digestKeys: jsonb("digest_keys").$type<string[]>(),
   // When an admin turned the account off: no sign-in, no code, no sessions; null — it works.
   disabledAt: timestamp("disabled_at"),
 });

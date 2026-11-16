@@ -1,0 +1,2 @@
+ALTER TABLE "memory_entities" DROP CONSTRAINT "memory_entities_kind";--> statement-breakpoint
+ALTER TABLE "memory_entities" ADD CONSTRAINT "memory_entities_kind" CHECK ("memory_entities"."kind" in ('self', 'person', 'org', 'project', 'group', 'custom'));

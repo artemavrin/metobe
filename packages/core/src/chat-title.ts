@@ -33,6 +33,14 @@ const instructionsFor = (locale: string) =>
 const TITLE_TIMEOUT_MS = 15_000;
 
 /**
+ * Room for a title, thinking included. A title is a few words (a model that does not think spends about ten tokens on
+ * it), but a model that thinks whatever it is told — Muse Ember ignores `reasoning` and spends a hundred to two hundred
+ * tokens on it — came back with no text at forty and the chat kept its first line. What a model does not use, it
+ * does not cost.
+ */
+const TITLE_MAX_TOKENS = 1000;
+
+/**
  * A title wants no thinking: it is faster and a thinking model would spend the few output tokens on it. A provider
  * that does not take `none` (older OpenAI reasoning models) refuses with 400 — then once more with its default.
  */
@@ -46,7 +54,7 @@ const titleText = async (
     // switched off) took three tries of a ten-second connect timeout — forty seconds of «naming» in the sidebar.
     abortSignal: AbortSignal.timeout(TITLE_TIMEOUT_MS),
     instructions: instructionsFor(locale),
-    maxOutputTokens: 40,
+    maxOutputTokens: TITLE_MAX_TOKENS,
     maxRetries: 1,
     model,
     prompt: `<message>\n${text.slice(0, 4000)}\n</message>`,

@@ -10,7 +10,7 @@ export const TIME_TOOL = "current_time";
  * What the model is told once, at the top of the prompt: it cannot know the date. The same for every request, so the
  * cache keeps hitting (a date in the prompt would change it).
  */
-export const TIME_NOTE = `You cannot know the current date or time by yourself. Whenever an answer depends on it — «today», «tomorrow», «this week», an age, a deadline, «the latest», reading a date in data — call ${TIME_TOOL} first and go by what it says, in the user's time zone unless they ask about another place.`;
+export const TIME_NOTE = `You cannot know the current date or time by yourself. Whenever an answer depends on it — «today», «tomorrow», «this week», an age, a deadline, «the latest», reading a date in data — call ${TIME_TOOL} first and go by what it says, in the user's time zone unless they ask about another place. When only the day matters and a <memory> block in front of the message says what day it is today, that is enough: no call.`;
 
 const timeInput = z.object({
   timeZone: z

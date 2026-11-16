@@ -3,6 +3,7 @@
 import anthropicMono from "@lobehub/icons-static-svg/icons/anthropic.svg";
 import arcee from "@lobehub/icons-static-svg/icons/arcee-color.svg";
 import azure from "@lobehub/icons-static-svg/icons/azure-color.svg";
+import baseten from "@lobehub/icons-static-svg/icons/baseten.svg";
 import bytedance from "@lobehub/icons-static-svg/icons/bytedance-color.svg";
 import claude from "@lobehub/icons-static-svg/icons/claude-color.svg";
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg";
@@ -17,9 +18,11 @@ import huggingface from "@lobehub/icons-static-svg/icons/huggingface-color.svg";
 import inception from "@lobehub/icons-static-svg/icons/inception.svg";
 import inferenceLogo from "@lobehub/icons-static-svg/icons/inference.svg";
 import kimi from "@lobehub/icons-static-svg/icons/kimi.svg";
+import liquid from "@lobehub/icons-static-svg/icons/liquid.svg";
 import lmstudio from "@lobehub/icons-static-svg/icons/lmstudio.svg";
 import longcat from "@lobehub/icons-static-svg/icons/longcat-color.svg";
 import meta from "@lobehub/icons-static-svg/icons/meta-color.svg";
+import microsoft from "@lobehub/icons-static-svg/icons/microsoft-color.svg";
 import minimax from "@lobehub/icons-static-svg/icons/minimax-color.svg";
 import mistral from "@lobehub/icons-static-svg/icons/mistral-color.svg";
 import morphLogo from "@lobehub/icons-static-svg/icons/morph-color.svg";
@@ -63,6 +66,7 @@ export const LOGOS: Record<string, Logo & { label: string; host?: boolean }> = {
   "anthropic-mono": { ...L(anthropicMono, true), label: "Anthropic" },
   arcee: { ...L(arcee), label: "Arcee" },
   azure: { ...L(azure), host: true, label: "Azure" },
+  baseten: { ...L(baseten, true), label: "Baseten" },
   bytedance: { ...L(bytedance), label: "ByteDance" },
   cloudflare: { ...L(cloudflare), host: true, label: "Cloudflare" },
   cohere: { ...L(cohere), label: "Cohere" },
@@ -74,9 +78,11 @@ export const LOGOS: Record<string, Logo & { label: string; host?: boolean }> = {
   huggingface: { ...L(huggingface), host: true, label: "Hugging Face" },
   inception: { ...L(inception, true), label: "Inception" },
   inference: { ...L(inferenceLogo, true), label: "Inference.net" },
+  liquid: { ...L(liquid, true), label: "Liquid AI" },
   lmstudio: { ...L(lmstudio, true), host: true, label: "LM Studio" },
   meituan: { ...L(longcat), label: "LongCat" },
   meta: { ...L(meta), label: "Meta" },
+  microsoft: { ...L(microsoft), label: "Microsoft" },
   minimax: { ...L(minimax), label: "MiniMax" },
   mistral: { ...L(mistral), label: "Mistral" },
   moonshot: { ...L(kimi, true), label: "Kimi" },

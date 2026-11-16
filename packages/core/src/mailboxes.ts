@@ -13,7 +13,7 @@ import type {
 } from "@metobe/contracts/email";
 import { mailboxes } from "@metobe/db/schema/mail";
 import type { Mailbox } from "@metobe/db/schema/mail";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, lt, or } from "drizzle-orm";
 import { ImapFlow } from "imapflow";
 import { parseHTML } from "linkedom";
 import { simpleParser } from "mailparser";
@@ -218,6 +218,48 @@ export const setMailboxPolicy = async (
   return true;
 };
 
+/** «Замечать письма без ответа» on a box of the user's (Г3.1); false when there is no such box. */
+export const setMailboxMemory = async (
+  userId: string,
+  id: string,
+  on: boolean
+) => {
+  const rows = await getDb()
+    .db.update(mailboxes)
+    .set({ memoryReads: on })
+    .where(and(eq(mailboxes.id, id), eq(mailboxes.userId, userId)))
+    .returning({ id: mailboxes.id });
+  return rows.length > 0;
+};
+
+/** The boxes the memory reads whose last look was before `before` (or never), the longest ago first. */
+export const boxesForMemory = (before: Date) =>
+  getDb()
+    .db.select()
+    .from(mailboxes)
+    .where(
+      and(
+        eq(mailboxes.memoryReads, true),
+        eq(mailboxes.status, "active"),
+        or(
+          isNull(mailboxes.memoryCheckedAt),
+          lt(mailboxes.memoryCheckedAt, before)
+        )
+      )
+    )
+    .orderBy(asc(mailboxes.memoryCheckedAt));
+
+/** Notes the memory's look at a box, done or failed (`error`): the next is an hour on either way. */
+export const markMemoryChecked = (
+  id: string,
+  at: Date,
+  error: string | null = null
+) =>
+  getDb()
+    .db.update(mailboxes)
+    .set({ memoryCheckedAt: at, memoryError: error })
+    .where(eq(mailboxes.id, id));
+
 /** Removes a box of the user's and its password; false when there was none. */
 export const removeMailbox = async (userId: string, id: string) => {
   const { db } = getDb();
@@ -345,6 +387,38 @@ export const sendEmail = async (
     sendVia(box.smtp, auth, box.address, input)
   );
 };
+
+/**
+ * A reply in a thread from a given box (Г3.1 «Напомнить»): `In-Reply-To` and `References` tie it to the letter, so
+ * the other side's mail shows it under the first one.
+ */
+export const replyEmail = (
+  box: Mailbox,
+  input: {
+    to: string;
+    subject: string;
+    text: string;
+    inReplyTo: string;
+    references: string[];
+  }
+) =>
+  withBox(box, "smtp", async (auth) => {
+    const transport = await smtpOf(box.smtp, auth);
+    try {
+      const info = await transport.sendMail({
+        from: box.address,
+        html: letterHtml(input.text),
+        inReplyTo: input.inReplyTo,
+        references: input.references,
+        subject: input.subject,
+        text: input.text,
+        to: input.to,
+      });
+      return { from: box.address, messageId: info.messageId, sent: true };
+    } finally {
+      transport.close();
+    }
+  });
 
 /** A signed-in IMAP client, logged out after `fn`. */
 const withImap = async <T>(
@@ -490,4 +564,186 @@ export const searchEmail = async (userId: string, input: EmailSearchInput) => {
 export const readEmail = async (userId: string, input: EmailReadInput) => {
   const box = await pick(userId, input.mailbox);
   return withBox(box, "imap", (auth) => readVia(box.imap, auth, input));
+};
+
+// ── Envelopes for the memory (Г3.1): who wrote to whom, in which thread — never a letter's body ─────────────────────
+
+/** A letter's envelope and the headers that tie it into a thread; no body is read. */
+export interface MailEnvelope {
+  folder: string;
+  uid: number;
+  messageId: string | null;
+  inReplyTo: string | null;
+  /** `References`: the thread's earlier letters, oldest first. */
+  references: string[];
+  from: string[];
+  to: string[];
+  cc: string[];
+  subject: string;
+  date: string | null;
+  /** The names the letter gives its people, by address: «Ольга Ли» for olga@… — from the envelope, as written. */
+  names: Record<string, string>;
+  /** An autoreply, a list or bulk mail (`Auto-Submitted`, `List-Id`, `Precedence`): nobody's answer. */
+  auto: boolean;
+}
+
+/**
+ * The folders that hold no answers: drafts, spam, and Gmail's starred view (copies). The bin and the archive do — an
+ * answer read and deleted is still an answer (S16: a box kept 744 letters a year in its bin). Gmail's «All Mail» holds
+ * the archived ones; its copies of the inbox are the same letters, told apart by `Message-ID`.
+ */
+const NOT_ANSWERS = new Set(["\\Drafts", "\\Junk", "\\Flagged"]);
+const SENT_NAME =
+  /^(?:sent|sent items|sent messages|sent mail|отправленные)$/iu;
+
+const ids = (value: string | undefined) =>
+  (value ?? "").match(/<[^<>\s]+>/gu) ?? [];
+
+const addressesOf = (list?: { address?: string }[]) =>
+  (list ?? []).flatMap((a) => (a.address ? [a.address.toLowerCase()] : []));
+
+const namesOf = (
+  ...lists: ({ address?: string; name?: string }[] | undefined)[]
+) =>
+  Object.fromEntries(
+    lists.flatMap((list) =>
+      (list ?? []).flatMap((a) =>
+        a.address && a.name?.trim()
+          ? [[a.address.toLowerCase(), a.name.trim()] as const]
+          : []
+      )
+    )
+  );
+
+/** One header's value from a fetched raw header block (unfolded). */
+const headerOf = (raw: string, name: string) => {
+  const unfolded = raw.replaceAll(/\r?\n[ \t]+/gu, " ");
+  const line = unfolded
+    .split(/\r?\n/u)
+    .find((l) => l.toLowerCase().startsWith(`${name.toLowerCase()}:`));
+  return line ? line.slice(name.length + 1).trim() : undefined;
+};
+
+const THREAD_HEADERS = [
+  "message-id",
+  "in-reply-to",
+  "references",
+  "auto-submitted",
+  "list-id",
+  "precedence",
+];
+
+/** What a fetch of the envelope and the thread's headers gives for a letter. */
+interface Fetched {
+  uid: number;
+  envelope?: {
+    cc?: { address?: string; name?: string }[];
+    date?: Date | string;
+    from?: { address?: string; name?: string }[];
+    inReplyTo?: string;
+    messageId?: string;
+    subject?: string;
+    to?: { address?: string; name?: string }[];
+  };
+  headers?: Buffer;
+}
+
+/** Mail that answers nobody: an autoreply, a mailing list, bulk. */
+const isAutomatic = (raw: string) => {
+  const auto = headerOf(raw, "auto-submitted")?.toLowerCase();
+  const precedence = headerOf(raw, "precedence")?.toLowerCase();
+  return (
+    (auto !== undefined && auto !== "no") ||
+    headerOf(raw, "list-id") !== undefined ||
+    precedence === "bulk" ||
+    precedence === "list" ||
+    precedence === "junk"
+  );
+};
+
+const envelopeOf = (m: Fetched, folder: string): MailEnvelope => {
+  const raw = m.headers?.toString("utf-8") ?? "";
+  const e = m.envelope;
+  return {
+    auto: isAutomatic(raw),
+    cc: addressesOf(e?.cc),
+    date: e?.date ? new Date(e.date).toISOString() : null,
+    folder,
+    from: addressesOf(e?.from),
+    inReplyTo: ids(e?.inReplyTo)[0] ?? null,
+    messageId: e?.messageId ?? null,
+    names: namesOf(e?.from, e?.to, e?.cc),
+    references: ids(headerOf(raw, "references")),
+    subject: e?.subject ?? "",
+    to: addressesOf(e?.to),
+    uid: m.uid,
+  };
+};
+
+/** One folder's envelopes since a day. */
+const folderEnvelopes = async (
+  client: ImapFlow,
+  folder: string,
+  since: Date
+) => {
+  const lock = await client.getMailboxLock(folder);
+  try {
+    const found = await client.search({ since }, { uid: true });
+    const uids = Array.isArray(found) ? found : [];
+    const out: MailEnvelope[] = [];
+    if (uids.length === 0) {
+      return out;
+    }
+    for await (const m of client.fetch(
+      uids.join(","),
+      { envelope: true, headers: THREAD_HEADERS, uid: true },
+      { uid: true }
+    )) {
+      out.push(envelopeOf(m as Fetched, folder));
+    }
+    return out;
+  } finally {
+    lock.release();
+  }
+};
+
+/**
+ * The envelopes of the letters since a day, in every folder but drafts and spam (S16): the sent folder — the one the
+ * server marks `\Sent`, else the one named so; none — no sent — and every folder answers may lie in.
+ */
+export const envelopesVia = (
+  imap: MailServer,
+  auth: Credentials,
+  since: Date
+): Promise<{ sentFolder: string | null; envelopes: MailEnvelope[] }> =>
+  withImap(imap, auth, async (client) => {
+    const folders = await client.list();
+    const sent =
+      folders.find((f) => f.specialUse === "\\Sent") ??
+      folders.find((f) => SENT_NAME.test(f.name));
+    const read = folders.filter(
+      (f) =>
+        !(f.specialUse && NOT_ANSWERS.has(f.specialUse)) &&
+        !f.flags.has("\\Noselect")
+    );
+    const envelopes: MailEnvelope[] = [];
+    for (const folder of read) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one folder at a time: IMAP selects one
+      envelopes.push(...(await folderEnvelopes(client, folder.path, since)));
+    }
+    return { envelopes, sentFolder: sent?.path ?? null };
+  });
+
+/** A box's envelopes since a day (`envelopesVia`), with its login. */
+export const mailEnvelopes = async (
+  userId: string,
+  mailboxId: string,
+  since: Date
+) => {
+  const boxes = await listMailboxes(userId);
+  const box = boxes.find((b) => b.id === mailboxId);
+  if (!box) {
+    throw new Error("no such mailbox");
+  }
+  return withBox(box, "imap", (auth) => envelopesVia(box.imap, auth, since));
 };

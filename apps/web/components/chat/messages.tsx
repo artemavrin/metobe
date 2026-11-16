@@ -50,12 +50,13 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useFormatter, useNow, useTranslations } from "next-intl";
-import { useContext, useEffect, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import type { Components } from "streamdown";
 
 import { ActivityBlock } from "@/components/chat/activity";
 import { AnswerChart } from "@/components/chat/answer-chart";
+import { AnswerCard, AnswerPromises } from "@/components/chat/answer-memory";
 import { AnswerMetrics } from "@/components/chat/answer-metrics";
 import { AnswerTable } from "@/components/chat/answer-table";
 import { ApprovalCard } from "@/components/chat/approval-card";
@@ -68,6 +69,7 @@ import {
   kindOfMedia,
   useAttachments,
 } from "@/components/chat/attachments";
+import { CardPeek } from "@/components/chat/card-peek";
 import { ConnectRequest } from "@/components/chat/connect-request";
 import { SecretNote } from "@/components/chat/secret-note";
 import { ThoughtWindow } from "@/components/chat/thought-window";
@@ -342,7 +344,12 @@ const Mentioned = ({
   skills,
 }: {
   text: string;
-  mentions: { title: string; logo: string | null }[];
+  mentions: {
+    title: string;
+    logo: string | null;
+    card?: boolean;
+    id?: string;
+  }[];
   skills: string[];
 }) =>
   // Read the way the chat reads them: what shows as a badge is what gives the model its tools and skills.
@@ -353,18 +360,27 @@ const Mentioned = ({
         <TokenBadge key={`s${i}`} kind="skill" label={part.skill} />,
       ];
     }
-    return splitMentions(part, mentions).map((piece, j) =>
-      typeof piece === "string" ? (
-        piece
-      ) : (
+    return splitMentions(part, mentions).map((piece, j) => {
+      if (typeof piece === "string") {
+        return piece;
+      }
+      const badge = (
         <TokenBadge
-          // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
-          key={`m${i}:${j}`}
+          kind={piece.card ? "card" : undefined}
           label={piece.title}
           logo={piece.logo ?? undefined}
         />
-      )
-    );
+      );
+      // oxlint-disable-next-line react/no-array-index-key -- pieces of one fixed text, in order
+      const key = `m${i}:${j}`;
+      return piece.card && piece.id ? (
+        <CardPeek id={piece.id} key={key}>
+          {badge}
+        </CardPeek>
+      ) : (
+        <Fragment key={key}>{badge}</Fragment>
+      );
+    });
   });
 
 /** The user's message: a bubble on the right that rises in when it goes; its time, copy and edit under it. */
@@ -472,7 +488,19 @@ export const UserMessage = ({
             {text && (
               <Bubble align="end" variant="muted">
                 <BubbleContent className="rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap">
-                  <Mentioned mentions={mentions} skills={skills} text={text} />
+                  <Mentioned
+                    mentions={[
+                      ...mentions,
+                      ...(message.metadata?.cards ?? []).map((c) => ({
+                        card: true,
+                        id: c.id,
+                        logo: null,
+                        title: c.name,
+                      })),
+                    ]}
+                    skills={skills}
+                    text={text}
+                  />
                 </BubbleContent>
               </Bubble>
             )}
@@ -844,6 +872,17 @@ const AnswerPiece = ({
   if (block.kind === "metrics") {
     return <AnswerMetrics part={block.part} />;
   }
+  if (block.kind === "memory-card" || block.kind === "memory-promises") {
+    // The memory is the owner's: a shared chat's reader sees the answer's words, not the card (it has no buttons to give).
+    if (!onAsk) {
+      return null;
+    }
+    return block.kind === "memory-card" ? (
+      <AnswerCard part={block.part} />
+    ) : (
+      <AnswerPromises part={block.part} />
+    );
+  }
   if (block.kind === "task") {
     return <TaskDraftCard part={block.part} />;
   }
@@ -896,7 +935,10 @@ export const AssistantMessage = ({
   onAsk,
   onServerReady,
   servers = NO_SERVERS,
+  memory,
 }: {
+  /** What the memory took from the question this answers (ARCH §19): under the footer once the answer is done. */
+  memory?: React.ReactNode;
   /** The user's vote on it: helpful, not, or none. */
   vote?: boolean;
   onVote?: (messageId: string, up: boolean | null) => void;
@@ -973,14 +1015,17 @@ export const AssistantMessage = ({
           />
         )}
         {!live && message && !asking && (
-          <AnswerFooter
-            copy={answer || undefined}
-            label={label}
-            message={message}
-            onRegenerate={onRegenerate}
-            onVote={onVote}
-            vote={vote}
-          />
+          <>
+            <AnswerFooter
+              copy={answer || undefined}
+              label={label}
+              message={message}
+              onRegenerate={onRegenerate}
+              onVote={onVote}
+              vote={vote}
+            />
+            {memory}
+          </>
         )}
       </MessageContent>
     </Message>

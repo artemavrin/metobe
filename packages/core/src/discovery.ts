@@ -33,7 +33,8 @@ export const listSourceModels = async (
 
 /**
  * Creates missing providers: from the seed with its logo, or — for a maker the Gateway named that the seed does not
- * know — with a title made from its name and no logo. Existing ones (renamed or re-logoed by the admin) stay.
+ * know — with a title made from its name and no logo. Existing ones (renamed or re-logoed by the admin) stay; one
+ * without a logo gets the seed's once the seed knows it.
  */
 const ensureProviders = async (slugs: Set<string>) => {
   const { db } = getDb();
@@ -47,7 +48,16 @@ const ensureProviders = async (slugs: Set<string>) => {
     await db
       .insert(providers)
       .values(values)
-      .onConflictDoNothing({ target: providers.slug });
+      // A maker met before the seed knew it (Microsoft came with the decision models) gets the seed's logo and
+      // name once known — unless the admin edited it.
+      .onConflictDoUpdate({
+        set: {
+          logo: sql`coalesce(${providers.logo}, excluded.logo)`,
+          title: sql`case when ${providers.logo} is null and excluded.logo is not null then excluded.title else ${providers.title} end`,
+        },
+        target: providers.slug,
+        where: sql`not ${providers.edited}`,
+      });
   }
   const rows = await db
     .select({ id: providers.id, slug: providers.slug })
@@ -100,6 +110,7 @@ export const syncModels = async (sourceId: string) => {
           releasedAt: m.releasedAt,
           sourceId,
           title: m.title,
+          type: m.type ?? "language",
         }))
       )
       .onConflictDoUpdate({
@@ -118,6 +129,7 @@ export const syncModels = async (sourceId: string) => {
           providerId: sql`excluded.provider_id`,
           releasedAt: sql`excluded.released_at`,
           title: sql`excluded.title`,
+          type: sql`excluded.type`,
         },
         target: [models.sourceId, models.modelId],
       });

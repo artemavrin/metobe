@@ -1,7 +1,7 @@
 import "server-only";
 import { sources } from "@metobe/db/schema/models";
 import type { Source } from "@metobe/db/schema/models";
-import type { LanguageModel } from "ai";
+import type { Experimental_EvaluationModel, LanguageModel } from "ai";
 import { eq } from "drizzle-orm";
 
 import { baseUrlOf, buildProvider } from "./ai-build";
@@ -66,6 +66,18 @@ export const getLanguageModel = async (
 ): Promise<LanguageModel> => {
   const provider = await providerFor(sourceId);
   return provider.languageModel(modelId);
+};
+
+/** A decision model of a source (ARCH §19.4); a source whose kind serves none is an error. */
+export const getEvaluationModel = async (
+  sourceId: string,
+  modelId: string
+): Promise<Experimental_EvaluationModel> => {
+  const provider = await providerFor(sourceId);
+  if (!provider.evaluationModel) {
+    throw new Error("this source serves no decision models");
+  }
+  return provider.evaluationModel(modelId);
 };
 
 // A provider holds a routed fetch, so a proxy change must rebuild it.

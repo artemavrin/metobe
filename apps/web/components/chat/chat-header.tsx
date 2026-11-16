@@ -10,6 +10,7 @@ import {
 } from "@metobe/ui/components/dropdown-menu";
 import { cn } from "@metobe/ui/lib/utils";
 import {
+  BookX,
   Ellipsis,
   FoldVertical,
   Pencil,
@@ -64,6 +65,15 @@ export const ChatHeader = ({ chat, ops }: { chat: ChatItem; ops: ChatOps }) => {
           </button>
         )}
       </div>
+      {chat.memoryOff && (
+        <span
+          className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs"
+          title={t("item.memoryOffHint")}
+        >
+          <BookX className="size-3.5" />
+          <span className="max-sm:sr-only">{t("item.memoryOffNote")}</span>
+        </span>
+      )}
       <Button
         className="text-muted-foreground"
         onClick={() => ops.share(chat.id)}
@@ -99,6 +109,14 @@ export const ChatHeader = ({ chat, ops }: { chat: ChatItem; ops: ChatOps }) => {
           {ops.compact && (
             <DropdownMenuItem onClick={() => ops.compact?.(chat.id)}>
               <FoldVertical /> {t("compact.menu")}
+            </DropdownMenuItem>
+          )}
+          {ops.memoryOff && (
+            <DropdownMenuItem
+              onClick={() => ops.memoryOff?.(chat.id, !chat.memoryOff)}
+            >
+              <BookX />{" "}
+              {chat.memoryOff ? t("item.memoryOn") : t("item.memoryOff")}
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />

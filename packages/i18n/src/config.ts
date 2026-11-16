@@ -16,6 +16,8 @@ export const localeNames: Record<Locale, string> = {
 export const COOKIE = {
   dateFormat: "date_format",
   locale: "locale",
+  /** The sidebar's width in px, as the person dragged it; absent — the default. */
+  sidebarWidth: "sidebar_width",
   /** Effective time zone; the browser writes it while the user keeps the automatic one. */
   timeZone: "tz",
   /** Present when the user picked a time zone by hand, so the browser must not overwrite `tz`. */

@@ -1,0 +1,23 @@
+{
+  "name": "spike-s13-jev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "node --env-file=../../.env --import tsx run.ts",
+    "extract": "node --env-file=../../.env --import tsx extract.ts",
+    "ask": "node --env-file=../../.env --import tsx ask.ts",
+    "context": "node --env-file=../../.env --import tsx context.ts",
+    "status": "node --env-file=../../.env --import tsx status.ts",
+    "self": "node --env-file=../../.env --import tsx self.ts",
+    "gate": "node --env-file=../../.env --import tsx gate.ts",
+    "groups": "node --env-file=../../.env --import tsx groups.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "4.0.91",
+    "@ai-sdk/openai-compatible": "3.0.55",
+    "ai": "7.0.113",
+    "tsx": "^4.23.15",
+    "undici": "7",
+    "zod": "4.6.5"
+  }
+}

@@ -26,6 +26,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getPickerData } from "@/lib/chat-data";
+import { getPrefs } from "@/lib/prefs";
 import { getSettingsViewer } from "@/lib/settings-access";
 
 // What the task page does (ARCH §16.4): on and off, letters on and off, «Прогнать сейчас», delete, the answer of a past run,
@@ -319,5 +320,8 @@ export const createTaskAction = async (input: z.input<typeof draftInput>) => {
 /** The tasks for the sidebar, read again: the shell asks for them while the person is on a page that does not look at tasks. */
 export const sidebarTasksAction = async () => {
   const userId = await owner();
-  return userId ? await listSidebarTasks(userId) : null;
+  const { locale } = await getPrefs();
+  return userId
+    ? await listSidebarTasks(userId, locale === "en" ? "en" : "ru")
+    : null;
 };

@@ -19,6 +19,9 @@ export const saveSlot = async (slot: string, modelId: string | null) => {
   if (!admin || !parsed.success) {
     throw new Error("forbidden");
   }
-  await setSlotModel(parsed.data.slot, parsed.data.modelId);
+  // A model of the wrong kind for the job (a decision model for titles, say) is refused.
+  if (!(await setSlotModel(parsed.data.slot, parsed.data.modelId))) {
+    throw new Error("wrong model for the job");
+  }
   revalidatePath("/settings/service");
 };

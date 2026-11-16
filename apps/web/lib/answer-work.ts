@@ -5,6 +5,8 @@ export type ToolPart = Extract<Part, { type: "dynamic-tool" }>;
 export type TablePart = Extract<Part, { type: "tool-show_table" }>;
 export type ChartPart = Extract<Part, { type: "tool-show_chart" }>;
 export type MetricsPart = Extract<Part, { type: "tool-show_metrics" }>;
+export type CardPart = Extract<Part, { type: "tool-show_card" }>;
+export type PromisesPart = Extract<Part, { type: "tool-show_promises" }>;
 export type ConnectPart = Extract<Part, { type: "tool-request_connection" }>;
 export type AskPart = Extract<Part, { type: "tool-ask_user" }>;
 export type TaskDraftPart = Extract<Part, { type: "tool-draft_task" }>;
@@ -39,6 +41,9 @@ export type AnswerBlock =
   | { kind: "table"; key: string; part: TablePart }
   | { kind: "chart"; key: string; part: ChartPart }
   | { kind: "metrics"; key: string; part: MetricsPart }
+  /** A card, or a list of open promises, the memory put in the answer (Д1). */
+  | { kind: "memory-card"; key: string; part: CardPart }
+  | { kind: "memory-promises"; key: string; part: PromisesPart }
   /** «Connect X to go on»: the answer waits on the user there. */
   | { kind: "connect"; key: string; part: ConnectPart }
   /** The model's questions: answered, what the user said stands there as their own message. */
@@ -133,6 +138,12 @@ const blockOf = (part: Part): AnswerBlock | null => {
     }
     case "tool-show_metrics": {
       return { key: part.toolCallId, kind: "metrics", part };
+    }
+    case "tool-show_card": {
+      return { key: part.toolCallId, kind: "memory-card", part };
+    }
+    case "tool-show_promises": {
+      return { key: part.toolCallId, kind: "memory-promises", part };
     }
     case "tool-request_connection": {
       return { key: part.toolCallId, kind: "connect", part };

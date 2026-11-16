@@ -22,11 +22,14 @@ import { saveSlot } from "./actions";
  */
 export const SlotsForm = ({
   models,
+  deciders,
   favorites: initialFavorites,
   recent,
   assigned,
 }: {
   models: PickerModel[];
+  /** Decision models, for the «Решения» job only (ARCH §19.4). */
+  deciders: PickerModel[];
   favorites: string[];
   recent: string[];
   assigned: Record<string, string | null>;
@@ -37,13 +40,14 @@ export const SlotsForm = ({
   const [open, setOpen] = useState<ModelSlot | null>(null);
   const [, startTransition] = useTransition();
   // Sight is the job: a model known not to see is not offered for it (one whose sight is unknown may be tried).
-  const choices = useMemo(
-    () =>
-      open === "vision"
-        ? models.filter((m) => m.caps.vision !== false)
-        : models,
-    [models, open]
-  );
+  const choices = useMemo(() => {
+    if (open === "decisions") {
+      return deciders;
+    }
+    return open === "vision"
+      ? models.filter((m) => m.caps.vision !== false)
+      : models;
+  }, [deciders, models, open]);
   const save = (slot: ModelSlot, modelId: string | null) => {
     setValues((v) => ({ ...v, [slot]: modelId }));
     startTransition(() => saveSlot(slot, modelId));
@@ -51,7 +55,8 @@ export const SlotsForm = ({
   if (models.length === 0) {
     return <p className="text-muted-foreground">{t("empty")}</p>;
   }
-  const byId = (id: string | null) => models.find((m) => m.id === id);
+  const byId = (id: string | null) =>
+    models.find((m) => m.id === id) ?? deciders.find((m) => m.id === id);
   return (
     <PickerDataProvider models={choices} recent={recent}>
       <Section title={t("jobs")}>

@@ -1,20 +1,22 @@
 "use client";
 
 import { cn } from "@metobe/ui/lib/utils";
-import { Plug, Sparkles, X } from "lucide-react";
+import { BookUser, Plug, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useRef } from "react";
 
 // The composer's text field (P2 «Щелчок»): type `@`, pick a server — or `/`, a skill — and its badge sits exactly where
 // you typed. A
 // contenteditable with atomic badges (contenteditable=false): Backspace or the badge's × takes one out; the value
-// is read back as text and tokens. Plain text only — pastes are stripped.
+// is read back as text and tokens. Plain text only — pastes are stripped, and the names they hold of what the composer
+// knows (`@Name` of a server or a card, `/name` of a skill) become badges, as if picked.
 
 /** An MCP server mentioned in the text (`@Title`), or a skill picked (`/name`). */
 export interface Token {
   id: string;
   label: string;
   logo?: string;
-  kind?: "skill";
+  /** A skill (`/name`) or a card of the memory (`@Name`); none — an MCP server. */
+  kind?: "skill" | "card";
 }
 export type Segment = string | Token;
 
@@ -35,7 +37,7 @@ export interface EditorHandle {
   /** Puts a badge where the caret is, or was last in the field — else at its end (a pick from the «+» menu). */
   addToken: (t: Token) => void;
   /** Puts text at the end of the draft, after what is there, the caret after it (a starter from the new chat). */
-  addText: (text: string) => void;
+  addText: (text: string, tight?: boolean) => void;
 }
 
 /** The badge's look, shared by the editor (built in the DOM) and a sent message (React). */
@@ -50,15 +52,16 @@ export const TokenBadge = ({
 }: {
   label: string;
   logo?: string;
-  kind?: "skill";
+  kind?: "skill" | "card";
 }) => (
   <span className={TOKEN_CLASS}>
     {kind === "skill" && <Sparkles />}
-    {kind !== "skill" && logo && (
+    {kind === "card" && <BookUser />}
+    {!kind && logo && (
       // oxlint-disable-next-line nextjs/no-img-element -- a tiny data URL picture; next/image adds nothing here
       <img alt="" className="size-3.5 rounded-[3px]" src={logo} />
     )}
-    {kind !== "skill" && !logo && <Plug />}
+    {!kind && !logo && <Plug />}
     {label}
   </span>
 );
@@ -79,6 +82,9 @@ const IconTemplates = ({
     <span data-icon="plug">
       <Plug />
     </span>
+    <span data-icon="card">
+      <BookUser />
+    </span>
     <span data-icon="skill">
       <Sparkles />
     </span>
@@ -94,13 +100,12 @@ const makeBadge = (
   removeLabel: string
 ) => {
   const plug =
-    templates?.querySelector(
-      t.kind === "skill" ? '[data-icon="skill"]' : '[data-icon="plug"]'
-    )?.innerHTML ?? "";
+    templates?.querySelector(`[data-icon="${t.kind ?? "plug"}"]`)?.innerHTML ??
+    "";
   const remove =
     templates?.querySelector('[data-icon="remove"]')?.innerHTML ?? "×";
   const icon =
-    t.logo && t.kind !== "skill"
+    t.logo && !t.kind
       ? `<img alt="" class="size-3.5 rounded-[3px]" src="${esc(t.logo)}">`
       : plug;
   const el = document.createElement("span");
@@ -167,7 +172,10 @@ const read = (root: HTMLElement): Segment[] => {
       } else if (child instanceof HTMLElement && "token" in child.dataset) {
         out.push({
           id: child.dataset.id ?? "",
-          kind: child.dataset.kind === "skill" ? "skill" : undefined,
+          kind:
+            child.dataset.kind === "skill" || child.dataset.kind === "card"
+              ? child.dataset.kind
+              : undefined,
           label: child.dataset.label ?? "",
           logo: child.dataset.logo,
         });
@@ -223,6 +231,7 @@ export const TokenEditor = ({
   onTrigger,
   onKeyDown,
   onSubmit,
+  tokenize,
   modEnterSends = false,
 }: {
   ref: React.Ref<EditorHandle>;
@@ -237,6 +246,8 @@ export const TokenEditor = ({
   /** Returns true when the key was handled (an open menu takes arrows, Enter, Tab, Esc). */
   onKeyDown: (e: React.KeyboardEvent) => boolean;
   onSubmit: () => void;
+  /** A pasted text cut into plain pieces and the badges of what it names; none — a paste is plain text. */
+  tokenize?: (text: string) => Segment[] | Promise<Segment[]>;
   /** ⌘/Ctrl+Enter sends and a plain Enter breaks the line, instead of the other way round. */
   modEnterSends?: boolean;
 }) => {
@@ -277,15 +288,16 @@ export const TokenEditor = ({
   }, [autoFocus]);
 
   useImperativeHandle(ref, () => ({
-    addText: (text) => {
+    addText: (text, tight = false) => {
       const el = root.current;
       if (!el) {
         return;
       }
-      // Its own words: a space before them when they would stick to the draft.
+      // Its own words: a space before them when they would stick to the draft — unless they go on from a badge.
       const glued =
-        /\S$/u.test(el.textContent ?? "") ||
-        el.lastChild?.nodeType === Node.ELEMENT_NODE;
+        !tight &&
+        (/\S$/u.test(el.textContent ?? "") ||
+          el.lastChild?.nodeType === Node.ELEMENT_NODE);
       const node = document.createTextNode(glued ? ` ${text}` : text);
       el.append(node);
       el.focus();
@@ -397,6 +409,64 @@ export const TokenEditor = ({
     sync();
   };
 
+  /** Puts pieces of text and badges at the caret: a paste that names what the composer knows. */
+  const insertSegments = (segments: Segment[]) => {
+    const el = root.current;
+    const sel = window.getSelection();
+    if (!el) {
+      return;
+    }
+    // The field may have lost the caret while the names were being looked up: then at the end of the draft.
+    if (!(sel?.rangeCount && el.contains(sel.anchorNode))) {
+      el.focus();
+      const end = document.createRange();
+      end.selectNodeContents(el);
+      end.collapse(false);
+      sel?.removeAllRanges();
+      sel?.addRange(end);
+    }
+    const range = window.getSelection()?.getRangeAt(0);
+    if (!range) {
+      return;
+    }
+    range.deleteContents();
+    let last: Node | null = null;
+    for (const piece of segments) {
+      const node =
+        typeof piece === "string"
+          ? document.createTextNode(piece)
+          : makeBadge(piece, templates.current, removeLabel);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      last = node;
+    }
+    // A badge at the end gets its space, as a picked one does: the caret has somewhere to stand.
+    if (last instanceof HTMLElement) {
+      const space = document.createTextNode(" ");
+      range.insertNode(space);
+      last = space;
+    }
+    if (last) {
+      caretAt(last, last instanceof Text ? last.length : 0);
+    }
+    sync();
+  };
+
+  const paste = async (text: string) => {
+    // Nothing a name could start with: plain text, at once.
+    if (!(tokenize && /[@/]/u.test(text))) {
+      insertText(text);
+      return;
+    }
+    const segments = await tokenize(text);
+    if (segments.every((piece) => typeof piece === "string")) {
+      insertText(text);
+      return;
+    }
+    insertSegments(segments);
+  };
+
   return (
     <>
       <style>{EDITOR_CSS}</style>
@@ -462,7 +532,7 @@ export const TokenEditor = ({
         }}
         onPaste={(e) => {
           e.preventDefault();
-          insertText(e.clipboardData.getData("text/plain"));
+          paste(e.clipboardData.getData("text/plain"));
         }}
         ref={root}
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- inline badges need a contenteditable; a <textarea> holds text only

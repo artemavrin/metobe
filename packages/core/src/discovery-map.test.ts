@@ -50,6 +50,29 @@ describe("AI Gateway", () => {
     { id: "quiverai/arrow-1", owned_by: "quiverai", type: "language" },
   ]);
 
+  it("keeps decision models too, typed so, and nothing else but language ones (ARCH §19.4)", () => {
+    const found = fromGateway([
+      {
+        context_window: 32_768,
+        id: "microsoft/microsoft-decision-1",
+        name: "Decision-1",
+        owned_by: "microsoft",
+        pricing: { input: "0.000000042", output: "0" },
+        type: "evaluation",
+      },
+      { id: "openai/gpt-image-2", owned_by: "openai", type: "image" },
+      { id: "moonshotai/kimi-k2", owned_by: "moonshotai", type: "language" },
+    ]);
+    expect(found.map((m) => [m.modelId, m.type])).toEqual([
+      ["microsoft/microsoft-decision-1", "evaluation"],
+      ["moonshotai/kimi-k2", "language"],
+    ]);
+    expect(found[0]).toMatchObject({
+      price: { currency: "USD", input: "0.000000042", unitTokens: 1 },
+      title: "Decision-1",
+    });
+  });
+
   it("keeps language models only and reads the maker from owned_by", () => {
     expect(rest.map((m) => [m.modelId, m.provider])).toEqual([
       ["moonshotai/kimi-k2", "moonshot"],

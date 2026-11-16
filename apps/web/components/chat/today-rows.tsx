@@ -1,0 +1,685 @@
+"use client";
+
+import type { MemorySuggestion } from "@metobe/contracts/memory";
+import { Button } from "@metobe/ui/components/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@metobe/ui/components/dropdown-menu";
+import { toast } from "@metobe/ui/components/sonner";
+import { cn } from "@metobe/ui/lib/utils";
+import {
+  BookUser,
+  Building2,
+  CalendarClock,
+  Check,
+  ChevronDown,
+  CircleCheck,
+  Ellipsis,
+  FolderKanban,
+  Mail,
+  MailCheck,
+  MailQuestion,
+  Star,
+  Users,
+  X,
+} from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import Link from "next/link";
+import { useState } from "react";
+
+import { moveTargets } from "@/lib/memory-dates";
+import { cardMarker } from "@/lib/mentions";
+
+import { RemindDialog, useRemind } from "./remind-dialog";
+
+// «На сегодня» on the new chat screen (ARCH §19.6, P17 «Строки»): rows like «Начать с» — what to do and why now on the
+// right; a click puts the request into the composer, the person sends it. The menu: done (or confirmed), move the
+// deadline, open the card, take it away — each with «Вернуть». A rhythm row (a rule, ARCH §19.6): «Уже было» notes a
+// contact today, open the card, take it away until the next contact. A row where someone owes the person has
+// «Напомнить» (Г2.4, P23 «Окно»): a letter to them in a window, sent from the person's box. A letter the person sent
+// with no answer (Г3.1, P24 «Предложение») is a row too — «Напомнить» replies in its thread; while the memory reads no
+// box, «Замечать письма без ответа?» is offered at the top.
+
+/** The same rows as «Начать с»; on a phone the text wraps and «why» goes under it. */
+const ROW =
+  "bg-background hover:bg-[color-mix(in_oklab,var(--muted)_70%,var(--background))] flex min-h-11 w-full items-center gap-3 rounded-lg border px-3.5 py-2 pr-10 text-left text-sm transition-[background-color,scale] duration-150 ease-out active:scale-[0.99] motion-reduce:transition-none";
+const ENTER =
+  "animate-in fade-in slide-in-from-bottom-1 motion-reduce:slide-in-from-bottom-0 fill-mode-both duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]";
+/** Seen at once; the rest behind «Ещё N». */
+const FIRST = 3;
+
+type Item = MemorySuggestion;
+
+const send = (url: string, method: string, body?: object) =>
+  fetch(url, {
+    body: body ? JSON.stringify(body) : undefined,
+    headers: body ? { "content-type": "application/json" } : undefined,
+    method,
+  });
+
+const Face = ({ who, mail }: { who: Item["who"]; mail?: boolean }) => {
+  let face: React.ReactNode = <BookUser className="size-3" />;
+  if (mail) {
+    face = <Mail className="size-3" />;
+  } else if (who?.kind === "org") {
+    face = <Building2 className="size-3" />;
+  } else if (who?.kind === "project") {
+    face = <FolderKanban className="size-3" />;
+  } else if (who?.kind === "group") {
+    face = <Users className="size-3" />;
+  } else if (who) {
+    face = who.name
+      .replaceAll(/[«»"]/gu, "")
+      .split(/\s+/u)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("");
+  }
+  return (
+    <span
+      aria-hidden
+      className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full text-[9px] font-medium"
+    >
+      {face}
+    </span>
+  );
+};
+
+const normalize = (s: string) => s.toLocaleLowerCase("ru").replaceAll("ё", "е");
+
+/**
+ * The row's words: the commitment as recorded, with the other side in front when the text does not name them
+ * («ООО «Вектор»: Ответить на коммерческое предложение»). A name counts as said by any word of it, declined.
+ */
+const labelOf = (s: Item) => {
+  if (!s.who) {
+    return s.text;
+  }
+  const text = normalize(s.text);
+  const said = normalize(s.who.name)
+    .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
+    .split(" ")
+    .filter((w) => w.length >= 4)
+    .some((w) => text.includes(w.slice(0, Math.max(4, w.length - 2))));
+  return said ? s.text : `${s.who.name}: ${s.text}`;
+};
+
+/** The request that goes into the composer: «Кому: …» — no name has to be declined. */
+const usePrompt = (timeZone: string) => {
+  const t = useTranslations("memory.forToday");
+  const format = useFormatter();
+  return (s: Item) => {
+    const due = s.dueAt
+      ? format.dateTime(new Date(s.dueAt), {
+          day: "numeric",
+          month: "long",
+          timeZone,
+        })
+      : null;
+    // The other side is a badge in the composer, so the chat knows which card it is.
+    const name = s.who ? cardMarker(s.who) : null;
+    if (s.mail) {
+      return t("askMail", {
+        name: name ?? "—",
+        sent: format.dateTime(new Date(s.mail.sentAt), {
+          day: "numeric",
+          month: "long",
+          timeZone,
+        }),
+        subject: s.mail.subject,
+      });
+    }
+    if (s.date) {
+      return s.date.repeat === "year" && name
+        ? t("askBirthday", { name, text: s.text })
+        : t("askDate", { text: s.text });
+    }
+    if (s.rhythm) {
+      return t("askMeet", {
+        every: s.rhythm.every,
+        name: name ?? "—",
+        since: s.rhythm.since
+          ? format.dateTime(new Date(s.rhythm.since), {
+              day: "numeric",
+              month: "long",
+              timeZone,
+            })
+          : "none",
+      });
+    }
+    if (s.status === "unconfirmed") {
+      return t("askConfirm", { name: name ?? "—", text: s.text });
+    }
+    if (s.side === "mine") {
+      return t("askMine", { due: due ?? "none", text: s.text });
+    }
+    return t("askRemind", {
+      due: due ?? "none",
+      late: s.reason === "overdue" ? "yes" : "no",
+      name: name ?? "—",
+      text: s.text,
+    });
+  };
+};
+
+/** Why now, on the right: «просрочено на 3 дн.», «ждёт проверки», «ждём 6 дн.», «сегодня», «завтра», «не было 18 дн.», «важно». */
+const Why = ({ s }: { s: Item }) => {
+  const t = useTranslations("memory.forToday");
+  return (
+    <span
+      className={cn(
+        "text-muted-foreground shrink-0 text-xs max-sm:shrink",
+        s.reason === "overdue" && "text-warning-foreground dark:text-warning"
+      )}
+    >
+      {s.important && (
+        <Star className="fill-warning text-warning me-1 inline size-3 -translate-y-px" />
+      )}
+      {s.mail
+        ? t("why.mail", {
+            days: s.days,
+            name: s.who?.name ?? "",
+            working: s.mail.workingDays ? "yes" : "no",
+          })
+        : t(`why.${s.reason}`, { days: s.days })}
+    </span>
+  );
+};
+
+/** Someone owes the person, it is open, and it is known who: a letter can remind them. */
+const remindable = (s: Item) =>
+  s.kind === "mail" ||
+  (s.kind === "commitment" &&
+    s.side === "theirs" &&
+    s.status === "open" &&
+    s.who !== null);
+
+/** «Напомнить» left of the menu: shown on hover on a computer, an icon always there on a phone. */
+const RemindButton = ({ onClick }: { onClick: () => void }) => {
+  const t = useTranslations("memory.remind");
+  return (
+    <Button
+      aria-label={t("action")}
+      className="absolute top-1/2 right-9 h-7 -translate-y-1/2 gap-1.5 px-2 text-xs focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+      onClick={onClick}
+      size="sm"
+      variant="ghost"
+    >
+      <Mail className="size-3.5" />
+      <span className="max-sm:sr-only">{t("action")}</span>
+    </Button>
+  );
+};
+
+/** Done at once, with «Вернуть» in a toast; a failure puts the row back and says so. */
+const useAct = (onGone: () => void, onBack: () => void) => {
+  const t = useTranslations("memory");
+  return async (
+    run: () => Promise<Response>,
+    done: string,
+    undo?: () => Promise<Response>
+  ) => {
+    onGone();
+    const response = await run();
+    if (!response.ok) {
+      onBack();
+      toast.error(t("failed"));
+      return;
+    }
+    toast(done, {
+      action: undo
+        ? {
+            label: t("restore"),
+            onClick: async () => {
+              const back = await undo();
+              if (back.ok) {
+                onBack();
+              }
+            },
+          }
+        : undefined,
+    });
+  };
+};
+
+const More = () => {
+  const t = useTranslations("memory");
+  return (
+    <DropdownMenuTrigger
+      render={
+        <Button
+          aria-label={t("more")}
+          className="absolute top-1/2 right-2 -translate-y-1/2 opacity-60 group-hover:opacity-100 aria-expanded:opacity-100"
+          size="icon-xs"
+          variant="ghost"
+        />
+      }
+    >
+      <Ellipsis />
+    </DropdownMenuTrigger>
+  );
+};
+
+/**
+ * A rhythm row's menu (ARCH §19.6): «Уже было» notes a contact today, so the rhythm counts from it; «Убрать» — until
+ * the next contact. No deadline to move: a rule has none.
+ */
+const RhythmMenu = ({
+  s,
+  act,
+}: {
+  s: Item;
+  act: ReturnType<typeof useAct>;
+}) => {
+  const today = useTranslations("memory.forToday");
+  const { who } = s;
+  if (!(who && s.rhythm)) {
+    return null;
+  }
+  const dismiss = `/api/memory/records/${s.id}/dismiss`;
+  const contact = async () => {
+    const response = await send(`/api/memory/cards/${who.id}/contact`, "POST", {
+      text: today("contactText", { name: who.name }),
+    });
+    const made = response.ok
+      ? ((await response.clone().json()) as { id: string })
+      : null;
+    return { made, response };
+  };
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem
+          onClick={() => {
+            let made: { id: string } | null = null;
+            void act(
+              async () => {
+                const done = await contact();
+                ({ made } = done);
+                return done.response;
+              },
+              today("savedContact", { name: who.name }),
+              () => send(`/api/memory/records/${made?.id ?? ""}`, "DELETE")
+            );
+          }}
+        >
+          <Check /> {today("contacted")}
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href={`/memory?card=${who.id}`} />}>
+          <BookUser /> {today("open")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () =>
+                send(dismiss, "POST", {
+                  entityId: who.id,
+                  since: s.rhythm?.since ?? null,
+                }),
+              today("dismissed"),
+              () => send(`${dismiss}?entity=${who.id}`, "DELETE")
+            )
+          }
+        >
+          <X /> {today("dismiss")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+/** A day that comes again (ARCH §19.8.7): «Уже сделано» keeps it away until the next one; the card, if it is about one. */
+const DateMenu = ({ s, act }: { s: Item; act: ReturnType<typeof useAct> }) => {
+  const today = useTranslations("memory.forToday");
+  const day = s.date?.day;
+  if (!day) {
+    return null;
+  }
+  const dismiss = `/api/memory/records/${s.id}/dismiss`;
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () => send(dismiss, "POST", { date: day }),
+              today("dismissed"),
+              () => send(`${dismiss}?date=${day}`, "DELETE")
+            )
+          }
+        >
+          <Check /> {today("done")}
+        </DropdownMenuItem>
+        {s.who && (
+          <DropdownMenuItem render={<Link href={`/memory?card=${s.who.id}`} />}>
+            <BookUser /> {today("open")}
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+/** A letter with no answer (Г3.1): the card, and «Убрать» — until the person writes again in its thread. */
+const MailMenu = ({ s, act }: { s: Item; act: ReturnType<typeof useAct> }) => {
+  const today = useTranslations("memory.forToday");
+  const dismiss = `/api/memory/mail/${s.id}/dismiss`;
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        {s.who && (
+          <DropdownMenuItem render={<Link href={`/memory?card=${s.who.id}`} />}>
+            <BookUser /> {today("open")}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () => send(dismiss, "POST"),
+              today("dismissed"),
+              () => send(dismiss, "DELETE")
+            )
+          }
+        >
+          <X /> {today("dismiss")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+/**
+ * «Замечать письма без ответа?» (P24 «Предложение»): «Включить» turns the reading on for the person's boxes, «Не
+ * надо» — not offered again; either way the switch stays on each box's page.
+ */
+const MailOffer = ({
+  boxes,
+  onGone,
+}: {
+  boxes: string[];
+  onGone: () => void;
+}) => {
+  const t = useTranslations("memory.forToday.mailOffer");
+  const memory = useTranslations("memory");
+  const answer = async (on: boolean) => {
+    onGone();
+    const response = await send("/api/memory/mail/offer", "POST", { on });
+    if (!response.ok) {
+      toast.error(memory("failed"));
+      return;
+    }
+    toast(on ? t("onDone") : t("offDone"));
+  };
+  return (
+    <div
+      className={cn(
+        "bg-muted/40 flex flex-col gap-2 rounded-lg border border-dashed px-3.5 py-3 text-sm",
+        ENTER
+      )}
+    >
+      <span className="flex items-center gap-2 font-medium">
+        <MailQuestion className="text-muted-foreground size-4 shrink-0" />{" "}
+        {t("title")}
+      </span>
+      <span className="text-muted-foreground text-xs">{t("hint")}</span>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => answer(true)} size="sm">
+          {boxes.length === 1 ? t("onFor", { box: boxes[0] ?? "" }) : t("on")}
+        </Button>
+        <Button onClick={() => answer(false)} size="sm" variant="ghost">
+          {t("off")}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const Menu = ({
+  s,
+  timeZone,
+  onGone,
+  onBack,
+}: {
+  s: Item;
+  timeZone: string;
+  onGone: () => void;
+  onBack: () => void;
+}) => {
+  const t = useTranslations("memory");
+  const today = useTranslations("memory.forToday");
+  const targets = moveTargets(new Date(), timeZone);
+  const said = s.status === "unconfirmed";
+  const act = useAct(onGone, onBack);
+  const record = `/api/memory/records/${s.id}`;
+  if (s.date) {
+    return <DateMenu act={act} s={s} />;
+  }
+  if (s.mail) {
+    return <MailMenu act={act} s={s} />;
+  }
+  if (s.rhythm) {
+    return <RhythmMenu act={act} s={s} />;
+  }
+  const move = (at: Date) =>
+    act(
+      () => send(record, "PATCH", { dueAt: at.toISOString() }),
+      t("savedMoved"),
+      () => send(record, "PATCH", { dueAt: s.dueAt })
+    );
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () => send(record, "PATCH", { status: "done" }),
+              said ? t("savedConfirmed") : t("savedDone"),
+              () => send(record, "PATCH", { status: s.status })
+            )
+          }
+        >
+          {said ? <CircleCheck /> : <Check />}{" "}
+          {said ? t("confirm") : today("done")}
+        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <CalendarClock /> {t("move")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem onClick={() => move(targets.tomorrow)}>
+              {t("moveTomorrow")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => move(targets.dayAfter)}>
+              {t("moveDayAfter")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => move(targets.monday)}>
+              {t("moveMonday")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => move(targets.week)}>
+              {t("moveWeek")}
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        {s.who && (
+          <DropdownMenuItem render={<Link href={`/memory?card=${s.who.id}`} />}>
+            <BookUser /> {today("open")}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () => send(`${record}/dismiss`, "POST"),
+              today("dismissed"),
+              () => send(`${record}/dismiss`, "DELETE")
+            )
+          }
+        >
+          <X /> {today("dismiss")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+/** The «Сверка» row's menu: open it, or put it away until Monday (`POST /api/memory/review/dismiss`, «Вернуть» undoes). */
+const ReviewMenu = ({
+  onGone,
+  onBack,
+}: {
+  onGone: () => void;
+  onBack: () => void;
+}) => {
+  const today = useTranslations("memory.forToday");
+  const act = useAct(onGone, onBack);
+  const url = "/api/memory/review/dismiss";
+  return (
+    <DropdownMenu>
+      <More />
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem render={<Link href="/memory/review" />}>
+          <MailCheck /> {today("reviewOpen")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            act(
+              () => send(url, "POST"),
+              today("reviewDismissed"),
+              () => send(url, "DELETE")
+            )
+          }
+        >
+          <X /> {today("dismiss")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+const NO_BOXES: string[] = [];
+
+/** The section, or nothing once every row is gone. `put` — the composer takes the request. */
+export const TodayRows = ({
+  items,
+  mailOffer = NO_BOXES,
+  review = 0,
+  timeZone,
+  put,
+}: {
+  items: Item[];
+  /** The person's boxes, while «Замечать письма без ответа?» is offered; empty — it is not. */
+  mailOffer?: string[];
+  /** Promises open a long time: the «Сверка» row after the others, while there are any and it is not put away. */
+  review?: number;
+  timeZone: string;
+  put: (text: string) => void;
+}) => {
+  const t = useTranslations("memory.forToday");
+  const prompt = usePrompt(timeZone);
+  const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
+  const [all, setAll] = useState(false);
+  const [reviewGone, setReviewGone] = useState(false);
+  const [offerGone, setOfferGone] = useState(false);
+  const remind = useRemind();
+  const left = items.filter((s) => !gone.has(s.key));
+  const reviewing = review > 0 && !reviewGone;
+  const offering = mailOffer.length > 0 && !offerGone;
+  if (left.length === 0 && !reviewing && !offering) {
+    return null;
+  }
+  const shown = all ? left : left.slice(0, FIRST);
+  const more = left.length - shown.length;
+  const hide = (id: string) => setGone((g) => new Set(g).add(id));
+  const show = (id: string) =>
+    setGone((g) => {
+      const next = new Set(g);
+      next.delete(id);
+      return next;
+    });
+  return (
+    <section>
+      <h2 className="text-muted-foreground mb-2 text-xs font-medium">
+        {t("title")}
+      </h2>
+      <div className="flex flex-col gap-2">
+        {offering && (
+          <MailOffer boxes={mailOffer} onGone={() => setOfferGone(true)} />
+        )}
+        {shown.map((s) => (
+          <div className={cn("group relative", ENTER)} key={s.key}>
+            <button
+              className={cn(ROW, remindable(s) && "pr-16 sm:pr-36")}
+              onClick={() => put(prompt(s))}
+              type="button"
+            >
+              <Face mail={Boolean(s.mail)} who={s.who} />
+              <span className="flex min-w-0 flex-1 items-center gap-3 max-sm:flex-col max-sm:items-start max-sm:gap-0.5">
+                <span className="min-w-0 flex-1 sm:truncate">
+                  {s.mail
+                    ? t("mailLabel", { subject: s.mail.subject })
+                    : labelOf(s)}
+                </span>
+                <Why s={s} />
+              </span>
+            </button>
+            {remindable(s) && <RemindButton onClick={() => remind.open(s)} />}
+            <Menu
+              onBack={() => show(s.key)}
+              onGone={() => hide(s.key)}
+              s={s}
+              timeZone={timeZone}
+            />
+          </div>
+        ))}
+        {more > 0 && (
+          <button
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start px-1 text-xs transition-colors duration-150"
+            onClick={() => setAll(true)}
+            type="button"
+          >
+            <ChevronDown className="size-3.5" /> {t("more", { count: more })}
+          </button>
+        )}
+        {reviewing && (
+          <div className={cn("group relative", ENTER)}>
+            <Link className={ROW} href="/memory/review">
+              <span
+                aria-hidden
+                className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full"
+              >
+                <MailCheck className="size-3" />
+              </span>
+              <span className="flex min-w-0 flex-1 items-center gap-3 max-sm:flex-col max-sm:items-start max-sm:gap-0.5">
+                <span className="min-w-0 flex-1 sm:truncate">
+                  {t("review", { count: review })}
+                </span>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {t("reviewWhy")}
+                </span>
+              </span>
+            </Link>
+            <ReviewMenu
+              onBack={() => setReviewGone(false)}
+              onGone={() => setReviewGone(true)}
+            />
+          </div>
+        )}
+      </div>
+      <RemindDialog onSent={(s) => hide(s.key)} remind={remind} />
+    </section>
+  );
+};

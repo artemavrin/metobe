@@ -2,6 +2,7 @@
 
 import { TABLE_MAX_ROWS } from "@metobe/contracts/table";
 import type { TableCell, TableColumnType } from "@metobe/contracts/table";
+import { Button } from "@metobe/ui/components/button";
 import {
   DataGrid,
   dataGridFeatures,
@@ -21,6 +22,11 @@ import type {
   FilterQuery,
 } from "@metobe/ui/components/reui/filters/filters-types";
 import { Skeleton } from "@metobe/ui/components/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import type {
   ColumnDef,
@@ -34,9 +40,9 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Copy } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -51,6 +57,8 @@ import {
   matchesQuery,
   numbersOf,
   summarize,
+  tableAsHtml,
+  tableAsText,
   tableView,
 } from "@/lib/table-data";
 import type { TableColumn, TableRow } from "@/lib/table-data";
@@ -69,6 +77,9 @@ type Features = typeof features;
 
 // A row lands: it rises 4px and fades in — only while the model writes; a table from the history just stands. A
 // filter's chip grows in from the button it came from instead of popping into the header. Reduced motion keeps fades.
+/** The least a column keeps: narrower, and the cells only clip — past this the table scrolls sideways instead. */
+const MIN_COLUMN_REM = 8;
+
 const TABLE_CSS = `
 @keyframes table-row-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
 @keyframes table-row-fade { from { opacity: 0 } to { opacity: 1 } }
@@ -343,6 +354,72 @@ const useFollowRows = (count: number, streaming: boolean) => {
   return box;
 };
 
+/** Copies the rows the table shows (the filters applied) with the header: as cells for a spreadsheet, as a table for a document. */
+const CopyTable = ({
+  columns,
+  rows,
+}: {
+  columns: TableColumn[];
+  rows: TableRow[];
+}) => {
+  const t = useTranslations("chat.table");
+  const [done, setDone] = useState(false);
+  const timer = useRef<{ id?: ReturnType<typeof setTimeout> }>({});
+  useEffect(() => () => clearTimeout(timer.current.id), []);
+  const copy = async () => {
+    const text = tableAsText(columns, rows);
+    try {
+      await (typeof ClipboardItem === "undefined"
+        ? navigator.clipboard.writeText(text)
+        : navigator.clipboard.write([
+            new ClipboardItem({
+              "text/html": new Blob([tableAsHtml(columns, rows)], {
+                type: "text/html",
+              }),
+              "text/plain": new Blob([text], { type: "text/plain" }),
+            }),
+          ]));
+    } catch (error) {
+      console.error("chat: could not copy the table", error);
+      return;
+    }
+    setDone(true);
+    clearTimeout(timer.current.id);
+    timer.current.id = setTimeout(() => setDone(false), 1500);
+  };
+  const label = done ? t("copied") : t("copy");
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        delay={500}
+        render={
+          <Button
+            aria-label={label}
+            className="text-muted-foreground hover:text-foreground [&_svg]:size-3.5"
+            onClick={copy}
+            size="icon-sm"
+            variant="ghost"
+          />
+        }
+      >
+        <span
+          className="animate-in fade-in zoom-in-75 motion-reduce:zoom-in-100 duration-150"
+          key={String(done)}
+        >
+          {done ? <Check /> : <Copy />}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        arrow={false}
+        className="bg-sidebar text-foreground ring-foreground/10 shadow-md ring-1"
+        sideOffset={6}
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
 export const AnswerTable = ({ part }: { part: TablePart }) => {
   const t = useTranslations("chat.table");
   const copy = useFilterCopy();
@@ -527,16 +604,23 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
     <WidgetFrame
       actions={
         ready &&
-        view.rows.length > 1 && (
-          <Filters
-            fields={fields}
-            labels={copy.labels}
-            onQueryChange={setQuery}
-            operatorLabels={copy.operatorLabels}
-            query={query}
-            showClear
-            size="sm"
-          />
+        view.rows.length > 0 && (
+          <>
+            {view.rows.length > 1 && (
+              <Filters
+                fields={fields}
+                labels={copy.labels}
+                onQueryChange={setQuery}
+                operatorLabels={copy.operatorLabels}
+                query={query}
+                showClear
+                size="sm"
+              />
+            )}
+            {rows.length > 0 && (
+              <CopyTable columns={view.columns} rows={rows} />
+            )}
+          </>
         )
       }
       building={t("building")}
@@ -564,6 +648,8 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
             recordCount={rows.length}
             table={table}
             tableClassNames={{
+              // Wider than the frame, the table scrolls sideways; it does not squeeze its columns away.
+              base: "min-w-(--table-min-width)",
               bodyRow: view.streaming ? "table-row-in" : undefined,
               // The total stays in sight while the rows scroll under it.
               footer: "sticky bottom-0 z-10",
@@ -578,7 +664,14 @@ export const AnswerTable = ({ part }: { part: TablePart }) => {
           >
             {/* The height caps the viewport, not the root: the viewport is `size-full`, and a percentage of a
                 max-height is no height at all — the rows were cut off and nothing scrolled. */}
-            <DataGridScrollArea className="[&_[data-slot=scroll-area-viewport]]:max-h-[26rem]">
+            <DataGridScrollArea
+              className="[&_[data-slot=scroll-area-viewport]]:max-h-[26rem]"
+              style={
+                {
+                  "--table-min-width": `${view.columns.length * MIN_COLUMN_REM}rem`,
+                } as CSSProperties
+              }
+            >
               {/* A total of the rows shown is not the total of a source that had more. */}
               <DataGridTable
                 footerContent={view.total === undefined ? footer : undefined}

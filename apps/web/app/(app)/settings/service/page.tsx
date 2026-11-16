@@ -19,14 +19,17 @@ import { SlotsForm } from "./slots-form";
 
 const ServicePage = async () => {
   const { user } = await getSettingsViewer();
-  const [rows, medians, assigned, favorites, recent, t] = await Promise.all([
-    listModelChoices("working"),
-    getFirstTokenMedians(),
-    getSlotAssignments(),
-    user ? getFavoriteModelIds(user.id) : [],
-    user ? getRecentModelIds(user.id) : [],
-    getTranslations("service"),
-  ]);
+  const [rows, deciders, medians, assigned, favorites, recent, t] =
+    await Promise.all([
+      listModelChoices("working"),
+      // The «Решения» job takes decision models only (ARCH §19.4): they are offered for it alone.
+      listModelChoices("working", "evaluation"),
+      getFirstTokenMedians(),
+      getSlotAssignments(),
+      user ? getFavoriteModelIds(user.id) : [],
+      user ? getRecentModelIds(user.id) : [],
+      getTranslations("service"),
+    ]);
   return (
     <SettingsPageFrame>
       <SettingsHeader description={t("description")} title={t("title")} />
@@ -35,6 +38,7 @@ const ServicePage = async () => {
           modelSlots.map((s) => [s, assigned[s] ?? null])
         )}
         favorites={favorites}
+        deciders={deciders.map((row) => toPickerModel(row, null))}
         models={rows.map((row) =>
           toPickerModel(row, medians.get(row.id) ?? null)
         )}

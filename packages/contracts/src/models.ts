@@ -125,8 +125,29 @@ export const runStatuses = ["ok", "error", "aborted"] as const;
 export type RunStatus = (typeof runStatuses)[number];
 
 /** Service jobs an admin gives a model to (ARCH §7): outside the chat, a model need not be in the chat to do one. */
-export const modelSlots = ["titles", "vision", "summaries"] as const;
+/**
+ * `memory` — the silent writer of ARCH §19: without a model in it the memory is off for everyone. `decisions` — a
+ * decision model (Jev and the like) that answers the writer's yes/no questions first: optional, it only saves.
+ */
+export const modelSlots = [
+  "titles",
+  "vision",
+  "summaries",
+  "memory",
+  "decisions",
+] as const;
 export type ModelSlot = (typeof modelSlots)[number];
+
+/**
+ * What a model is: `language` writes text (chats, every job but one); `evaluation` — a decision model — only answers
+ * typed questions with probabilities (`experimental_evaluate`), found in AI Gateway's catalog, and serves `decisions`.
+ */
+export const modelTypes = ["language", "evaluation"] as const;
+export type ModelType = (typeof modelTypes)[number];
+
+/** The kind of model a job takes. */
+export const slotModelType = (slot: ModelSlot): ModelType =>
+  slot === "decisions" ? "evaluation" : "language";
 
 /** What a run was for: a chat's answer, or a service job. */
 export const runPurposes = [
@@ -135,5 +156,7 @@ export const runPurposes = [
   "title",
   "compact",
   "task",
+  "memory",
+  "decide",
 ] as const;
 export type RunPurpose = (typeof runPurposes)[number];

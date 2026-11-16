@@ -1,7 +1,7 @@
 import "server-only";
 import { models, providers, sources } from "@metobe/db/schema/models";
 import { proxies } from "@metobe/db/schema/proxies";
-import { asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 
 import { baseUrlOf } from "./ai-build";
 import { getDb } from "./db";
@@ -15,25 +15,31 @@ import { listSecretHints } from "./secrets";
 /** Every source with how many of its models there are and how many are in chat. */
 export const listSources = () => {
   const { db } = getDb();
-  return db
-    .select({
-      baseUrl: sources.baseUrl,
-      enabled: sources.enabled,
-      health: sources.health,
-      id: sources.id,
-      kind: sources.kind,
-      logo: sources.logo,
-      modelsEnabled:
-        sql<number>`count(${models.id}) filter (where ${models.enabled})`.mapWith(
-          Number
-        ),
-      modelsTotal: count(models.id),
-      title: sources.title,
-    })
-    .from(sources)
-    .leftJoin(models, eq(models.sourceId, sources.id))
-    .groupBy(sources.id)
-    .orderBy(asc(sources.createdAt));
+  return (
+    db
+      .select({
+        baseUrl: sources.baseUrl,
+        enabled: sources.enabled,
+        health: sources.health,
+        id: sources.id,
+        kind: sources.kind,
+        logo: sources.logo,
+        modelsEnabled:
+          sql<number>`count(${models.id}) filter (where ${models.enabled})`.mapWith(
+            Number
+          ),
+        modelsTotal: count(models.id),
+        title: sources.title,
+      })
+      .from(sources)
+      // Counted are the models a chat may take; decision models serve the «Решения» job only (ARCH §19.4).
+      .leftJoin(
+        models,
+        and(eq(models.sourceId, sources.id), eq(models.type, "language"))
+      )
+      .groupBy(sources.id)
+      .orderBy(asc(sources.createdAt))
+  );
 };
 export type SourceSummary = Awaited<ReturnType<typeof listSources>>[number];
 
@@ -95,7 +101,7 @@ export const getSource = async (id: string) => {
       })
       .from(models)
       .innerJoin(providers, eq(providers.id, models.providerId))
-      .where(eq(models.sourceId, id))
+      .where(and(eq(models.sourceId, id), eq(models.type, "language")))
       .orderBy(
         sql`${models.releasedAt} desc nulls last`,
         desc(models.createdAt),
@@ -125,7 +131,7 @@ export const listChatModels = () => {
     .from(models)
     .innerJoin(sources, eq(sources.id, models.sourceId))
     .where(
-      sql`${models.enabled} and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
+      sql`${models.enabled} and ${models.type} = 'language' and ${sources.enabled} and coalesce(${sources.health}->>'state', '') <> 'error'`
     )
     .orderBy(
       sql`${models.releasedAt} desc nulls last`,

@@ -392,7 +392,14 @@ export const setModelsEnabled = async (
   await db
     .update(models)
     .set({ enabled })
-    .where(and(eq(models.sourceId, sourceId), inArray(models.id, modelIds)));
+    // A decision model is never in chat (ARCH §19.4).
+    .where(
+      and(
+        eq(models.sourceId, sourceId),
+        inArray(models.id, modelIds),
+        eq(models.type, "language")
+      )
+    );
 };
 
 /**

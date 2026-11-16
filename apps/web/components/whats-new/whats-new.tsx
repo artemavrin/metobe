@@ -452,23 +452,20 @@ export const WhatsNewDialog = ({
 }) => {
   const t = useTranslations("whatsNew");
   const [round, setRound] = useState(0);
-  const offRef = useRef(false);
-  const done = (off: boolean) => {
-    offRef.current = off;
+  /**
+   * Every way out — «Понятно», «История изменений», Esc, a click outside — goes through here, so the version is marked
+   * seen however the window was closed (the buttons used to close it past this, and it came back after a reload).
+   */
+  const close = (off: boolean) => {
+    // Marked seen in the background; a failure only means it opens once more.
+    closeWhatsNewAction(note.version, off);
+    // Opened again from the menu, it starts from the cover.
+    setRound((r) => r + 1);
     onOpenChange(false);
   };
   return (
     <Dialog
-      onOpenChange={(next) => {
-        if (!next) {
-          // Marked seen in the background; a failure only means it opens once more.
-          closeWhatsNewAction(note.version, offRef.current);
-          offRef.current = false;
-          // Opened again from the menu, it starts from the cover.
-          setRound((r) => r + 1);
-        }
-        onOpenChange(next);
-      }}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close(false))}
       open={open}
     >
       <DialogContent
@@ -484,7 +481,7 @@ export const WhatsNewDialog = ({
         <DialogDescription className="sr-only">
           {t("description")}
         </DialogDescription>
-        <Tour admin={admin} key={round} note={note} onDone={done} />
+        <Tour admin={admin} key={round} note={note} onDone={close} />
       </DialogContent>
     </Dialog>
   );

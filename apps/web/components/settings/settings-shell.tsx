@@ -1,6 +1,10 @@
 "use client";
 
-import { Kbd } from "@metobe/ui/components/kbd";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@metobe/ui/components/dialog";
 import {
   Sidebar,
   SidebarContent,
@@ -10,7 +14,6 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarInput,
-  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -18,7 +21,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@metobe/ui/components/sidebar";
-import { ArrowLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -27,6 +30,8 @@ import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 
 import { SettingsListLevel } from "@/components/settings/settings-list";
+import { lastPage } from "@/lib/last-page";
+import { levelMotion } from "@/lib/level-motion";
 import type { SettingsLists } from "@/lib/settings-lists";
 import { findSection, SETTINGS_NAV } from "@/lib/settings-nav";
 import type { SettingsSectionId } from "@/lib/settings-nav";
@@ -154,31 +159,35 @@ const MobileBar = ({ lists }: { lists: SettingsLists }) => {
   );
 };
 
-// Levels slide like a stack (P7 «Погружение»): forward — the menu leaves left and the list comes from the right;
-// back — mirrored; both overlap for a moment under a 2px blur so they read as one motion.
-const levelMotion = (reduce: boolean) => ({
-  animate: "center",
-  exit: "exit",
-  initial: "enter",
-  transition: { duration: 0.2, ease: [0.23, 1, 0.32, 1] as const },
-  variants: {
-    center: { filter: "blur(0px)", opacity: 1, transform: "translateX(0px)" },
-    enter: (dir: number) => ({
-      filter: reduce ? "blur(0px)" : "blur(2px)",
-      opacity: 0,
-      transform: `translateX(${reduce ? 0 : dir * 16}px)`,
-    }),
-    exit: (dir: number) => ({
-      filter: reduce ? "blur(0px)" : "blur(2px)",
-      opacity: 0,
-      transform: `translateX(${reduce ? 0 : -dir * 16}px)`,
-    }),
-  },
-});
+/** The menu column: on a wide window a part of it, on a phone the sheet the bar's button opens. */
+const Nav = ({
+  account,
+  children,
+}: {
+  account: ReactNode;
+  children: ReactNode;
+}) => {
+  const { isMobile } = useSidebar();
+  const body = (
+    <>
+      <div className="relative min-h-0 flex-1 overflow-hidden">{children}</div>
+      <SidebarFooter>{account}</SidebarFooter>
+    </>
+  );
+  if (isMobile) {
+    return <Sidebar>{body}</Sidebar>;
+  }
+  return (
+    <aside className="bg-sidebar text-sidebar-foreground flex w-60 shrink-0 flex-col border-r">
+      {body}
+    </aside>
+  );
+};
 
 /**
- * Settings are a mode of the same shell as the chat: a floating sidebar with the settings menu and the account row.
- * Esc goes back to the chat unless focus is in a field, a dialog or a menu.
+ * Settings are a large window over the app (as in T3 Code): the menu and the account row on the left, the screen on the
+ * right. Opened from the app it is an intercepted route (`app/(app)/@modal`): the chat stays under it and closing goes
+ * back to it; opened by its address it is the same window over an empty page and closing goes to the start.
  */
 const NONE: readonly SettingsSectionId[] = [];
 
@@ -187,6 +196,7 @@ export const SettingsShell = ({
   account,
   lists,
   marked = NONE,
+  intercepted = false,
   children,
 }: {
   admin: boolean;
@@ -195,6 +205,8 @@ export const SettingsShell = ({
   lists: SettingsLists;
   /** Sections with a dot: news for the viewer there. */
   marked?: readonly SettingsSectionId[];
+  /** Over the page it was opened from (soft navigation): closing goes back there. */
+  intercepted?: boolean;
   children: ReactNode;
 }) => {
   const t = useTranslations("settings");
@@ -262,103 +274,117 @@ export const SettingsShell = ({
       resize.disconnect();
     };
   }, []);
+  // Focus lands on the window, not on its search field: a ring on a field nobody asked for.
+  const popup = useRef<HTMLDivElement>(null);
+  // Sections visited in the window: none — closing takes the entry it added away; some — it goes to the page it was
+  // opened over, not to the section before.
+  const visited = useRef(0);
+  const first = useRef(pathname);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        e.key === "Escape" &&
-        !target.closest(
-          "input, textarea, select, [role=dialog], [role=menu], [role=listbox]"
-        )
-      ) {
-        router.push("/");
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [router]);
-
+    if (pathname !== first.current) {
+      visited.current += 1;
+      first.current = pathname;
+    }
+  }, [pathname]);
+  const close = () => {
+    if (!intercepted) {
+      router.push("/");
+    } else if (visited.current === 0) {
+      router.back();
+    } else {
+      router.push(lastPage());
+    }
+  };
   return (
-    <SidebarProvider>
-      <Sidebar variant="floating">
-        <div className="relative min-h-0 flex-1 overflow-hidden">
-          <AnimatePresence custom={dir} initial={false}>
-            <motion.div
-              className="absolute inset-0 flex flex-col"
-              custom={dir}
-              key={inside ? `list:${shownSection}` : "menu"}
-              {...levelMotion(reduce)}
-            >
-              {inside && list ? (
-                <SettingsListLevel
-                  activeId={
-                    shownSection === section
-                      ? currentEntry(pathname)
-                      : undefined
-                  }
-                  list={list}
-                  onBack={() => {
-                    go(false);
-                    // Leaving a list for the page it came from; a screen already there stays put.
-                    if (findSection(section)?.kind === "list") {
-                      setBacking(true);
-                      router.push(lastScreen.current);
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          close();
+        }
+      }}
+      open
+    >
+      <DialogContent
+        // The page stays under it, blurred: opening settings does not take the chat away.
+        initialFocus={popup}
+        overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-md"
+        ref={popup}
+        className="h-[min(60rem,calc(100dvh-3rem))] w-[min(84rem,calc(100vw-3rem))] max-w-none gap-0 overflow-hidden p-0 max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:w-screen max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none sm:max-w-none"
+      >
+        <DialogTitle className="sr-only">{t("title")}</DialogTitle>
+        <SidebarProvider className="h-full min-h-0 w-full">
+          <Nav account={account}>
+            <AnimatePresence custom={dir} initial={false}>
+              <motion.div
+                className="absolute inset-0 flex flex-col"
+                custom={dir}
+                key={inside ? `list:${shownSection}` : "menu"}
+                {...levelMotion(reduce)}
+              >
+                {inside && list ? (
+                  <SettingsListLevel
+                    activeId={
+                      shownSection === section
+                        ? currentEntry(pathname)
+                        : undefined
                     }
-                  }}
-                />
-              ) : (
-                <>
-                  <SidebarHeader className="shrink-0">
-                    <div className="flex h-8 items-center justify-between gap-2">
-                      <Link
-                        className="hover:bg-sidebar-accent -ml-1 flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium"
-                        href="/"
-                      >
-                        <ArrowLeft className="size-4" /> {t("back")}
-                      </Link>
-                      <Kbd className="text-muted-foreground hidden md:inline-flex">
-                        {t("escHint")}
-                      </Kbd>
-                    </div>
-                    <div className="relative">
-                      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
-                      <SidebarInput
-                        {...NO_AUTOFILL}
-                        aria-label={t("search")}
-                        className="pl-8"
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder={t("search")}
-                        value={query}
+                    list={list}
+                    onBack={() => {
+                      go(false);
+                      // Leaving a list for the page it came from; a screen already there stays put.
+                      if (findSection(section)?.kind === "list") {
+                        setBacking(true);
+                        router.push(lastScreen.current);
+                      }
+                    }}
+                  />
+                ) : (
+                  <>
+                    <SidebarHeader className="shrink-0">
+                      <div className="flex h-8 items-center px-2 text-sm font-semibold">
+                        {t("title")}
+                      </div>
+                      <div className="relative">
+                        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
+                        <SidebarInput
+                          {...NO_AUTOFILL}
+                          aria-label={t("search")}
+                          className="pl-8"
+                          onChange={(e) => setQuery(e.target.value)}
+                          placeholder={t("search")}
+                          value={query}
+                        />
+                      </div>
+                    </SidebarHeader>
+                    <SidebarContent
+                      className="[mask-image:linear-gradient(to_bottom,transparent,black_var(--fade-top),black_calc(100%-var(--fade-bottom)),transparent)] [--fade-bottom:0px] [--fade-top:0px] data-[bottom=true]:[--fade-bottom:2rem] data-[top=true]:[--fade-top:1.5rem] [&_[data-sidebar=menu-button]]:scroll-my-8"
+                      ref={menu}
+                    >
+                      <Menu
+                        admin={admin}
+                        marked={marked}
+                        onDrill={(id) => {
+                          setOpening(id);
+                          go(true);
+                        }}
+                        query={query}
                       />
-                    </div>
-                  </SidebarHeader>
-                  <SidebarContent
-                    className="[mask-image:linear-gradient(to_bottom,transparent,black_var(--fade-top),black_calc(100%-var(--fade-bottom)),transparent)] [--fade-bottom:0px] [--fade-top:0px] data-[bottom=true]:[--fade-bottom:2rem] data-[top=true]:[--fade-top:1.5rem] [&_[data-sidebar=menu-button]]:scroll-my-8"
-                    ref={menu}
-                  >
-                    <Menu
-                      admin={admin}
-                      marked={marked}
-                      onDrill={(id) => {
-                        setOpening(id);
-                        go(true);
-                      }}
-                      query={query}
-                    />
-                  </SidebarContent>
-                </>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-        <SidebarFooter>{account}</SidebarFooter>
-      </Sidebar>
-      <SidebarInset className="min-h-0">
-        <MobileBar lists={lists} />
-        {/* SidebarInset is the page's <main>; this is only its scroll area */}
-        <div className="min-h-0 flex-1 overflow-y-auto text-sm">{children}</div>
-      </SidebarInset>
-    </SidebarProvider>
+                    </SidebarContent>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </Nav>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <MobileBar lists={lists} />
+            {/* The screen's own scroll area */}
+            <div className="min-h-0 flex-1 overflow-y-auto text-sm">
+              {children}
+            </div>
+          </div>
+        </SidebarProvider>
+      </DialogContent>
+    </Dialog>
   );
 };
 

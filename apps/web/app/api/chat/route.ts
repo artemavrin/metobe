@@ -68,6 +68,15 @@ import { attachFiles, pruneChatFiles } from "@metobe/core/files";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listChatServers, toolsForUser } from "@metobe/core/mcp";
 import type { ChatServer } from "@metobe/core/mcp";
+import { CHAT_SOURCE, forgetSources } from "@metobe/core/memory";
+import { queueMemoryWrite } from "@metobe/core/memory-queue";
+import {
+  memoryBrief,
+  memoryShowTools,
+  memoryTools,
+} from "@metobe/core/memory-read";
+import { rememberTool } from "@metobe/core/memory-remember";
+import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { skillsForChat } from "@metobe/core/skills";
 import { getTaskByChat } from "@metobe/core/tasks";
@@ -83,7 +92,7 @@ import {
   toUIMessageStream,
   validateUIMessages,
 } from "ai";
-import type { TextStreamPart, ToolSet, UIMessageChunk } from "ai";
+import type { ModelMessage, TextStreamPart, ToolSet, UIMessageChunk } from "ai";
 import { headers } from "next/headers";
 
 import {
@@ -152,8 +161,76 @@ const causes = (error: unknown) => {
   return chain.join(" ← ");
 };
 
+/**
+ * The memory's block goes in front of the person's last message, for this request only: the history keeps their
+ * words alone, and the cached prefix before the message stays as it was.
+ */
+const withBrief = (messages: ModelMessage[], brief: string): ModelMessage[] => {
+  if (!brief) {
+    return messages;
+  }
+  let at = messages.length - 1;
+  while (at >= 0 && messages[at]?.role !== "user") {
+    at -= 1;
+  }
+  const last = messages[at];
+  if (!last || last.role !== "user") {
+    return messages;
+  }
+  const content =
+    typeof last.content === "string"
+      ? [{ text: last.content, type: "text" as const }]
+      : last.content;
+  return [
+    ...messages.slice(0, at),
+    { ...last, content: [{ text: brief, type: "text" }, ...content] },
+    ...messages.slice(at + 1),
+  ];
+};
+
 const textOf = (message: ChatMessage) =>
   message.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(" ");
+
+/**
+ * The memory, while it is on for this person (ARCH §19.5): the cards the message mentions, as a block in front of it,
+ * and tools to read more, and two to show a card or the open promises in the answer. Read only; a broken read leaves the chat without the memory, not without an answer.
+ */
+const chatMemoryOf = async (
+  userId: string,
+  chatId: string,
+  message: ChatMessage | null | undefined,
+  timeZone: string
+) => {
+  if (!(await isMemoryOnFor(userId))) {
+    return { brief: "", tools: {} };
+  }
+  const text = message ? textOf(message) : "";
+  const brief = await memoryBrief(
+    userId,
+    text,
+    timeZone,
+    message?.metadata?.cards?.map((c) => c.id)
+  ).catch((error: unknown) => {
+    console.error("memory: could not read for the chat", error);
+    return "";
+  });
+  return {
+    brief,
+    tools: {
+      ...memoryTools(userId, timeZone),
+      ...memoryShowTools(userId, timeZone),
+      // «Запиши», «напомни»: the message is kept now, and the answer says what was kept (D44).
+      ...(message
+        ? rememberTool({
+            chatId,
+            messageId: message.id,
+            ownerId: userId,
+            timeZone,
+          })
+        : {}),
+    },
+  };
+};
 
 /** A chat started with files only is named by its first file until the titles model names it. */
 const titleSource = (message: ChatMessage) =>
@@ -161,6 +238,19 @@ const titleSource = (message: ChatMessage) =>
   message.parts
     .flatMap((p) => (p.type === "file" ? [p.filename ?? ""] : []))
     .join(", ");
+
+/**
+ * Drops a message and what follows it; what the memory took from them goes with them (ARCH §19) — the chat goes on
+ * whatever happens there.
+ */
+const dropMessages = async (userId: string, chatId: string, from: string) => {
+  const dropped = await deleteMessagesFrom(chatId, from);
+  try {
+    await forgetSources(userId, CHAT_SOURCE, dropped);
+  } catch (error) {
+    console.error("chat: memory could not forget dropped messages", error);
+  }
+};
 
 const provisionalTitle = (message: ChatMessage) =>
   chatTitleFrom(titleSource(message));
@@ -402,7 +492,7 @@ export const POST = async (request: Request) => {
     });
   }
   if (prepared.dropFrom) {
-    await deleteMessagesFrom(id, prepared.dropFrom);
+    await dropMessages(session.user.id, id, prepared.dropFrom);
   }
   await saveMessages(id, prepared.save);
   // The question's files join the chat (approvals carry no message — nothing to join).
@@ -549,6 +639,7 @@ export const POST = async (request: Request) => {
           tools: model.capabilities.tools !== false,
         }
       );
+      const memory = await chatMemoryOf(session.user.id, id, message, timeZone);
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -568,6 +659,7 @@ export const POST = async (request: Request) => {
                   }
                 : {}),
               [TIME_TOOL]: timeTool(timeZone),
+              ...memory.tools,
               // A periodic task in words (P11), while the chat has none.
               ...drafting.tools,
               // What only the user knows: the model asks instead of guessing.
@@ -613,9 +705,12 @@ export const POST = async (request: Request) => {
           budget
         )
       );
+      prompt.messages = withBrief(prompt.messages, memory.brief);
       const instructions = [
         TIME_NOTE,
         STYLE_NOTE,
+        // The memory writes on its own (ARCH §19): the model must not claim it saved or removed anything.
+        await chatMemoryNote(session.user.id),
         hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
         skilled.note,
         drafting.note,
@@ -823,6 +918,17 @@ export const POST = async (request: Request) => {
         await saveMessages(id, finished);
       } finally {
         recording.saved?.();
+      }
+      // The person's message, once the answer is saved, goes to the memory's queue (ARCH §19.4) — not at all while
+      // the memory is off. Nothing here holds the chat up.
+      if (message) {
+        void queueMemoryWrite({
+          chatId: id,
+          ownerId: session.user.id,
+          source: CHAT_SOURCE,
+          sourceKey: message.id,
+          timeZone,
+        });
       }
     },
     onError: (error) => {

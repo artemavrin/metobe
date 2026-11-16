@@ -3,7 +3,7 @@ import { createGateway } from "@ai-sdk/gateway";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { SourceKind, SourceOptions } from "@metobe/contracts/models";
-import type { LanguageModel } from "ai";
+import type { Experimental_EvaluationModel, LanguageModel } from "ai";
 
 import { yandexFetch } from "./ai-yandex-fetch";
 
@@ -51,7 +51,11 @@ export const buildProvider = ({
   baseUrl,
   options,
   fetch,
-}: ProviderInput): { languageModel: (modelId: string) => LanguageModel } => {
+}: ProviderInput): {
+  languageModel: (modelId: string) => LanguageModel;
+  /** Decision models (ARCH §19.4): only AI Gateway serves them. */
+  evaluationModel?: (modelId: string) => Experimental_EvaluationModel;
+} => {
   const baseURL = baseUrlOf(kind, baseUrl);
   const key = apiKey ?? undefined;
   switch (kind) {
@@ -65,7 +69,10 @@ export const buildProvider = ({
     }
     case "gateway": {
       const p = createGateway({ apiKey: key, baseURL, fetch });
-      return { languageModel: (id) => p(id) };
+      return {
+        evaluationModel: (id) => p.evaluationModel(id),
+        languageModel: (id) => p(id),
+      };
     }
     case "yandex": {
       if (options.kind !== "yandex") {
@@ -91,6 +98,9 @@ export const buildProvider = ({
         // Without it llama.cpp and others send no usage in a stream: no tokens, no cache, no cost.
         includeUsage: true,
         name: "compatible",
+        // Without it the schema of a structured answer is not sent: the model answers in a shape of its own (the
+        // «Память» writer on gpt-oss:120b got `{facts, events…}`, never `items`). llama.cpp, Ollama and vLLM take it.
+        supportsStructuredOutputs: true,
       });
       return { languageModel: (id) => p.chatModel(id) };
     }
