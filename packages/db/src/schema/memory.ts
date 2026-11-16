@@ -22,6 +22,7 @@ import {
   integer,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   unique,
@@ -193,6 +194,8 @@ export const memoryRecords = pgTable(
     /** A `date` schedule: how often its day (`occurred_at`) comes again (ARCH §19.8.7); a reminder: how often it comes
      * again; null — neither, or once. */
     repeat: text("repeat").$type<MemoryRepeat | ReminderRepeat>(),
+    /** A reminder that comes every week on chosen weekdays («пн, ср, пт»): 0 is Sunday; null — the day it came on. */
+    repeatDays: smallint("repeat_days").array(),
     /** A rule «Не упустить» counts days by (ARCH §19.6); null — a rule it does not, or not a rule. */
     ruleKind: text("rule_kind").$type<MemoryRuleKind>(),
     /** What a schedule is (D45); null — not a schedule. */
@@ -260,6 +263,7 @@ export const memoryRecords = pgTable(
             or (${table.scheduleKind} = 'date' and ${table.occurredAt} is not null and ${table.repeat} in ('year', 'month', 'week'))
             or (${table.scheduleKind} = 'rhythm' and ${table.intervalDays} > 0 and ${table.repeat} is null))
           and (${table.repeat} is null or ${table.kind} = 'schedule')
+          and (${table.repeatDays} is null or (${table.scheduleKind} = 'reminder' and ${table.repeat} = 'week'))
           and ((${table.nextAt} is null and ${table.firedAt} is null and ${table.forRecordId} is null)
             or ${table.scheduleKind} = 'reminder')`
       ),

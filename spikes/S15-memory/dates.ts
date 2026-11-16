@@ -91,11 +91,11 @@ type Out = (typeof extractionSchema)["_output"];
 
 const judge = (c: (typeof cases)[number], out: Out) => {
   const plan = planWrite(out, { cards: shown, commitments: [], selfId: SELF.id, timeZone: TIMEZONE });
-  const rules = plan.records.filter((r) => r.rule?.kind === "date");
+  const rules = plan.records.filter((r) => r.schedule?.kind === "date");
   const w = c.want;
   if ("none" in w) return rules.length === 0 ? null : `a date rule where none was said: «${rules[0]?.text}»`;
   const hit = rules.find((r) => {
-    if (r.rule?.repeat !== w.repeat || !r.occurred) return false;
+    if ((r.schedule?.kind === "date" ? r.schedule.repeat : undefined) !== w.repeat || !r.occurred) return false;
     // A Moscow midnight, three hours on, is that day in UTC.
     const at = new Date(r.occurred.at.getTime() + 3 * 3600_000);
     if (w.repeat === "year") {
@@ -109,7 +109,7 @@ const judge = (c: (typeof cases)[number], out: Out) => {
   });
   return hit
     ? null
-    : `no ${w.repeat} date rule as wanted; rules: ${JSON.stringify(rules.map((r) => [r.text, r.rule?.repeat, r.occurred?.at.toISOString()]))}`;
+    : `no ${w.repeat} date rule as wanted; rules: ${JSON.stringify(rules.map((r) => [r.text, r.schedule?.kind === "date" ? r.schedule.repeat : null, r.occurred?.at.toISOString()]))}`;
 };
 
 if (DRY) {

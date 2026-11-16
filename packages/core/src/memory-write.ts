@@ -662,6 +662,7 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
     facts,
     knownRecords: known,
     selfId,
+    sentAt: at,
     timeZone: job.timeZone,
   });
   const written = input.about

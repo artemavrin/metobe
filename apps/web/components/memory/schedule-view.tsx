@@ -328,7 +328,11 @@ const ReminderItem = ({
           {row.repeat && (
             <span className="inline-flex items-center gap-1">
               <Repeat className="size-3" />
-              {words(row.repeat, dayKey(new Date(row.remindAt), timeZone))}
+              {words(
+                row.repeat,
+                dayKey(new Date(row.remindAt), timeZone),
+                row.repeatDays
+              )}
             </span>
           )}
           {row.who && (
@@ -473,15 +477,18 @@ const RhythmItem = ({
       kind="rhythm"
       late={late > 0}
       line={
-        <span className="inline-flex items-center gap-1">
-          <Repeat className="size-3" />
-          {t("scheduleEvery", { days: rhythm.every })} ·{" "}
-          {since === null
-            ? t("scheduleNever")
-            : t("scheduleLast", { days: since })}
+        <span className="flex max-w-full min-w-0 items-center gap-1">
+          <Repeat className="size-3 shrink-0" />
+          <span className="truncate">{rhythm.text}</span>
+          <span className="shrink-0">
+            ·{" "}
+            {since === null
+              ? t("scheduleNever")
+              : t("scheduleLast", { days: since })}
+          </span>
         </span>
       }
-      text={rhythm.text}
+      text={rhythm.who.name}
       when={
         late > 0 ? t("scheduleOverdueDays", { days: late }) : day(rhythm.day)
       }

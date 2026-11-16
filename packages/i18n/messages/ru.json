@@ -3117,6 +3117,7 @@
     "repeatNone": "Не повторять",
     "repeatDay": "каждый день",
     "repeatWeekdays": "по будням",
+    "repeatOnDays": "по {days}",
     "repeatWeek": "каждую неделю, {weekday}",
     "repeatMonth": "каждый месяц, {day}-го",
     "repeatYear": "каждый год, {date}",

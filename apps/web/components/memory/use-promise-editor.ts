@@ -213,6 +213,7 @@ export const usePromiseEditor = ({
     }
     return nextReminder({
       after: dayKey(new Date(row.remindAt), timeZone),
+      days: row.repeatDays,
       now: new Date(),
       remindAt: new Date(row.remindAt),
       repeat: row.repeat,

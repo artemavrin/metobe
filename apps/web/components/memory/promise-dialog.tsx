@@ -131,8 +131,25 @@ export const useRepeatWords = () => {
   const t = useTranslations("memory");
   const locale = useLocale();
   const dates = locale === "ru" ? ru : enUS;
-  return (repeat: ReminderRepeat | null, day: string) => {
+  return (
+    repeat: ReminderRepeat | null,
+    day: string,
+    /** A week's chosen weekdays, 0 is Sunday: «по пн, ср, пт». */
+    days?: readonly number[] | null
+  ) => {
     const at = toDate(day);
+    if (repeat === "week" && days && days.length > 1) {
+      // Monday first; a Monday to name each weekday by (16 November 2026).
+      const names = [...days]
+        // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own copy; toSorted is past the ES2022 target
+        .sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7))
+        .map((d) =>
+          format(new Date(2026, 10, 16 + ((d + 6) % 7)), "EEEEEE", {
+            locale: dates,
+          })
+        );
+      return t("repeatOnDays", { days: names.join(", ") });
+    }
     switch (repeat) {
       case null: {
         return t("repeatNone");

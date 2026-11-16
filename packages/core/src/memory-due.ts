@@ -121,6 +121,7 @@ export const scheduleOf = (
     remindAt: s?.nextAt.toISOString() ?? null,
     reminded: Boolean(s?.firedAt),
     repeat: s?.repeat ?? null,
+    repeatDays: s?.days ?? null,
   });
   const rows: MemoryDue["rows"] = [];
   let none = 0;

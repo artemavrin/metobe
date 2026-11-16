@@ -60,6 +60,7 @@ const item = (
   kind: "fact",
   remind: "none",
   repeat: "none",
+  repeat_on: [],
   replaces: "",
   role: null,
   rule_kind: null,
@@ -878,6 +879,43 @@ describe("planWrite: groups (ARCH §19)", () => {
     ]);
   });
 
+  it("keeps «пн, ср, пт» as a week on those days, starting on the first time after the message", () => {
+    const { records } = planWrite(
+      {
+        asks: [],
+        items: [
+          item({
+            debtor: "user",
+            due: { date: "2026-11-16", precision: "day" },
+            kind: "commitment",
+            remind: "09:58",
+            repeat: "week",
+            repeat_on: ["mon", "wed", "fri"],
+            text: "Созвон с командой по текущим делам",
+          }),
+        ],
+        leaves: [],
+        moves: [],
+        new_entities: [],
+        updates: [],
+      },
+      {
+        cards,
+        commitments: OPEN,
+        selfId: SELF,
+        // Monday 16 November, 10:00 in Moscow: Monday's 9:58 has passed.
+        sentAt: new Date("2026-11-16T07:00:00Z"),
+        timeZone: ZONE,
+      }
+    );
+    expect(records[0]?.schedule).toEqual({
+      at: new Date("2026-11-18T06:58:00Z"),
+      days: [1, 3, 5],
+      kind: "reminder",
+      repeat: "week",
+    });
+  });
+
   it("keeps «напомни» of the person's own as a reminder alone, and one about a promise to someone with it (D45)", () => {
     const due = { date: "2026-11-12", precision: "day" } as const;
     const { records } = plan({
@@ -935,6 +973,7 @@ describe("planWrite: groups (ARCH §19)", () => {
           due,
           kind: "commitment",
           remind: "none",
+          repeat_on: [],
           text: "Без напоминания",
         }),
         item({
@@ -1026,6 +1065,7 @@ describe("planWrite: groups (ARCH §19)", () => {
           kind: "rule",
           remind: "none",
           repeat: "none",
+          repeat_on: [],
           rule_kind: "date",
           text: "Встреча 14 ноября",
           when: { date: "2026-11-14", precision: "day" },

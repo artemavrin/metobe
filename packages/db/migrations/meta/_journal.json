@@ -477,6 +477,13 @@
       "when": 1794805225879,
       "tag": "0067_memory_schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1794812338214,
+      "tag": "0068_reminder_repeat_days",
+      "breakpoints": true
     }
   ]
 }

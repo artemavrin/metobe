@@ -1,6 +1,64 @@
 import type { MemoryRepeat, ReminderRepeat } from "@metobe/contracts/memory";
 
-import { localInstant } from "./memory-extract";
+/** A day (`2026-11-12`) and a time of it (`15:30`) in a zone, as the moment; null — not a real day or time. */
+export const localInstant = (date: string, time: string, timeZone: string) => {
+  const clock = /^(?<hour>[01]\d|2[0-3]):(?<minute>[0-5]\d)$/u.exec(
+    time
+  )?.groups;
+  if (!clock) {
+    return null;
+  }
+  const groups = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u.exec(
+    date
+  )?.groups;
+  if (!groups) {
+    return null;
+  }
+  const [year, month, day] = [groups.year, groups.month, groups.day].map(
+    Number
+  ) as [number, number, number];
+  const guess = Date.UTC(
+    year,
+    month - 1,
+    day,
+    Number(clock.hour),
+    Number(clock.minute)
+  );
+  const check = new Date(guess);
+  if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
+    return null;
+  }
+  // The zone's offset at a moment: its wall clock read as UTC, minus the moment.
+  const offset = (at: number) => {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", {
+        day: "2-digit",
+        hour: "2-digit",
+        hourCycle: "h23",
+        minute: "2-digit",
+        month: "2-digit",
+        second: "2-digit",
+        timeZone,
+        year: "numeric",
+      })
+        .formatToParts(new Date(at))
+        .map((p) => [p.type, Number(p.value)])
+    ) as Record<string, number>;
+    return (
+      Date.UTC(
+        parts.year ?? 0,
+        (parts.month ?? 1) - 1,
+        parts.day ?? 1,
+        parts.hour ?? 0,
+        parts.minute ?? 0,
+        parts.second ?? 0
+      ) - at
+    );
+  };
+  // Twice: the first guess may stand on the other side of a clock change.
+  const first = guess - offset(guess);
+  return new Date(guess - offset(first));
+};
 
 // When a `date` rule's day comes next (ARCH §19.8.7). Days are `2026-11-14` in the person's zone; the functions read
 // no clock and no base: the caller says what today is.
@@ -70,10 +128,18 @@ const isWeekend = (day: string) =>
 export const nextReminderDay = (
   anchor: string,
   repeat: ReminderRepeat,
-  after: string
+  after: string,
+  /** A week's on chosen weekdays («пн, ср, пт»): 0 is Sunday. Empty or none — the anchor's weekday. */
+  days?: readonly number[] | null
 ): string => {
   let day = keyOf(utc(after) + DAY_MS);
   if (repeat === "day") {
+    return day;
+  }
+  if (repeat === "week" && days && days.length > 0) {
+    while (!days.includes(new Date(utc(day)).getUTCDay())) {
+      day = keyOf(utc(day) + DAY_MS);
+    }
     return day;
   }
   if (repeat === "weekdays") {
@@ -115,6 +181,7 @@ const MAX_STEPS = 2000;
  */
 export const nextReminder = ({
   after,
+  days,
   now,
   remindAt,
   repeat,
@@ -125,9 +192,11 @@ export const nextReminder = ({
   after: string;
   now: Date;
   timeZone: string;
+  /** A week's chosen weekdays, 0 is Sunday. */
+  days?: readonly number[] | null;
 }) => {
   const { day: anchor, time } = wallClock(remindAt, timeZone);
-  let day = nextReminderDay(anchor, repeat, after);
+  let day = nextReminderDay(anchor, repeat, after, days);
   for (let step = 0; step < MAX_STEPS; step += 1) {
     const at = localInstant(day, time, timeZone);
     if (at && at.getTime() > now.getTime()) {
@@ -136,7 +205,7 @@ export const nextReminder = ({
         remindAt: at,
       };
     }
-    day = nextReminderDay(anchor, repeat, day);
+    day = nextReminderDay(anchor, repeat, day, days);
   }
   return null;
 };

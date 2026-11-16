@@ -3123,6 +3123,7 @@
     "repeatNone": "Don't repeat",
     "repeatDay": "every day",
     "repeatWeekdays": "on weekdays",
+    "repeatOnDays": "on {days}",
     "repeatWeek": "every week, {weekday}",
     "repeatMonth": "every month, day {day}",
     "repeatYear": "every year, {date}",
