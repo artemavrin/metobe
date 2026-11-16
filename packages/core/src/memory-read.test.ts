@@ -197,11 +197,9 @@ const record = (patch: Partial<MemoryRecord>): MemoryRecord => {
     occurredAt: null,
     occurredPrecision: null,
     recordedAt: NOW,
-    remindAt: null,
-    remindRepeat: null,
-    remindedAt: null,
     role: null,
     rule: null,
+    schedule: null,
     status: null,
     supersededAt: null,
     supersededBy: null,
@@ -248,8 +246,8 @@ describe("what goes with every message (Г2.3)", () => {
     const text = standing([
       record({ kind: "rule", text: "В письма клиентам ставлю в копию Ирину" }),
       record({
-        kind: "rule",
-        rule: { days: 14, kind: "rhythm", workingDays: false },
+        kind: "schedule",
+        schedule: { days: 14, kind: "rhythm", workingDays: false },
         text: "С Ольгой — раз в две недели",
       }),
     ]);

@@ -20,13 +20,17 @@ export const memoryEntityKinds = [
 ] as const;
 export type MemoryEntityKind = (typeof memoryEntityKinds)[number];
 
-/** A fact, an assessment («often misses deadlines»), an event, a commitment and a rule are different things (D39). */
+/**
+ * A fact, an assessment («often misses deadlines»), an event, a commitment and a rule are different things (D39); a
+ * schedule — what comes by itself in time, a reminder, a day that comes again, a rhythm — is not a commitment (D45).
+ */
 export const memoryRecordKinds = [
   "fact",
   "assessment",
   "event",
   "commitment",
   "rule",
+  "schedule",
 ] as const;
 export type MemoryRecordKind = (typeof memoryRecordKinds)[number];
 
@@ -47,12 +51,20 @@ export const memoryStatuses = [
 export type MemoryStatus = (typeof memoryStatuses)[number];
 
 /**
- * What a rule asks of «Не упустить» (ARCH §19.6): `rhythm` — how often the person wants to be in touch with someone
- * («один на один с Андреем раз в две недели»); `wait` — how long a reply or result from others may take before it is
- * worth asking («ответа ждём пять рабочих дней»). Other rules have neither, and nothing counts days by them.
+ * What a rule asks of «Не упустить» (ARCH §19.6): `wait` — how long a reply or result from others may take before it is
+ * worth asking («ответа ждём пять рабочих дней»). Other rules have none, and nothing counts days by them.
  */
-export const memoryRuleKinds = ["rhythm", "wait", "date"] as const;
+export const memoryRuleKinds = ["wait"] as const;
 export type MemoryRuleKind = (typeof memoryRuleKinds)[number];
+
+/**
+ * What a schedule is (D45): `reminder` — a moment the person asked to be told at («напомни завтра в 15:00 позвонить
+ * Ольге»), once or again and again, of its own or about a commitment; `date` — a day that comes again (a birthday, rent
+ * on the 20th); `rhythm` — how often the person wants to be in touch with someone («один на один с Андреем раз в две
+ * недели»).
+ */
+export const memoryScheduleKinds = ["reminder", "date", "rhythm"] as const;
+export type MemoryScheduleKind = (typeof memoryScheduleKinds)[number];
 
 /**
  * A `date` rule (ARCH §19.8.7): a day that comes again — «у Ольги день рождения 14 ноября» (`year`), «двадцатого платим

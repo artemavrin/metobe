@@ -694,12 +694,13 @@ describe("planWrite", () => {
         }),
       ],
     });
-    expect(records.map((r) => r.rule ?? null)).toEqual([
-      { days: 14, kind: "rhythm", workingDays: false },
-      { days: 5, kind: "wait", workingDays: true },
-      null,
-      null,
-      null,
+    // A rhythm is a schedule (D45); a wait stays a rule.
+    expect(records.map((r) => [r.kind, r.rule ?? r.schedule ?? null])).toEqual([
+      ["schedule", { days: 14, kind: "rhythm", workingDays: false }],
+      ["rule", { days: 5, kind: "wait", workingDays: true }],
+      ["rule", null],
+      ["rule", null],
+      ["fact", null],
     ]);
   });
 });
@@ -819,11 +820,9 @@ describe("planWrite: groups (ARCH §19)", () => {
     occurredAt: null,
     occurredPrecision: null,
     recordedAt: new Date("2026-11-01T00:00:00Z"),
-    remindAt: null,
-    remindRepeat: null,
-    remindedAt: null,
     role: null,
     rule: null,
+    schedule: null,
     status: null,
     supersededAt: null,
     supersededBy: null,
@@ -879,6 +878,40 @@ describe("planWrite: groups (ARCH §19)", () => {
     ]);
   });
 
+  it("keeps «напомни» of the person's own as a reminder alone, and one about a promise to someone with it (D45)", () => {
+    const due = { date: "2026-11-12", precision: "day" } as const;
+    const { records } = plan({
+      items: [
+        item({
+          about: ["c1"],
+          debtor: "user",
+          due,
+          kind: "commitment",
+          remind: "15:00",
+          repeat: "week",
+          text: "Позвонить Андрею",
+        }),
+        item({
+          creditor: "c1",
+          debtor: "user",
+          due,
+          kind: "commitment",
+          remind: "10:00",
+          text: "Отправить Андрею договор",
+        }),
+      ],
+    });
+    expect(records.map((r) => r.kind)).toEqual(["schedule", "commitment"]);
+    expect(records[0]?.schedule).toMatchObject({
+      kind: "reminder",
+      repeat: "week",
+    });
+    expect(records[0]?.entities.map((l) => l.role)).toEqual(["about"]);
+    expect(records[0]?.dueAt).toBeUndefined();
+    expect(records[1]?.remind?.at).toBeInstanceOf(Date);
+    expect(records[1]?.dueAt).toBeInstanceOf(Date);
+  });
+
   it("turns «remind me at a time» into the moment on the promise's day, in the person's zone", () => {
     const due = { date: "2026-11-12", precision: "day" } as const;
     const { records } = plan({
@@ -929,7 +962,11 @@ describe("planWrite: groups (ARCH §19)", () => {
         item({ due, kind: "fact", remind: "15:00", text: "Факт" }),
       ],
     });
-    expect(records.map((r) => r.remindAt?.toISOString() ?? null)).toEqual([
+    // The person's own one is a reminder alone (D45); one about a promise to someone goes with the promise.
+    const remindAt = (r: (typeof records)[number]) =>
+      r.remind?.at ??
+      (r.schedule?.kind === "reminder" ? r.schedule.at : undefined);
+    expect(records.map((r) => remindAt(r)?.toISOString() ?? null)).toEqual([
       "2026-11-12T12:00:00.000Z",
       "2026-11-12T06:00:00.000Z",
       null,
@@ -960,7 +997,7 @@ describe("planWrite: groups (ARCH §19)", () => {
     expect(asksReminder("Ольга обещала договор к пятнице")).toBe(false);
   });
 
-  it("keeps a day that comes again as a rule standing on its day (ARCH §19.8.7)", () => {
+  it("keeps a day that comes again as a schedule standing on its day (ARCH §19.8.7, D45)", () => {
     const { records } = plan({
       items: [
         item({
@@ -1003,10 +1040,10 @@ describe("planWrite: groups (ARCH §19)", () => {
       ],
     });
     expect(
-      records.map((r) => [r.rule ?? null, r.occurred?.precision ?? null])
+      records.map((r) => [r.schedule ?? null, r.occurred?.precision ?? null])
     ).toEqual([
-      [{ days: 0, kind: "date", repeat: "year", workingDays: false }, "day"],
-      [{ days: 0, kind: "date", repeat: "week", workingDays: false }, "day"],
+      [{ kind: "date", repeat: "year" }, "day"],
+      [{ kind: "date", repeat: "week" }, "day"],
       [null, null],
       [null, null],
       [null, null],

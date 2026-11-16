@@ -10,38 +10,22 @@ import { getEnv } from "./env";
 import {
   claimReminder,
   dueReminders,
-  listEntities,
+  editReminder,
   listRecords,
-  rollReminder,
-  setCommitmentStatus,
 } from "./memory";
-import type { MemoryEntity, MemoryRecord } from "./memory";
 import { letterOf } from "./memory-digest";
-import { sidesOf } from "./memory-today";
 import { isMemoryOnFor } from "./memory-write";
 import { notify } from "./notify";
 import { reminderButtons } from "./telegram-actions";
 
-// A reminder the person asked for («напомни мне завтра в 15:00 позвонить Ольге», D43): the promise carries the moment
-// (`remind_at`), and the worker's minute tick tells it when it comes, by `notify` — the mail, Telegram or both, as the
+// A reminder the person asked for («напомни мне завтра в 15:00 позвонить Ольге», D43, D45): a schedule with its moment
+// (`next_at`), and the worker's minute tick tells it when it comes, by `notify` — the mail, Telegram or both, as the
 // person chose — with «Готово», «Через час», «Завтра» under it. It is claimed before it is sent, so two ticks do not
 // both tell; one that was missed (the worker was down) goes at the next tick, late. One that comes again moves on to
-// its next time as it is claimed; a plain one — the person's own, owed to nobody — is done once it has reached them
-// («Через час» and «Завтра» open it again).
+// its next time as it is claimed; a plain one — of its own, once — is done once it has reached them («Через час» and
+// «Завтра» open it again); one about a commitment is told in the commitment's words and waits for «Готово».
 
 const app = () => new URL("/", getEnv().BETTER_AUTH_URL).toString();
-
-/** The person's own, owed to nobody, once: done when it has reached them. */
-const isPlain = (r: MemoryRecord, cards: Map<string, MemoryEntity>) => {
-  const { side, who } = sidesOf(r, cards);
-  return side === "mine" && (!who || who.kind === "self") && !r.remindRepeat;
-};
-
-/** Claimed by this process: a plain one marked sent, one that comes again moved on. */
-const claim = (ownerId: string, r: MemoryRecord, now: Date) =>
-  r.remindRepeat && r.remindAt
-    ? rollReminder(ownerId, r.id, r.remindAt, r.remindRepeat, now)
-    : claimReminder(ownerId, r.id);
 
 /** One person's due reminders, told one by one. */
 const tellOwner = async (ownerId: string, ids: string[], now: Date) => {
@@ -56,18 +40,27 @@ const tellOwner = async (ownerId: string, ids: string[], now: Date) => {
   const locale =
     owner?.locale && isLocale(owner.locale) ? owner.locale : defaultLocale;
   const t = await getTranslator(locale);
-  const [records, entities] = await Promise.all([
-    listRecords(ownerId, { ids }),
-    listEntities(ownerId),
-  ]);
-  const cards = new Map(entities.map((e) => [e.id, e]));
+  const records = await listRecords(ownerId, { ids, kinds: ["schedule"] });
+  const promises = await listRecords(ownerId, {
+    ids: records.flatMap((r) =>
+      r.schedule?.kind === "reminder" && r.schedule.forRecordId
+        ? [r.schedule.forRecordId]
+        : []
+    ),
+  });
+  const about = new Map(promises.map((r) => [r.id, r.text]));
   let told = 0;
   for (const r of records) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one after another: each is claimed first
-    if (!(await claim(ownerId, r, now))) {
+    const s = r.schedule;
+    if (s?.kind !== "reminder") {
       continue;
     }
-    const blocks: LetterBlock[] = [{ text: r.text, type: "p" }];
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one after another: each is claimed first
+    if (!(await claimReminder(ownerId, r.id, s.nextAt, s.repeat, now))) {
+      continue;
+    }
+    const text = s.forRecordId ? (about.get(s.forRecordId) ?? r.text) : r.text;
+    const blocks: LetterBlock[] = [{ text, type: "p" }];
     // oxlint-disable-next-line eslint/no-await-in-loop -- in order
     const sent = await notify(ownerId, {
       blocks,
@@ -78,17 +71,17 @@ const tellOwner = async (ownerId: string, ids: string[], now: Date) => {
           snooze: t("reminder.snooze"),
           tomorrow: t("reminder.tomorrow"),
         },
-        Boolean(r.remindRepeat)
+        s.repeat !== null
       ),
       links: [{ href: app(), label: t("reminder.open") }],
-      mail: () => letterOf(blocks, r.text, locale, t, "reminder"),
+      mail: () => letterOf(blocks, text, locale, t, "reminder"),
       title: t("reminder.title"),
     });
     if (sent.mail || sent.telegram) {
       told += 1;
-      if (isPlain(r, cards)) {
+      if (!(s.repeat || s.forRecordId)) {
         // oxlint-disable-next-line eslint/no-await-in-loop -- in order
-        await setCommitmentStatus(ownerId, r.id, "done");
+        await editReminder(ownerId, r.id, { done: true }, now);
       }
     }
   }

@@ -60,8 +60,10 @@ export const rememberTool = ({
       return {
         kept: records.map((r) => {
           const line = lineOf(r, names, timeZone);
-          const at = r.remindAt
-            ? `${day(r.remindAt, timeZone)} ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone }).format(r.remindAt)}`
+          const next =
+            r.schedule?.kind === "reminder" ? r.schedule.nextAt : null;
+          const at = next
+            ? `${day(next, timeZone)} ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone }).format(next)}`
             : null;
           return at ? `${line} (reminder ${at})` : line;
         }),

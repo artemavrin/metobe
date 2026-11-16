@@ -7,6 +7,7 @@ import type {
   MemoryRole,
   MemoryRepeat,
   MemoryRuleKind,
+  MemoryScheduleKind,
   ReminderRepeat,
   MemoryDismissalKind,
   MemoryStatus,
@@ -162,6 +163,14 @@ export const memoryRecords = pgTable(
     doneAt: timestamp("done_at", { withTimezone: true }),
     /** A commitment: when it was given (`given_at`), and when it is due. Not the same day. */
     dueAt: timestamp("due_at", { withTimezone: true }),
+    /** A reminder: when it went off and was not marked since; a plain one is done (`done_at`) as it goes off. */
+    firedAt: timestamp("fired_at", { withTimezone: true }),
+    /** A reminder about a commitment: told in the commitment's words (it has none of its own), and no more once that
+     * one is over. */
+    forRecordId: uuid("for_record_id").references(
+      (): AnyPgColumn => memoryRecords.id,
+      { onDelete: "cascade" }
+    ),
     givenAt: timestamp("given_at", { withTimezone: true }),
     id: uuid("id").primaryKey(),
     /** A commitment the person called important in so many words («горит», «главное»), or marked by hand — never guessed. */
@@ -169,6 +178,8 @@ export const memoryRecords = pgTable(
     /** A rule's period or threshold in days: «раз в две недели» — 14, «ждём пять рабочих дней» — 5 (`working_days`). */
     intervalDays: integer("interval_days"),
     kind: text("kind").$type<MemoryRecordKind>().notNull(),
+    /** A reminder: when it goes off next — the time of day the person named, on its day (D45). */
+    nextAt: timestamp("next_at", { withTimezone: true }),
     /** When it happened, as exactly as the person said; empty — not known. «Давно не было» counts from here. */
     occurredAt: timestamp("occurred_at", { withTimezone: true }),
     occurredPrecision: text("occurred_precision").$type<MemoryPrecision>(),
@@ -179,15 +190,13 @@ export const memoryRecords = pgTable(
     recordedAt: timestamp("recorded_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    /** A commitment the person asked to be reminded of: the moment (the time of day they named, on its day); null — no
-     * reminder. `reminded_at` — when it was sent; changing `remind_at` makes it null again. */
-    remindAt: timestamp("remind_at", { withTimezone: true }),
-    remindedAt: timestamp("reminded_at", { withTimezone: true }),
-    /** A `date` rule: how often its day (`occurred_at`) comes again (ARCH §19.8.7); a commitment with a reminder: how
-     * often the reminder comes again (шаг 6); null — neither. */
+    /** A `date` schedule: how often its day (`occurred_at`) comes again (ARCH §19.8.7); a reminder: how often it comes
+     * again; null — neither, or once. */
     repeat: text("repeat").$type<MemoryRepeat | ReminderRepeat>(),
     /** A rule «Не упустить» counts days by (ARCH §19.6); null — a rule it does not, or not a rule. */
     ruleKind: text("rule_kind").$type<MemoryRuleKind>(),
+    /** What a schedule is (D45); null — not a schedule. */
+    scheduleKind: text("schedule_kind").$type<MemoryScheduleKind>(),
     /** `{ text }`, sealed. */
     sealed: text("sealed").notNull(),
     /** Only a commitment has one. */
@@ -216,7 +225,7 @@ export const memoryRecords = pgTable(
       index("memory_records_write").on(table.writeId),
       check(
         "memory_records_kind",
-        sql`${table.kind} in ('fact', 'assessment', 'event', 'commitment', 'rule')`
+        sql`${table.kind} in ('fact', 'assessment', 'event', 'commitment', 'rule', 'schedule')`
       ),
       check(
         "memory_records_precision",
@@ -228,14 +237,10 @@ export const memoryRecords = pgTable(
         sql`(${table.kind} = 'commitment') = (${table.status} is not null)
           and (${table.status} is null or ${table.status} in ('open', 'unconfirmed', 'done', 'cancelled'))`
       ),
-      check(
-        "memory_records_remind",
-        sql`${table.remindAt} is null or ${table.kind} = 'commitment'`
-      ),
-      index("memory_records_remind")
-        .on(table.remindAt)
+      index("memory_records_next")
+        .on(table.nextAt)
         .where(
-          sql`${table.remindAt} is not null and ${table.remindedAt} is null`
+          sql`${table.nextAt} is not null and ${table.doneAt} is null and ${live}`
         ),
       check(
         "memory_records_important",
@@ -243,13 +248,20 @@ export const memoryRecords = pgTable(
       ),
       check(
         "memory_records_rule",
-        sql`(${table.ruleKind} is null or (${table.kind} = 'rule' and (
-            (${table.ruleKind} in ('rhythm', 'wait') and ${table.intervalDays} > 0)
-            or (${table.ruleKind} = 'date' and ${table.intervalDays} is null and ${table.repeat} in ('year', 'month', 'week') and ${table.occurredAt} is not null))))
-          and (${table.intervalDays} is null or ${table.kind} = 'rule')
-          and (${table.repeat} is null or ${table.ruleKind} = 'date'
-            or (${table.kind} = 'commitment' and ${table.remindAt} is not null
-              and ${table.repeat} in ('day', 'weekdays', 'week', 'month', 'year')))`
+        sql`(${table.ruleKind} is null or (${table.kind} = 'rule' and ${table.ruleKind} = 'wait' and ${table.intervalDays} > 0))
+          and (${table.intervalDays} is null or ${table.ruleKind} = 'wait' or ${table.scheduleKind} = 'rhythm')`
+      ),
+      check(
+        "memory_records_schedule",
+        sql`(${table.kind} = 'schedule') = (${table.scheduleKind} is not null)
+          and (${table.scheduleKind} is null
+            or (${table.scheduleKind} = 'reminder' and ${table.nextAt} is not null
+              and (${table.repeat} is null or ${table.repeat} in ('day', 'weekdays', 'week', 'month', 'year')))
+            or (${table.scheduleKind} = 'date' and ${table.occurredAt} is not null and ${table.repeat} in ('year', 'month', 'week'))
+            or (${table.scheduleKind} = 'rhythm' and ${table.intervalDays} > 0 and ${table.repeat} is null))
+          and (${table.repeat} is null or ${table.kind} = 'schedule')
+          and ((${table.nextAt} is null and ${table.firedAt} is null and ${table.forRecordId} is null)
+            or ${table.scheduleKind} = 'reminder')`
       ),
     ];
   }

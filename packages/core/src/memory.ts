@@ -39,14 +39,15 @@ import {
   lte,
   notExists,
   notInArray,
+  or,
   sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 
 import { getDb } from "./db";
 import { likelySame } from "./memory-candidates";
 import { memoryAad, newDataKey, openField, sealField } from "./memory-crypto";
-import { localMidnight } from "./memory-extract";
 import { nextReminder, wallClock } from "./memory-repeat";
 import { memoryKeyAad, openWithMasterKey, sealWithMasterKey } from "./secrets";
 import { parseKey } from "./secrets-crypto";
@@ -383,10 +384,6 @@ export interface MemoryRecordInput {
   /** A commitment: when it was given, and when it is due. */
   givenAt?: Date;
   dueAt?: Date;
-  /** A commitment the person asked to be reminded of: the moment to remind them at (on or before its day). */
-  remindAt?: Date;
-  /** A reminder that comes again (needs `remindAt`): how often. */
-  remindRepeat?: ReminderRepeat;
   /** Commitments only; open unless said otherwise. */
   status?: MemoryStatus;
   /** Commitments only: the person said it is important, or marked it so. */
@@ -396,14 +393,42 @@ export interface MemoryRecordInput {
   /** A fact about who its card is now, in a few words: the card's line follows the newest one. */
   role?: string;
   /** Rules only: what «Не упустить» counts by it, every how many days, working ones or any (ARCH §19.6). */
-  rule?: {
-    kind: MemoryRuleKind;
-    days: number;
-    workingDays: boolean;
-    /** A `date` rule: how often its day (`occurred`) comes again. */
-    repeat?: MemoryRepeat;
-  };
+  rule?: { kind: MemoryRuleKind; days: number; workingDays: boolean };
+  /** Schedules only (D45): what comes by itself in time. */
+  schedule?: ScheduleInput;
+  /** Commitments only: a reminder about it is put in with it (a schedule of its own, D45). */
+  remind?: { at: Date; repeat?: ReminderRepeat };
 }
+
+/**
+ * A schedule as it is put in: a reminder — its moment, how often it comes again, and the commitment it is about (then
+ * it has no text of its own); a date — how often its day (`occurred`) comes again; a rhythm — every how many days.
+ */
+export type ScheduleInput =
+  | {
+      kind: "reminder";
+      at: Date;
+      repeat?: ReminderRepeat;
+      forRecordId?: string;
+    }
+  | { kind: "date"; repeat: MemoryRepeat }
+  | { kind: "rhythm"; days: number; workingDays?: boolean };
+
+/**
+ * A schedule as it is kept. A reminder: when it goes off next, when it went off and was not marked since, how often it
+ * comes again (null — once), the commitment it is about. A date and a rhythm keep no next time: it is counted on read
+ * (`memory-today`), from the day and from the last contact.
+ */
+export type MemorySchedule =
+  | {
+      kind: "reminder";
+      nextAt: Date;
+      firedAt: Date | null;
+      repeat: ReminderRepeat | null;
+      forRecordId: string | null;
+    }
+  | { kind: "date"; repeat: MemoryRepeat }
+  | { kind: "rhythm"; days: number; workingDays: boolean };
 
 export interface MemoryRecord {
   id: string;
@@ -416,22 +441,14 @@ export interface MemoryRecord {
   validTo: Date | null;
   givenAt: Date | null;
   dueAt: Date | null;
-  /** When to remind the person (they asked), and when it was sent; null — no reminder / not sent yet. */
-  remindAt: Date | null;
-  remindedAt: Date | null;
-  /** A reminder that comes again: how often; null — once. */
-  remindRepeat: ReminderRepeat | null;
   status: MemoryStatus | null;
   important: boolean;
   /** Set on a fact about who its card is now. */
   role: string | null;
   /** Set on a rule «Не упустить» counts days by. */
-  rule: {
-    kind: MemoryRuleKind;
-    days: number;
-    workingDays: boolean;
-    repeat?: MemoryRepeat;
-  } | null;
+  rule: { kind: MemoryRuleKind; days: number; workingDays: boolean } | null;
+  /** Set on a schedule (D45). */
+  schedule: MemorySchedule | null;
   doneAt: Date | null;
   /** The write that closed it (a fact's end, a commitment's status). */
   closedByWrite: string | null;
@@ -443,37 +460,64 @@ export interface MemoryRecord {
   writeId: string | null;
 }
 
-/** A rule as the row keeps it: a period in days, or a `date` rule's repeat (days: 0). */
+/** A rule as the row keeps it: a period in days. */
 const ruleOfRow = (
   row: typeof memoryRecords.$inferSelect
-): MemoryRecord["rule"] => {
-  if (row.ruleKind === "date" && row.repeat) {
-    return {
-      days: 0,
-      kind: "date",
-      repeat: row.repeat as MemoryRepeat,
-      workingDays: false,
-    };
-  }
-  return row.ruleKind && row.intervalDays
+): MemoryRecord["rule"] =>
+  row.ruleKind && row.intervalDays
     ? {
         days: row.intervalDays,
         kind: row.ruleKind,
         workingDays: row.workingDays,
       }
     : null;
+
+/** A schedule as the row keeps it. */
+const scheduleOfRow = (
+  row: typeof memoryRecords.$inferSelect
+): MemorySchedule | null => {
+  if (row.scheduleKind === "reminder" && row.nextAt) {
+    return {
+      firedAt: row.firedAt,
+      forRecordId: row.forRecordId,
+      kind: "reminder",
+      nextAt: row.nextAt,
+      repeat: row.repeat as ReminderRepeat | null,
+    };
+  }
+  if (row.scheduleKind === "date" && row.repeat) {
+    return { kind: "date", repeat: row.repeat as MemoryRepeat };
+  }
+  if (row.scheduleKind === "rhythm" && row.intervalDays) {
+    return {
+      days: row.intervalDays,
+      kind: "rhythm",
+      workingDays: row.workingDays,
+    };
+  }
+  return null;
 };
+
+/** A reminder about a commitment keeps no text: it is told in the commitment's words. */
+const NO_TEXT = "";
 
 const toRecord = (
   row: typeof memoryRecords.$inferSelect,
   entities: MemoryRecord["entities"],
   key: SecretsKey
 ): MemoryRecord => {
-  const body = recordBody.parse(
-    JSON.parse(
-      openField(row.sealed, memoryAad(row.ownerId, RECORDS, row.id, BODY), key)
-    )
-  );
+  const body =
+    row.sealed === NO_TEXT
+      ? { text: "" }
+      : recordBody.parse(
+          JSON.parse(
+            openField(
+              row.sealed,
+              memoryAad(row.ownerId, RECORDS, row.id, BODY),
+              key
+            )
+          )
+        );
   return {
     closedByWrite: row.closedByWrite,
     deletedAt: row.deletedAt,
@@ -487,12 +531,9 @@ const toRecord = (
     occurredAt: row.occurredAt,
     occurredPrecision: row.occurredPrecision,
     recordedAt: row.recordedAt,
-    remindAt: row.remindAt,
-    remindRepeat:
-      row.kind === "commitment" ? (row.repeat as ReminderRepeat | null) : null,
-    remindedAt: row.remindedAt,
     role: body.role ?? null,
     rule: ruleOfRow(row),
+    schedule: scheduleOfRow(row),
     status: row.status,
     supersededAt: row.supersededAt,
     supersededBy: row.supersededBy,
@@ -562,46 +603,65 @@ export const listEntities = async (ownerId: string) => {
 /** A commitment that is over — done or no longer needed; `unconfirmed` is not over, it waits for the person. */
 const ENDED = new Set<MemoryStatus>(["done", "cancelled"]);
 
+/** A schedule, and only a schedule, has one; a date stands on its day, a rhythm counts days. */
+const checkSchedule = (input: MemoryRecordInput) => {
+  const s = input.schedule;
+  if (Boolean(s) !== (input.kind === "schedule")) {
+    throw new Error("memory: a schedule, and only a schedule, has one");
+  }
+  if (s?.kind === "date" && !input.occurred) {
+    throw new Error("memory: a date needs its day");
+  }
+  if (s?.kind === "rhythm" && !(s.days > 0)) {
+    throw new Error("memory: a rhythm counts more than no days");
+  }
+};
+
 /** The record's text, once what it says fits its kind: a status and «важно» are a commitment's, days a rule's. */
 const checkedText = (input: MemoryRecordInput) => {
   const text = input.text.trim();
-  if (!text) {
+  const about =
+    input.schedule?.kind === "reminder" ? input.schedule.forRecordId : null;
+  if (!(text || about)) {
     throw new Error("memory: a record needs a text");
   }
   if (input.kind !== "commitment" && (input.status || input.important)) {
     throw new Error("memory: only a commitment has a status");
   }
-  if (input.rule && input.kind !== "rule") {
-    throw new Error("memory: only a rule counts days");
+  if (input.rule && !(input.kind === "rule" && input.rule.days > 0)) {
+    throw new Error("memory: only a rule counts days, more than none");
   }
-  if (input.rule?.kind === "date") {
-    if (!(input.rule.repeat && input.occurred)) {
-      throw new Error("memory: a date rule needs its day and how it repeats");
-    }
-  } else if (input.rule && !(input.rule.days > 0)) {
-    throw new Error("memory: a rule counts more than no days");
+  if (input.remind && input.kind !== "commitment") {
+    throw new Error("memory: only a commitment is reminded of");
   }
-  return text;
+  checkSchedule(input);
+  return about ? NO_TEXT : text;
 };
 
-/** A rule's plain columns: what «Не упустить» counts by it, and every how many days. */
-const ruleColumns = (rule: MemoryRecordInput["rule"]) => ({
-  intervalDays: rule && rule.kind !== "date" ? Math.round(rule.days) : null,
-  repeat: rule?.kind === "date" ? (rule.repeat ?? null) : null,
-  ruleKind: rule?.kind ?? null,
-  workingDays: rule?.workingDays ?? false,
-});
+/** Every how many days, and working ones or any: a rule's, or a rhythm's. */
+const periodOf = (input: MemoryRecordInput) => {
+  if (input.rule) {
+    return input.rule;
+  }
+  return input.schedule?.kind === "rhythm" ? input.schedule : null;
+};
 
-/** A commitment's reminder, and how often it comes again (after `ruleColumns`: it sets `repeat` for a rule). */
-const remindColumns = (input: MemoryRecordInput) =>
-  input.kind === "commitment"
-    ? {
-        remindAt: input.remindAt,
-        ...(input.remindAt && input.remindRepeat
-          ? { repeat: input.remindRepeat }
-          : {}),
-      }
-    : {};
+/** A rule's and a schedule's plain columns. */
+const planColumns = (input: MemoryRecordInput) => {
+  const s = input.schedule;
+  const period = periodOf(input);
+  const reminder = s?.kind === "reminder" ? s : null;
+  return {
+    firedAt: null,
+    forRecordId: reminder?.forRecordId ?? null,
+    intervalDays: period ? Math.round(period.days) : null,
+    nextAt: reminder?.at ?? null,
+    repeat: s && s.kind !== "rhythm" ? (s.repeat ?? null) : null,
+    ruleKind: input.rule?.kind ?? null,
+    scheduleKind: s?.kind ?? null,
+    workingDays: period?.workingDays ?? false,
+  };
+};
 
 const insertRecord = async (
   tx: Tx,
@@ -650,24 +710,25 @@ const insertRecord = async (
       givenAt: input.givenAt,
       id,
       important: input.important ?? false,
-      ...ruleColumns(input.rule),
+      ...planColumns(input),
       kind: input.kind,
       occurredAt: input.occurred?.at,
       occurredPrecision: input.occurred?.precision,
       ownerId,
       // The moment of this insert, not of the transaction: what one message added keeps the order it was said in.
       recordedAt: sql`clock_timestamp()`,
-      ...remindColumns(input),
-      ruleKind: input.rule?.kind ?? null,
-      sealed: sealField(
-        JSON.stringify(
-          input.kind === "fact" && input.role?.trim()
-            ? { role: input.role.trim(), text }
-            : { text }
-        ),
-        memoryAad(ownerId, RECORDS, id, BODY),
-        key
-      ),
+      sealed:
+        text === NO_TEXT
+          ? NO_TEXT
+          : sealField(
+              JSON.stringify(
+                input.kind === "fact" && input.role?.trim()
+                  ? { role: input.role.trim(), text }
+                  : { text }
+              ),
+              memoryAad(ownerId, RECORDS, id, BODY),
+              key
+            ),
       status,
       validFrom: input.validFrom,
       validTo: input.validTo,
@@ -681,6 +742,15 @@ const insertRecord = async (
     await tx
       .insert(memoryRecordEntities)
       .values(links.map((l) => ({ ...l, recordId: id })));
+  }
+  if (input.remind) {
+    await insertRecord(tx, ownerId, key, {
+      entities: [],
+      kind: "schedule",
+      schedule: { ...input.remind, forRecordId: id, kind: "reminder" },
+      text: "",
+      writeId: input.writeId,
+    });
   }
   return toRecord(row, links, key);
 };
@@ -727,6 +797,11 @@ export const supersedeRecord = async (
       .update(memoryRecords)
       .set({ supersededAt: new Date(), supersededBy: next.id })
       .where(eq(memoryRecords.id, id));
+    // A reminder about it is about the new version.
+    await tx
+      .update(memoryRecords)
+      .set({ forRecordId: next.id })
+      .where(eq(memoryRecords.forRecordId, id));
     return next;
   });
 };
@@ -736,10 +811,6 @@ export interface CommitmentPatch {
   /** Null — no deadline any more. */
   dueAt?: Date | null;
   important?: boolean;
-  /** A new moment to remind at (null — no reminder): it is sent again, whether it was or not. */
-  remindAt?: Date | null;
-  /** How often the reminder comes again; null — once. Taking the reminder off takes this off too. */
-  repeat?: ReminderRepeat | null;
 }
 
 /** The owner's time zone: where a reminder's days and time of day are read. */
@@ -750,27 +821,6 @@ const zoneOf = async (tx: Tx, ownerId: string) => {
     .where(eq(user.id, ownerId))
     .limit(1);
   return row?.timeZone ?? "UTC";
-};
-
-/**
- * «Готово» on a reminder that comes again: not closed — its deadline and reminder go on to the first time after the
- * deadline's day that is still ahead (an occurrence missed for weeks is not owed many times over).
- */
-const doneOnce = async (
-  tx: Tx,
-  ownerId: string,
-  row: typeof memoryRecords.$inferSelect,
-  repeat: ReminderRepeat,
-  remindAt: Date
-) => {
-  const timeZone = await zoneOf(tx, ownerId);
-  return nextReminder({
-    after: wallClock(row.dueAt ?? remindAt, timeZone).day,
-    now: new Date(),
-    remindAt,
-    repeat,
-    timeZone,
-  });
 };
 
 const asText = (v: MemoryStatus | Date | boolean | null) => {
@@ -785,20 +835,6 @@ type ChangeLine = (
   before: MemoryStatus | Date | boolean | null,
   after: MemoryStatus | Date | boolean | null
 ) => void;
-
-/** «Готово» on a reminder that comes again: its next time; null — any other change. */
-const repeatingDone = (
-  tx: Tx,
-  ownerId: string,
-  row: typeof memoryRecords.$inferSelect,
-  patch: CommitmentPatch
-) => {
-  const repeat = patch.repeat === undefined ? row.repeat : patch.repeat;
-  const remindAt = patch.remindAt === undefined ? row.remindAt : patch.remindAt;
-  return patch.status === "done" && repeat && remindAt
-    ? doneOnce(tx, ownerId, row, repeat as ReminderRepeat, remindAt)
-    : Promise.resolve(null);
-};
 
 /** The columns a patch sets, each change to status, deadline and «важно» told to `line` for the history. */
 const patchColumns = (
@@ -821,17 +857,6 @@ const patchColumns = (
   if (patch.important !== undefined) {
     line("important", row.important, patch.important);
     set.important = patch.important;
-  }
-  if (patch.remindAt !== undefined) {
-    // Not a line of the history: the reminder is a delivery, not a fact about the promise.
-    set.remindAt = patch.remindAt;
-    set.remindedAt = null;
-  }
-  // A repeat lives only with a reminder: taking the reminder off takes it off.
-  if (patch.repeat !== undefined || (patch.remindAt === null && row.repeat)) {
-    const remindAt =
-      patch.remindAt === undefined ? row.remindAt : patch.remindAt;
-    set.repeat = remindAt ? (patch.repeat ?? null) : null;
   }
   return set;
 };
@@ -884,14 +909,7 @@ const changeCommitment = async (
       });
     }
   };
-  const next = await repeatingDone(tx, ownerId, row, patch);
-  if (next) {
-    // It stays open: done this time, it is due the next.
-    line("due", row.dueAt, next.dueAt);
-  }
-  const set = next
-    ? { dueAt: next.dueAt, remindAt: next.remindAt, remindedAt: null }
-    : patchColumns(row, patch, line, writeId);
+  const set = patchColumns(row, patch, line, writeId);
   if (Object.keys(set).length > 0) {
     await tx.update(memoryRecords).set(set).where(eq(memoryRecords.id, id));
   }
@@ -1473,6 +1491,43 @@ interface DraftBody {
 
 const DATES = ["validFrom", "validTo", "givenAt", "dueAt"] as const;
 
+/**
+ * A record of a question asked before D45: a rhythm or a date was a rule, a reminder sat on the commitment
+ * (`remindAt`, `remindRepeat`). Questions are given up after `QUESTION_DAYS`, so this goes with the last of them.
+ */
+const legacyDraftRecord = (r: PlannedRecord): PlannedRecord => {
+  const old = r as Omit<PlannedRecord, "rule"> & {
+    remindAt?: string;
+    remindRepeat?: ReminderRepeat;
+    rule?: {
+      kind: string;
+      days: number;
+      workingDays: boolean;
+      repeat?: MemoryRepeat;
+    };
+  };
+  const { remindAt, remindRepeat, rule, ...rest } = old;
+  const next: PlannedRecord = {
+    ...rest,
+    rule: rule?.kind === "wait" ? { ...rule, kind: "wait" } : undefined,
+  };
+  if (remindAt) {
+    next.remind = { at: new Date(remindAt), repeat: remindRepeat };
+  }
+  if (old.rule?.kind === "date" && old.rule.repeat) {
+    next.kind = "schedule";
+    next.schedule = { kind: "date", repeat: old.rule.repeat };
+  } else if (old.rule?.kind === "rhythm") {
+    next.kind = "schedule";
+    next.schedule = {
+      days: old.rule.days,
+      kind: "rhythm",
+      workingDays: old.rule.workingDays,
+    };
+  }
+  return next;
+};
+
 /** The body as it was sealed: dates went in as strings and come back as dates. */
 const openDraft = (
   row: typeof memoryDrafts.$inferSelect,
@@ -1494,7 +1549,13 @@ const openDraft = (
       if (r.occurred) {
         revived.occurred = { ...r.occurred, at: new Date(r.occurred.at) };
       }
-      return revived;
+      if (r.remind) {
+        revived.remind = { ...r.remind, at: new Date(r.remind.at) };
+      }
+      if (r.schedule?.kind === "reminder") {
+        revived.schedule = { ...r.schedule, at: new Date(r.schedule.at) };
+      }
+      return legacyDraftRecord(revived);
     }),
   };
 };
@@ -2045,6 +2106,24 @@ export const forgetAll = async (ownerId: string) => {
 
 // --- the «Память» page (P16) --------------------------------------------------------------------------------------
 
+/** A kept schedule as it is put in again (a correction makes a new version of it). */
+const scheduleInputOf = (
+  schedule: MemorySchedule | null
+): ScheduleInput | undefined => {
+  if (!schedule) {
+    return undefined;
+  }
+  if (schedule.kind === "reminder") {
+    return {
+      at: schedule.nextAt,
+      forRecordId: schedule.forRecordId ?? undefined,
+      kind: "reminder",
+      repeat: schedule.repeat ?? undefined,
+    };
+  }
+  return schedule;
+};
+
 /**
  * A correction by hand («Изменить» on the page): a new version with the new text and all else as it was; the old one
  * stays in the history. It keeps the message it came from — «Откуда» still shows it, and undoing that message takes
@@ -2059,7 +2138,7 @@ export const correctRecord = async (
   if (!old) {
     return null;
   }
-  return supersedeRecord(ownerId, id, {
+  const next = await supersedeRecord(ownerId, id, {
     dueAt: old.dueAt ?? undefined,
     entities: old.entities,
     givenAt: old.givenAt ?? undefined,
@@ -2069,19 +2148,23 @@ export const correctRecord = async (
       old.occurredAt && old.occurredPrecision
         ? { at: old.occurredAt, precision: old.occurredPrecision }
         : undefined,
-    // A reminder still to go off goes with the new version; one that has gone off does not go off again.
-    remindAt: old.remindedAt ? undefined : (old.remindAt ?? undefined),
-    remindRepeat:
-      old.remindedAt || !old.remindAt
-        ? undefined
-        : (old.remindRepeat ?? undefined),
     role: old.role ?? undefined,
+    rule: old.rule ?? undefined,
+    schedule: scheduleInputOf(old.schedule),
     status: old.status ?? undefined,
     text,
     validFrom: old.validFrom ?? undefined,
     validTo: old.validTo ?? undefined,
     writeId: old.writeId ?? undefined,
   });
+  // A reminder that went off, or is done, stays so: a new text does not tell it again.
+  if (next && old.schedule?.kind === "reminder") {
+    await getDb()
+      .db.update(memoryRecords)
+      .set({ doneAt: old.doneAt, firedAt: old.schedule.firedAt })
+      .where(eq(memoryRecords.id, next.id));
+  }
+  return next;
 };
 
 /** Where each write came from: its source and material there, and its chat — a write of a deleted chat has none. */
@@ -2344,7 +2427,7 @@ export const dismissSuggestion = async (
       and(
         eq(memoryRecords.id, recordId),
         eq(memoryRecords.ownerId, ownerId),
-        eq(memoryRecords.kind, rhythm || date ? "rule" : "commitment"),
+        eq(memoryRecords.kind, rhythm || date ? "schedule" : "commitment"),
         isNull(memoryRecords.deletedAt)
       )
     )
@@ -2401,86 +2484,210 @@ export const listDismissals = async (ownerId: string) => {
 
 export type Dismissals = Awaited<ReturnType<typeof listDismissals>>;
 
+// --- reminders (D45) ----------------------------------------------------------------------------------------------
+
+const live = and(
+  isNull(memoryRecords.supersededAt),
+  isNull(memoryRecords.deletedAt)
+);
+
 /**
- * The reminders whose moment has come, in every memory: open promises not reminded of yet, oldest first. Which of them
- * to tell is the caller's to read (their text is sealed in the owner's memory).
+ * The reminders whose moment has come, in every memory: not done, once ones not gone off yet, and — about a
+ * commitment — while it is open; oldest first. Which of them to tell is the caller's to read (their text is sealed).
  */
 export const dueReminders = async (now: Date) => {
+  const about = alias(memoryRecords, "about");
   const rows = await getDb()
     .db.select({ id: memoryRecords.id, ownerId: memoryRecords.ownerId })
     .from(memoryRecords)
+    .leftJoin(about, eq(about.id, memoryRecords.forRecordId))
     .where(
       and(
-        lte(memoryRecords.remindAt, now),
-        isNull(memoryRecords.remindedAt),
-        inArray(memoryRecords.status, ["open", "unconfirmed"]),
-        isNull(memoryRecords.deletedAt),
-        isNull(memoryRecords.supersededAt)
+        eq(memoryRecords.scheduleKind, "reminder"),
+        lte(memoryRecords.nextAt, now),
+        isNull(memoryRecords.doneAt),
+        live,
+        or(isNotNull(memoryRecords.repeat), isNull(memoryRecords.firedAt)),
+        or(
+          isNull(memoryRecords.forRecordId),
+          and(
+            inArray(about.status, ["open", "unconfirmed"]),
+            isNull(about.deletedAt)
+          )
+        )
       )
     )
-    .orderBy(asc(memoryRecords.remindAt))
+    .orderBy(asc(memoryRecords.nextAt))
     .limit(200);
   return rows;
 };
 
 /**
- * A reminder that comes again is claimed by moving it on: its deadline becomes the day it goes off now, its reminder
- * the next time — in one update that only the process that read this moment can make. True for that process.
+ * A reminder is claimed before it is told: true for the one process that got it (two ticks must not both tell). It is
+ * marked gone off; one that comes again moves on to its next time in the same update — a time missed for weeks is not
+ * owed many times over.
  */
-export const rollReminder = (
+export const claimReminder = (
   ownerId: string,
   id: string,
   at: Date,
-  repeat: ReminderRepeat,
+  repeat: ReminderRepeat | null,
   now = new Date()
 ) =>
   getDb().db.transaction(async (tx) => {
-    const timeZone = await zoneOf(tx, ownerId);
-    const { day } = wallClock(at, timeZone);
-    const next = nextReminder({
-      after: day,
-      now,
-      remindAt: at,
-      repeat,
-      timeZone,
-    });
+    let nextAt = at;
+    if (repeat) {
+      const timeZone = await zoneOf(tx, ownerId);
+      nextAt =
+        nextReminder({
+          after: wallClock(at, timeZone).day,
+          now,
+          remindAt: at,
+          repeat,
+          timeZone,
+        })?.remindAt ?? at;
+    }
     const rows = await tx
       .update(memoryRecords)
-      .set(
-        next
-          ? {
-              dueAt: localMidnight(day, timeZone) ?? at,
-              remindAt: next.remindAt,
-              remindedAt: null,
-            }
-          : { remindedAt: now }
-      )
+      .set({ firedAt: now, nextAt })
       .where(
         and(
           eq(memoryRecords.id, id),
           eq(memoryRecords.ownerId, ownerId),
-          eq(memoryRecords.remindAt, at),
-          isNull(memoryRecords.remindedAt)
+          eq(memoryRecords.scheduleKind, "reminder"),
+          eq(memoryRecords.nextAt, at),
+          repeat ? undefined : isNull(memoryRecords.firedAt)
         )
       )
       .returning({ id: memoryRecords.id });
     return rows.length > 0;
   });
 
-/** A reminder is claimed before it is sent: true for the one process that got it (two ticks must not both tell). */
-export const claimReminder = async (ownerId: string, id: string) => {
-  const rows = await getDb()
-    .db.update(memoryRecords)
-    .set({ remindedAt: new Date() })
+export interface ReminderPatch {
+  /** A new moment: it goes off again, whether it went off or not, and is not done. */
+  at?: Date;
+  /** How often it comes again; null — once. */
+  repeat?: ReminderRepeat | null;
+  /**
+   * «Готово»: a once one is done; one that comes again is marked for this time and goes on. False — «Не сделано»: a
+   * done one is back, waiting to be marked.
+   */
+  done?: boolean;
+}
+
+/** Changes a live reminder of the owner's. False when there is none. */
+export const editReminder = async (
+  ownerId: string,
+  id: string,
+  patch: ReminderPatch,
+  now = new Date()
+) => {
+  const { db } = getDb();
+  const [row] = await db
+    .select({ repeat: memoryRecords.repeat })
+    .from(memoryRecords)
     .where(
       and(
         eq(memoryRecords.id, id),
         eq(memoryRecords.ownerId, ownerId),
-        isNull(memoryRecords.remindedAt)
+        eq(memoryRecords.scheduleKind, "reminder"),
+        live
       )
     )
-    .returning({ id: memoryRecords.id });
-  return rows.length > 0;
+    .limit(1);
+  if (!row) {
+    return false;
+  }
+  const set: Partial<typeof memoryRecords.$inferInsert> = {};
+  if (patch.repeat !== undefined) {
+    set.repeat = patch.repeat;
+  }
+  const repeats =
+    (patch.repeat === undefined ? row.repeat : patch.repeat) !== null;
+  if (patch.done === true) {
+    // A once one keeps when it went off: «пришли и закрылись сами» is told by it.
+    if (repeats) {
+      set.firedAt = null;
+    } else {
+      set.doneAt = now;
+    }
+  } else if (patch.done === false) {
+    set.doneAt = null;
+  }
+  if (patch.at) {
+    Object.assign(set, { doneAt: null, firedAt: null, nextAt: patch.at });
+  }
+  if (Object.keys(set).length > 0) {
+    await db.update(memoryRecords).set(set).where(eq(memoryRecords.id, id));
+  }
+  return true;
+};
+
+/** The live reminder about a commitment, if it has one that is not done. */
+const reminderFor = async (ownerId: string, recordId: string) => {
+  const [row] = await getDb()
+    .db.select({ id: memoryRecords.id })
+    .from(memoryRecords)
+    .where(
+      and(
+        eq(memoryRecords.ownerId, ownerId),
+        eq(memoryRecords.forRecordId, recordId),
+        isNull(memoryRecords.doneAt),
+        live
+      )
+    )
+    .limit(1);
+  return row?.id ?? null;
+};
+
+/**
+ * The reminder about a live commitment of the owner's, as the promise's editor sets it: a moment (and how often it
+ * comes again) — the one it has moves, or one is made; null — it has none any more. False when there is no such
+ * commitment.
+ */
+export const setPromiseReminder = async (
+  ownerId: string,
+  recordId: string,
+  /** Undefined — the time stays, only how often changes. */
+  at: Date | null | undefined,
+  /** Undefined — how often stays (none for a new one). */
+  repeat?: ReminderRepeat | null
+) => {
+  const [commitment] = await listRecords(ownerId, {
+    ids: [recordId],
+    kinds: ["commitment"],
+  });
+  if (!commitment) {
+    return false;
+  }
+  const id = await reminderFor(ownerId, recordId);
+  if (at === undefined) {
+    return id ? editReminder(ownerId, id, { repeat }) : true;
+  }
+  if (id && at) {
+    return editReminder(ownerId, id, { at, repeat });
+  }
+  if (id) {
+    await getDb()
+      .db.update(memoryRecords)
+      .set({ deletedAt: new Date() })
+      .where(eq(memoryRecords.id, id));
+    return true;
+  }
+  if (at) {
+    await addRecord(ownerId, {
+      entities: [],
+      kind: "schedule",
+      schedule: {
+        at,
+        forRecordId: recordId,
+        kind: "reminder",
+        repeat: repeat ?? undefined,
+      },
+      text: "",
+    });
+  }
+  return true;
 };
 
 /** When each record was last changed — a status, a deadline, «важно» (`memory_changes`); records never changed are absent. */

@@ -1,6 +1,6 @@
 import type { MemoryDue } from "@metobe/contracts/memory";
 
-import { dayKey, daysUntil } from "./memory-dates";
+import { daysUntil } from "./memory-dates";
 
 // «Напоминания» on the «Память» page (P29 «Раздел»): every open commitment that has a time to remind at, in groups by
 // what is with it now — came and not marked (on top: these want «Готово»), today, tomorrow, this week, later — and the
@@ -25,11 +25,9 @@ export const REMINDER_GROUPS: ReminderGroup[] = [
   "repeat",
 ];
 
-/** One that comes again whose time came and was not marked: its deadline stayed on the day it came, its reminder went on. */
-export const cameAgain = (row: ReminderRow, timeZone: string) =>
-  row.repeat !== null &&
-  dayKey(new Date(row.dueAt), timeZone) <
-    dayKey(new Date(row.remindAt), timeZone);
+/** One that comes again whose time came and was not marked («Готово» marks it; it goes on to its next time anyway). */
+export const cameAgain = (row: ReminderRow) =>
+  row.repeat !== null && row.reminded;
 
 const groupOf = (
   row: ReminderRow,

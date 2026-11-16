@@ -63,14 +63,12 @@ describe("«Напоминания» (P29)", () => {
     ).toBe(1);
   });
 
-  it("knows one that comes again came and is not marked: its deadline stayed behind its next time", () => {
+  it("knows one that comes again came and is not marked: it went off and «Готово» was not pressed", () => {
     const weekly = row("weekly", "2026-11-23T07:00:00Z", {
-      dueAt: "2026-11-15T21:00:00Z",
+      reminded: true,
       repeat: "week",
     }) as ReminderRow;
-    expect(cameAgain(weekly, TZ)).toBe(true);
-    expect(cameAgain({ ...weekly, dueAt: "2026-11-22T21:00:00Z" }, TZ)).toBe(
-      false
-    );
+    expect(cameAgain(weekly)).toBe(true);
+    expect(cameAgain({ ...weekly, reminded: false })).toBe(false);
   });
 });

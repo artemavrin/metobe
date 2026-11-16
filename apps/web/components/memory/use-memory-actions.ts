@@ -32,7 +32,7 @@ export const sectionOf = (r: MemoryRecordView, cardId: string, t: T) => {
   if (r.kind === "event") {
     return t("events");
   }
-  return r.kind === "rule" ? t("rules") : t("known");
+  return r.kind === "rule" || r.kind === "schedule" ? t("rules") : t("known");
 };
 
 /** The page's calls: each change says so in a toast and reads the page again; a deletion offers «Вернуть». */

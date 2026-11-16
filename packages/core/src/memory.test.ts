@@ -1408,15 +1408,19 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       card("ООО «Вектор»", "org"),
       card("«Альфа-Логистика»", "org"),
     ]);
+    // A wait is a rule; a rhythm is a schedule (D45).
     const rule = (
       text: string,
       cards: string[],
-      r: NonNullable<MemoryModule.MemoryRecordInput["rule"]>
+      r:
+        | NonNullable<MemoryModule.MemoryRecordInput["rule"]>
+        | { days: number; kind: "rhythm"; workingDays: boolean }
     ) =>
       memory.addRecord(ella, {
         entities: cards.map((entityId) => ({ entityId, role: "subject" })),
-        kind: "rule",
-        rule: r,
+        ...(r.kind === "rhythm"
+          ? { kind: "schedule" as const, schedule: r }
+          : { kind: "rule" as const, rule: r }),
         text,
       });
     const met = (who: string, at: string) =>
@@ -1554,8 +1558,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     const olegIn = await join(oleg.id);
     const rule = await memory.addRecord(ella, {
       entities: [{ entityId: team.id, role: "subject" }],
-      kind: "rule",
-      rule: { days: 14, kind: "rhythm", workingDays: false },
+      kind: "schedule",
+      schedule: { days: 14, kind: "rhythm", workingDays: false },
       text: "Один на один с каждым из моей команды раз в две недели",
     });
     // Fifteen days after the rule was said (today), nobody met: both are due — by the group's rule.
@@ -1583,19 +1587,14 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     });
     const birthday = await memory.addRecord(hana, {
       entities: [{ entityId: olga.id, role: "subject" }],
-      kind: "rule",
+      kind: "schedule",
       occurred: { at: new Date("1985-11-14T00:00:00+03:00"), precision: "day" },
-      rule: { days: 0, kind: "date", repeat: "year", workingDays: false },
+      schedule: { kind: "date", repeat: "year" },
       text: "У Ольги день рождения 14 ноября",
     });
-    // It comes back as the rule it is, a year's, with its day.
-    const [kept] = await memory.listRecords(hana, { kinds: ["rule"] });
-    expect(kept?.rule).toEqual({
-      days: 0,
-      kind: "date",
-      repeat: "year",
-      workingDays: false,
-    });
+    // It comes back as the schedule it is, a year's, with its day.
+    const [kept] = await memory.listRecords(hana, { kinds: ["schedule"] });
+    expect(kept?.schedule).toEqual({ kind: "date", repeat: "year" });
     const rows = async (at: string) => {
       const list = await today.todaySuggestions(
         hana,
@@ -1629,9 +1628,9 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     // A weekly day shows the day before and the day itself, not earlier.
     const report = await memory.addRecord(hana, {
       entities: [],
-      kind: "rule",
+      kind: "schedule",
       occurred: { at: new Date("2026-11-06T00:00:00+03:00"), precision: "day" },
-      rule: { days: 0, kind: "date", repeat: "week", workingDays: false },
+      schedule: { kind: "date", repeat: "week" },
       text: "Отчёт каждую пятницу",
     });
     const week = async (at: string) => {
@@ -1648,12 +1647,12 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     expect(await week("2026-11-13T09:00:00Z")).toEqual([0]);
   });
 
-  it("does not take a date rule without its day or its repeat (ARCH §19.8.7)", async () => {
+  it("does not take a date without its day, nor a schedule on what is not one (ARCH §19.8.7, D45)", async () => {
     await expect(
       memory.addRecord(hana, {
         entities: [],
-        kind: "rule",
-        rule: { days: 0, kind: "date", repeat: "year", workingDays: false },
+        kind: "schedule",
+        schedule: { kind: "date", repeat: "year" },
         text: "день рождения без дня",
       })
     ).rejects.toThrow();
@@ -1661,12 +1660,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       memory.addRecord(hana, {
         entities: [],
         kind: "rule",
-        occurred: {
-          at: new Date("2026-11-14T00:00:00+03:00"),
-          precision: "day",
-        },
-        rule: { days: 0, kind: "date", workingDays: false },
-        text: "день без повтора",
+        schedule: { kind: "date", repeat: "year" },
+        text: "правило с расписанием",
       })
     ).rejects.toThrow();
   });
@@ -1726,17 +1721,15 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     ).toBe("gone");
   });
 
-  it("snoozes a reminder for an hour, or moves it a day on at the same time, from its buttons (D43)", async () => {
+  it("snoozes a reminder for an hour, or moves it a day on at the same time, from its buttons (D43, D45)", async () => {
     const { runAction } = await import("./telegram-actions");
-    const self = await memory.ensureSelf(hana, "Я");
     const now = new Date("2026-11-12T12:00:00Z");
     const first = new Date(now.getTime() - 60_000);
     const make = (text: string) =>
       memory.addRecord(hana, {
-        dueAt: new Date("2026-11-12T00:00:00Z"),
-        entities: [{ entityId: self.id, role: "debtor" }],
-        kind: "commitment",
-        remindAt: first,
+        entities: [],
+        kind: "schedule",
+        schedule: { at: first, kind: "reminder" },
         text,
       });
     const [a, b] = await Promise.all([
@@ -1747,44 +1740,54 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
       throw new Error("no records");
     }
     // Both were told: a reminder claimed is not due again until it is moved.
-    expect(await memory.claimReminder(hana, a.id)).toBe(true);
-    expect(await memory.claimReminder(hana, a.id)).toBe(false);
-    expect(await memory.claimReminder(hana, b.id)).toBe(true);
+    expect(await memory.claimReminder(hana, a.id, first, null, now)).toBe(true);
+    expect(await memory.claimReminder(hana, a.id, first, null, now)).toBe(
+      false
+    );
+    expect(await memory.claimReminder(hana, b.id, first, null, now)).toBe(true);
+    const stateOf = async (id: string) => {
+      const [r] = await memory.listRecords(hana, { ids: [id] });
+      return r?.schedule?.kind === "reminder" ? r.schedule : null;
+    };
 
     expect(await runAction(hana, { action: "snooze", id: a.id }, now)).toBe(
       "snooze"
     );
-    const [snoozed] = await memory.listRecords(hana, { ids: [a.id] });
-    expect(snoozed?.remindAt?.toISOString()).toBe("2026-11-12T13:00:00.000Z");
-    expect(snoozed?.remindedAt).toBeNull();
+    const snoozed = await stateOf(a.id);
+    expect(snoozed?.nextAt.toISOString()).toBe("2026-11-12T13:00:00.000Z");
+    expect(snoozed?.firedAt).toBeNull();
 
     expect(await runAction(hana, { action: "tomorrow", id: b.id }, now)).toBe(
       "tomorrow"
     );
-    const [moved] = await memory.listRecords(hana, { ids: [b.id] });
     // A day on from the moment it was due to go off (it was past): tomorrow, at the time of the press.
-    expect(moved?.remindAt?.toISOString()).toBe("2026-11-13T12:00:00.000Z");
-    expect(moved?.remindedAt).toBeNull();
+    const moved = await stateOf(b.id);
+    expect(moved?.nextAt.toISOString()).toBe("2026-11-13T12:00:00.000Z");
     const due = await memory.dueReminders(new Date("2026-11-13T12:30:00Z"));
     const mine = due.filter((r) => r.ownerId === hana).map((r) => r.id);
     expect(mine).toHaveLength(2);
     expect(mine).toEqual(expect.arrayContaining([a.id, b.id]));
 
-    // Not a promise of theirs: nothing to snooze.
-    expect(await runAction(bob, { action: "snooze", id: a.id }, now)).toBe(
+    // «Готово»: done, not due again.
+    expect(await runAction(hana, { action: "done", id: a.id }, now)).toBe(
+      "done"
+    );
+    const [doneA] = await memory.listRecords(hana, { ids: [a.id] });
+    expect(doneA?.doneAt).not.toBeNull();
+
+    // Not a reminder of theirs: nothing to snooze.
+    expect(await runAction(bob, { action: "snooze", id: b.id }, now)).toBe(
       "gone"
     );
   });
 
   it("keeps a reminder still to go off when the text is corrected, and does not bring back one that went off", async () => {
-    const self = await memory.ensureSelf(hana, "Я");
     const at = new Date("2026-11-20T07:00:00Z");
     const make = (text: string) =>
       memory.addRecord(hana, {
-        dueAt: new Date("2026-11-19T21:00:00Z"),
-        entities: [{ entityId: self.id, role: "debtor" }],
-        kind: "commitment",
-        remindAt: at,
+        entities: [],
+        kind: "schedule",
+        schedule: { at, kind: "reminder" },
         text,
       });
     const [ahead, told] = await Promise.all([
@@ -1794,7 +1797,7 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     if (!(ahead && told)) {
       throw new Error("no records");
     }
-    expect(await memory.claimReminder(hana, told.id)).toBe(true);
+    expect(await memory.claimReminder(hana, told.id, at, null)).toBe(true);
     const [one, two] = await Promise.all([
       memory.correctRecord(
         hana,
@@ -1807,11 +1810,49 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
         "Поправка: уже сработало, новый текст"
       ),
     ]);
-    const [a] = await memory.listRecords(hana, { ids: [one?.id as string] });
-    const [b] = await memory.listRecords(hana, { ids: [two?.id as string] });
-    expect(a?.remindAt?.toISOString()).toBe(at.toISOString());
-    expect(a?.remindedAt).toBeNull();
-    expect(b?.remindAt).toBeNull();
+    const after = await memory.dueReminders(new Date("2026-11-20T08:00:00Z"));
+    const due = after.filter((r) => r.ownerId === hana).map((r) => r.id);
+    expect(due).toContain(one?.id);
+    expect(due).not.toContain(two?.id);
+  });
+
+  it("puts a promise's reminder in a schedule of its own, and moves it with the promise (D45)", async () => {
+    const self = await memory.ensureSelf(hana, "Я");
+    const olga = await memory.createEntity(hana, {
+      kind: "person",
+      name: "Ольга Ли",
+    });
+    const at = new Date("2026-11-20T07:00:00Z");
+    const promise = await memory.addRecord(hana, {
+      dueAt: new Date("2026-11-20T00:00:00Z"),
+      entities: [
+        { entityId: self.id, role: "debtor" },
+        { entityId: olga.id, role: "creditor" },
+      ],
+      kind: "commitment",
+      remind: { at },
+      text: "Договор для Ольги",
+    });
+    const reminderOf = async (id: string) => {
+      const schedules = await memory.listRecords(hana, { kinds: ["schedule"] });
+      return schedules.find(
+        (r) => r.schedule?.kind === "reminder" && r.schedule.forRecordId === id
+      );
+    };
+    const first = await reminderOf(promise.id);
+    expect(first?.text).toBe("");
+    // A new text is a new version of the promise: the reminder is about it.
+    const next = await memory.correctRecord(
+      hana,
+      promise.id,
+      "Договор для Ольги Ли"
+    );
+    expect(await reminderOf(next?.id as string)).toBeDefined();
+    // Taken off from the promise's editor: no reminder.
+    expect(
+      await memory.setPromiseReminder(hana, next?.id as string, null)
+    ).toBe(true);
+    expect(await reminderOf(next?.id as string)).toBeUndefined();
   });
 
   it("merges two cards into one and takes it back as it was (ARCH §19.8.5)", async () => {
@@ -1858,8 +1899,8 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     });
     const rule = await memory.addRecord(gwen, {
       entities: [{ entityId: team.id, role: "subject" }],
-      kind: "rule",
-      rule: { days: 14, kind: "rhythm", workingDays: false },
+      kind: "schedule",
+      schedule: { days: 14, kind: "rhythm", workingDays: false },
       text: "Один на один с каждым из моей команды раз в две недели",
     });
     const later = new Date(Date.now() + 15 * 86_400_000);

@@ -118,7 +118,7 @@ const Row = ({
   const t = useTranslations("memory");
   const when = useWhen(timeZone)(row.remindAt, short);
   const words = useRepeatWords();
-  const came = cameAgain(row, timeZone);
+  const came = cameAgain(row);
   return (
     <li
       className={cn(

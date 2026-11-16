@@ -49,7 +49,19 @@ const ORDER: Record<MemorySuggestionReason, number> = {
   waiting: 2,
 };
 
-type Rule = NonNullable<MemoryRecord["rule"]>;
+/** What is kept per card: how long a reply may take (a rule), how often to be in touch (a schedule, D45). */
+type PerCard = "wait" | "rhythm";
+
+const perCardOf = (r: MemoryRecord): PerCard | null => {
+  if (r.rule?.kind === "wait") {
+    return "wait";
+  }
+  return r.schedule?.kind === "rhythm" ? "rhythm" : null;
+};
+
+/** A rhythm's period: every how many days. */
+const rhythmOf = (r: MemoryRecord) =>
+  r.schedule?.kind === "rhythm" ? r.schedule : null;
 
 /**
  * A rule's cards: whom it is about (none — anyone). The person's own card is not one: «если контрагент не отвечает…»
@@ -82,14 +94,14 @@ const keepNewer = (
  */
 const rulesByCard = (
   rules: MemoryRecord[],
-  kind: Rule["kind"],
+  kind: PerCard,
   self: ReadonlySet<string>,
   expand: (card: string) => string[] | null
 ) => {
   const direct = new Map<string, MemoryRecord>();
   const viaGroup = new Map<string, MemoryRecord>();
   for (const r of rules) {
-    if (r.rule?.kind !== kind) {
+    if (perCardOf(r) !== kind) {
       continue;
     }
     const cards = subjectsOf(r, self);
@@ -262,7 +274,8 @@ const rhythmRows = (
   return [...rulesByCard(rules, "rhythm", self, expand)].flatMap(
     ([cardId, r]) => {
       const card = cards.get(cardId);
-      if (!(card && card.kind !== "self" && r.rule)) {
+      const rhythm = rhythmOf(r);
+      if (!(card && card.kind !== "self" && rhythm)) {
         return [];
       }
       const contact = last.get(cardId) ?? null;
@@ -277,7 +290,7 @@ const rhythmRows = (
       });
       const away =
         gone && (gone.asOf?.getTime() ?? null) === (contact?.getTime() ?? null);
-      if (days < r.rule.days || away) {
+      if (days < rhythm.days || away) {
         return [];
       }
       return [
@@ -289,7 +302,7 @@ const rhythmRows = (
           key: `${r.id}:${cardId}`,
           kind: "rhythm",
           reason: "rhythm",
-          rhythm: { every: r.rule.days, since: contact?.toISOString() ?? null },
+          rhythm: { every: rhythm.days, since: contact?.toISOString() ?? null },
           side: "mine",
           status: null,
           text: r.text,
@@ -314,7 +327,7 @@ const dateRows = (
     [...cards.values()].filter((e) => e.kind === "self").map((e) => e.id)
   );
   return rules.flatMap((r): MemorySuggestion[] => {
-    const repeat = r.rule?.kind === "date" ? r.rule.repeat : undefined;
+    const repeat = r.schedule?.kind === "date" ? r.schedule.repeat : undefined;
     if (!(repeat && r.occurredAt)) {
       return [];
     }
@@ -422,7 +435,7 @@ export const cardContact = async (
   now = new Date()
 ) => {
   const [rules, facts] = await Promise.all([
-    listRecords(ownerId, { kinds: ["rule"] }),
+    listRecords(ownerId, { kinds: ["rule", "schedule"] }),
     listRecords(ownerId, { kinds: ["fact"] }),
   ]);
   const kinds = new Map(entities.map((e) => [e.id, e.kind]));
@@ -432,7 +445,8 @@ export const cardContact = async (
   const members = groupMembers(facts, now);
   const expand = (card: string) =>
     kinds.get(card) === "group" ? [...(members.get(card) ?? [])] : null;
-  const rule = rulesByCard(rules, "rhythm", self, expand).get(cardId)?.rule;
+  const found = rulesByCard(rules, "rhythm", self, expand).get(cardId);
+  const rule = found ? rhythmOf(found) : null;
   const live = events.filter((e) => e.kind === "event" && !e.supersededAt);
   return {
     every: rule?.days ?? null,
@@ -493,7 +507,7 @@ export const todaySuggestions = async (
   const [records, rules, events, facts, entities, dismissed] =
     await Promise.all([
       listRecords(ownerId, { kinds: ["commitment"] }),
-      listRecords(ownerId, { kinds: ["rule"] }),
+      listRecords(ownerId, { kinds: ["rule", "schedule"] }),
       listRecords(ownerId, { kinds: ["event"] }),
       listRecords(ownerId, { kinds: ["fact"] }),
       listEntities(ownerId),

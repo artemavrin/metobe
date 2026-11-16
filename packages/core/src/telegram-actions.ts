@@ -4,7 +4,14 @@ import { user } from "@metobe/db/schema/auth";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "./db";
-import { dismissSuggestion, editCommitment, listRecords } from "./memory";
+import {
+  dismissSuggestion,
+  editCommitment,
+  editReminder,
+  listRecords,
+  setPromiseReminder,
+} from "./memory";
+import type { MemoryRecord } from "./memory";
 import { localMidnight } from "./memory-extract";
 
 // The buttons under a digest in Telegram (D43): «✓ …» marks the promise done, «Завтра» moves its deadline a day on,
@@ -79,6 +86,52 @@ export const tomorrowOf = (now: Date, timeZone: string) => {
 /** What came of a press: `gone` — no such open promise of theirs (done already, deleted, or somebody else's). */
 export type ActionResult = TelegramAction | "gone";
 
+/**
+ * A press under a reminder (D45). «Готово» — a once one is done, one that comes again is marked for this time; about a
+ * commitment, the commitment is done too. «Через час» — told again in an hour. «Завтра» — a day on, at the same time;
+ * about a commitment, its deadline moves to tomorrow.
+ */
+const reminderAction = async (
+  ownerId: string,
+  action: TelegramAction,
+  id: string,
+  reminder: Extract<
+    NonNullable<MemoryRecord["schedule"]>,
+    { kind: "reminder" }
+  >,
+  { now, timeZone }: { now: Date; timeZone: string }
+): Promise<ActionResult> => {
+  const about = reminder.forRecordId;
+  if (action === "done") {
+    if (about) {
+      await editCommitment(ownerId, about, { status: "done" });
+    }
+    return (await editReminder(ownerId, id, { done: true }, now))
+      ? "done"
+      : "gone";
+  }
+  if (action === "snooze") {
+    return (await editReminder(ownerId, id, {
+      at: new Date(now.getTime() + HOUR_MS),
+    }))
+      ? "snooze"
+      : "gone";
+  }
+  if (action === "tomorrow") {
+    const dueAt = tomorrowOf(now, timeZone);
+    if (about && dueAt) {
+      await editCommitment(ownerId, about, { dueAt });
+    }
+    const at = new Date(
+      Math.max(reminder.nextAt.getTime(), now.getTime()) + DAY_MS
+    );
+    return (await editReminder(ownerId, id, { at })) ? "tomorrow" : "gone";
+  }
+  return about && (await dismissSuggestion(ownerId, about))
+    ? "dismiss"
+    : "gone";
+};
+
 /** Does what the press says, for the owner of the chat. */
 export const runAction = async (
   ownerId: string,
@@ -92,31 +145,32 @@ export const runAction = async (
     .where(eq(user.id, ownerId))
     .limit(1);
   const timeZone = owner?.timeZone ?? "UTC";
+  const [record] = await listRecords(ownerId, { ids: [press.id] });
+  if (record?.schedule?.kind === "reminder") {
+    return reminderAction(ownerId, press.action, record.id, record.schedule, {
+      now,
+      timeZone,
+    });
+  }
   if (press.action === "done") {
     return (await editCommitment(ownerId, press.id, { status: "done" }))
       ? "done"
       : "gone";
   }
-  // A reminder: «Через час» — the same promise, told again in an hour; «Завтра» — a day on, at the same time.
-  const [record] = await listRecords(ownerId, { ids: [press.id] });
-  // A reminder that closed itself when it came is open again: the person wants it once more.
-  const reopen = record?.status === "done" ? { status: "open" as const } : {};
+  // «Через час» on a promise: a reminder about it, in an hour.
   if (press.action === "snooze") {
     return record?.kind === "commitment" &&
-      (await editCommitment(ownerId, press.id, {
-        remindAt: new Date(now.getTime() + HOUR_MS),
-        ...reopen,
-      }))
+      (await setPromiseReminder(
+        ownerId,
+        press.id,
+        new Date(now.getTime() + HOUR_MS)
+      ))
       ? "snooze"
       : "gone";
   }
   if (press.action === "tomorrow") {
     const dueAt = tomorrowOf(now, timeZone);
-    const remindAt = record?.remindAt
-      ? new Date(Math.max(record.remindAt.getTime(), now.getTime()) + DAY_MS)
-      : undefined;
-    return dueAt &&
-      (await editCommitment(ownerId, press.id, { dueAt, remindAt, ...reopen }))
+    return dueAt && (await editCommitment(ownerId, press.id, { dueAt }))
       ? "tomorrow"
       : "gone";
   }

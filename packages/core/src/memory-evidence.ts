@@ -25,8 +25,8 @@ export interface Voices {
   answer: boolean;
 }
 
-/** Kinds only the person sets: their own judgement of someone, and their standing rules. */
-const OWNER_ONLY = new Set(["assessment", "rule"]);
+/** Kinds only the person sets: their own judgement of someone, their standing rules, what they want to come in time. */
+const OWNER_ONLY = new Set(["assessment", "rule", "schedule"]);
 
 /** The voice to go by: the model's label when the material has that voice, else the material's own. */
 export const voiceOf = (from: Voice | undefined, voices: Voices): Voice => {

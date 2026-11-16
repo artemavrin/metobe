@@ -37,36 +37,44 @@ const promise = (id: string, over: Partial<MemoryRecord> = {}) =>
 
 const at = (iso: string) => new Date(iso);
 
+/** A reminder of its own (D45) that went off at `firedAt`. */
+const reminder = (
+  id: string,
+  over: { doneAt: Date; firedAt: Date; forRecordId?: string }
+) =>
+  promise(id, {
+    doneAt: over.doneAt,
+    kind: "schedule",
+    schedule: {
+      firedAt: over.firedAt,
+      forRecordId: over.forRecordId ?? null,
+      kind: "reminder",
+      nextAt: over.firedAt,
+      repeat: null,
+    },
+    status: null,
+  });
+
 describe("scheduleOf", () => {
   it("lists the person's own reminders that closed themselves when they came, in the last week", () => {
-    const mine = [{ entityId: "me", role: "debtor" as const }];
     const sent = at("2026-11-10T07:00:00Z");
     const s = scheduleOf(
       [
-        promise("bank", {
-          doneAt: at("2026-11-10T07:00:01Z"),
-          entities: mine,
-          remindedAt: sent,
-          status: "done",
-        }),
+        reminder("bank", { doneAt: at("2026-11-10T07:00:01Z"), firedAt: sent }),
         // Done by the person later: not closed by sending.
-        promise("later", {
+        reminder("later", {
           doneAt: at("2026-11-10T12:00:00Z"),
-          entities: mine,
-          remindedAt: sent,
-          status: "done",
+          firedAt: sent,
         }),
-        // Owed to someone: it is never closed by sending.
-        promise("olga", {
+        // About a promise to someone: it is never closed by sending.
+        reminder("olga", {
           doneAt: at("2026-11-10T07:00:01Z"),
-          remindedAt: sent,
-          status: "done",
+          firedAt: sent,
+          forRecordId: "promise",
         }),
-        promise("old", {
+        reminder("old", {
           doneAt: at("2026-11-01T07:00:01Z"),
-          entities: mine,
-          remindedAt: at("2026-11-01T07:00:00Z"),
-          status: "done",
+          firedAt: at("2026-11-01T07:00:00Z"),
         }),
       ],
       CARDS,

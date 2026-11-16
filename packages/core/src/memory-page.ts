@@ -124,7 +124,7 @@ export const memoryOverview = async (
     cardItems(ownerId, entities),
     listQuestions(ownerId),
     mergeSuggestions(ownerId),
-    listRecords(ownerId, { kinds: ["rule"] }),
+    listRecords(ownerId, { kinds: ["rule", "schedule"] }),
     self
       ? listRecords(ownerId, {
           entityId: self.id,
@@ -149,7 +149,12 @@ export const memoryOverview = async (
       question: q.question,
       writeId: q.writeId,
     })),
-    rules: await views(ownerId, rules, entities),
+    // Rules, and the days and rhythms that came out of them (D45); reminders have «Напоминания».
+    rules: await views(
+      ownerId,
+      rules.filter((r) => r.schedule?.kind !== "reminder"),
+      entities
+    ),
   };
 };
 

@@ -27,6 +27,28 @@ const SAID_AS: Record<MemoryRecord["kind"], string> = {
   event: "happened",
   fact: "known",
   rule: "rule",
+  schedule: "scheduled",
+};
+
+/** What a schedule says of itself (D45): a reminder's next time, how often things come. */
+const scheduleNotes = (
+  r: MemoryRecord | MemoryRecordView,
+  timeZone: string
+) => {
+  const s = "schedule" in r ? r.schedule : null;
+  if (!s) {
+    return [];
+  }
+  if (s.kind === "reminder") {
+    return [
+      `reminder, next ${day(s.nextAt, timeZone)}`,
+      s.repeat && `every ${s.repeat}`,
+      s.forRecordId && "about a promise",
+    ];
+  }
+  return s.kind === "date"
+    ? [`a day every ${s.repeat}`]
+    : [`in touch every ${s.days}${s.workingDays ? " working" : ""} days`];
 };
 
 /** A record as the model reads it: its text and what goes with it, compact. */
@@ -56,6 +78,7 @@ export const lineOf = (
     r.validFrom && `since ${day(r.validFrom, timeZone)}`,
     r.validTo && `until ${day(r.validTo, timeZone)}`,
     "supersededAt" in r && r.supersededAt && "replaced by a later message",
+    ...scheduleNotes(r, timeZone),
   ].filter(Boolean);
   return `${SAID_AS[r.kind]}: «${r.text}»${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
 };

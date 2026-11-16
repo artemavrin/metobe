@@ -52,31 +52,40 @@ const CLOSED_DAYS = 7;
 /** A reminder done this soon after it went off was closed by its sending (`memory-reminders`), not by the person. */
 const CLOSED_BY_SEND_MS = 120_000;
 
-/** The person's own reminders, owed to nobody, that closed themselves when they came — the newest first. */
+/** A reminder kept as a schedule (D45). */
+type Reminder = Extract<
+  NonNullable<MemoryRecord["schedule"]>,
+  { kind: "reminder" }
+>;
+
+const reminderOf = (r: MemoryRecord): Reminder | null =>
+  r.schedule?.kind === "reminder" && !r.supersededAt && !r.deletedAt
+    ? r.schedule
+    : null;
+
+/** The person's own reminders that closed themselves when they came — the newest first. */
 const closedBySendOf = (
   records: MemoryRecord[],
-  cards: Map<string, MemoryEntity>,
   now: Date
 ): MemoryDue["closedBySend"] => {
   const since = now.getTime() - CLOSED_DAYS * 86_400_000;
   return (
     records
       .flatMap((r) => {
+        const s = reminderOf(r);
         if (
-          r.kind !== "commitment" ||
-          r.status !== "done" ||
-          !r.remindedAt ||
+          !s?.firedAt ||
+          s.repeat ||
+          s.forRecordId ||
           !r.doneAt ||
           r.doneAt.getTime() < since ||
-          Math.abs(r.doneAt.getTime() - r.remindedAt.getTime()) >
-            CLOSED_BY_SEND_MS
+          Math.abs(r.doneAt.getTime() - s.firedAt.getTime()) > CLOSED_BY_SEND_MS
         ) {
           return [];
         }
-        const { side, who } = sidesOf(r, cards);
-        return side === "mine" && (!who || who.kind === "self")
-          ? [{ id: r.id, remindedAt: r.remindedAt.toISOString(), text: r.text }]
-          : [];
+        return [
+          { id: r.id, remindedAt: s.firedAt.toISOString(), text: r.text },
+        ];
       })
       // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array `flatMap` made; toSorted is past the ES2022 target
       .sort((a, b) => b.remindedAt.localeCompare(a.remindedAt))
@@ -84,8 +93,10 @@ const closedBySendOf = (
 };
 
 /**
- * The open commitments for a calendar: each with a deadline, the nearest first, and the number of those with none.
- * What day a deadline falls on is the screen's to say, in the person's zone.
+ * The open commitments for a calendar: each with a deadline, the nearest first, and the number of those with none. A
+ * commitment shows its reminder; the person's own reminders (schedules, D45) are rows of their own on the day they go
+ * off — the calendar and «Напоминания» read them as before. What day a deadline falls on is the screen's to say, in the
+ * person's zone.
  */
 export const scheduleOf = (
   records: MemoryRecord[],
@@ -93,9 +104,36 @@ export const scheduleOf = (
   now: Date,
   timeZone: string
 ): MemoryDue => {
+  const reminders = new Map<string, Reminder>();
+  for (const r of records) {
+    const s = reminderOf(r);
+    if (s?.forRecordId && !r.doneAt) {
+      reminders.set(s.forRecordId, s);
+    }
+  }
+  const remindOf = (s: Reminder | undefined) => ({
+    remindAt: s?.nextAt.toISOString() ?? null,
+    reminded: Boolean(s?.firedAt),
+    repeat: s?.repeat ?? null,
+  });
   const rows: MemoryDue["rows"] = [];
   let none = 0;
   for (const r of records) {
+    const own = reminderOf(r);
+    if (own && !own.forRecordId && !r.doneAt) {
+      rows.push({
+        cards: r.entities.map((e) => e.entityId),
+        dueAt: own.nextAt.toISOString(),
+        id: r.id,
+        important: false,
+        side: "mine",
+        status: "open",
+        text: r.text,
+        who: null,
+        ...remindOf(own),
+      });
+      continue;
+    }
     if (r.kind !== "commitment" || !OPEN.has(r.status ?? "") || r.deletedAt) {
       continue;
     }
@@ -104,9 +142,7 @@ export const scheduleOf = (
         ...rowOf(r, cards),
         cards: r.entities.map((e) => e.entityId),
         dueAt: r.dueAt.toISOString(),
-        remindAt: r.remindAt?.toISOString() ?? null,
-        reminded: r.remindedAt !== null,
-        repeat: r.remindRepeat,
+        ...remindOf(reminders.get(r.id)),
       });
     } else {
       none += 1;
@@ -115,7 +151,7 @@ export const scheduleOf = (
   // oxlint-disable-next-line unicorn/no-array-sort -- sorts its own array; toSorted is past the ES2022 target
   rows.sort(byImportance);
   return {
-    closedBySend: closedBySendOf(records, cards, now),
+    closedBySend: closedBySendOf(records, now),
     none,
     rows,
     today: dayKey(now, timeZone),
@@ -176,7 +212,7 @@ export const memoryDue = async (
   now = new Date()
 ) => {
   const [records, entities] = await Promise.all([
-    listRecords(ownerId, { kinds: ["commitment"] }),
+    listRecords(ownerId, { kinds: ["commitment", "schedule"] }),
     listEntities(ownerId),
   ]);
   return scheduleOf(
@@ -259,6 +295,20 @@ export const createPromise = async (
     }
   }
   const mine = input.side === "mine";
+  // «Напомни позвонить Ольге» by hand: the person's own, owed to nobody — a reminder alone, no promise (D45).
+  if (mine && !other && input.remindAt) {
+    const reminder = await addRecord(ownerId, {
+      entities: [],
+      kind: "schedule",
+      schedule: {
+        at: new Date(input.remindAt),
+        kind: "reminder",
+        repeat: input.repeat ?? undefined,
+      },
+      text: input.text,
+    });
+    return reminder.id;
+  }
   const entities: MemoryRecordInput["entities"] = [
     { entityId: mine ? self.id : (other ?? self.id), role: "debtor" },
   ];
@@ -273,8 +323,9 @@ export const createPromise = async (
     givenAt: new Date(),
     important: input.important,
     kind: "commitment",
-    remindAt: input.remindAt ? new Date(input.remindAt) : undefined,
-    remindRepeat: (input.remindAt && input.repeat) || undefined,
+    remind: input.remindAt
+      ? { at: new Date(input.remindAt), repeat: input.repeat ?? undefined }
+      : undefined,
     text: input.text,
   });
   return record.id;

@@ -633,51 +633,49 @@ const roleOf = (kind: Item["kind"]): MemoryRole => {
 const normalize = (name: string) =>
   name.trim().toLocaleLowerCase("ru").replaceAll("ё", "е");
 
+/** The ref the model gives the person themselves. */
+const USER_REF = "user";
+
 /** A rule's period over a year is no rhythm to keep. */
 const MAX_RULE_DAYS = 366;
 
-/** A rule's period «Не упустить» can count by: rhythm or wait, a day to a year. */
-const ruleOf = (
+/**
+ * What a rule the model gave is kept as: a wait stays a rule; a rhythm and a day that comes again are schedules (D45) —
+ * a date needs its day, to the day, and how often it comes.
+ */
+const ruleParts = (
   item: Item,
   at: { at: Date; precision: string } | null
-): Planned["rule"] => {
-  // A day that comes again: it needs the day itself, and how often.
-  if (item.kind === "rule" && item.rule_kind === "date") {
+): Pick<Planned, "kind" | "occurred" | "rule" | "schedule"> | undefined => {
+  if (item.kind !== "rule") {
+    return undefined;
+  }
+  if (item.rule_kind === "date") {
     return (item.repeat === "year" ||
       item.repeat === "month" ||
       item.repeat === "week") &&
       at?.precision === "day"
-      ? { days: 0, kind: "date", repeat: item.repeat, workingDays: false }
+      ? {
+          kind: "schedule",
+          occurred: at as NonNullable<Planned["occurred"]>,
+          schedule: { kind: "date", repeat: item.repeat },
+        }
       : undefined;
   }
   const days = Math.round(item.interval_days ?? 0);
-  if (
-    item.kind !== "rule" ||
-    (item.rule_kind !== "rhythm" && item.rule_kind !== "wait") ||
-    days <= 0 ||
-    days > MAX_RULE_DAYS
-  ) {
+  if (days <= 0 || days > MAX_RULE_DAYS) {
     return undefined;
   }
-  return {
-    days,
-    kind: item.rule_kind,
-    workingDays: item.working_days === true,
-  };
-};
-
-/** A rule's part of its record: what it counts by, and — a date rule — the day it stands on. */
-const ruleParts = (
-  item: Item,
-  at: { at: Date; precision: string } | null
-): Pick<Planned, "occurred" | "rule"> | undefined => {
-  const rule = ruleOf(item, at);
-  if (!rule) {
-    return undefined;
+  const workingDays = item.working_days === true;
+  if (item.rule_kind === "rhythm") {
+    return {
+      kind: "schedule",
+      schedule: { days, kind: "rhythm", workingDays },
+    };
   }
-  return rule.kind === "date" && at
-    ? { occurred: at as NonNullable<Planned["occurred"]>, rule }
-    : { rule };
+  return item.rule_kind === "wait"
+    ? { kind: "rule", rule: { days, kind: "wait", workingDays } }
+    : undefined;
 };
 
 type Fresh = MemoryWritePlan["entities"][number];
@@ -821,6 +819,45 @@ const remindOf = (
     : undefined;
 };
 
+/**
+ * A commitment's part: when it was given and is due, «важно», and a reminder with it. «Напомни позвонить Ольге» — the
+ * person's own, owed to nobody — is a reminder alone, no promise (D45).
+ */
+const commitmentOf = (
+  item: Item,
+  record: Planned,
+  {
+    at,
+    clock,
+    day,
+  }: {
+    at: { at: Date } | null;
+    clock: (date: string, time: string) => Date | null;
+    day: (w: Item["when"]) => { at: Date } | null;
+  }
+): Planned => {
+  const remindAt = remindOf(item, clock);
+  const repeat = item.repeat === "none" ? undefined : item.repeat;
+  const own =
+    (!item.debtor || item.debtor === USER_REF) &&
+    (!item.creditor || item.creditor === USER_REF);
+  if (remindAt && own) {
+    return {
+      entities: record.entities.filter((l) => l.role === "about"),
+      kind: "schedule",
+      schedule: { at: remindAt, kind: "reminder", repeat },
+      text: record.text,
+    };
+  }
+  return {
+    ...record,
+    dueAt: day(item.due)?.at,
+    givenAt: at?.at,
+    ...(item.important ? { important: true } : {}),
+    ...(remindAt ? { remind: { at: remindAt, repeat } } : {}),
+  };
+};
+
 const toPlanned = (
   item: Item,
   link: (ref: string | null, role: MemoryRole) => Link | null,
@@ -862,18 +899,9 @@ const toPlanned = (
   if ((item.kind === "fact" || item.kind === "event") && item.replaces.trim()) {
     record.replaces = item.replaces.trim();
   }
-  if (item.kind === "commitment") {
-    record.givenAt = at?.at;
-    record.dueAt = day(item.due)?.at;
-    record.remindAt = remindOf(item, clock);
-    if (record.remindAt && item.repeat !== "none") {
-      record.remindRepeat = item.repeat;
-    }
-    if (item.important) {
-      record.important = true;
-    }
-  }
-  return record;
+  return item.kind === "commitment"
+    ? commitmentOf(item, record, { at, clock, day })
+    : record;
 };
 
 /** A record that points at a question waits with it — at the first, if it points at two; the rest are ready. */
