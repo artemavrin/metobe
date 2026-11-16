@@ -1841,7 +1841,7 @@
       "memory": {
         "title": "Memory",
         "label": "Notice letters with no answer",
-        "hint": "The memory looks at whom you wrote and whether they answered — by addresses and subjects. It never reads or keeps a letter's text.",
+        "hint": "Only addresses and subjects are used: whom you wrote and whether an answer came. A letter's text is never read or kept.",
         "checked": "Checked {when}.",
         "notChecked": "Not checked yet.",
         "failed": "The last check {when} failed: {error}",
@@ -2471,7 +2471,7 @@
       "mailWaits": {
         "short": "Mail",
         "title": "Letters with no answer don't get lost",
-        "text": "Turn on mail checking in «Don't miss»: when someone from memory takes longer than usual to answer your letter, it shows up in the list. Metobe looks only at addresses and subjects, never at the text."
+        "text": "Turn on mail checking in «Don't miss»: when your letter goes unanswered longer than usual, it shows up in the list. Only addresses and subjects are used, never the text."
       },
       "meetingPrep": {
         "title": "«Before a meeting» on a card",
@@ -3007,7 +3007,7 @@
       "mailLabel": "No answer: “{subject}”",
       "mailOffer": {
         "title": "Notice letters with no answer?",
-        "hint": "When someone from the memory takes longer than usual to answer your letter, it shows up here. The memory looks only at addresses and subjects; it never reads or keeps a letter's text.",
+        "hint": "When your letter goes unanswered longer than usual, it shows up here. Only addresses and subjects are used; a letter's text is never read or kept.",
         "on": "Turn on",
         "onFor": "Turn on for {box}",
         "off": "No, thanks",
