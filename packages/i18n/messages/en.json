@@ -3146,6 +3146,8 @@
     "schedulePromise": "promise · {name}",
     "scheduleEvery": "every {days} d",
     "scheduleLast": "{days, plural, =0 {met today} one {met # day ago} other {met # days ago}}",
+    "scheduleEveryWeeks": "{n, plural, =1 {every week} other {every # weeks}}",
+    "scheduleEveryMonths": "{n, plural, =1 {every month} other {every # months}}",
     "scheduleNever": "not met yet",
     "scheduleDateDone": "Done already",
     "scheduleDateNext": "Next time — {when}",
