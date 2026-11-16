@@ -54,7 +54,7 @@ const cards = [
  * What a case wants: a promise of the user with a reminder at this moment (an ISO instant) — coming again as `repeat`
  * says, or once when it says nothing (шаг 6) — or none.
  */
-type Want = { at: string; repeat?: "day" | "weekdays" | "week" | "month" | "year" } | { none: true };
+type Want = { at: string; repeat?: "day" | "weekdays" | "week" | "month" | "year"; days?: number[] } | { none: true };
 
 // Now is Monday 2026-11-09 12:00 in Moscow (UTC+3).
 const cases: { text: string; want: Want }[] = [
@@ -74,6 +74,15 @@ const cases: { text: string; want: Want }[] = [
   { text: "Напоминай по будням в 18:00 заполнить таймшит", want: { at: "2026-11-09T15:00:00Z", repeat: "weekdays" } },
   { text: "Напоминай 25 числа каждого месяца в 12:00 оплатить аренду", want: { at: "2026-11-25T09:00:00Z", repeat: "month" } },
   { text: "Каждую пятницу в 16:00 напоминай отправить Игорю сводку", want: { at: "2026-11-13T13:00:00Z", repeat: "week" } },
+  // On chosen weekdays, and before an event (D45): the event's time less that much; no time named — no reminder.
+  {
+    text: "По понедельникам, средам и пятницам в 10:00 созвон с командой, напоминай мне за 2 минуты до него",
+    want: { at: "2026-11-11T06:58:00Z", days: [1, 3, 5], repeat: "week" },
+  },
+  {
+    text: "каждый рабочий понедельник, среда и пятница у нас созвон с ребятами по разбору текущих дел в отделе. напоминай мне за 2 минуты о нем",
+    want: { none: true },
+  },
   { text: "Ольга Ли обещала прислать договор к пятнице", want: { none: true } },
   { text: "Мне нужно позвонить Ольге завтра", want: { none: true } },
   { text: "Не напоминай мне про отчёт, я помню", want: { none: true } },
@@ -101,18 +110,29 @@ const instructions = (text: string) =>
 
 type Out = (typeof extractionSchema)["_output"];
 
+/** A reminder as the plan keeps it (D45): the person's own as a schedule, one about a promise with it. */
+const remindersOf = (plan: ReturnType<typeof planWrite>) =>
+  plan.records.flatMap((r) => {
+    if (r.kind === "schedule" && r.schedule?.kind === "reminder") {
+      return [{ at: r.schedule.at, days: r.schedule.days, repeat: r.schedule.repeat, text: r.text }];
+    }
+    return r.kind === "commitment" && r.remind ? [{ ...r.remind, text: r.text }] : [];
+  });
+
 const judge = (c: (typeof cases)[number], out: Out) => {
-  const plan = planWrite(out, { cards: shown, commitments: [], selfId: SELF.id, timeZone: TIMEZONE });
-  const reminded = plan.records.filter((r) => r.kind === "commitment" && r.remindAt);
+  const plan = planWrite(out, { cards: shown, commitments: [], selfId: SELF.id, sentAt: NOW, timeZone: TIMEZONE });
+  const reminded = remindersOf(plan);
   const w = c.want;
-  if ("none" in w) return reminded.length === 0 ? null : `a reminder where none was asked: «${reminded[0]?.text}» at ${reminded[0]?.remindAt?.toISOString()}`;
-  const hit = reminded.find((r) => r.remindAt?.getTime() === new Date(w.at).getTime());
+  if ("none" in w) return reminded.length === 0 ? null : `a reminder where none was asked: «${reminded[0]?.text}» at ${reminded[0]?.at.toISOString()}`;
+  const hit = reminded.find((r) => r.at.getTime() === new Date(w.at).getTime());
   if (!hit) {
-    return `no reminder at ${w.at}; got ${JSON.stringify(plan.records.filter((r) => r.kind === "commitment").map((r) => [r.text, r.remindAt?.toISOString(), r.dueAt?.toISOString(), r.remindRepeat]))}`;
+    return `no reminder at ${w.at}; got ${JSON.stringify(reminded.map((r) => [r.text, r.at.toISOString(), r.repeat, r.days]))}`;
   }
-  if (hit.remindRepeat !== w.repeat) return `repeat ${hit.remindRepeat ?? "none"}, wanted ${w.repeat ?? "none"}`;
-  const dateRule = plan.records.find((r) => r.kind === "rule" && r.rule?.kind === "date");
-  return w.repeat && dateRule ? `a date rule beside the reminder: «${dateRule.text}»` : null;
+  if (hit.repeat !== w.repeat) return `repeat ${hit.repeat ?? "none"}, wanted ${w.repeat ?? "none"}`;
+  if (JSON.stringify(hit.days ?? null) !== JSON.stringify(w.days ?? null)) return `days ${JSON.stringify(hit.days)}, wanted ${JSON.stringify(w.days)}`;
+  if (/напомн|напомин|remind/iu.test(hit.text)) return `the request as the text: «${hit.text}»`;
+  const dateRule = plan.records.find((r) => r.kind === "schedule" && r.schedule?.kind === "date");
+  return w.repeat && dateRule ? `a date beside the reminder: «${dateRule.text}»` : null;
 };
 
 if (DRY) {
@@ -159,7 +179,7 @@ await Promise.all(
       if (miss) {
         console.log(`  ✗ ${i + 1}. ${c.text} → ${miss}`);
         if (process.env.SHOW) {
-          console.log(`      ${JSON.stringify(r.output.items.map((x) => [x.kind, x.text, x.remind, x.repeat, x.due, x.debtor]))}`);
+          console.log(`      ${JSON.stringify(r.output.items.map((x) => [x.kind, x.text, x.remind, x.repeat, x.repeat_on, x.due, x.debtor]))}`);
         }
       } else {
         right += 1;

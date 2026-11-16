@@ -328,7 +328,11 @@ const ReminderItem = ({
           {row.repeat && (
             <span className="inline-flex items-center gap-1">
               <Repeat className="size-3" />
-              {words(row.repeat, dayKey(new Date(row.remindAt), timeZone))}
+              {words(
+                row.repeat,
+                dayKey(new Date(row.remindAt), timeZone),
+                row.repeatDays
+              )}
             </span>
           )}
           {row.who && (

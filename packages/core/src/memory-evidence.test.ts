@@ -21,6 +21,7 @@ const item = (
   kind,
   remind: "none",
   repeat: "none",
+  repeat_on: [],
   replaces: "none",
   role: null,
   rule_kind: null,

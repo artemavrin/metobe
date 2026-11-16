@@ -397,7 +397,7 @@ export interface MemoryRecordInput {
   /** Schedules only (D45): what comes by itself in time. */
   schedule?: ScheduleInput;
   /** Commitments only: a reminder about it is put in with it (a schedule of its own, D45). */
-  remind?: { at: Date; repeat?: ReminderRepeat };
+  remind?: { at: Date; repeat?: ReminderRepeat; days?: number[] };
 }
 
 /**
@@ -409,6 +409,8 @@ export type ScheduleInput =
       kind: "reminder";
       at: Date;
       repeat?: ReminderRepeat;
+      /** A week's chosen weekdays («пн, ср, пт»), 0 is Sunday. */
+      days?: number[];
       forRecordId?: string;
     }
   | { kind: "date"; repeat: MemoryRepeat }
@@ -425,6 +427,8 @@ export type MemorySchedule =
       nextAt: Date;
       firedAt: Date | null;
       repeat: ReminderRepeat | null;
+      /** A week's chosen weekdays, 0 is Sunday; null — the day it came on. */
+      days: number[] | null;
       forRecordId: string | null;
     }
   | { kind: "date"; repeat: MemoryRepeat }
@@ -478,6 +482,7 @@ const scheduleOfRow = (
 ): MemorySchedule | null => {
   if (row.scheduleKind === "reminder" && row.nextAt) {
     return {
+      days: row.repeatDays,
       firedAt: row.firedAt,
       forRecordId: row.forRecordId,
       kind: "reminder",
@@ -646,6 +651,12 @@ const periodOf = (input: MemoryRecordInput) => {
   return input.schedule?.kind === "rhythm" ? input.schedule : null;
 };
 
+/** A reminder's chosen weekdays, kept only for one that comes every week. */
+const weekdaysOf = (
+  reminder: Extract<ScheduleInput, { kind: "reminder" }> | null
+) =>
+  reminder?.repeat === "week" && reminder.days?.length ? reminder.days : null;
+
 /** A rule's and a schedule's plain columns. */
 const planColumns = (input: MemoryRecordInput) => {
   const s = input.schedule;
@@ -657,10 +668,21 @@ const planColumns = (input: MemoryRecordInput) => {
     intervalDays: period ? Math.round(period.days) : null,
     nextAt: reminder?.at ?? null,
     repeat: s && s.kind !== "rhythm" ? (s.repeat ?? null) : null,
+    repeatDays: weekdaysOf(reminder),
     ruleKind: input.rule?.kind ?? null,
     scheduleKind: s?.kind ?? null,
     workingDays: period?.workingDays ?? false,
   };
+};
+
+/** The owner's time zone: where a reminder's days and time of day are read. */
+const zoneOf = async (tx: Tx, ownerId: string) => {
+  const [row] = await tx
+    .select({ timeZone: user.timeZone })
+    .from(user)
+    .where(eq(user.id, ownerId))
+    .limit(1);
+  return row?.timeZone ?? "UTC";
 };
 
 const insertRecord = async (
@@ -812,16 +834,6 @@ export interface CommitmentPatch {
   dueAt?: Date | null;
   important?: boolean;
 }
-
-/** The owner's time zone: where a reminder's days and time of day are read. */
-const zoneOf = async (tx: Tx, ownerId: string) => {
-  const [row] = await tx
-    .select({ timeZone: user.timeZone })
-    .from(user)
-    .where(eq(user.id, ownerId))
-    .limit(1);
-  return row?.timeZone ?? "UTC";
-};
 
 const asText = (v: MemoryStatus | Date | boolean | null) => {
   if (v === null) {
@@ -2116,6 +2128,7 @@ const scheduleInputOf = (
   if (schedule.kind === "reminder") {
     return {
       at: schedule.nextAt,
+      days: schedule.days ?? undefined,
       forRecordId: schedule.forRecordId ?? undefined,
       kind: "reminder",
       repeat: schedule.repeat ?? undefined,
@@ -2538,9 +2551,15 @@ export const claimReminder = (
     let nextAt = at;
     if (repeat) {
       const timeZone = await zoneOf(tx, ownerId);
+      const [row] = await tx
+        .select({ days: memoryRecords.repeatDays })
+        .from(memoryRecords)
+        .where(eq(memoryRecords.id, id))
+        .limit(1);
       nextAt =
         nextReminder({
           after: wallClock(at, timeZone).day,
+          days: row?.days,
           now,
           remindAt: at,
           repeat,
@@ -2566,8 +2585,10 @@ export const claimReminder = (
 export interface ReminderPatch {
   /** A new moment: it goes off again, whether it went off or not, and is not done. */
   at?: Date;
-  /** How often it comes again; null — once. */
+  /** How often it comes again; null — once. A new one takes the weekdays away unless `days` says them. */
   repeat?: ReminderRepeat | null;
+  /** A week's chosen weekdays, 0 is Sunday; null — the day it came on. */
+  days?: number[] | null;
   /**
    * «Готово»: a once one is done; one that comes again is marked for this time and goes on. False — «Не сделано»: a
    * done one is back, waiting to be marked.
@@ -2580,13 +2601,15 @@ const skipped = (
   ownerId: string,
   at: Date,
   repeat: ReminderRepeat,
-  now: Date
+  now: Date,
+  days?: number[] | null
 ) =>
   getDb().db.transaction(async (tx) => {
     const timeZone = await zoneOf(tx, ownerId);
     return (
       nextReminder({
         after: wallClock(at, timeZone).day,
+        days,
         now,
         remindAt: at,
         repeat,
@@ -2605,6 +2628,7 @@ export const editReminder = async (
   const { db } = getDb();
   const [row] = await db
     .select({
+      days: memoryRecords.repeatDays,
       firedAt: memoryRecords.firedAt,
       nextAt: memoryRecords.nextAt,
       repeat: memoryRecords.repeat,
@@ -2625,6 +2649,12 @@ export const editReminder = async (
   const set: Partial<typeof memoryRecords.$inferInsert> = {};
   if (patch.repeat !== undefined) {
     set.repeat = patch.repeat;
+    set.repeatDays = null;
+  }
+  if (patch.days !== undefined) {
+    const week =
+      (patch.repeat === undefined ? row.repeat : patch.repeat) === "week";
+    set.repeatDays = week && patch.days?.length ? patch.days : null;
   }
   const repeats =
     (patch.repeat === undefined ? row.repeat : patch.repeat) !== null;
@@ -2640,7 +2670,8 @@ export const editReminder = async (
         ownerId,
         row.nextAt,
         row.repeat as ReminderRepeat,
-        now
+        now,
+        row.days
       );
     }
   } else if (patch.done === false) {

@@ -7,6 +7,9 @@ import { z } from "zod";
 
 import type { MemoryRecord, MemoryWritePlan } from "./memory";
 import { membershipFacts } from "./memory-groups";
+import { localInstant, nextReminder, wallClock } from "./memory-repeat";
+
+export { localInstant } from "./memory-repeat";
 
 // The silent writer's side of ARCH §19.4, free of the DB so it can be tested directly: what the «Память» model is
 // asked (prompt v2 of S13, which every model needed: «ждём ответа» is the other side's commitment, a commitment's
@@ -131,6 +134,11 @@ export const extractionSchema = z.object({
         .string()
         .describe(
           "Commitment only: when the user asks to be reminded of it — the time of day as HH:MM, 24 hours («в 15:00» — «15:00»), or «morning» when they ask to be reminded with no time named. «none» for everything else, which is almost every item"
+        ),
+      repeat_on: z
+        .array(z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]))
+        .describe(
+          "A commitment with remind and repeat week that comes on more than one weekday («по понедельникам, средам и пятницам» — mon, wed, fri). Empty for everything else"
         ),
       from: z
         .enum(["user", "other", "answer"])
@@ -441,7 +449,7 @@ export const asksReminder = (text: string) =>
   /напомин|напомн|remind/iu.test(text);
 
 const REMIND_RULE = (now: string) => `
-- The user asks to be reminded («напомни мне завтра в 15:00 позвонить Ольге», «напомни в пятницу про отчёт»). Make it a commitment of the user (debtor «user»), the thing to do as its text. Its deadline (due) is the DAY the reminder goes off, precision day — «через два часа» or «сегодня в 18:00» is today, «завтра» tomorrow; a time of day already past today means tomorrow. Put the time of day in remind as HH:MM in 24 hours («в 15:00» — «15:00», «в три часа дня» — «15:00»); when no time is named, «morning». A reminder that is to come again («каждый понедельник в 10», «каждый день в 9», «по будням в 18:00», «двадцать пятого каждого месяца») is still this one commitment: repeat day, weekdays, week, month or year, and its due the first day it goes off — not a rule of kind date. It is ${now} now (the user's local time). Do not add a second item for the same thing.`;
+- The user asks to be reminded («напомни мне завтра в 15:00 позвонить Ольге», «напомни в пятницу про отчёт»). Make it a commitment of the user (debtor «user»). Its text is the thing to do or the event itself, in a few words, as a note would say it («Позвонить Ольге», «Созвон с командой по текущим делам») — not the request: no «напомни», no time and no «каждый …»; a link the user gave stays in the text. Its deadline (due) is the DAY the reminder goes off, precision day — «через два часа» or «сегодня в 18:00» is today, «завтра» tomorrow; a time of day already past today means tomorrow. Put the time of day in remind as HH:MM in 24 hours («в 15:00» — «15:00», «в три часа дня» — «15:00»); when no time is named, «morning». A reminder that is to come again («каждый понедельник в 10», «каждый день в 9», «по будням в 18:00», «двадцать пятого каждого месяца») is still this one commitment: repeat day, weekdays, week, month or year, and its due the first day it goes off — not a rule of kind date. On several weekdays («по понедельникам, средам и пятницам») it is repeat week with those days in repeat_on. A reminder some time before an event («за 2 минуты до созвона», «за час до встречи») goes off at the event's time less that much; when the message does not say when the event is, add no item for it — the assistant asks. It is ${now} now (the user's local time). Do not add a second item for the same thing.`;
 
 /** A message that may name a day which comes again: a birthday, a payment day, «каждую пятницу». */
 export const repeatsDate = (text: string) =>
@@ -547,66 +555,6 @@ export const mentionsUser = (extraction: Extraction) =>
   );
 
 /** A calendar day's midnight in a zone, as an instant; null for anything that is not a real `YYYY-MM-DD`. */
-/** A day (`2026-11-12`) and a time of it (`15:30`) in a zone, as the moment; null — not a real day or time. */
-export const localInstant = (date: string, time: string, timeZone: string) => {
-  const clock = /^(?<hour>[01]\d|2[0-3]):(?<minute>[0-5]\d)$/u.exec(
-    time
-  )?.groups;
-  if (!clock) {
-    return null;
-  }
-  const groups = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u.exec(
-    date
-  )?.groups;
-  if (!groups) {
-    return null;
-  }
-  const [year, month, day] = [groups.year, groups.month, groups.day].map(
-    Number
-  ) as [number, number, number];
-  const guess = Date.UTC(
-    year,
-    month - 1,
-    day,
-    Number(clock.hour),
-    Number(clock.minute)
-  );
-  const check = new Date(guess);
-  if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
-    return null;
-  }
-  // The zone's offset at a moment: its wall clock read as UTC, minus the moment.
-  const offset = (at: number) => {
-    const parts = Object.fromEntries(
-      new Intl.DateTimeFormat("en-US", {
-        day: "2-digit",
-        hour: "2-digit",
-        hourCycle: "h23",
-        minute: "2-digit",
-        month: "2-digit",
-        second: "2-digit",
-        timeZone,
-        year: "numeric",
-      })
-        .formatToParts(new Date(at))
-        .map((p) => [p.type, Number(p.value)])
-    ) as Record<string, number>;
-    return (
-      Date.UTC(
-        parts.year ?? 0,
-        (parts.month ?? 1) - 1,
-        parts.day ?? 1,
-        parts.hour ?? 0,
-        parts.minute ?? 0,
-        parts.second ?? 0
-      ) - at
-    );
-  };
-  // Twice: the first guess may stand on the other side of a clock change.
-  const first = guess - offset(guess);
-  return new Date(guess - offset(first));
-};
-
 export const localMidnight = (date: string, timeZone: string) =>
   localInstant(date, "00:00", timeZone);
 
@@ -632,6 +580,17 @@ const roleOf = (kind: Item["kind"]): MemoryRole => {
 
 const normalize = (name: string) =>
   name.trim().toLocaleLowerCase("ru").replaceAll("ё", "е");
+
+/** A weekday as the model names it, as a date's `getUTCDay()` counts it. */
+const WEEKDAY = {
+  fri: 5,
+  mon: 1,
+  sat: 6,
+  sun: 0,
+  thu: 4,
+  tue: 2,
+  wed: 3,
+} as const;
 
 /** The ref the model gives the person themselves. */
 const USER_REF = "user";
@@ -838,6 +797,9 @@ const commitmentOf = (
 ): Planned => {
   const remindAt = remindOf(item, clock);
   const repeat = item.repeat === "none" ? undefined : item.repeat;
+  // «пн, ср, пт»: a week's on chosen weekdays; one day or none — the due day's weekday, as before.
+  const onDays = [...new Set((item.repeat_on ?? []).map((d) => WEEKDAY[d]))];
+  const days = repeat === "week" && onDays.length > 1 ? onDays : undefined;
   const own =
     (!item.debtor || item.debtor === USER_REF) &&
     (!item.creditor || item.creditor === USER_REF);
@@ -845,7 +807,7 @@ const commitmentOf = (
     return {
       entities: record.entities.filter((l) => l.role === "about"),
       kind: "schedule",
-      schedule: { at: remindAt, kind: "reminder", repeat },
+      schedule: { at: remindAt, days, kind: "reminder", repeat },
       text: record.text,
     };
   }
@@ -854,8 +816,42 @@ const commitmentOf = (
     dueAt: day(item.due)?.at,
     givenAt: at?.at,
     ...(item.important ? { important: true } : {}),
-    ...(remindAt ? { remind: { at: remindAt, repeat } } : {}),
+    ...(remindAt ? { remind: { at: remindAt, days, repeat } } : {}),
   };
+};
+
+/**
+ * A reminder that comes again starts on its first time after the message that its repeat allows: «каждый пн, ср, пт
+ * в 9:58» said on Monday at 10:00 goes off on Wednesday — not at once, for a Monday already past.
+ */
+const firstTimeAfter = (
+  r: Planned,
+  sentAt: Date,
+  timeZone: string
+): Planned => {
+  const s = r.kind === "schedule" ? r.schedule : undefined;
+  const reminder = s?.kind === "reminder" ? s : r.remind;
+  if (!reminder?.repeat) {
+    return r;
+  }
+  const { day } = wallClock(reminder.at, timeZone);
+  const before = new Date(Date.parse(`${day}T12:00:00Z`) - 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const next = nextReminder({
+    after: before,
+    days: reminder.days,
+    now: sentAt,
+    remindAt: reminder.at,
+    repeat: reminder.repeat,
+    timeZone,
+  });
+  if (!next || next.remindAt.getTime() === reminder.at.getTime()) {
+    return r;
+  }
+  return s?.kind === "reminder"
+    ? { ...r, schedule: { ...s, at: next.remindAt } }
+    : { ...r, remind: { ...reminder, at: next.remindAt } };
 };
 
 const toPlanned = (
@@ -1062,6 +1058,7 @@ export const planWrite = (
     facts = [],
     knownRecords = [],
     selfId,
+    sentAt,
     timeZone,
   }: {
     cards: KnownCard[];
@@ -1072,6 +1069,8 @@ export const planWrite = (
     facts?: MemoryRecord[];
     selfId: string | null;
     timeZone: string;
+    /** When the message was written: a reminder that comes again starts on its first time after it. */
+    sentAt?: Date;
   }
 ): MemoryWritePlan => {
   const known = new Map(cards.map((c) => [c.ref, c.id]));
@@ -1103,7 +1102,9 @@ export const planWrite = (
   const clock = (date: string, time: string) =>
     localInstant(date, time, timeZone);
   const records = asMemberships(
-    extraction.items.flatMap((item) => toPlanned(item, link, day, clock) ?? []),
+    extraction.items
+      .flatMap((item) => toPlanned(item, link, day, clock) ?? [])
+      .map((r) => (sentAt ? firstTimeAfter(r, sentAt, timeZone) : r)),
     new Set(cards.filter((c) => c.kind === "group").map((c) => c.id)),
     new Set(
       [...fresh.values()].filter((e) => e.kind === "group").map((e) => e.ref)

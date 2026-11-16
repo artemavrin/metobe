@@ -46,6 +46,7 @@ const reminder = (
     doneAt: over.doneAt,
     kind: "schedule",
     schedule: {
+      days: null,
       firedAt: over.firedAt,
       forRecordId: over.forRecordId ?? null,
       kind: "reminder",

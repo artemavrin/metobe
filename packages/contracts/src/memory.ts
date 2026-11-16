@@ -580,6 +580,8 @@ export interface MemoryDue {
     reminded: boolean;
     /** How often the reminder comes again; null — once. One that comes again keeps its next time in `remindAt`. */
     repeat: ReminderRepeat | null;
+    /** A week's chosen weekdays («пн, ср, пт»), 0 is Sunday; null — the day it comes on. */
+    repeatDays: number[] | null;
   })[];
   /** Open with no deadline. */
   none: number;

@@ -18,6 +18,7 @@ const row = (
   remindAt,
   reminded: false,
   repeat: null,
+  repeatDays: null,
   side: "mine",
   status: "open",
   text: id,

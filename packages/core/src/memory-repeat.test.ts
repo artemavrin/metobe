@@ -61,6 +61,35 @@ describe("a reminder that comes again (шаг 6)", () => {
     );
   });
 
+  it("a week on chosen weekdays goes to the next of them: пн, ср, пт", () => {
+    const mwf = [1, 3, 5];
+    // Monday 16 November 2026 → Wednesday 18, Friday 20, then Monday 23.
+    expect(nextReminderDay("2026-11-16", "week", "2026-11-16", mwf)).toBe(
+      "2026-11-18"
+    );
+    expect(nextReminderDay("2026-11-16", "week", "2026-11-18", mwf)).toBe(
+      "2026-11-20"
+    );
+    expect(nextReminderDay("2026-11-16", "week", "2026-11-20", mwf)).toBe(
+      "2026-11-23"
+    );
+    // No days: the anchor's weekday, as before.
+    expect(nextReminderDay("2026-11-16", "week", "2026-11-16", [])).toBe(
+      "2026-11-23"
+    );
+    // 9:58 in Moscow on Monday is past at 10:00: the next is Wednesday's.
+    expect(
+      nextReminder({
+        after: "2026-11-15",
+        days: mwf,
+        now: new Date("2026-11-16T07:00:00Z"),
+        remindAt: new Date("2026-11-16T06:58:00Z"),
+        repeat: "week",
+        timeZone: "Europe/Moscow",
+      })?.remindAt.toISOString()
+    ).toBe("2026-11-18T06:58:00.000Z");
+  });
+
   it("keeps the time of day in the person's zone, and skips the times already past", () => {
     // Monday 10:00 in Moscow, every week; three weeks were missed.
     const next = nextReminder({
