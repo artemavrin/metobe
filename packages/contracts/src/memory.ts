@@ -538,6 +538,33 @@ export interface MemoryPromiseRow {
 }
 
 /** `GET /api/memory/due` (Д6, P27 «Календарь»): every open commitment with a deadline, to put on a calendar, and how many have none. */
+/** A day that comes again, in «Расписание» (D45): its next day — after one taken away with «Уже сделано». */
+export interface MemoryScheduleDate {
+  /** The schedule's record. */
+  id: string;
+  text: string;
+  who: { id: string; name: string; kind: MemoryEntityKind } | null;
+  repeat: MemoryRepeat;
+  /** `2026-11-18`, in the person's zone. */
+  day: string;
+}
+
+/** A rhythm with one card, in «Расписание» (D45): when it is due, counted from the last contact. */
+export interface MemoryScheduleRhythm {
+  /** The schedule's record; with `who.id` — the row. */
+  id: string;
+  text: string;
+  who: { id: string; name: string; kind: MemoryEntityKind };
+  every: number;
+  workingDays: boolean;
+  /** The last contact; null — none yet, it counts from when the rhythm was said. */
+  last: string | null;
+  /** The day it is due, `2026-11-20`; before today — overdue. */
+  day: string;
+  /** Taken away («Убрать») until the next contact. */
+  away: boolean;
+}
+
 export interface MemoryDue {
   /** Today in the person's zone, `2026-11-11`. */
   today: string;
@@ -561,6 +588,9 @@ export interface MemoryDue {
    * The newest first.
    */
   closedBySend: { id: string; text: string; remindedAt: string }[];
+  /** «Расписание»: days that come again and rhythms, besides the reminders in `rows` (D45). */
+  dates: MemoryScheduleDate[];
+  rhythms: MemoryScheduleRhythm[];
 }
 
 /** An open commitment nothing has happened to for a long time (`GET /api/memory/stale`). */

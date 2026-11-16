@@ -20,7 +20,7 @@ import { Textarea } from "@metobe/ui/components/textarea";
 import { cn } from "@metobe/ui/lib/utils";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import {
-  Bell,
+  CalendarClock,
   CalendarDays,
   CircleHelp,
   ListChecks,
@@ -42,7 +42,7 @@ import {
   useListHighlight,
 } from "@/components/sidebar-list";
 import { isLate } from "@/lib/memory-late";
-import { reminderCount } from "@/lib/memory-reminders";
+import { scheduleCount } from "@/lib/memory-schedule";
 
 import { Avatar } from "./card-parts";
 import { normalize, pickToSearch, samePick } from "./memory-pick";
@@ -456,7 +456,7 @@ const Ways = () => {
   const late = due
     ? due.rows.filter((r) => isLate(r, due.today, timeZone)).length
     : 0;
-  const reminders = reminderCount(due);
+  const reminders = scheduleCount(due, timeZone);
   return (
     <>
       {stale > 0 && (
@@ -494,7 +494,7 @@ const Ways = () => {
       />
       <ViewRow
         count={reminders > 0 ? reminders : undefined}
-        icon={<Bell />}
+        icon={<CalendarClock />}
         pick={{ type: "reminders" }}
         title={t("reminders")}
       />

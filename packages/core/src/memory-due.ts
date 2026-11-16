@@ -15,7 +15,13 @@ import {
   listRecords,
 } from "./memory";
 import type { MemoryEntity, MemoryRecord, MemoryRecordInput } from "./memory";
-import { cardOf, dayKey, daysBetween, sidesOf } from "./memory-today";
+import {
+  cardOf,
+  dayKey,
+  daysBetween,
+  scheduleParts,
+  sidesOf,
+} from "./memory-today";
 
 // «Сроки» (Д6, P27) and «Сверка» (Д2, P20): two views of the open commitments that «Не упустить» does not give —
 // what is ahead, day by day, and what has been open a long time with nothing happening to it. Plain reads, no model.
@@ -152,7 +158,9 @@ export const scheduleOf = (
   rows.sort(byImportance);
   return {
     closedBySend: closedBySendOf(records, now),
+    dates: [],
     none,
+    rhythms: [],
     rows,
     today: dayKey(now, timeZone),
   };
@@ -211,16 +219,20 @@ export const memoryDue = async (
   timeZone: string,
   now = new Date()
 ) => {
-  const [records, entities] = await Promise.all([
+  const [records, entities, parts] = await Promise.all([
     listRecords(ownerId, { kinds: ["commitment", "schedule"] }),
     listEntities(ownerId),
+    scheduleParts(ownerId, timeZone, now),
   ]);
-  return scheduleOf(
-    records,
-    new Map(entities.map((e) => [e.id, e])),
-    now,
-    timeZone
-  );
+  return {
+    ...scheduleOf(
+      records,
+      new Map(entities.map((e) => [e.id, e])),
+      now,
+      timeZone
+    ),
+    ...parts,
+  };
 };
 
 export const memoryStale = async (

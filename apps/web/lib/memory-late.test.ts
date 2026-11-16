@@ -26,7 +26,9 @@ const row = (
 // A deadline is midnight of its day in the person's zone: 10 Nov in Moscow is 9 Nov 21:00 UTC.
 const due = (rows: MemoryDue["rows"]): MemoryDue => ({
   closedBySend: [],
+  dates: [],
   none: 0,
+  rhythms: [],
   rows,
   today: "2026-11-11",
 });

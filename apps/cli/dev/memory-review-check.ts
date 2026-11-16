@@ -126,7 +126,7 @@ for (const s of seeds) {
     ],
     givenAt: new Date(now - s.days * DAY),
     kind: "commitment",
-    remindAt: s.remind ? new Date(s.remind) : undefined,
+    remind: s.remind ? { at: new Date(s.remind) } : undefined,
     text: s.text,
   });
 }
@@ -145,14 +145,40 @@ const ahead = dayKeyOf(now + 2 * DAY);
 const born = `${Number(ahead.slice(0, 4)) - 30}${ahead.slice(4)}`;
 await addRecord(id, {
   entities: [{ entityId: olga.id, role: "subject" }],
-  kind: "rule",
+  kind: "schedule",
   occurred: {
     at: localMidnight(born, "Europe/Moscow") as Date,
     precision: "day",
   },
-  rule: { days: 0, kind: "date", repeat: "year", workingDays: false },
+  schedule: { kind: "date", repeat: "year" },
   text: "У Ольги Ли день рождения",
 });
+// «Расписание» (D45): the person's own reminders — one sent and not marked, one every weekday — and a rhythm with
+// Ольга, overdue (said 20 days ago, no meeting since).
+const sent = await addRecord(id, {
+  entities: [],
+  kind: "schedule",
+  schedule: { at: new Date(now - 2 * 3_600_000), kind: "reminder" },
+  text: "Позвонить в банк про лимит",
+});
+await sql`update memory_records set fired_at = ${new Date(now - 2 * 3_600_000).toISOString()} where id = ${sent.id}`;
+await addRecord(id, {
+  entities: [],
+  kind: "schedule",
+  schedule: {
+    at: new Date(now + 5 * 3_600_000),
+    kind: "reminder",
+    repeat: "weekdays",
+  },
+  text: "Заполнить таймшит",
+});
+const rhythm = await addRecord(id, {
+  entities: [{ entityId: olga.id, role: "subject" }],
+  kind: "schedule",
+  schedule: { days: 14, kind: "rhythm" },
+  text: "С Ольгой Ли раз в две недели",
+});
+await sql`update memory_records set recorded_at = ${new Date(now - 20 * DAY).toISOString()} where id = ${rhythm.id}`;
 // A second card of the same person under a short name, with a promise: «Один человек?» and «Объединить с…».
 const olya = await createEntity(id, {
   aliases: [],

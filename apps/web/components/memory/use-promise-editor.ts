@@ -203,12 +203,16 @@ export const usePromiseEditor = ({
     });
 
   /** «Готово» on one that comes again: the time after, as the server will count it. */
+  /** The time after «Готово»: one that went off has moved on already; one ahead of its time skips it. */
   const nextOf = (row: MemoryDue["rows"][number]) => {
     if (!(row.repeat && row.remindAt)) {
       return null;
     }
+    if (row.reminded) {
+      return { remindAt: new Date(row.remindAt) };
+    }
     return nextReminder({
-      after: dayKey(new Date(row.dueAt), timeZone),
+      after: dayKey(new Date(row.remindAt), timeZone),
       now: new Date(),
       remindAt: new Date(row.remindAt),
       repeat: row.repeat,

@@ -58,7 +58,7 @@ import {
 } from "./memory-record";
 import { useMemoryStore } from "./memory-store";
 import { CardMenu } from "./merge-dialog";
-import { RemindersView } from "./reminders-view";
+import { ScheduleView } from "./schedule-view";
 import type { T } from "./use-memory-actions";
 
 // The «Память» page (P16 «Карточки», D39): people, organizations and projects on the left with their open and overdue
@@ -1010,7 +1010,7 @@ export const MemoryView = () => {
       />
     ),
     reminders: (
-      <RemindersView
+      <ScheduleView
         cards={overview.cards}
         due={due}
         onBack={back}

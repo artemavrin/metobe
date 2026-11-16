@@ -13,12 +13,12 @@ if (mode === "drop") {
 }
 const id = `remind-check-${crypto.randomUUID().slice(0, 8)}`;
 await sql`insert into "user" (id, name, email, locale, time_zone) values (${id}, 'Проверка напоминаний', ${`${id}@example.test`}, 'ru', 'Europe/Moscow')`;
-const self = await ensureSelf(id, "Проверка напоминаний");
+await ensureSelf(id, "Проверка напоминаний");
+// The person's own reminder (D45): a schedule, no promise.
 await addRecord(id, {
-  dueAt: new Date(),
-  entities: [{ entityId: self.id, role: "debtor" }],
-  kind: "commitment",
-  remindAt: new Date(Date.now() - 60_000),
+  entities: [],
+  kind: "schedule",
+  schedule: { at: new Date(Date.now() - 60_000), kind: "reminder" },
   text: "Позвонить Ольге про договор",
 });
 console.log(JSON.stringify({ email: `${id}@example.test`, id }));

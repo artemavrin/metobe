@@ -2575,6 +2575,26 @@ export interface ReminderPatch {
   done?: boolean;
 }
 
+/** The time after `at` of a reminder that comes again, still ahead of `now`. */
+const skipped = (
+  ownerId: string,
+  at: Date,
+  repeat: ReminderRepeat,
+  now: Date
+) =>
+  getDb().db.transaction(async (tx) => {
+    const timeZone = await zoneOf(tx, ownerId);
+    return (
+      nextReminder({
+        after: wallClock(at, timeZone).day,
+        now,
+        remindAt: at,
+        repeat,
+        timeZone,
+      })?.remindAt ?? at
+    );
+  });
+
 /** Changes a live reminder of the owner's. False when there is none. */
 export const editReminder = async (
   ownerId: string,
@@ -2584,7 +2604,11 @@ export const editReminder = async (
 ) => {
   const { db } = getDb();
   const [row] = await db
-    .select({ repeat: memoryRecords.repeat })
+    .select({
+      firedAt: memoryRecords.firedAt,
+      nextAt: memoryRecords.nextAt,
+      repeat: memoryRecords.repeat,
+    })
     .from(memoryRecords)
     .where(
       and(
@@ -2605,11 +2629,19 @@ export const editReminder = async (
   const repeats =
     (patch.repeat === undefined ? row.repeat : patch.repeat) !== null;
   if (patch.done === true) {
-    // A once one keeps when it went off: «пришли и закрылись сами» is told by it.
-    if (repeats) {
-      set.firedAt = null;
-    } else {
+    // A once one keeps when it went off: «закрыты после отправки» is told by it.
+    if (!repeats) {
       set.doneAt = now;
+    } else if (row.firedAt) {
+      set.firedAt = null;
+    } else if (row.nextAt) {
+      // Not gone off yet: done ahead of time, this time is skipped.
+      set.nextAt = await skipped(
+        ownerId,
+        row.nextAt,
+        row.repeat as ReminderRepeat,
+        now
+      );
     }
   } else if (patch.done === false) {
     set.doneAt = null;

@@ -1,5 +1,6 @@
 import "server-only";
 import type {
+  MemoryDue,
   MemorySuggestion,
   MemorySuggestionReason,
 } from "@metobe/contracts/memory";
@@ -358,6 +359,95 @@ const dateRows = (
       },
     ];
   });
+};
+
+/** The day after `day`, `2026-11-19`. */
+const dayAfter = (day: string) =>
+  new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+
+/**
+ * «Расписание» (D45, P30): every day that comes again with its next day — one taken away with «Уже сделано» goes on to
+ * the one after — and every rhythm with a card, due on the last contact (or the day it was said) and its period.
+ */
+export const scheduleParts = async (
+  ownerId: string,
+  timeZone: string,
+  now = new Date()
+): Promise<Pick<MemoryDue, "dates" | "rhythms">> => {
+  const [schedules, events, facts, entities, dismissed] = await Promise.all([
+    listRecords(ownerId, { kinds: ["schedule"] }),
+    listRecords(ownerId, { kinds: ["event"] }),
+    listRecords(ownerId, { kinds: ["fact"] }),
+    listEntities(ownerId),
+    listDismissals(ownerId),
+  ]);
+  const cards = new Map(entities.map((e) => [e.id, e]));
+  const self = new Set(
+    entities.filter((e) => e.kind === "self").map((e) => e.id)
+  );
+  const today = dayKey(now, timeZone);
+  const dates = schedules.flatMap((r): MemoryDue["dates"] => {
+    if (r.schedule?.kind !== "date" || !r.occurredAt) {
+      return [];
+    }
+    const { repeat } = r.schedule;
+    const anchor = dayKey(r.occurredAt, timeZone);
+    let day = nextRepeat(anchor, repeat, today);
+    if (dismissed.has({ day, kind: "date", recordId: r.id })) {
+      day = nextRepeat(anchor, repeat, dayAfter(day));
+    }
+    const [subject] = subjectsOf(r, self);
+    return [
+      {
+        day,
+        id: r.id,
+        repeat,
+        text: r.text,
+        who: cardOf(subject ? cards.get(subject) : undefined),
+      },
+    ];
+  });
+  const members = groupMembers(facts, now);
+  const expand = (card: string) =>
+    cards.get(card)?.kind === "group" ? [...(members.get(card) ?? [])] : null;
+  const last = lastContacts(
+    events.filter((e) => !e.supersededAt),
+    now
+  );
+  const rhythms = [...rulesByCard(schedules, "rhythm", self, expand)].flatMap(
+    ([cardId, r]): MemoryDue["rhythms"] => {
+      const card = cards.get(cardId);
+      const rhythm = rhythmOf(r);
+      const who = cardOf(card);
+      if (!(who && rhythm)) {
+        return [];
+      }
+      const contact = last.get(cardId) ?? null;
+      const from = dayKey(contact ?? r.recordedAt, timeZone);
+      const gone = dismissed.get({
+        entityId: cardId,
+        kind: "rhythm",
+        recordId: r.id,
+      });
+      return [
+        {
+          away:
+            Boolean(gone) &&
+            (gone?.asOf?.getTime() ?? null) === (contact?.getTime() ?? null),
+          day: new Date(Date.parse(`${from}T00:00:00Z`) + rhythm.days * DAY_MS)
+            .toISOString()
+            .slice(0, 10),
+          every: rhythm.days,
+          id: r.id,
+          last: contact?.toISOString() ?? null,
+          text: r.text,
+          who,
+          workingDays: rhythm.workingDays,
+        },
+      ];
+    }
+  );
+  return { dates, rhythms };
 };
 
 /**
