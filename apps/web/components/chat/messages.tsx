@@ -28,6 +28,11 @@ import {
   MessageContent,
   MessageFooter,
 } from "@metobe/ui/components/message";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@metobe/ui/components/popover";
 import { Textarea } from "@metobe/ui/components/textarea";
 import {
   Tooltip,
@@ -41,6 +46,7 @@ import { GridLoader } from "gridora";
 import {
   Brain,
   Check,
+  BookUser,
   ChevronRight,
   Copy,
   Pencil,
@@ -87,7 +93,12 @@ import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
 import type { AnswerBlock, ToolPart, WorkStep } from "@/lib/answer-work";
 import { splitMentions } from "@/lib/mentions";
-import { answerTexts, countHidden, splitLabels } from "@/lib/model-view";
+import {
+  answerTexts,
+  countHidden,
+  splitLabels,
+  splitMemory,
+} from "@/lib/model-view";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 import "gridora/styles.css";
@@ -455,6 +466,49 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
   );
 };
 
+/**
+ * What the app added from memory in front of the message, as the model got it: a button in the message's row, the
+ * memory over the thread in a popover — opening it changes no height (the chat sits on its bottom).
+ */
+const MemorySent = ({
+  memory,
+  labels,
+}: {
+  /** Nothing while the lens is off or the message went without memory. */
+  memory: string | null;
+  labels: ModelPayload["labels"] | undefined;
+}) => {
+  const tLens = useTranslations("chat.lens");
+  if (!(memory && labels)) {
+    return null;
+  }
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            className="text-muted-foreground hover:text-foreground data-[popup-open]:text-foreground data-[popup-open]:bg-muted h-6 gap-1 px-1.5 text-xs font-medium [&_svg]:size-3.5"
+            size="xs"
+            variant="ghost"
+          />
+        }
+      >
+        <BookUser />
+        {tLens("memory")}
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="max-h-[min(24rem,60dvh)] w-[min(36rem,calc(100vw-2rem))] overflow-y-auto p-3.5"
+        side="top"
+      >
+        <p className="text-muted-foreground text-xs leading-5 whitespace-pre-wrap">
+          <Seen pieces={splitLabels(memory, labels)} />
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export const UserMessage = ({
   message,
   onEdit,
@@ -479,7 +533,9 @@ export const UserMessage = ({
   const text = textOf(message);
   // What the model got instead (PII-GUARD-PLAN З5): a shield when the message had values hidden.
   const payload = useContext(ModelPayloadsContext)[message.id];
-  const seen = payload?.text ?? "";
+  // What the app put in front from memory goes with the message, but it is not the person's words: it is shown apart,
+  // and the shield counts only what was hidden in the message itself.
+  const { memory, own: seen } = splitMemory(payload?.text ?? "");
   const hidden = payload ? countHidden([seen], payload.labels) : 0;
   const lens = useLens();
   const actions = (
@@ -545,6 +601,11 @@ export const UserMessage = ({
             {hidden > 0 ? (
               <MessageFooter className={TOOLBAR_ROW}>
                 <span className={ACTIONS}>{actions}</span>
+                {/* In the row the message already has: the chat sits on the bottom, a new line would move all of it. */}
+                <MemorySent
+                  labels={payload?.labels}
+                  memory={lens.on ? memory : null}
+                />
                 {/* At the message's edge: its words grow into the row, the shield under the pointer stays put. */}
                 <LensMark
                   count={hidden}
@@ -733,9 +794,12 @@ const AnswerFooter = ({
   onVote,
   onRegenerate,
   lens,
+  memory,
 }: {
   message: ChatMessage;
   label?: ModelLabel;
+  /** What the memory took from the question: at the row's right end, always on view. */
+  memory?: React.ReactNode;
   /** The shield, when the answer had values hidden: first in the row, under the start of the text. */
   lens?: React.ReactNode;
   copy?: string;
@@ -782,12 +846,17 @@ const AnswerFooter = ({
       )}
     </>
   );
-  return lens ? (
-    <MessageFooter className={cn(TOOLBAR_ROW, "-mt-1")}>
-      {lens}
-      <span className={ACTIONS}>{actions}</span>
-    </MessageFooter>
-  ) : (
+  // Something stays on view (the pressed shield, the memory's note): the row stays, only the actions hide off the hover.
+  if (lens || memory) {
+    return (
+      <MessageFooter className={cn(TOOLBAR_ROW, "-mt-1 w-full")}>
+        {lens}
+        <span className={ACTIONS}>{actions}</span>
+        {memory && <span className="ml-auto min-w-0 pl-3">{memory}</span>}
+      </MessageFooter>
+    );
+  }
+  return (
     <MessageFooter className={cn(TOOLBAR, "-mt-1")}>{actions}</MessageFooter>
   );
 };
@@ -1083,9 +1152,12 @@ export const AssistantMessage = ({
   onServerReady,
   servers = NO_SERVERS,
   memory,
+  memoryNote,
 }: {
-  /** What the memory took from the question this answers (ARCH §19): under the footer once the answer is done. */
+  /** The memory's questions about the question this answers (ARCH §19): under the answer once it is done. */
   memory?: React.ReactNode;
+  /** What the memory took from it: at the right end of the answer's row of actions. */
+  memoryNote?: React.ReactNode;
   /** The user's vote on it: helpful, not, or none. */
   vote?: boolean;
   onVote?: (messageId: string, up: boolean | null) => void;
@@ -1174,6 +1246,7 @@ export const AssistantMessage = ({
               copy={answer || undefined}
               label={label}
               lens={lens.mark}
+              memory={memoryNote}
               message={message}
               onRegenerate={onRegenerate}
               onVote={onVote}

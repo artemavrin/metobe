@@ -78,6 +78,18 @@ export const splitLabels = (text: string, labels: ModelLabel[]): Piece[] => {
   return pieces;
 };
 
+// The app puts what it remembers in front of the person's message (memory-read.ts, `<memory>…</memory>`): the model
+// gets both, but only the rest is the person's words.
+const MEMORY = /^\s*<memory>\n?(?<memory>[\s\S]*?)\n?<\/memory>\s*/u;
+
+/** A message as the model got it → what the app added from memory (without its tags) and the person's own words. */
+export const splitMemory = (text: string) => {
+  const m = MEMORY.exec(text);
+  return m
+    ? { memory: m.groups?.memory ?? "", own: text.slice(m[0].length) }
+    : { memory: null, own: text };
+};
+
 /** How many different values the texts hide. */
 export const countHidden = (texts: string[], labels: ModelLabel[]) => {
   const find = labelLookup(labels);

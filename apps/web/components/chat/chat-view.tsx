@@ -893,7 +893,18 @@ export const ChatView = ({
       <AssistantMessage
         label={labelOf(row.message?.metadata?.modelId)}
         live={row.live}
-        memory={<MemoryUnder messageId={askedBy.get(row.message?.id ?? "")} />}
+        memory={
+          <MemoryUnder
+            messageId={askedBy.get(row.message?.id ?? "")}
+            part="questions"
+          />
+        }
+        memoryNote={
+          <MemoryUnder
+            messageId={askedBy.get(row.message?.id ?? "")}
+            part="note"
+          />
+        }
         message={row.message}
         onApprove={(approvalId, approved) =>
           addToolApprovalResponse({ approved, id: approvalId })

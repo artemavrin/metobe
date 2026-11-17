@@ -9,6 +9,7 @@ import {
   labelKey,
   rehypeLabels,
   splitLabels,
+  splitMemory,
   toolTexts,
   toolViews,
 } from "./model-view";
@@ -177,5 +178,24 @@ describe("labels in the answer's markdown", () => {
     expect(tree.children[1]?.children).toEqual([
       { type: "text", value: "[[EMAIL_e1f2a3]]" },
     ]);
+  });
+});
+
+describe("the memory in front of a message", () => {
+  it("parts what the app added from the person's own words", () => {
+    const sent =
+      "<memory>\nWho the user deals with:\n  - Персона_Мужчина_f43c4c — заместитель\n</memory>\n\nПерсона_Мужчина_445db7 живёт на [[ADDRESS_3b0a07]]";
+    expect(splitMemory(sent)).toEqual({
+      memory:
+        "Who the user deals with:\n  - Персона_Мужчина_f43c4c — заместитель",
+      own: "Персона_Мужчина_445db7 живёт на [[ADDRESS_3b0a07]]",
+    });
+  });
+
+  it("leaves a message without memory as it is", () => {
+    expect(splitMemory("просто текст <memory>")).toEqual({
+      memory: null,
+      own: "просто текст <memory>",
+    });
   });
 });

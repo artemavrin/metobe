@@ -1,6 +1,11 @@
 "use client";
 
 import type { ChatMemory, MemoryEntityKind } from "@metobe/contracts/memory";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@metobe/ui/components/popover";
 import { IconTile } from "@metobe/ui/components/reui/icon-tile";
 import { Toaster, toast } from "@metobe/ui/components/sonner";
 import {
@@ -97,7 +102,6 @@ const Note = ({
 }) => {
   const t = useTranslations("chat.memory");
   const format = useFormatter();
-  const [open, setOpen] = useState(false);
   const many = note.records.length > 1;
   type Line = ChatMemory["notes"][number]["records"][number];
   const day = (iso: string | null) =>
@@ -125,46 +129,60 @@ const Note = ({
         ? line(first)
         : t("remembered", { text: first ? body(first) : "" });
   }
+  const summaryLine = (
+    <>
+      <BookUser className="size-3.5 shrink-0" />
+      <span className="truncate">{summary}</span>
+      {many && <ChevronDown className="size-3 shrink-0" />}
+    </>
+  );
+  const look =
+    "hover:text-foreground data-[popup-open]:text-foreground flex min-w-0 items-center gap-1.5 text-left transition-colors duration-150";
+  // One line, in the answer's row of actions: the records of a note with several open over the thread, so nothing
+  // under the answer changes height (the chat sits on its bottom).
   return (
     <div
-      className={cn("text-muted-foreground flex flex-col gap-1 text-xs", ENTER)}
-    >
-      <div className="flex items-center gap-2">
-        <button
-          aria-expanded={many ? open : undefined}
-          className="hover:text-foreground flex min-w-0 items-center gap-1.5 text-left transition-colors duration-150"
-          onClick={() => setOpen((o) => !o)}
-          type="button"
-        >
-          <BookUser className="size-3.5 shrink-0" />
-          <span className="truncate">{summary}</span>
-          {many && (
-            <ChevronDown
-              className={cn(
-                "size-3 shrink-0 transition-transform duration-200",
-                !open && "-rotate-90"
-              )}
-            />
-          )}
-        </button>
-        <button
-          className={cn(
-            "hover:text-foreground flex shrink-0 items-center gap-1",
-            PRESS
-          )}
-          onClick={() => api.undo(note.writeId)}
-          type="button"
-        >
-          <Undo2 className="size-3" /> {t("undo")}
-        </button>
-      </div>
-      {open && many && (
-        <ul className="flex flex-col gap-0.5 pl-5">
-          {note.records.map((r) => (
-            <li key={r.id}>{line(r)}</li>
-          ))}
-        </ul>
+      className={cn(
+        "text-muted-foreground flex min-w-0 items-center gap-2 text-xs",
+        ENTER
       )}
+    >
+      {many ? (
+        <Popover>
+          <PopoverTrigger
+            render={
+              <button aria-label={summary} className={look} type="button" />
+            }
+          >
+            {summaryLine}
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            className="text-muted-foreground w-[min(28rem,calc(100vw-2rem))] p-3 text-xs"
+            side="top"
+          >
+            <ul className="flex flex-col gap-1">
+              {note.records.map((r) => (
+                <li key={r.id}>{line(r)}</li>
+              ))}
+            </ul>
+          </PopoverContent>
+        </Popover>
+      ) : (
+        <span className={cn(look, "hover:text-muted-foreground")}>
+          {summaryLine}
+        </span>
+      )}
+      <button
+        className={cn(
+          "hover:text-foreground flex shrink-0 items-center gap-1",
+          PRESS
+        )}
+        onClick={() => api.undo(note.writeId)}
+        type="button"
+      >
+        <Undo2 className="size-3" /> {t("undo")}
+      </button>
     </div>
   );
 };
@@ -344,7 +362,14 @@ const Ask = ({ question, api }: { question: Question; api: ChatMemoryApi }) => {
 };
 
 /** What the memory took from the message this answer follows; nothing while the memory is off. */
-export const MemoryUnder = ({ messageId }: { messageId?: string }) => {
+export const MemoryUnder = ({
+  messageId,
+  part,
+}: {
+  messageId?: string;
+  /** The note goes in the answer's row of actions; the questions stand under the answer as a block. */
+  part: "note" | "questions";
+}) => {
   const api = use(ChatMemoryContext);
   const memory = api?.memory;
   if (!(api && memory?.on && messageId)) {
@@ -356,13 +381,15 @@ export const MemoryUnder = ({ messageId }: { messageId?: string }) => {
   const questions = memory.questions.filter(
     (q) => q.messageId === messageId && !api.hidden.has(q.id)
   );
-  if (!note && questions.length === 0) {
+  if (part === "note") {
+    return note ? <Note api={api} note={note} /> : null;
+  }
+  if (questions.length === 0) {
     return null;
   }
   return (
     <div className="-mt-1 flex flex-col gap-2">
       <style>{CSS}</style>
-      {note && <Note api={api} note={note} />}
       {questions.map((q) => (
         <Ask api={api} key={q.id} question={q} />
       ))}

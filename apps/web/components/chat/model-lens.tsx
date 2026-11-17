@@ -16,13 +16,14 @@ import type { ReactNode } from "react";
 import { Streamdown, defaultRehypePlugins } from "streamdown";
 import type { Components } from "streamdown";
 
+import { labelType, toneOf } from "@/lib/label-tone";
 import { LABEL_TAG, labelLookup, rehypeLabels } from "@/lib/model-view";
 import type { Piece } from "@/lib/model-view";
 
 // What the model saw (PII-GUARD-PLAN З5, P31 «Лента · на месте»): a shield with the number of hidden values under
 // each message and on each step of the work that had any; a click turns the text in place into the model's version —
 // the person's message as it went, a step as the model sent and got it, the answer as the model wrote it — and back.
-// Labels are quiet grey chips of one colour; the value shows on hover.
+// Labels are chips in the colour of their kind (lib/label-tone.ts); the value shows on hover.
 
 const EASE = "ease-[cubic-bezier(0.23,1,0.32,1)]";
 
@@ -95,8 +96,10 @@ export const LabelChip = ({
   label: string;
   value?: string;
 }) => {
-  const chip =
-    "bg-foreground/[0.07] text-foreground/80 dark:bg-foreground/10 cursor-default rounded-[5px] box-decoration-clone px-1 py-px font-mono text-[0.86em] leading-none tracking-tight";
+  const chip = cn(
+    "cursor-default rounded-[5px] box-decoration-clone px-1 py-px font-mono text-[0.86em] leading-none tracking-tight",
+    toneOf(labelType(label)).chip
+  );
   if (value === undefined) {
     return <span className={chip}>{label}</span>;
   }
