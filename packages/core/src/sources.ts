@@ -1,6 +1,8 @@
 import "server-only";
+import { marksDecisionModels } from "@metobe/contracts/models";
 import type {
   Capabilities,
+  ModelType,
   Pricing,
   ProxyMode,
   SourceFailure,
@@ -9,9 +11,9 @@ import type {
   SourceKind,
   SourceOptions,
 } from "@metobe/contracts/models";
-import { models, sources } from "@metobe/db/schema/models";
+import { modelSlots, models, sources } from "@metobe/db/schema/models";
 import type { Source } from "@metobe/db/schema/models";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { baseUrlOf } from "./ai-build";
 import { configChanged } from "./config-bus";
@@ -400,6 +402,49 @@ export const setModelsEnabled = async (
         eq(models.type, "language")
       )
     );
+};
+
+/**
+ * Marks a model of an OpenAI-compatible source as a decision model, or back (ARCH §19.4); sync keeps the mark. A
+ * decision model leaves the chat, and each job lets go of a model no longer of its kind. False for a source whose
+ * catalog says what its models are, or a model that is not there.
+ */
+export const setModelType = async (
+  sourceId: string,
+  modelId: string,
+  type: ModelType
+) => {
+  const { db } = getDb();
+  const [source] = await db
+    .select({ kind: sources.kind })
+    .from(sources)
+    .where(eq(sources.id, sourceId))
+    .limit(1);
+  if (!source || !marksDecisionModels(source.kind)) {
+    return false;
+  }
+  return await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(models)
+      .set(type === "evaluation" ? { enabled: false, type } : { type })
+      .where(and(eq(models.sourceId, sourceId), eq(models.id, modelId)))
+      .returning({ id: models.id });
+    if (!row) {
+      return false;
+    }
+    await tx
+      .update(modelSlots)
+      .set({ modelId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(modelSlots.modelId, modelId),
+          type === "evaluation"
+            ? ne(modelSlots.slot, "decisions")
+            : eq(modelSlots.slot, "decisions")
+        )
+      );
+    return true;
+  });
 };
 
 /**

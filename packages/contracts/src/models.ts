@@ -145,6 +145,13 @@ export type ModelSlot = (typeof modelSlots)[number];
 export const modelTypes = ["language", "evaluation"] as const;
 export type ModelType = (typeof modelTypes)[number];
 
+/**
+ * Sources whose decision models the admin marks by hand: an OpenAI-compatible server lists ids only, so its catalog
+ * cannot tell one. AI Gateway's catalog says it itself.
+ */
+export const marksDecisionModels = (kind: SourceKind) =>
+  kind === "openai-compatible";
+
 /** The kind of model a job takes. */
 export const slotModelType = (slot: ModelSlot): ModelType =>
   slot === "decisions" ? "evaluation" : "language";

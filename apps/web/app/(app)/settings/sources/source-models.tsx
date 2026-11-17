@@ -1,5 +1,6 @@
 "use client";
 
+import { marksDecisionModels } from "@metobe/contracts/models";
 import type { SourceDetail } from "@metobe/core/sources-read";
 import { Button } from "@metobe/ui/components/button";
 import {
@@ -226,7 +227,8 @@ const ModelRow = ({
   on: boolean;
   flat: boolean;
   onEdit: () => void;
-  onToggle: (next: boolean) => void;
+  /** None for a decision model: it is never in chat. */
+  onToggle?: (next: boolean) => void;
 }) => {
   const t = useTranslations("sources.detail");
   const price = priceLabel(m);
@@ -280,12 +282,17 @@ const ModelRow = ({
         >
           {price ?? t("models.noPrice")}
         </button>
-        <Switch
-          aria-label={m.title}
-          checked={on}
-          onCheckedChange={onToggle}
-          size="sm"
-        />
+        {onToggle ? (
+          <Switch
+            aria-label={m.title}
+            checked={on}
+            onCheckedChange={onToggle}
+            size="sm"
+          />
+        ) : (
+          // The switch's place, so the columns stay put
+          <span aria-hidden className="w-7 shrink-0" />
+        )}
       </div>
     </li>
   );
@@ -395,6 +402,20 @@ export const SourceModels = ({
             .includes(q))
     );
   }, [detail.models, enabled, onlyOn, picked, query]);
+  // Decision models (ARCH §19.4) close the list, found by the same search; «В чате» hides them — they never are.
+  const deciders = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return onlyOn
+      ? []
+      : detail.deciders.filter(
+          (m) =>
+            (picked.size === 0 || picked.has(m.provider.id)) &&
+            (!q ||
+              `${m.title} ${m.modelId} ${m.provider.title}`
+                .toLowerCase()
+                .includes(q))
+        );
+  }, [detail.deciders, onlyOn, picked, query]);
   const flat = order !== "new";
   // oxlint-disable-next-line unicorn/no-array-sort -- sorts a fresh copy; toSorted is past this project's ES target
   const byPriceList = flat ? [...shown].sort(byPrice(order)) : [];
@@ -454,7 +475,7 @@ export const SourceModels = ({
           {syncNote}
         </p>
       )}
-      {detail.models.length > 0 && (
+      {detail.models.length + detail.deciders.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <InputGroup className="min-w-48 flex-1">
             <InputGroupAddon>
@@ -489,9 +510,9 @@ export const SourceModels = ({
           dimmed && "opacity-60"
         )}
       >
-        {(detail.models.length === 0 || shown.length === 0) && (
+        {shown.length === 0 && deciders.length === 0 && (
           <p className="text-muted-foreground px-4 py-6 text-center">
-            {detail.models.length === 0
+            {detail.models.length + detail.deciders.length === 0
               ? t("models.empty")
               : t("models.nothing")}
           </p>
@@ -569,10 +590,36 @@ export const SourceModels = ({
               </div>
             );
           })}
+        {deciders.length > 0 && (
+          <div className="border-t first:border-t-0">
+            <div className="bg-muted/40 sticky top-0 z-[1] flex items-center gap-2.5 px-4 py-2 backdrop-blur">
+              <span className="font-medium">{t("models.deciders")}</span>
+              <span className="text-muted-foreground text-xs tabular-nums">
+                {deciders.length}
+              </span>
+            </div>
+            <ul className="divide-y">
+              {deciders.map((m) => (
+                <ModelRow
+                  flat
+                  key={m.id}
+                  model={m}
+                  on
+                  onEdit={() => setEditing(m.id)}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
       <ModelDrawer
         fromSource={detail.source.kind === "gateway"}
-        model={detail.models.find((m) => m.id === editing) ?? null}
+        marksDecision={marksDecisionModels(detail.source.kind)}
+        model={
+          [...detail.models, ...detail.deciders].find(
+            (m) => m.id === editing
+          ) ?? null
+        }
         onClose={() => setEditing(null)}
         sourceId={sourceId}
       />

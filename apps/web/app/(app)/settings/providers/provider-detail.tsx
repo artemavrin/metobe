@@ -108,7 +108,7 @@ export const ProviderDetail = ({ detail }: { detail: Detail }) => {
 
   // The drawer takes a source page's model; here the maker is this provider.
   const open = models.find((m) => m.id === editing);
-  const drawerModel: SourceDetail["models"][number] | null = open
+  const drawerModel: Omit<SourceDetail["models"][number], "type"> | null = open
     ? {
         ...open,
         provider: {

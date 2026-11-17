@@ -14,6 +14,7 @@ import {
   recheckSource,
   replaceSourceKey,
   setModelCapabilities,
+  setModelType,
   setModelPricing,
   setModelTitle,
   setModelsEnabled,
@@ -273,5 +274,20 @@ export const setCapabilities = async (
   } else {
     await setModelCapabilities(sourceId, model, capabilitiesSchema.parse(raw));
   }
+  refresh();
+};
+
+/** Marks a model of an OpenAI-compatible source as a decision model, or back; kept through syncs. */
+export const setDecision = async (
+  id: string,
+  modelId: string,
+  decision: boolean
+) => {
+  await requireAdmin();
+  await setModelType(
+    idSchema.parse(id),
+    idSchema.parse(modelId),
+    decision ? "evaluation" : "language"
+  );
   refresh();
 };

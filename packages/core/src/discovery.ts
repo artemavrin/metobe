@@ -89,6 +89,7 @@ export const syncModels = async (sourceId: string) => {
     .from(models)
     .where(eq(models.sourceId, sourceId));
   const existing = new Set(current.map((m) => m.modelId));
+  const reportsType = found.some((m) => m.type !== undefined);
 
   if (found.length) {
     await db
@@ -131,7 +132,8 @@ export const syncModels = async (sourceId: string) => {
           providerId: sql`excluded.provider_id`,
           releasedAt: sql`excluded.released_at`,
           title: sql`case when ${models.originalTitle} is null then excluded.title else ${models.title} end`,
-          type: sql`excluded.type`,
+          // Only a source that says what its models are (Gateway) changes the type; elsewhere the admin's mark stays.
+          ...(reportsType ? { type: sql`excluded.type` } : {}),
         },
         target: [models.sourceId, models.modelId],
       });
