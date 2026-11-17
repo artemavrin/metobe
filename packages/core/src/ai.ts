@@ -11,7 +11,7 @@ import { getDb } from "./db";
 import { getEnv } from "./env";
 import { fetchFor, onNetChange } from "./net";
 import { maskingMiddleware } from "./pii-guard";
-import type { MaskedCall } from "./pii-guard";
+import type { GuardOptions, MaskedCall } from "./pii-guard";
 import { withSecret } from "./secrets";
 
 // Providers built from sources (ARCH §7): the key from secrets, fetch routed by core/net, Yandex normalised.
@@ -75,6 +75,31 @@ export interface ModelUse {
   onMasked?: (call: MaskedCall) => void;
 }
 
+/**
+ * Data protection for a call to a source, or null when it does not apply: an external source sees
+ * the prompt only through the guard; a local one is left alone (its data does not leave the
+ * server). Without PII_GUARD_URL it is off.
+ */
+export const guardFor = async (
+  sourceId: string,
+  use: ModelUse = {}
+): Promise<GuardOptions | null> => {
+  const { PII_GUARD_TOKEN, PII_GUARD_URL } = getEnv();
+  if (!PII_GUARD_URL) {
+    return null;
+  }
+  const provider = await providerFor(sourceId);
+  if (provider.local) {
+    return null;
+  }
+  return {
+    onMasked: use.onMasked,
+    session: use.session ?? `call-${crypto.randomUUID()}`,
+    token: PII_GUARD_TOKEN,
+    url: PII_GUARD_URL,
+  };
+};
+
 export const getLanguageModel = async (
   sourceId: string,
   modelId: string,
@@ -82,19 +107,12 @@ export const getLanguageModel = async (
 ): Promise<LanguageModel> => {
   const provider = await providerFor(sourceId);
   const model = provider.languageModel(modelId);
-  // Data protection: an external source sees the prompt only through the guard; a local one is
-  // left alone (its data does not leave the server). Without PII_GUARD_URL it is off.
-  const { PII_GUARD_TOKEN, PII_GUARD_URL } = getEnv();
-  if (!PII_GUARD_URL || provider.local) {
+  const guard = await guardFor(sourceId, use);
+  if (!guard) {
     return model;
   }
   return wrapLanguageModel({
-    middleware: maskingMiddleware({
-      onMasked: use.onMasked,
-      session: use.session ?? `call-${crypto.randomUUID()}`,
-      token: PII_GUARD_TOKEN,
-      url: PII_GUARD_URL,
-    }),
+    middleware: maskingMiddleware(guard),
     model: model as Parameters<typeof wrapLanguageModel>[0]["model"],
   });
 };

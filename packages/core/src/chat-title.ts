@@ -90,7 +90,9 @@ export const generateChatTitle = async (run: {
   const started = Date.now();
   try {
     const result = await titleText(
-      await getLanguageModel(model.sourceId, model.modelId),
+      await getLanguageModel(model.sourceId, model.modelId, {
+        session: run.chatId,
+      }),
       run.text,
       run.locale
     );

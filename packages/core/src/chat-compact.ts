@@ -97,7 +97,8 @@ const summarizeAll = async (run: {
 }) => {
   const languageModel = await getLanguageModel(
     run.model.sourceId,
-    run.model.modelId
+    run.model.modelId,
+    { session: run.chatId }
   );
   let summary = run.earlier;
   for (const part of run.chunks) {

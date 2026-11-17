@@ -1,4 +1,5 @@
 import {
+  Output,
   generateText,
   isStepCount,
   simulateReadableStream,
@@ -14,6 +15,7 @@ import {
   GuardUnavailableError,
   guardSession,
   isGuardUnavailable,
+  maskStrings,
   maskingMiddleware,
   toChat,
 } from "./pii-guard";
@@ -136,6 +138,26 @@ describe("isGuardUnavailable", () => {
     expect(isGuardUnavailable(wrapped)).toBe(true);
     expect(isGuardUnavailable(new Error("timeout"))).toBe(false);
     expect(isGuardUnavailable(null)).toBe(false);
+  });
+});
+
+describe("maskStrings", () => {
+  it("masks every string of a decision state in one call and keeps its shape", async () => {
+    const guard = fakeGuard();
+    const state = {
+      context: [{ role: "user", text: "Напиши Ольге Петровне" }],
+      message: "почта olga@example.com",
+      today: "17 November 2026",
+    };
+    const masked = await maskStrings(state, {
+      fetch: guard.fetch,
+      session: "chat-5",
+      url: "http://guard",
+    });
+    expect(masked.context[0]?.text).toBe("Напиши Персоне_Женщине_ab12cd");
+    expect(masked.message).toBe("почта [[EMAIL_e1f2a3]]");
+    expect(masked.today).toBe("17 November 2026");
+    expect(guard.requests).toHaveLength(1);
   });
 });
 
@@ -360,6 +382,34 @@ describe("maskingMiddleware", () => {
     });
     expect(await result.text).toBe("Погода хорошая.");
     expect(guard.requests.filter((r) => r.path === "restore")).toHaveLength(0);
+  });
+
+  it("restores a structured (JSON) answer escaped", async () => {
+    const guard = fakeGuard();
+    const model = new MockLanguageModelV4({
+      doGenerate: {
+        content: [{ text: '{"to":"Персоне_Женщине_ab12cd"}', type: "text" }],
+        finishReason: stop,
+        usage,
+        warnings: [],
+      },
+    });
+    await generateText({
+      model: wrapLanguageModel({
+        middleware: maskingMiddleware({
+          fetch: guard.fetch,
+          session: "chat-6",
+          url: "http://guard",
+        }),
+        model,
+      }),
+      output: Output.object({ schema: z.object({ to: z.string() }) }),
+      prompt: "Кому писать?",
+    });
+    const kinds = guard.requests
+      .filter((r) => r.path === "restore")
+      .flatMap((r) => (r.body.items as { kind: string }[]).map((i) => i.kind));
+    expect(kinds).toEqual(["arguments"]);
   });
 
   it("does not call the model when the guard is down", async () => {

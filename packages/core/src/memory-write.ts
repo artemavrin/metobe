@@ -9,7 +9,7 @@ import {
 import type { LanguageModelUsage } from "ai";
 import { eq } from "drizzle-orm";
 
-import { getEvaluationModel, getLanguageModel } from "./ai";
+import { getEvaluationModel, getLanguageModel, guardFor } from "./ai";
 import { activeTelegramChat, notifyPrefs } from "./channels";
 import { recordRun } from "./chat-run";
 import { getDb } from "./db";
@@ -74,6 +74,7 @@ import {
 } from "./memory-types";
 import type { TypeAnswers } from "./memory-types";
 import { getSlotModel } from "./model-slots";
+import { maskStrings } from "./pii-guard";
 
 // The silent writer (ARCH §19.4): what the person said is read by the «Память» model, and what it finds goes into
 // their memory. It reads material — a text, when it was said, what was said before — that the adapter of the write's
@@ -87,6 +88,25 @@ interface Reading {
   /** The person's zone when they said it (D31): «вчера» and «в среду» are counted in it. */
   timeZone: string;
 }
+
+/** The guard session of a memory job: its chat's, so a person has the chat's label. */
+const memorySession = (job: Reading) => job.chatId ?? `memory-${job.ownerId}`;
+
+/**
+ * A decision model's state as the data protection lets it out (PII-GUARD-PLAN З3): its strings
+ * masked in the chat's guard session, so a person has the chat's label. Answers are yes/no or a
+ * choice: nothing to restore.
+ */
+const guarded = async <T>(
+  sourceId: string,
+  job: Reading,
+  state: T
+): Promise<T> => {
+  const guard = await guardFor(sourceId, {
+    session: memorySession(job),
+  });
+  return guard ? maskStrings(state, guard) : state;
+};
 
 /**
  * Told to the chat's model while the memory is on (ARCH §19). It reads the memory (a block in front of the message,
@@ -242,7 +262,11 @@ const nothingToKeepSaid = async (
       model: await getEvaluationModel(model.sourceId, model.modelId),
       providerOptions: { gateway: { zeroDataRetention: true } },
       questions: GATE_QUESTIONS,
-      state: gateState(text.slice(0, MAX_TEXT), today, before),
+      state: await guarded(
+        model.sourceId,
+        job,
+        gateState(text.slice(0, MAX_TEXT), today, before)
+      ),
     });
     await recordRun({
       chatId: job.chatId,
@@ -298,18 +322,22 @@ const withRelations = async (
   try {
     const evaluation = await getEvaluationModel(model.sourceId, model.modelId);
     const results = await Promise.allSettled(
-      pairs.map(({ index, old }) =>
+      pairs.map(async ({ index, old }) =>
         evaluate({
           abortSignal: AbortSignal.timeout(RELATION_TIMEOUT_MS),
           maxRetries: 1,
           model: evaluation,
           providerOptions: { gateway: { zeroDataRetention: true } },
           questions: RELATION_QUESTIONS,
-          state: relationState(
-            message,
-            records[index]?.text ?? "",
-            old.text,
-            records[index] ? pairDays(records[index], old, timeZone) : {}
+          state: await guarded(
+            model.sourceId,
+            job,
+            relationState(
+              message,
+              records[index]?.text ?? "",
+              old.text,
+              records[index] ? pairDays(records[index], old, timeZone) : {}
+            )
           ),
         })
       )
@@ -383,14 +411,18 @@ const withThingTypes = async (
   try {
     const evaluation = await getEvaluationModel(model.sourceId, model.modelId);
     const results = await Promise.allSettled(
-      things.map((thing) =>
+      things.map(async (thing) =>
         evaluate({
           abortSignal: AbortSignal.timeout(TYPE_TIMEOUT_MS),
           maxRetries: 1,
           model: evaluation,
           providerOptions: { gateway: { zeroDataRetention: true } },
           questions: typeQuestions(own),
-          state: typeState(message, thing.name),
+          state: await guarded(
+            model.sourceId,
+            job,
+            typeState(message, thing.name)
+          ),
         })
       )
     );
@@ -607,7 +639,9 @@ export const readWrite = async (ownerId: string, write: QueuedWrite) => {
         sentAt: at,
         timeZone: job.timeZone,
       }),
-      model: await getLanguageModel(model.sourceId, model.modelId),
+      model: await getLanguageModel(model.sourceId, model.modelId, {
+        session: memorySession(job),
+      }),
       prompt: input.segments
         ? memoryPromptOf(segments, before, input.retold)
         : memoryPrompt(text.slice(0, MAX_TEXT), before, input.retold),

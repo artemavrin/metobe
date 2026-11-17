@@ -346,6 +346,66 @@ const MAY_HOLD = /\[\[|[Пп]ерсон/u;
 const MAY_START =
   /(?:\[\[?[A-Z_0-9a-f]*\]?|[Пп](?:е(?:р(?:с(?:о(?:н[а-яё_\s0-9a-f-]*)?)?)?)?)?|(?:^|[\s(«"'])(?:с|со|к|ко|в|во|о|об|обо)\s*)$/iu;
 
+const strings = (value: unknown, out: string[]): void => {
+  if (typeof value === "string") {
+    out.push(value);
+  } else if (Array.isArray(value)) {
+    for (const item of value) {
+      strings(item, out);
+    }
+  } else if (value && typeof value === "object") {
+    for (const item of Object.values(value)) {
+      strings(item, out);
+    }
+  }
+};
+
+const replaceStrings = (value: unknown, next: () => string): unknown => {
+  if (typeof value === "string") {
+    return next();
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => replaceStrings(item, next));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        replaceStrings(item, next),
+      ])
+    );
+  }
+  return value;
+};
+
+/**
+ * Every string in ``value`` masked in one guard call (a decision model's state: its answers are
+ * yes/no or a choice, so nothing comes back to restore). In the chat's session the labels are the
+ * chat's.
+ */
+export const maskStrings = async <T>(
+  value: T,
+  options: GuardOptions
+): Promise<T> => {
+  const found: string[] = [];
+  strings(value, found);
+  if (!found.length) {
+    return value;
+  }
+  const result = await client(options).mask(
+    found.map((content) => ({ content, role: "user" as const }))
+  );
+  const { messages } = result.body;
+  const masked = messages.slice(messages.length - found.length);
+  options.onMasked?.({ entities: result.entities, messages, ms: result.ms });
+  let at = 0;
+  return replaceStrings(value, () => {
+    const message = pick(masked, at);
+    at += 1;
+    return String(message.content ?? "");
+  }) as T;
+};
+
 /** Masks every prompt, restores text, reasoning and tool-call arguments in the answer. */
 export const maskingMiddleware = (
   options: GuardOptions
@@ -392,7 +452,7 @@ export const maskingMiddleware = (
       return { ...params, prompt: [...head, ...prompt] as Prompt };
     },
 
-    wrapGenerate: async ({ doGenerate }) => {
+    wrapGenerate: async ({ doGenerate, params }) => {
       const result = (await doGenerate()) as GenerateResult;
       const content = result.content as Record<string, unknown>[];
       const textual = content
@@ -410,7 +470,8 @@ export const maskingMiddleware = (
       const [texts, inputs] = await Promise.all([
         restoreTexts(
           textual.map(([c]) => String(c.text)),
-          "text"
+          // A structured answer is JSON: values go back escaped, so a quote cannot break it.
+          params.responseFormat?.type === "json" ? "arguments" : "text"
         ),
         restoreTexts(
           calls.map(([c]) => String(c.input)),
