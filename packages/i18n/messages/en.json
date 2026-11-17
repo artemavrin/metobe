@@ -2582,6 +2582,32 @@
         "short": "Scheduled tasks",
         "title": "Regular work can become a task",
         "text": "Describe in a chat what to do and how often: the task runs on a schedule and prepares a result. A new result, a question or a request to sign in to a service shows up in the sidebar — the task’s coloured dot pulses."
+      },
+      "modelSaw": {
+        "short": "What the model saw",
+        "title": "See what the model got",
+        "text": "When an admin turns data protection on, names, emails and phones go to an external model as labels, and the answer comes back with the real values. The shield under a message says how many were hidden; press it to see the text as the model got it."
+      },
+      "draftCheck": {
+        "short": "Before sending",
+        "title": "See what goes out before sending",
+        "text": "As you type, the shield in the input counts the values that will be hidden. Press it, and the message opens above your text as the model will get it."
+      },
+      "memoryRow": {
+        "title": "«Remembered» sits under the answer",
+        "text": "What was kept from a message opens from «Remembered» among the actions under the answer; the conversation does not move."
+      },
+      "dataProtection": {
+        "title": "Data protection",
+        "text": "«Settings → Data protection» turns masking on: where it applies, what to do with each type of data, how to treat local models and how long to keep what the model saw. The PII Guard service does the masking (the pii profile in compose); while it does not answer, nothing goes to external models."
+      },
+      "modelTitle": {
+        "title": "Your own model names",
+        "text": "In «Sources» a model's name is edited in its card, and people see it in the model picker. Refreshing the source's models keeps it; «Put back» brings the source's name back."
+      },
+      "compatDecisions": {
+        "title": "Decision models in an OpenAI-compatible source",
+        "text": "A model of such a source is marked with the «Decision model» switch in its card and can then take the «Decisions» job. It is called through the OpenAI Decisions API (/decisions)."
       }
     },
     "demo": {
@@ -2695,6 +2721,15 @@
         "schedule": "On weekdays at 9:00",
         "hint": "The run is finished. Open the task in the sidebar.",
         "result": "Yesterday 128 orders came in — 6% more than a week earlier. “Accessories” is growing fastest."
+      },
+      "privacy": {
+        "message": "Send the supply contract to Olga Lee at olga.li@example.com, her phone is +1 202 555 0143",
+        "masked": "Send the supply contract to [[PERSON_7f3a01]] at [[EMAIL_e1f2a3]], her phone is [[PHONE_a91c02]]",
+        "personLabel": "[[PERSON_7f3a01]]",
+        "person": "Olga Lee",
+        "email": "olga.li@example.com",
+        "phone": "+1 202 555 0143",
+        "reply": "Done: a letter with the supply contract for Olga Lee is in your drafts."
       }
     },
     "moreBelow": "More below",
