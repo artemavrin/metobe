@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.0](https://github.com/artemavrin/metobe/compare/v0.9.0...v0.10.0) (2026-11-17)
+
+
+### Features
+
+* **models:** the admin renames a model, and a sync keeps the name ([#120](https://github.com/artemavrin/metobe/issues/120)) ([89168b0](https://github.com/artemavrin/metobe/commit/89168b06a23d248ca4adb114344a3ba4c006e1a8))
+* **pii-guard:** mask personal data before external models ([#117](https://github.com/artemavrin/metobe/issues/117)) ([2bda1e1](https://github.com/artemavrin/metobe/commit/2bda1e12d98e1d386785a649b7806278ebb31255))
+* **sources:** decision models in an OpenAI-compatible source ([#122](https://github.com/artemavrin/metobe/issues/122)) ([7c00744](https://github.com/artemavrin/metobe/commit/7c007441b93f402a021c408f719434f8a38c0da1))
+
+
+### Bug Fixes
+
+* **settings:** one settings window, and dialogs inside it dim the page ([#119](https://github.com/artemavrin/metobe/issues/119)) ([bb8c8e6](https://github.com/artemavrin/metobe/commit/bb8c8e6f71362140ad642dbbf837758e36611e14))
+
 ## [0.9.0](https://github.com/artemavrin/metobe/compare/v0.8.3...v0.9.0) (2026-11-16)
 
 
