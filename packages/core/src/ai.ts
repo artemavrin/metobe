@@ -187,6 +187,48 @@ export const previewDraft = async (
   }
 };
 
+/** The settings sandbox (З6): a text masked under the current rules, and which of its types would stop a request. */
+export type SandboxResult =
+  | { state: "unset" }
+  | { state: "down" }
+  | { state: "masked"; text: string; labels: ModelLabel[]; blocked: string[] };
+
+export const sandboxMask = async (text: string): Promise<SandboxResult> => {
+  const settings = await getPrivacySettings();
+  const url = guardUrl(settings);
+  if (!url) {
+    return { state: "unset" };
+  }
+  const { keep, block } = policyFor(settings);
+  try {
+    // Blocked types are masked too, so the person sees what in the text stops the request.
+    const masked = await previewMask(text, {
+      keep,
+      session: `sandbox-${crypto.randomUUID()}`,
+      token: getEnv().PII_GUARD_TOKEN,
+      url,
+    });
+    const labels = masked.entities.map((e) => ({
+      label: e.placeholder,
+      type: e.type,
+      value: e.value,
+    }));
+    return {
+      blocked: [...new Set(labels.map((l) => l.type))].filter((t) =>
+        (block as readonly string[]).includes(t)
+      ),
+      labels,
+      state: "masked",
+      text: masked.text,
+    };
+  } catch (error) {
+    if (isGuardUnavailable(error)) {
+      return { state: "down" };
+    }
+    throw error;
+  }
+};
+
 /** A decision model of a source (ARCH §19.4); a source whose kind serves none is an error. */
 export const getEvaluationModel = async (
   sourceId: string,

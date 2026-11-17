@@ -68,6 +68,7 @@
       "asked": "As the model got it",
       "answered": "As the model wrote it",
       "tool": "As the model saw it",
+      "memory": "Memory sent with the message",
       "back": "Show as in the chat",
       "sent": "The model sent",
       "got": "The model got"
@@ -840,6 +841,10 @@
       "search": {
         "label": "Search",
         "hint": "Web search for models and agents"
+      },
+      "privacy": {
+        "label": "Data protection",
+        "hint": "What is hidden from external models"
       },
       "users": {
         "label": "Users",
@@ -3297,5 +3302,103 @@
     "open": "Open Metobe",
     "off": "Notification settings",
     "why": "This reminder came because you asked to be reminded."
+  },
+  "privacy": {
+    "title": "Data protection",
+    "description": "Before a request to an external model, names, phones and other data are replaced with labels; in the answer the labels are replaced back.",
+    "on": {
+      "label": "Mask data",
+      "hint": "Without the service, requests to external models are not sent"
+    },
+    "service": {
+      "title": "Service",
+      "recheck": "Check",
+      "address": {
+        "label": "Address",
+        "hint": "Empty — the install's address: {url}",
+        "hintNoDefault": "For example, http://pii-guard:8787",
+        "default": "from the install",
+        "none": "Not set",
+        "invalid": "An address like http://host:port is needed"
+      },
+      "state": {
+        "label": "State",
+        "hint": "Checked when the section opens",
+        "ok": "Answers · {ms} ms",
+        "loading": "Answers · the model is loading",
+        "unset": "No address",
+        "unreachable": "Does not answer",
+        "status": "Answers with an error",
+        "running": "Checking…"
+      },
+      "down": "Not sent: data protection is unavailable. Requests to external models are stopped; local models work."
+    },
+    "places": {
+      "title": "Where to apply",
+      "chat": {
+        "label": "Chat",
+        "hint": "Messages, attached texts, tool results"
+      },
+      "tasks": {
+        "label": "Tasks",
+        "hint": "Scheduled tasks and their reports"
+      },
+      "telegram": {
+        "label": "Telegram",
+        "hint": "Messages through the bot"
+      },
+      "memory": {
+        "label": "Memory",
+        "hint": "Reading chats and mail into memory"
+      },
+      "service": {
+        "label": "Service calls",
+        "hint": "Chat titles, history compaction, image descriptions"
+      }
+    },
+    "types": {
+      "title": "What to hide",
+      "PERSON": "Names",
+      "EMAIL": "Email",
+      "PHONE": "Phones",
+      "ID_DOCUMENT": "Documents",
+      "ADDRESS": "Addresses",
+      "BANK_ACCOUNT": "Accounts and cards",
+      "DATE_OF_BIRTH": "Birth dates",
+      "actions": {
+        "hide": "Hide",
+        "keep": "Keep",
+        "block": "Don’t send the request"
+      },
+      "note": "«Don’t send the request» — a message with such a value does not go to an external model. Company names stay in the text. Images and files go unmasked."
+    },
+    "more": {
+      "title": "More",
+      "local": {
+        "label": "Mask for local models",
+        "hint": "Models on this server get the text as it is"
+      },
+      "keep": {
+        "label": "Keep records",
+        "hint": "What the model got — for the shield under a message"
+      },
+      "keepFor": {
+        "chat": "As long as the chat",
+        "30": "30 days",
+        "7": "7 days",
+        "none": "Don’t keep"
+      }
+    },
+    "sandbox": {
+      "title": "Check",
+      "meta": "nothing is saved",
+      "label": "Text to check",
+      "placeholder": "Paste a text: an email, a message, a CRM answer",
+      "hidden": "{count, plural, one {# value hidden} other {# values hidden}}",
+      "nothing": "Nothing to hide",
+      "blocked": "The request won’t go to an external model: {types}",
+      "down": "Data protection is unavailable: nothing to check with",
+      "unset": "Set the service address to check"
+    }
   }
 }

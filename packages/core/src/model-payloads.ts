@@ -5,11 +5,12 @@ import type {
   ModelStepView,
 } from "@metobe/contracts/chat";
 import { modelPayloads } from "@metobe/db/schema/chat";
-import { eq } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 
 import { getDb } from "./db";
 import type { MaskedCall, ModelAnswer } from "./pii-guard";
 import { toolOutputText } from "./pii-guard";
+import { getPrivacySettings } from "./privacy-settings";
 
 // What the model saw (PII-GUARD-PLAN З4, P31): while data protection masks a chat's calls, the
 // masked requests and the answers as the model wrote them are collected, and once the answer is
@@ -114,7 +115,18 @@ export const payloadRecorder = () => {
       if (!built) {
         return;
       }
+      // How long the admin keeps these (З6): not at all, a number of days, or as long as the chat.
+      const { keepFor } = await getPrivacySettings();
+      if (keepFor === "none") {
+        return;
+      }
       const { db } = getDb();
+      if (keepFor !== "chat") {
+        const before = new Date(Date.now() - Number(keepFor) * 86_400_000);
+        await db
+          .delete(modelPayloads)
+          .where(lt(modelPayloads.createdAt, before));
+      }
       if (run.questionId && built.question) {
         await db
           .insert(modelPayloads)
