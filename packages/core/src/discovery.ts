@@ -67,7 +67,7 @@ const ensureProviders = async (slugs: Set<string>) => {
 
 /**
  * Pulls a source's models into the table. New models arrive off; existing ones get fresh data, but `enabled`,
- * `default_access`, `used_for_titles` and hand-set capabilities are never touched. Models the source stopped
+ * `default_access`, `used_for_titles`, hand-set capabilities and a name the admin gave are never touched. Models the source stopped
  * listing are kept (a model in use must not vanish silently); `missing` tells the UI which ones.
  */
 export const syncModels = async (sourceId: string) => {
@@ -119,6 +119,8 @@ export const syncModels = async (sourceId: string) => {
           capabilities: sql`case when ${models.capabilitiesSource} = 'manual' then ${models.capabilities} else excluded.capabilities end`,
           capabilitiesSource: sql`case when ${models.capabilitiesSource} = 'manual' then ${models.capabilitiesSource} else excluded.capabilities_source end`,
           contextWindow: sql`excluded.context_window`,
+          // A model the admin renamed keeps its name; the source's own goes to `original_title`, for «Вернуть».
+          originalTitle: sql`case when ${models.originalTitle} is null then null else excluded.title end`,
           // Prices change only when the source reports them (Gateway); prices the admin typed are kept.
           priceCacheRead: sql`case when excluded.price_unit_tokens is null then ${models.priceCacheRead} else excluded.price_cache_read end`,
           priceCacheWrite: sql`case when excluded.price_unit_tokens is null then ${models.priceCacheWrite} else excluded.price_cache_write end`,
@@ -128,7 +130,7 @@ export const syncModels = async (sourceId: string) => {
           priceUnitTokens: sql`coalesce(excluded.price_unit_tokens, ${models.priceUnitTokens})`,
           providerId: sql`excluded.provider_id`,
           releasedAt: sql`excluded.released_at`,
-          title: sql`excluded.title`,
+          title: sql`case when ${models.originalTitle} is null then excluded.title else ${models.title} end`,
           type: sql`excluded.type`,
         },
         target: [models.sourceId, models.modelId],

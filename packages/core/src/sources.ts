@@ -11,7 +11,7 @@ import type {
 } from "@metobe/contracts/models";
 import { models, sources } from "@metobe/db/schema/models";
 import type { Source } from "@metobe/db/schema/models";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { baseUrlOf } from "./ai-build";
 import { configChanged } from "./config-bus";
@@ -420,6 +420,37 @@ export const setModelCapabilities = async (
         : { capabilitiesSource: "discovered" }
     )
     .where(and(eq(models.sourceId, sourceId), eq(models.id, modelId)));
+};
+
+/**
+ * The name people see, given by the admin; `null` puts the source's own back. The source's name is kept aside
+ * (`original_title`) while the admin's stands, so a sync does not undo it; a name the same as the source's is no rename.
+ */
+export const setModelTitle = async (
+  sourceId: string,
+  modelId: string,
+  title: string | null
+) => {
+  const { db } = getDb();
+  const own = and(eq(models.sourceId, sourceId), eq(models.id, modelId));
+  if (title === null) {
+    await db
+      .update(models)
+      .set({
+        originalTitle: null,
+        title: sql`coalesce(${models.originalTitle}, ${models.title})`,
+      })
+      .where(own);
+    return;
+  }
+  await db
+    .update(models)
+    .set({
+      // SET reads the row as it was: the source's name is the one kept, or the title before the first rename.
+      originalTitle: sql`case when coalesce(${models.originalTitle}, ${models.title}) = ${title} then null else coalesce(${models.originalTitle}, ${models.title}) end`,
+      title,
+    })
+    .where(own);
 };
 
 /** Prices typed by the admin, per any number of tokens and exactly as typed (`core/pricing`); `null` clears them. */

@@ -56,6 +56,7 @@ export const getProvider = async (id: string) => {
       enabled: models.enabled,
       id: models.id,
       modelId: models.modelId,
+      originalTitle: models.originalTitle,
       priceCacheRead: models.priceCacheRead,
       priceCacheWrite: models.priceCacheWrite,
       priceCurrency: models.priceCurrency,

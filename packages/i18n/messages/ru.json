@@ -1177,6 +1177,9 @@
         "action": "Отключить"
       },
       "drawer": {
+        "name": "Название модели",
+        "sourceName": "У источника: {title}",
+        "backToSourceName": "Вернуть",
         "caps": "Возможности",
         "prices": "Цены",
         "about": "О модели",

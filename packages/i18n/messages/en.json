@@ -1183,6 +1183,9 @@
         "action": "Disconnect"
       },
       "drawer": {
+        "name": "Model name",
+        "sourceName": "Source's name: {title}",
+        "backToSourceName": "Put back",
         "caps": "Capabilities",
         "prices": "Prices",
         "about": "About",

@@ -40,7 +40,7 @@ import { useId, useState, useTransition } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { canConvert, convert } from "@/lib/price-units";
 
-import { setCapabilities, setPricing } from "./actions";
+import { renameModel, setCapabilities, setPricing } from "./actions";
 
 // A model of a source in a floating drawer (prototype «Редактор модели», «Панель · Вкладки»): capabilities by
 // hand, prices per any number of tokens, what is known about the model. One «Сохранить» for all of it.
@@ -146,6 +146,64 @@ const initialPrices = (m: Model) => {
   };
 };
 
+/**
+ * The name people see in the picker and in usage, renamed in place (as a source is): Enter or leaving the field saves
+ * it, an empty one goes back. While renamed, the source's own name is under it with «Вернуть».
+ */
+const ModelName = ({ model, sourceId }: { model: Model; sourceId: string }) => {
+  const t = useTranslations("sources.detail");
+  const [name, setName] = useState(model.title);
+  const [pending, start] = useTransition();
+  const save = () => {
+    const next = name.trim();
+    if (!next) {
+      setName(model.title);
+      return;
+    }
+    if (next !== model.title) {
+      start(() => renameModel(sourceId, model.id, next));
+    }
+  };
+  return (
+    <div className="flex min-w-0 flex-col">
+      <Input
+        aria-label={t("drawer.name")}
+        className="hover:border-input h-8 border-transparent bg-transparent px-1.5 text-base font-semibold shadow-none md:text-base dark:bg-transparent"
+        disabled={pending}
+        onBlur={save}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+          if (e.key === "Escape") {
+            setName(model.title);
+          }
+        }}
+        value={name}
+      />
+      {model.originalTitle && (
+        <p className="text-muted-foreground flex min-w-0 items-baseline gap-1.5 px-1.5 text-xs">
+          <span className="truncate">
+            {t("drawer.sourceName", { title: model.originalTitle })}
+          </span>
+          <button
+            className="hover:text-foreground shrink-0 underline-offset-4 transition-colors duration-150 hover:underline"
+            disabled={pending}
+            onClick={() => {
+              setName(model.originalTitle ?? model.title);
+              start(() => renameModel(sourceId, model.id, null));
+            }}
+            type="button"
+          >
+            {t("drawer.backToSourceName")}
+          </button>
+        </p>
+      )}
+    </div>
+  );
+};
+
 const Drawer = ({
   model,
   sourceId,
@@ -236,9 +294,10 @@ const Drawer = ({
             logo={model.provider.logo ?? undefined}
             size={36}
           />
-          <div className="min-w-0">
-            <SheetTitle>{model.title}</SheetTitle>
-            <SheetDescription className="truncate font-mono text-xs">
+          <div className="min-w-0 flex-1">
+            <SheetTitle className="sr-only">{model.title}</SheetTitle>
+            <ModelName model={model} sourceId={sourceId} />
+            <SheetDescription className="truncate px-1.5 font-mono text-xs">
               {model.modelId}
             </SheetDescription>
           </div>
