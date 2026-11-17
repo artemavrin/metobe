@@ -53,7 +53,10 @@ export const buildProvider = ({
   fetch,
 }: ProviderInput): {
   languageModel: (modelId: string) => LanguageModel;
-  /** Decision models (ARCH §19.4): only AI Gateway serves them. */
+  /**
+   * Decision models (ARCH §19.4): AI Gateway's own, and those an admin marked in an OpenAI-compatible source — asked
+   * through the OpenAI Decisions API (`POST {baseURL}/decisions`).
+   */
   evaluationModel?: (modelId: string) => Experimental_EvaluationModel;
 } => {
   const baseURL = baseUrlOf(kind, baseUrl);
@@ -102,7 +105,12 @@ export const buildProvider = ({
         // «Память» writer on gpt-oss:120b got `{facts, events…}`, never `items`). llama.cpp, Ollama and vLLM take it.
         supportsStructuredOutputs: true,
       });
-      return { languageModel: (id) => p.chatModel(id) };
+      // Never undefined: @ai-sdk/openai would take OPENAI_API_KEY from the server's environment and send it here.
+      const decisions = createOpenAI({ apiKey: key ?? "", baseURL, fetch });
+      return {
+        evaluationModel: (id) => decisions.decisionModel(id),
+        languageModel: (id) => p.chatModel(id),
+      };
     }
     default: {
       const unknown: never = kind;

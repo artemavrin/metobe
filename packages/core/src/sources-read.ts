@@ -99,10 +99,11 @@ export const getSource = async (id: string) => {
         },
         releasedAt: models.releasedAt,
         title: models.title,
+        type: models.type,
       })
       .from(models)
       .innerJoin(providers, eq(providers.id, models.providerId))
-      .where(and(eq(models.sourceId, id), eq(models.type, "language")))
+      .where(eq(models.sourceId, id))
       .orderBy(
         sql`${models.releasedAt} desc nulls last`,
         desc(models.createdAt),
@@ -110,9 +111,11 @@ export const getSource = async (id: string) => {
       ),
   ]);
   return {
+    // Decision models stand apart (ARCH §19.4): never in chat, they serve the «Решения» job only.
+    deciders: modelRows.filter((m) => m.type === "evaluation"),
     host: new URL(url).host,
     keyHint: hints.find((h) => h.purpose === "api_key")?.hint ?? null,
-    models: modelRows,
+    models: modelRows.filter((m) => m.type === "language"),
     proxies: proxyList,
     route,
     source,

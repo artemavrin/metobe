@@ -1160,7 +1160,8 @@
           "new": "Newest first",
           "cheap": "Cheapest first",
           "expensive": "Most expensive first"
-        }
+        },
+        "deciders": "Decision models"
       },
       "pricing": {
         "title": "Price of {model}",
@@ -1205,7 +1206,9 @@
           "vision": "Understands images in attachments",
           "reasoning": "Thinks before answering",
           "structured": "Answers strictly by a JSON schema"
-        }
+        },
+        "decision": "Decision model",
+        "decisionHint": "Answers yes-or-no questions with a probability, through /decisions of the OpenAI Decisions API. It is never in chat; only the «Decisions» job of the service settings can take it."
       },
       "local": "Local",
       "localHint": "Runs on the organization's own hardware: the data stays inside. The model picker can filter by it"
@@ -1546,7 +1549,7 @@
       },
       "decisions": {
         "label": "Decisions",
-        "hint": "A decision model (Jev, Decision-1 and the like) first answers whether a message has anything to remember. When it surely has not, the «Memory» model does not read it, and memory costs less. Only Vercel AI Gateway has them. Without one, «Memory» reads every message."
+        "hint": "A decision model (Jev, Decision-1 and the like) first answers whether a message has anything to remember. When it surely has not, the «Memory» model does not read it, and memory costs less. Vercel AI Gateway has them; in an OpenAI-compatible source one is marked in the model's card. Without one, «Memory» reads every message."
       }
     },
     "empty": "No working sources with models — connect a source",

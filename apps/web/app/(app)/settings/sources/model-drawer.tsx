@@ -1,7 +1,11 @@
 "use client";
 
 import { currencies } from "@metobe/contracts/models";
-import type { Capabilities, Currency } from "@metobe/contracts/models";
+import type {
+  Capabilities,
+  Currency,
+  ModelType,
+} from "@metobe/contracts/models";
 import type { SourceDetail } from "@metobe/core/sources-read";
 import { Button } from "@metobe/ui/components/button";
 import { Input } from "@metobe/ui/components/input";
@@ -26,6 +30,7 @@ import {
   SheetTitle,
 } from "@metobe/ui/components/sheet";
 import { Spinner } from "@metobe/ui/components/spinner";
+import { Switch } from "@metobe/ui/components/switch";
 import {
   Tabs,
   TabsContent,
@@ -40,12 +45,20 @@ import { useId, useState, useTransition } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { canConvert, convert } from "@/lib/price-units";
 
-import { renameModel, setCapabilities, setPricing } from "./actions";
+import {
+  renameModel,
+  setCapabilities,
+  setDecision,
+  setPricing,
+} from "./actions";
 
 // A model of a source in a floating drawer (prototype «Редактор модели», «Панель · Вкладки»): capabilities by
 // hand, prices per any number of tokens, what is known about the model. One «Сохранить» for all of it.
 
-type Model = SourceDetail["models"][number];
+// The providers screen opens it too, with models of its own query: no type there, so no decision switch.
+type Model = Omit<SourceDetail["models"][number], "type"> & {
+  type?: ModelType;
+};
 type CapKey = keyof Capabilities;
 type Tri = "yes" | "no" | "unknown";
 type PriceKey = "input" | "output" | "cacheRead" | "cacheWrite";
@@ -208,17 +221,21 @@ const Drawer = ({
   model,
   sourceId,
   fromSource,
+  marksDecision,
   onClose,
 }: {
   model: Model;
   sourceId: string;
   fromSource: boolean;
+  /** The admin may mark the model as a decision model (an OpenAI-compatible source). */
+  marksDecision: boolean;
   onClose: () => void;
 }) => {
   const t = useTranslations("sources.detail");
   const format = useFormatter();
   const [tab, setTab] = useState("caps");
   const [caps, setCaps] = useState(model.capabilities);
+  const [decider, setDecider] = useState(model.type === "evaluation");
   const [capsReset, setCapsReset] = useState(false);
   const start = initialPrices(model);
   const [values, setValues] = useState(start.values);
@@ -232,10 +249,12 @@ const Drawer = ({
   const pricesChanged =
     JSON.stringify([values, unit, currency]) !==
     JSON.stringify([start.values, start.unit, start.currency]);
-  const dirty = capsChanged || pricesChanged;
+  const decisionChanged = decider !== (model.type === "evaluation");
+  const dirty = capsChanged || pricesChanged || decisionChanged;
 
   const reset = () => {
     setCaps(model.capabilities);
+    setDecider(model.type === "evaluation");
     setCapsReset(false);
     setValues(start.values);
     setUnit(start.unit);
@@ -270,6 +289,9 @@ const Drawer = ({
       }
       if (capsChanged) {
         await setCapabilities(sourceId, model.id, capsReset ? null : caps);
+      }
+      if (decisionChanged) {
+        await setDecision(sourceId, model.id, decider);
       }
       onClose();
     });
@@ -316,6 +338,21 @@ const Drawer = ({
 
         <TabsContent className="flex flex-col gap-3" value="caps">
           <div className="divide-y">
+            {marksDecision && (
+              <div className="flex items-center justify-between gap-4 py-3 first:pt-0">
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-medium">{t("drawer.decision")}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {t("drawer.decisionHint")}
+                  </span>
+                </span>
+                <Switch
+                  aria-label={t("drawer.decision")}
+                  checked={decider}
+                  onCheckedChange={setDecider}
+                />
+              </div>
+            )}
             {CAP_KEYS.map((key) => (
               <div
                 className="flex items-center justify-between gap-4 py-3 first:pt-0"
@@ -463,11 +500,13 @@ export const ModelDrawer = ({
   model,
   sourceId,
   fromSource,
+  marksDecision = false,
   onClose,
 }: {
   model: Model | null;
   sourceId: string;
   fromSource: boolean;
+  marksDecision?: boolean;
   onClose: () => void;
 }) => (
   <Sheet onOpenChange={(open) => !open && onClose()} open={Boolean(model)}>
@@ -477,6 +516,7 @@ export const ModelDrawer = ({
         <Drawer
           fromSource={fromSource}
           key={model.id}
+          marksDecision={marksDecision}
           model={model}
           onClose={onClose}
           sourceId={sourceId}
