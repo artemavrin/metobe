@@ -16,7 +16,7 @@
   "devDependencies": {
     "@metobe/tsconfig": "workspace:*",
     "@types/node": "^20",
-    "ai": "7.0.113",
+    "ai": "7.0.173",
     "tsup": "^8",
     "tsx": "^4",
     "typescript": "^5"
