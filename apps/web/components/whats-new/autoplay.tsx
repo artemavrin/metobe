@@ -43,9 +43,11 @@ const SCRIPTS: Record<string, Step[]> = {
     { click: COMPACT },
     { wait: 3800 },
   ],
+  draftCheck: pressOnce('[data-demo="privacy-draft"] button'),
   forToday: pressOnce('[data-demo="today-late"]'),
   mailWaits: pressOnce('[data-demo="mail-remind"]'),
   memory: pressOnce('[data-demo="memory-undo"]'),
+  modelSaw: pressOnce('[data-demo="privacy-shield"] button'),
   schedule: pressOnce('[data-demo="schedule-met"]'),
   shareChat: [
     { wait: 700 },

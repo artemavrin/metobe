@@ -38,10 +38,13 @@ import { AskedAnswer, AskPanel } from "@/components/chat/ask-user";
 import { ChatHeader } from "@/components/chat/chat-header";
 import type { ChatItem, ChatOps } from "@/components/chat/chat-item";
 import { CompactionCard, CompactOffer } from "@/components/chat/compaction";
+import { PreviewMark, PreviewPanel } from "@/components/chat/composer-privacy";
+import { LensMark, Seen, useLens } from "@/components/chat/model-lens";
 import { NightSky } from "@/components/chat/night-sky";
 import { ThreadMap } from "@/components/chat/thread-map";
 import { TaskDot } from "@/components/tasks/task-dot";
 import type { AskUserPart, OpenAskPart } from "@/lib/ask-user";
+import { splitLabels } from "@/lib/model-view";
 
 // The product itself on the tour's stage (docs/RELEASE.md, «Демо, а не скриншоты»): the chat's header and
 // «Поделиться», the model's question panel, the thread's map in a real scroller, the new chat's sky — at their real
@@ -849,14 +852,117 @@ const MailWaitsDemo = () => {
 };
 
 /** A change's demo by its id in the release notes; a change without one has no page of its own. */
+// ——— Data protection (0.10.0) ———
+
+/**
+ * One draft with a name, an address and a phone, and the labels the model gets for them — the label of a name is
+ * the language's own (a Russian one is declined), so the masked text is in the messages too.
+ */
+const usePrivacyDraft = () => {
+  const t = useTranslations("whatsNew.demo");
+  return {
+    labels: [
+      {
+        label: t("privacy.personLabel"),
+        type: "PERSON",
+        value: t("privacy.person"),
+      },
+      { label: "[[EMAIL_e1f2a3]]", type: "EMAIL", value: t("privacy.email") },
+      { label: "[[PHONE_a91c02]]", type: "PHONE", value: t("privacy.phone") },
+    ],
+    masked: t("privacy.masked"),
+    message: t("privacy.message"),
+    reply: t("privacy.reply"),
+  };
+};
+
+/** The person's message with its shield: pressed, the text turns into what the model got, labels for the values. */
+const ModelSawDemo = () => {
+  const lensText = useTranslations("chat.lens");
+  const draft = usePrivacyDraft();
+  const lens = useLens();
+  return (
+    <Contained className="bg-background flex flex-col justify-end gap-3 px-6 pt-12 pb-14">
+      <div className="flex flex-col items-end gap-1">
+        <div className="bg-muted max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-6">
+          <span className={lens.swap} key={String(lens.on)}>
+            {lens.on ? (
+              <Seen pieces={splitLabels(draft.masked, draft.labels)} />
+            ) : (
+              draft.message
+            )}
+          </span>
+        </div>
+        <span data-demo="privacy-shield">
+          <LensMark
+            count={draft.labels.length}
+            hover=""
+            label={lensText("asked")}
+            on={lens.on}
+            onToggle={lens.handleToggle}
+          />
+        </span>
+      </div>
+      <p className="text-sm leading-relaxed">{draft.reply}</p>
+      {lens.on && <Again onClick={() => lens.set(false)} />}
+    </Contained>
+  );
+};
+
+/** The draft in the input, the shield counting what it hides: pressed, the draft as the model would get it opens above. */
+const DraftCheckDemo = () => {
+  const draft = usePrivacyDraft();
+  const [open, setOpen] = useState(false);
+  const preview = {
+    labels: draft.labels,
+    state: "masked" as const,
+    text: draft.masked,
+  };
+  return (
+    <Contained className="bg-background flex flex-col justify-end px-6 pt-12 pb-6">
+      <div className="bg-background flex flex-col rounded-3xl border p-1.5 shadow-xs">
+        <PreviewPanel
+          files={[]}
+          onClose={() => setOpen(false)}
+          open={open}
+          preview={preview}
+        />
+        <p className="px-2.5 pt-1.5 pb-2 text-sm leading-6">{draft.message}</p>
+        <div className="flex items-center gap-1">
+          <span className="text-muted-foreground grid size-8 place-items-center">
+            <Plus className="size-4" />
+          </span>
+          <span className="flex-1" />
+          <span data-demo="privacy-draft">
+            <PreviewMark
+              compact={false}
+              onToggle={() => setOpen((was) => !was)}
+              open={open}
+              preview={preview}
+            />
+          </span>
+          <span className="bg-primary text-primary-foreground grid size-8 shrink-0 place-items-center rounded-full">
+            <ArrowUp className="size-4" />
+          </span>
+        </div>
+      </div>
+      {open && (
+        <Again className="top-3 bottom-auto" onClick={() => setOpen(false)} />
+      )}
+    </Contained>
+  );
+};
+
 export const DEMOS: Record<string, () => ReactNode> = {
   askUser: AskDemo,
   calendar: CalendarDemo,
   compactChat: CompactDemo,
+  draftCheck: DraftCheckDemo,
   forToday: ForTodayDemo,
   greeting: GreetingDemo,
   mailWaits: MailWaitsDemo,
   memory: MemoryDemo,
+  modelSaw: ModelSawDemo,
   schedule: ScheduleDemo,
   shareChat: ShareDemo,
   tasks: TasksDemo,
