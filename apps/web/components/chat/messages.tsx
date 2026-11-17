@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChatMessage } from "@metobe/contracts/chat";
+import type { ChatMessage, ModelPayload } from "@metobe/contracts/chat";
 import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
@@ -71,6 +71,13 @@ import {
 } from "@/components/chat/attachments";
 import { CardPeek } from "@/components/chat/card-peek";
 import { ConnectRequest } from "@/components/chat/connect-request";
+import {
+  LensMark,
+  ModelPayloadsContext,
+  Seen,
+  SeenMarkdown,
+  useLens,
+} from "@/components/chat/model-lens";
 import { SecretNote } from "@/components/chat/secret-note";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import { TokenBadge } from "@/components/chat/token-editor";
@@ -80,6 +87,7 @@ import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
 import type { AnswerBlock, ToolPart, WorkStep } from "@/lib/answer-work";
 import { splitMentions } from "@/lib/mentions";
+import { answerTexts, countHidden, splitLabels } from "@/lib/model-view";
 import { looksLikeSecret } from "@/lib/secret-hint";
 
 import "gridora/styles.css";
@@ -95,8 +103,12 @@ const textOf = (message?: ChatMessage) =>
  * The footer under a message, shown while the pointer is on it (always on touch screens, and while a button in it
  * has the focus): when it was written and what can be done with it. Its room is kept, so showing it moves nothing.
  */
-const TOOLBAR =
-  "h-6 gap-0.5 px-0 opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100 has-data-[popup-open]:opacity-100 [@media(hover:none)]:opacity-100";
+const TOOLBAR_ROW = "h-6 gap-0.5 px-0";
+const SHOWN =
+  "opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100 has-data-[popup-open]:opacity-100 [@media(hover:none)]:opacity-100";
+const TOOLBAR = `${TOOLBAR_ROW} ${SHOWN}`;
+/** The actions of a footer that has a shield: they hide off the hover, the pressed shield stays. */
+const ACTIONS = cn("flex items-center gap-0.5", SHOWN);
 
 /** The thread's hints: the sidebar's surface, no arrow — like the model peek. */
 const Tip = ({ children }: { children: React.ReactNode }) => (
@@ -463,7 +475,26 @@ export const UserMessage = ({
   mentions?: { title: string; logo: string | null }[];
 }) => {
   const t = useTranslations("chat");
+  const tLens = useTranslations("chat.lens");
   const text = textOf(message);
+  // What the model got instead (PII-GUARD-PLAN З5): a shield when the message had values hidden.
+  const payload = useContext(ModelPayloadsContext)[message.id];
+  const seen = payload?.text ?? "";
+  const hidden = payload ? countHidden([seen], payload.labels) : 0;
+  const lens = useLens();
+  const actions = (
+    <>
+      <span className="px-1">
+        <When at={message.metadata?.createdAt} />
+      </span>
+      <CopyAction text={text} />
+      {onEdit && onEditing && (
+        <Action label={t("edit")} onClick={() => onEditing(true)}>
+          <Pencil />
+        </Action>
+      )}
+    </>
+  );
   return (
     <Message
       align="end"
@@ -488,33 +519,43 @@ export const UserMessage = ({
             {text && (
               <Bubble align="end" variant="muted">
                 <BubbleContent className="rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap">
-                  <Mentioned
-                    mentions={[
-                      ...mentions,
-                      ...(message.metadata?.cards ?? []).map((c) => ({
-                        card: true,
-                        id: c.id,
-                        logo: null,
-                        title: c.name,
-                      })),
-                    ]}
-                    skills={skills}
-                    text={text}
-                  />
+                  {/* The same bubble, its text swapped in place: as the model got it, or as it was written. */}
+                  <span className={lens.swap} key={String(lens.on)}>
+                    {lens.on && payload ? (
+                      <Seen pieces={splitLabels(seen, payload.labels)} />
+                    ) : (
+                      <Mentioned
+                        mentions={[
+                          ...mentions,
+                          ...(message.metadata?.cards ?? []).map((c) => ({
+                            card: true,
+                            id: c.id,
+                            logo: null,
+                            title: c.name,
+                          })),
+                        ]}
+                        skills={skills}
+                        text={text}
+                      />
+                    )}
+                  </span>
                 </BubbleContent>
               </Bubble>
             )}
-            <MessageFooter className={TOOLBAR}>
-              <span className="px-1">
-                <When at={message.metadata?.createdAt} />
-              </span>
-              <CopyAction text={text} />
-              {onEdit && onEditing && (
-                <Action label={t("edit")} onClick={() => onEditing(true)}>
-                  <Pencil />
-                </Action>
-              )}
-            </MessageFooter>
+            {hidden > 0 ? (
+              <MessageFooter className={TOOLBAR_ROW}>
+                <span className={ACTIONS}>{actions}</span>
+                {/* At the message's edge: its words grow into the row, the shield under the pointer stays put. */}
+                <LensMark
+                  count={hidden}
+                  label={tLens("asked")}
+                  on={lens.on}
+                  onToggle={lens.handleToggle}
+                />
+              </MessageFooter>
+            ) : (
+              <MessageFooter className={TOOLBAR}>{actions}</MessageFooter>
+            )}
           </>
         )}
       </MessageContent>
@@ -691,17 +732,20 @@ const AnswerFooter = ({
   vote,
   onVote,
   onRegenerate,
+  lens,
 }: {
   message: ChatMessage;
   label?: ModelLabel;
+  /** The shield, when the answer had values hidden: first in the row, under the start of the text. */
+  lens?: React.ReactNode;
   copy?: string;
   vote?: boolean;
   onVote?: (messageId: string, up: boolean | null) => void;
   onRegenerate?: (messageId: string) => void;
 }) => {
   const t = useTranslations("chat");
-  return (
-    <MessageFooter className={cn(TOOLBAR, "-mt-1")}>
+  const actions = (
+    <>
       <span className="flex items-center gap-1.5">
         {label && <span>{label.title}</span>}
         {label && message.metadata?.createdAt && (
@@ -736,7 +780,15 @@ const AnswerFooter = ({
           <RefreshCw />
         </Action>
       )}
+    </>
+  );
+  return lens ? (
+    <MessageFooter className={cn(TOOLBAR_ROW, "-mt-1")}>
+      {lens}
+      <span className={ACTIONS}>{actions}</span>
     </MessageFooter>
+  ) : (
+    <MessageFooter className={cn(TOOLBAR, "-mt-1")}>{actions}</MessageFooter>
   );
 };
 
@@ -848,6 +900,36 @@ const answerState = (message: ChatMessage | undefined) => {
   };
 };
 
+/** The tool calls of the work: the answer's words as the model wrote them are those after the last of them. */
+const workIdsOf = (steps: WorkStep[]) =>
+  new Set(
+    steps.flatMap((s) => {
+      if (s.kind === "tool") {
+        return s.calls.map((c) => c.toolCallId);
+      }
+      return s.kind === "thought" || s.kind === "note"
+        ? []
+        : [s.part.toolCallId];
+    })
+  );
+
+/**
+ * The model's words for each block of words in the answer, in order. When the steps do not split the way the blocks
+ * do, all of them stand in the first block.
+ */
+const modelWordsOf = (blocks: AnswerBlock[], texts: string[]) => {
+  const words = new Map<string, string>();
+  const textBlocks = blocks.filter((b) => b.kind === "text");
+  if (textBlocks.length === texts.length) {
+    for (const [i, b] of textBlocks.entries()) {
+      words.set(b.key, texts[i] ?? "");
+    }
+  } else if (textBlocks[0]) {
+    words.set(textBlocks[0].key, texts.join("\n\n"));
+  }
+  return words;
+};
+
 /** One piece of an answer: a table, a chart, the metrics, «connect X to go on», the user's answer, or words as markdown. */
 const AnswerPiece = ({
   block,
@@ -855,7 +937,13 @@ const AnswerPiece = ({
   servers,
   onAsk,
   onServerReady,
+  seen,
+  swap,
 }: {
+  /** The model's own words for this block, with the record's labels: shown instead of the text while the shield is on. */
+  seen?: { text: string | undefined; labels: ModelPayload["labels"] };
+  /** The words swap in place: the model's in, or the chat's back. */
+  swap?: string;
   block: AnswerBlock;
   /** The last piece while the answer streams: its new words fade in. */
   animating: boolean;
@@ -904,9 +992,28 @@ const AnswerPiece = ({
       />
     );
   }
+  if (seen) {
+    // Another block of words whose model's version stands in the first: it gives way.
+    if (seen.text === undefined) {
+      return null;
+    }
+    // In the same place and layout: only the words change. (A surface behind them, as in P31, would be cut by the
+    // row's paint containment — `content-visibility` — at the text's edge.)
+    return (
+      <Bubble className="w-full" variant="ghost">
+        <BubbleContent className={cn("w-full overflow-visible", swap)}>
+          <SeenMarkdown
+            components={MARKDOWN_PARTS}
+            labels={seen.labels}
+            text={seen.text}
+          />
+        </BubbleContent>
+      </Bubble>
+    );
+  }
   return (
     <Bubble className="w-full" variant="ghost">
-      <BubbleContent className="w-full overflow-visible">
+      <BubbleContent className={cn("w-full overflow-visible", swap)}>
         <Streamdown
           animated
           components={MARKDOWN_PARTS}
@@ -918,6 +1025,46 @@ const AnswerPiece = ({
       </BubbleContent>
     </Bubble>
   );
+};
+
+/** The answer as the model wrote it, before the values came back (PII-GUARD-PLAN З5): its shield and its words. */
+const useAnswerLens = (
+  message: ChatMessage | undefined,
+  steps: WorkStep[],
+  blocks: AnswerBlock[]
+) => {
+  const t = useTranslations("chat.lens");
+  const payload = useContext(ModelPayloadsContext)[message?.id ?? ""];
+  const lens = useLens();
+  const texts = payload ? answerTexts(payload, workIdsOf(steps)) : [];
+  const hidden = payload ? countHidden(texts, payload.labels) : 0;
+  const words =
+    payload && lens.on && hidden > 0
+      ? { labels: payload.labels, of: modelWordsOf(blocks, texts) }
+      : null;
+  return {
+    mark:
+      hidden > 0 ? (
+        <LensMark
+          count={hidden}
+          label={t("answered")}
+          on={lens.on}
+          onToggle={lens.handleToggle}
+        />
+      ) : undefined,
+    /** What a block shows: its words keyed by the side shown, so the swap plays in place; the model's while on. */
+    of: (block: AnswerBlock) =>
+      block.kind === "text"
+        ? {
+            key: `${block.key}:${lens.on}`,
+            seen: words
+              ? { labels: words.labels, text: words.of.get(block.key) }
+              : undefined,
+            swap: lens.swap,
+          }
+        : { key: block.key },
+    payload,
+  };
 };
 
 /**
@@ -970,16 +1117,22 @@ export const AssistantMessage = ({
     steps,
     waiting,
   } = answerState(message);
-  const piece = (block: AnswerBlock, i: number) => (
-    <AnswerPiece
-      animating={live && i === blocks.length - 1}
-      block={block}
-      key={block.key}
-      onAsk={onAsk}
-      onServerReady={onServerReady}
-      servers={servers}
-    />
-  );
+  const lens = useAnswerLens(message, steps, blocks);
+  const piece = (block: AnswerBlock, i: number) => {
+    const seen = lens.of(block);
+    return (
+      <AnswerPiece
+        animating={live && i === blocks.length - 1}
+        block={block}
+        key={seen.key}
+        onAsk={onAsk}
+        onServerReady={onServerReady}
+        seen={seen.seen}
+        servers={servers}
+        swap={seen.swap}
+      />
+    );
+  };
   return (
     <Message>
       <MessageContent className="gap-2">
@@ -990,6 +1143,7 @@ export const AssistantMessage = ({
         />
         {hasWork && (
           <ActivityBlock
+            payload={lens.payload}
             servers={servers}
             steps={steps}
             metadata={message?.metadata}
@@ -1019,6 +1173,7 @@ export const AssistantMessage = ({
             <AnswerFooter
               copy={answer || undefined}
               label={label}
+              lens={lens.mark}
               message={message}
               onRegenerate={onRegenerate}
               onVote={onVote}

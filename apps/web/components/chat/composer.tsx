@@ -24,6 +24,12 @@ import { AddMenu } from "@/components/chat/add-menu";
 import { ComposerShelf } from "@/components/chat/attachments";
 import type { useAttachments } from "@/components/chat/attachments";
 import { useChatPrefs } from "@/components/chat/chat-shell";
+import {
+  PreviewMark,
+  PreviewPanel,
+  isBlocked,
+  useDraftPreview,
+} from "@/components/chat/composer-privacy";
 import { ConnectDialog } from "@/components/chat/connect-dialog";
 import { MentionMenu } from "@/components/chat/mention-menu";
 import { ModelChooser } from "@/components/chat/picker/chooser";
@@ -196,6 +202,14 @@ export interface ComposerHandle {
 }
 
 const NO_SKILLS: ChatSkill[] = [];
+
+/** Something to send, the files are in, and data protection would let it go. */
+const canSend = (s: {
+  ready: boolean;
+  hasFiles: boolean;
+  pending: boolean;
+  blocked: boolean;
+}) => (s.ready || s.hasFiles) && !s.pending && !s.blocked;
 /** Cards in the `@` menu after the servers: a short list, the rest by typing more. */
 const MAX_CARDS = 6;
 
@@ -288,6 +302,7 @@ const cardsOf = (handle: EditorHandle | null) => {
 };
 
 export const Composer = ({
+  chatId,
   model,
   favorites,
   onModel,
@@ -303,6 +318,8 @@ export const Composer = ({
   ref,
 }: {
   ref?: Ref<ComposerHandle>;
+  /** The chat the draft is for: its data protection session previews what the model would get (P31, З7). */
+  chatId?: string;
   /** In place of «Спросите что-нибудь…»: «Опишите задачу…» on «Что поручить?»; `short` — on a phone. */
   placeholder?: { full: string; short: string };
   /** The files waiting in the composer (the chat screen owns them: a file dropped anywhere on it lands here). */
@@ -437,11 +454,18 @@ export const Composer = ({
   }, []);
   // The draft looks like it holds a password or a key: a line says so under the field (the send is not blocked).
   const [leaky, setLeaky] = useState(false);
+  // The draft as the model would get it (P31 «над текстом»): looked at once the person pauses.
+  const [draft, setDraft] = useState("");
+  const preview = useDraftPreview({ chatId, modelId: model.id, text: draft });
+  const [lens, setLens] = useState(false);
+  // The service is down: the message would not go to an external model — the button says so by not sending.
+  const blocked = isBlocked(preview);
   const onDraft = useCallback(
     (el: HTMLDivElement) => {
       field.current = el;
       measure();
       setLeaky(looksLikeSecret(el.textContent ?? ""));
+      setDraft(textOf(editor.current));
     },
     [measure]
   );
@@ -682,6 +706,12 @@ export const Composer = ({
               trigger={trigger.at}
             />
           )}
+          <PreviewPanel
+            files={attachments.parts.map((p) => p.filename ?? "")}
+            onClose={() => setLens(false)}
+            open={lens}
+            preview={preview}
+          />
           <ComposerShelf attachments={attachments} />
           {/* The height clip, with room around for the buttons' focus rings */}
           <div
@@ -779,6 +809,12 @@ export const Composer = ({
                 className="col-start-3 row-start-1 flex items-center gap-1 group-data-tall/deck:row-start-2"
                 ref={actions}
               >
+                <PreviewMark
+                  compact={isPhone}
+                  onToggle={() => setLens(!lens)}
+                  open={lens}
+                  preview={preview}
+                />
                 <ModelChooser
                   favorites={favorites}
                   model={model}
@@ -787,7 +823,7 @@ export const Composer = ({
                 />
                 <SendButton
                   onStop={onStop}
-                  ready={(ready || hasFiles) && !pending}
+                  ready={canSend({ blocked, hasFiles, pending, ready })}
                   state={busy ? "stop" : "send"}
                 />
               </div>

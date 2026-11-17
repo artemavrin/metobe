@@ -610,6 +610,32 @@ export const localInstant = (date: string, time: string, timeZone: string) => {
 export const localMidnight = (date: string, timeZone: string) =>
   localInstant(date, "00:00", timeZone);
 
+/**
+ * A deadline said as a period — «на этой неделе», «в этом месяце» — falls due when the period is over, not on the day the
+ * model put in the middle of it: its last day (a week runs Monday to Sunday). A day, no time and a date that is no day
+ * stay as they are.
+ */
+export const periodEnd = <T extends { date: string; precision: string }>(
+  w: T
+): T => {
+  const groups = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u.exec(w.date);
+  if (!groups?.groups || !["week", "month", "year"].includes(w.precision)) {
+    return w;
+  }
+  const { year, month, day } = groups.groups;
+  const from = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  let end: Date;
+  if (w.precision === "week") {
+    const sinceMonday = (from.getUTCDay() + 6) % 7;
+    end = new Date(from.getTime() + (6 - sinceMonday) * 86_400_000);
+  } else if (w.precision === "month") {
+    end = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 0));
+  } else {
+    end = new Date(Date.UTC(from.getUTCFullYear(), 11, 31));
+  }
+  return { ...w, date: end.toISOString().slice(0, 10) };
+};
+
 type Item = Extraction["items"][number];
 type Planned = MemoryWritePlan["records"][number];
 type Link = Planned["entities"][number];
@@ -851,7 +877,7 @@ const commitmentOf = (
   }
   return {
     ...record,
-    dueAt: day(item.due)?.at,
+    dueAt: day(periodEnd(item.due))?.at,
     givenAt: at?.at,
     ...(item.important ? { important: true } : {}),
     ...(remindAt ? { remind: { at: remindAt, repeat } } : {}),
@@ -1035,7 +1061,7 @@ const moved = (
   const dues = new Map<string, MemoryWritePlan["dues"][number]>();
   for (const m of extraction.moves) {
     const c = byRef.get(m.ref);
-    const to = day(m.due);
+    const to = day(periodEnd(m.due));
     if (
       c &&
       to &&

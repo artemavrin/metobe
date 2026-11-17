@@ -361,6 +361,21 @@ describe("chatContext", () => {
   });
 });
 
+const dueOf = (due: { date: string; precision: "week" | "month" | "year" }) =>
+  plan({
+    items: [
+      item({
+        about: ["user"],
+        creditor: "user",
+        debtor: "user",
+        due,
+        kind: "commitment",
+        text: "Сделать автоматизацию",
+        when: { date: "2026-11-17", precision: "day" },
+      }),
+    ],
+  }).records[0]?.dueAt;
+
 describe("planWrite", () => {
   it("gives a commitment its sides, its day given and its deadline", () => {
     const { records } = plan({
@@ -388,6 +403,26 @@ describe("planWrite", () => {
         text: "Андрей Смирнов пришлёт отчёт к 17 ноября",
       },
     ]);
+  });
+
+  it("makes a deadline given as a period fall due at its end, not in its middle", () => {
+    // «На этой неделе»: the model gives Wednesday 18 November; the week ends on Sunday the 22nd.
+    expect(dueOf({ date: "2026-11-18", precision: "week" })).toEqual(
+      new Date("2026-11-21T21:00:00Z")
+    );
+    // Any day of the week gives the same Sunday, and a Sunday is its own end.
+    expect(dueOf({ date: "2026-11-16", precision: "week" })).toEqual(
+      new Date("2026-11-21T21:00:00Z")
+    );
+    expect(dueOf({ date: "2026-11-22", precision: "week" })).toEqual(
+      new Date("2026-11-21T21:00:00Z")
+    );
+    expect(dueOf({ date: "2026-11-01", precision: "month" })).toEqual(
+      new Date("2026-11-29T21:00:00Z")
+    );
+    expect(dueOf({ date: "2026-01-01", precision: "year" })).toEqual(
+      new Date("2026-12-30T21:00:00Z")
+    );
   });
 
   it("settles open commitments by ref, once each, and only when the status changes", () => {
@@ -506,6 +541,12 @@ describe("planWrite", () => {
     const to = { date: "2026-11-16", precision: "day" } as const;
     expect(moveOf([{ due: to, ref: "k1" }])).toEqual([
       { dueAt: new Date("2026-11-15T21:00:00Z"), recordId: OPEN[0]?.id },
+    ]);
+    // A move to «на следующей неделе» lands on that week's end.
+    expect(
+      moveOf([{ due: { date: "2026-11-25", precision: "week" }, ref: "k1" }])
+    ).toEqual([
+      { dueAt: new Date("2026-11-28T21:00:00Z"), recordId: OPEN[0]?.id },
     ]);
     // A ref to nothing, no day, a second word on the same one, one the message settles too.
     expect(moveOf([{ due: to, ref: "k9" }])).toEqual([]);

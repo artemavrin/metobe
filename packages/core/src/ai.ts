@@ -12,11 +12,14 @@ import { getDb } from "./db";
 import { getEnv } from "./env";
 import { fetchFor, onNetChange } from "./net";
 import {
+  isGuardBlocked,
   isGuardUnavailable,
   maskingMiddleware,
   previewMask,
 } from "./pii-guard";
 import type { GuardOptions, MaskedCall, ModelAnswer } from "./pii-guard";
+import { getPrivacySettings, guardUrl, policyFor } from "./privacy-settings";
+import type { PrivacyPlace } from "./privacy-settings";
 import { withSecret } from "./secrets";
 
 // Providers built from sources (ARCH §7): the key from secrets, fetch routed by core/net, Yandex normalised.
@@ -77,34 +80,55 @@ export const providerFor = (sourceId: string): Promise<Built> => {
 export interface ModelUse {
   /** One per conversation (a chat, a task), so a person keeps one label; a fresh one by default. */
   session?: string;
+  /** Where the call comes from: the admin turns protection on or off per place (З6); a service call by default. */
+  place?: PrivacyPlace;
   onMasked?: (call: MaskedCall) => void;
   onAnswer?: (answer: ModelAnswer) => void;
 }
 
+/** Why a call goes as it is, or the guard it goes through. */
+type GuardDecision =
+  | { state: "off" }
+  | { state: "local" }
+  | { state: "on"; guard: GuardOptions };
+
+const decideGuard = async (
+  sourceId: string,
+  use: ModelUse
+): Promise<GuardDecision> => {
+  const settings = await getPrivacySettings();
+  const url = guardUrl(settings);
+  if (!(url && settings.on && settings.places[use.place ?? "service"])) {
+    return { state: "off" };
+  }
+  const provider = await providerFor(sourceId);
+  if (provider.local && !settings.local) {
+    return { state: "local" };
+  }
+  return {
+    guard: {
+      ...policyFor(settings),
+      onAnswer: use.onAnswer,
+      onMasked: use.onMasked,
+      session: use.session ?? `call-${crypto.randomUUID()}`,
+      token: getEnv().PII_GUARD_TOKEN,
+      url,
+    },
+    state: "on",
+  };
+};
+
 /**
- * Data protection for a call to a source, or null when it does not apply: an external source sees
- * the prompt only through the guard; a local one is left alone (its data does not leave the
- * server). Without PII_GUARD_URL it is off.
+ * Data protection for a call to a source, or null when it does not apply: off in the settings or
+ * for this place, not set up, or a local model the admin leaves alone (its data does not leave the
+ * server).
  */
 export const guardFor = async (
   sourceId: string,
   use: ModelUse = {}
 ): Promise<GuardOptions | null> => {
-  const { PII_GUARD_TOKEN, PII_GUARD_URL } = getEnv();
-  if (!PII_GUARD_URL) {
-    return null;
-  }
-  const provider = await providerFor(sourceId);
-  if (provider.local) {
-    return null;
-  }
-  return {
-    onAnswer: use.onAnswer,
-    onMasked: use.onMasked,
-    session: use.session ?? `call-${crypto.randomUUID()}`,
-    token: PII_GUARD_TOKEN,
-    url: PII_GUARD_URL,
-  };
+  const decision = await decideGuard(sourceId, use);
+  return decision.state === "on" ? decision.guard : null;
 };
 
 export const getLanguageModel = async (
@@ -124,11 +148,12 @@ export const getLanguageModel = async (
   });
 };
 
-/** How a draft would reach a source's model (P31, З7): as it is, or masked like a send would be. */
+/** How a draft would reach a source's model (P31, З7): as it is, masked like a send would be, or not at all. */
 export type DraftPreview =
   | { state: "off" }
   | { state: "local" }
   | { state: "down" }
+  | { state: "blocked" }
   | { state: "masked"; text: string; labels: ModelLabel[] };
 
 export const previewDraft = async (
@@ -136,15 +161,12 @@ export const previewDraft = async (
   session: string,
   text: string
 ): Promise<DraftPreview> => {
-  if (!getEnv().PII_GUARD_URL) {
-    return { state: "off" };
-  }
-  const guard = await guardFor(sourceId, { session });
-  if (!guard) {
-    return { state: "local" };
+  const decision = await decideGuard(sourceId, { place: "chat", session });
+  if (decision.state !== "on") {
+    return decision;
   }
   try {
-    const masked = await previewMask(text, guard);
+    const masked = await previewMask(text, decision.guard);
     return {
       labels: masked.entities.map((e) => ({
         label: e.placeholder,
@@ -155,6 +177,9 @@ export const previewDraft = async (
       text: masked.text,
     };
   } catch (error) {
+    if (isGuardBlocked(error)) {
+      return { state: "blocked" };
+    }
     if (isGuardUnavailable(error)) {
       return { state: "down" };
     }

@@ -78,7 +78,13 @@ export const buildPayloads = (
   const labels = labelsOf(calls);
   const outputs = outputsOf(calls);
   const first = calls[0]?.prompt ?? [];
-  const asked = first.findLast((message) => message.role === "user");
+  // The last user message (a loop: the web's lib target has no findLast).
+  let asked: PromptMessage | undefined;
+  for (let i = first.length - 1; i >= 0 && !asked; i -= 1) {
+    if (first[i]?.role === "user") {
+      asked = first[i];
+    }
+  }
   const steps: ModelStepView[] = answers.map((answer) => ({
     text: answer.text || undefined,
     tools: answer.toolCalls.map((call) => ({

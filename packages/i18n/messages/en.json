@@ -47,6 +47,31 @@
     "thread": "Messages",
     "toLatest": "Jump to latest",
     "reasoningFor": "Reasoning · {seconds}s",
+    "lensInput": {
+      "show": "{count, plural, one {# value hidden} other {# values hidden}} — show how the model will get it",
+      "hide": "Collapse",
+      "title": "As the model will get it",
+      "file": "goes unmasked",
+      "local": "Stays on the server",
+      "localTip": "A local model gets the text as it is",
+      "down": "Won’t send: data protection is unavailable",
+      "downShort": "Protection unavailable",
+      "downTitle": "Not sent: data protection is unavailable",
+      "downText": "The masking service does not answer. Nothing goes to external models; local models work.",
+      "blocked": "Won’t send: data that must not be sent",
+      "blockedShort": "Data not allowed",
+      "blockedTitle": "Not sent: the message holds data that must not be sent",
+      "blockedText": "The data protection settings don’t allow sending this data to external models. Remove it from the message or choose a local model."
+    },
+    "lens": {
+      "hidden": "{count, plural, one {# value hidden} other {# values hidden}}",
+      "asked": "As the model got it",
+      "answered": "As the model wrote it",
+      "tool": "As the model saw it",
+      "back": "Show as in the chat",
+      "sent": "The model sent",
+      "got": "The model got"
+    },
     "tools": {
       "running": "running",
       "waiting": "waiting for your yes",

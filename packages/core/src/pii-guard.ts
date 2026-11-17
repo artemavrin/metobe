@@ -57,6 +57,10 @@ export interface GuardOptions {
   onMasked?: (call: MaskedCall) => void;
   /** Called with every answer as the model wrote it, before restoring. */
   onAnswer?: (answer: ModelAnswer) => void;
+  /** Types sent as they are (the admin's choice, З6). */
+  keep?: readonly string[];
+  /** Types that stop the request: it is not sent at all. */
+  block?: readonly string[];
 }
 
 /** The guard did not answer: the call is not made (fail closed). */
@@ -67,20 +71,34 @@ export class GuardUnavailableError extends Error {
   }
 }
 
-/** Whether ``error`` (or what it wraps: AI SDK puts a thrown error into its own) is the guard down. */
-export const isGuardUnavailable = (error: unknown): boolean => {
+/** The request holds a type the admin forbade sending (З6): it is not sent. */
+const guardBlocked = (): Error =>
+  Object.assign(
+    new Error(
+      "Запрос не отправлен: в нём данные, которые запрещено передавать"
+    ),
+    { name: "GuardBlockedError" }
+  );
+
+/** Whether ``error`` or what it wraps (AI SDK puts a thrown error into its own) has this name. */
+const wraps = (error: unknown, name: string): boolean => {
   let current: unknown = error;
   for (let depth = 0; current && depth < 5; depth += 1) {
-    if (current instanceof GuardUnavailableError) {
-      return true;
-    }
-    if ((current as { name?: unknown }).name === "GuardUnavailableError") {
+    if ((current as { name?: unknown }).name === name) {
       return true;
     }
     current = (current as { cause?: unknown }).cause;
   }
   return false;
 };
+
+/** The guard is down. */
+export const isGuardUnavailable = (error: unknown): boolean =>
+  wraps(error, "GuardUnavailableError");
+
+/** The request was stopped by the admin's rule for a type. */
+export const isGuardBlocked = (error: unknown): boolean =>
+  wraps(error, "GuardBlockedError");
 
 const SESSION_RE = /[^A-Za-z0-9_-]/gu;
 
@@ -304,6 +322,17 @@ interface RestoreItem {
   final?: boolean;
 }
 
+const blockedBy = async (response: Response) => {
+  try {
+    const body = (await response.clone().json()) as {
+      error?: { code?: unknown };
+    };
+    return body.error?.code === "blocked_by_policy";
+  } catch {
+    return false;
+  }
+};
+
 const client = (options: GuardOptions) => {
   const doFetch = options.fetch ?? globalThis.fetch;
   const base = options.url.replace(/\/+$/u, "");
@@ -323,6 +352,9 @@ const client = (options: GuardOptions) => {
     } catch (error) {
       throw new GuardUnavailableError(error);
     }
+    if (response.status === 422 && (await blockedBy(response))) {
+      throw guardBlocked();
+    }
     if (!response.ok) {
       // The guard refused (fail closed on its side too): never forward the original.
       throw new GuardUnavailableError(
@@ -337,7 +369,12 @@ const client = (options: GuardOptions) => {
         body: { messages: ChatMessage[] };
         entities: GuardEntity[];
         ms: number;
-      }>("mask", dry ? { dry, messages } : { messages }),
+      }>("mask", {
+        messages,
+        ...(dry ? { dry } : {}),
+        ...(options.keep?.length ? { keep: options.keep } : {}),
+        ...(options.block?.length ? { block: options.block } : {}),
+      }),
     restore: async (items: RestoreItem[]) => {
       const answer = await post<{ items: { text: string; held?: string }[] }>(
         "restore",

@@ -931,9 +931,15 @@ export const POST = async (request: Request) => {
         recording.saved?.();
       }
       // A failed record never fails the answer: the chat has it already.
+      let answerId: string | undefined;
+      for (const m of finished) {
+        if (m.role === "assistant") {
+          answerId = m.id;
+        }
+      }
       await payloads
         .save({
-          answerId: finished.findLast((m) => m.role === "assistant")?.id,
+          answerId,
           chatId: id,
           questionId: message?.id,
         })
