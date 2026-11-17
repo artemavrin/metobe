@@ -2229,7 +2229,8 @@
       "describe": "Vision",
       "compact": "Chat compaction",
       "memory": "Memory",
-      "decide": "Memory decisions"
+      "decide": "Memory decisions",
+      "task": "Scheduled tasks"
     },
     "other": "Other",
     "removedModel": "Deleted model",
