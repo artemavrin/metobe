@@ -544,7 +544,9 @@ const carry = async (c: {
         previous,
         note
       ),
-      languageModel: await getLanguageModel(model.sourceId, model.modelId),
+      languageModel: await getLanguageModel(model.sourceId, model.modelId, {
+        session: `task-${task.id}`,
+      }),
       modelId: model.id,
       signal: c.signal ? AbortSignal.any([c.signal, timeout]) : timeout,
     };

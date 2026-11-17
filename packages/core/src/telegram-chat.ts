@@ -204,7 +204,7 @@ export const answerTelegram = async ({
   const [history, { brief, note, tools }, languageModel] = await Promise.all([
     listMessages(chatId),
     toolsFor(userId, model, { chatId, messageId: question.id, text }, timeZone),
-    getLanguageModel(model.sourceId, model.modelId),
+    getLanguageModel(model.sourceId, model.modelId, { session: chatId }),
   ]);
   const messages = withBrief(
     await convertToModelMessages(history.slice(-CONTEXT), { tools }),

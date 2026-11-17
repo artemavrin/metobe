@@ -78,6 +78,7 @@ import {
 import { rememberTool } from "@metobe/core/memory-remember";
 import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
 import { getPersonalPolicy } from "@metobe/core/personal";
+import { isGuardUnavailable } from "@metobe/core/pii-guard";
 import { skillsForChat } from "@metobe/core/skills";
 import { getTaskByChat } from "@metobe/core/tasks";
 import { isDraining } from "@metobe/core/updater-bus";
@@ -406,6 +407,9 @@ const uiError = (error: unknown) => {
   if (isContextOverflow(error)) {
     return "context-full";
   }
+  if (isGuardUnavailable(error)) {
+    return "guard-unavailable";
+  }
   return error instanceof SourceError ? error.message : "An error occurred.";
 };
 
@@ -466,7 +470,10 @@ export const POST = async (request: Request) => {
 
   let languageModel: Awaited<ReturnType<typeof getLanguageModel>>;
   try {
-    languageModel = await getLanguageModel(model.sourceId, model.modelId);
+    // The data protection session is the chat: a person keeps one label across turns.
+    languageModel = await getLanguageModel(model.sourceId, model.modelId, {
+      session: id,
+    });
   } catch (error) {
     console.error("chat: could not build the model", model.id, error);
     return fail("model-unavailable", 422);
@@ -935,6 +942,9 @@ export const POST = async (request: Request) => {
       endGeneration(id, generation);
       console.error("chat: generation failed", model.id, error);
       // A history too long for the model's window is said as that, not as «the model did not answer».
+      if (isGuardUnavailable(error)) {
+        return "guard-unavailable" satisfies ChatErrorCode;
+      }
       return (
         isContextOverflow(error) ? "context-full" : "generation-failed"
       ) satisfies ChatErrorCode;

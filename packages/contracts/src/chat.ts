@@ -160,6 +160,7 @@ export const chatErrorCodes = [
   "model-unavailable",
   "generation-failed",
   "context-full",
+  "guard-unavailable",
   "too-fast",
   "daily-limit",
   "updating",

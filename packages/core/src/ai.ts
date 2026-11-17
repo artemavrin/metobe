@@ -1,19 +1,26 @@
 import "server-only";
 import { sources } from "@metobe/db/schema/models";
 import type { Source } from "@metobe/db/schema/models";
+import { wrapLanguageModel } from "ai";
 import type { Experimental_EvaluationModel, LanguageModel } from "ai";
 import { eq } from "drizzle-orm";
 
 import { baseUrlOf, buildProvider } from "./ai-build";
 import { onConfigChange } from "./config-bus";
 import { getDb } from "./db";
+import { getEnv } from "./env";
 import { fetchFor, onNetChange } from "./net";
+import { maskingMiddleware } from "./pii-guard";
+import type { MaskedCall } from "./pii-guard";
 import { withSecret } from "./secrets";
 
 // Providers built from sources (ARCH §7): the key from secrets, fetch routed by core/net, Yandex normalised.
 // The key lives in memory only inside a built provider; any source or proxy change drops the cache.
 
-type Built = ReturnType<typeof buildProvider>;
+type Built = ReturnType<typeof buildProvider> & {
+  /** Localhost or a private network (`sources.local`): data does not leave the server. */
+  local: boolean;
+};
 const cache = new Map<string, Promise<Built>>();
 
 const build = async (source: Source): Promise<Built> => {
@@ -22,13 +29,14 @@ const build = async (source: Source): Promise<Built> => {
     withSecret({ id: source.id, type: "source" }, "api_key", (v) => v),
     fetchFor({ mode: source.proxyMode, proxyId: source.proxyId }, baseUrl),
   ]);
-  return buildProvider({
+  const provider = buildProvider({
     apiKey,
     baseUrl: source.baseUrl,
     fetch,
     kind: source.kind,
     options: source.options,
   });
+  return Object.assign(provider, { local: source.local });
 };
 
 /** The provider for a source, built once; a source that is off or missing is an error, not a silent fallback. */
@@ -60,12 +68,35 @@ export const providerFor = (sourceId: string): Promise<Built> => {
   return built;
 };
 
+/** How a model is used: the guard session and where "what the model saw" goes (PII-GUARD-PLAN З2). */
+export interface ModelUse {
+  /** One per conversation (a chat, a task), so a person keeps one label; a fresh one by default. */
+  session?: string;
+  onMasked?: (call: MaskedCall) => void;
+}
+
 export const getLanguageModel = async (
   sourceId: string,
-  modelId: string
+  modelId: string,
+  use: ModelUse = {}
 ): Promise<LanguageModel> => {
   const provider = await providerFor(sourceId);
-  return provider.languageModel(modelId);
+  const model = provider.languageModel(modelId);
+  // Data protection: an external source sees the prompt only through the guard; a local one is
+  // left alone (its data does not leave the server). Without PII_GUARD_URL it is off.
+  const { PII_GUARD_TOKEN, PII_GUARD_URL } = getEnv();
+  if (!PII_GUARD_URL || provider.local) {
+    return model;
+  }
+  return wrapLanguageModel({
+    middleware: maskingMiddleware({
+      onMasked: use.onMasked,
+      session: use.session ?? `call-${crypto.randomUUID()}`,
+      token: PII_GUARD_TOKEN,
+      url: PII_GUARD_URL,
+    }),
+    model: model as Parameters<typeof wrapLanguageModel>[0]["model"],
+  });
 };
 
 /** A decision model of a source (ARCH §19.4); a source whose kind serves none is an error. */

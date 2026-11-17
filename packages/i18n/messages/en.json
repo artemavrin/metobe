@@ -68,6 +68,7 @@
       "model-unavailable": "The model is unavailable right now. Try again later.",
       "generation-failed": "The model didn’t answer. Try again.",
       "context-full": "The model’s context is full: the chat’s history is too long. Start a new chat or pick a model with a bigger window.",
+      "guard-unavailable": "Data protection is unavailable: the request was not sent.",
       "network": "Can’t reach the server. Check your connection.",
       "forbidden": "This chat isn’t yours.",
       "unauthorized": "Your session has ended — sign in again.",
