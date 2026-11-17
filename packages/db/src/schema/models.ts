@@ -112,6 +112,11 @@ export const models = pgTable(
     /** The source's own id: `gpt-5.2`, `anthropic/claude-sonnet-5`, `yandexgpt-5.1` (the URI is built from the folder). */
     modelId: text("model_id").notNull(),
     /**
+     * The name the source gives the model, kept while the admin's own name stands in `title`; null — not renamed, and
+     * `title` is the source's. A sync refreshes this one and leaves `title` alone; «Вернуть» puts it back in `title`.
+     */
+    originalTitle: text("original_title"),
+    /**
      * Prices exactly as entered or reported, per `price_unit_tokens` tokens (1, 1000, 1M — any), in
      * `price_currency`. Unbounded numeric: nothing is normalised or rounded, so tiny per-token prices never turn
      * into zeros; costs are computed exactly (core/pricing). Currencies are never converted (D19).
@@ -130,6 +135,7 @@ export const models = pgTable(
     sourceId: uuid("source_id")
       .notNull()
       .references(() => sources.id, { onDelete: "cascade" }),
+    /** The name people see (the picker, usage): the source's, or the admin's own. */
     title: text("title").notNull(),
     /** `language` — writes text; `evaluation` — a decision model, only for the «Решения» job (ARCH §19.4). */
     type: text("type").$type<ModelType>().notNull().default("language"),

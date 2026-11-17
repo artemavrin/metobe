@@ -15,6 +15,7 @@ import {
   replaceSourceKey,
   setModelCapabilities,
   setModelPricing,
+  setModelTitle,
   setModelsEnabled,
   setSourceRoute,
   syncSource,
@@ -240,6 +241,21 @@ export const setPricing = async (
   await setModelPricing(sourceId, model, parsed.data);
   refresh();
   return { ok: true };
+};
+
+/** The model's name people see, kept through syncs; `null` puts the source's own back. */
+export const renameModel = async (
+  id: string,
+  modelId: string,
+  title: string | null
+) => {
+  await requireAdmin();
+  await setModelTitle(
+    idSchema.parse(id),
+    idSchema.parse(modelId),
+    title === null ? null : z.string().trim().min(1).max(100).parse(title)
+  );
+  refresh();
 };
 
 /** Capabilities set by hand (kept through syncs); `null` hands them back to the source and re-reads it. */
