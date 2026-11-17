@@ -3,6 +3,7 @@ import type {
   ChatMessage,
   ChatRole,
   ChatVisibility,
+  ModelPayload,
 } from "@metobe/contracts/chat";
 import { sql } from "drizzle-orm";
 import {
@@ -109,6 +110,27 @@ export const votes = pgTable(
       .references(() => messages.id, { onDelete: "cascade" }),
   },
   (table) => [primaryKey({ columns: [table.chatId, table.messageId] })]
+);
+
+/**
+ * What the model saw for a message (PII-GUARD-PLAN З4, D46): written when data protection masked the call;
+ * one row per message, an answer carried on after approvals adds its steps. Same visibility as the chat.
+ */
+export const modelPayloads = pgTable(
+  "model_payloads",
+  {
+    chatId: uuid("chat_id")
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    messageId: uuid("message_id")
+      .primaryKey()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    payload: jsonb("payload").$type<ModelPayload>().notNull(),
+  },
+  (table) => [index("model_payloads_chat").on(table.chatId)]
 );
 
 export type Chat = typeof chats.$inferSelect;

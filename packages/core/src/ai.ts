@@ -11,7 +11,7 @@ import { getDb } from "./db";
 import { getEnv } from "./env";
 import { fetchFor, onNetChange } from "./net";
 import { maskingMiddleware } from "./pii-guard";
-import type { GuardOptions, MaskedCall } from "./pii-guard";
+import type { GuardOptions, MaskedCall, ModelAnswer } from "./pii-guard";
 import { withSecret } from "./secrets";
 
 // Providers built from sources (ARCH §7): the key from secrets, fetch routed by core/net, Yandex normalised.
@@ -73,6 +73,7 @@ export interface ModelUse {
   /** One per conversation (a chat, a task), so a person keeps one label; a fresh one by default. */
   session?: string;
   onMasked?: (call: MaskedCall) => void;
+  onAnswer?: (answer: ModelAnswer) => void;
 }
 
 /**
@@ -93,6 +94,7 @@ export const guardFor = async (
     return null;
   }
   return {
+    onAnswer: use.onAnswer,
     onMasked: use.onMasked,
     session: use.session ?? `call-${crypto.randomUUID()}`,
     token: PII_GUARD_TOKEN,

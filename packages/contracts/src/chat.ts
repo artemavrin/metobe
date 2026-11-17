@@ -152,6 +152,38 @@ export type ChatMessage = UIMessage<
   ChatTools
 >;
 
+/** A label the model saw instead of a value (PII-GUARD-PLAN З4): its type and the value it stands for. */
+export interface ModelLabel {
+  label: string;
+  type: string;
+  value: string;
+}
+
+/** One tool call of a step as the model saw it: what it wrote to the tool, what it got back. */
+export interface ModelToolView {
+  toolCallId: string;
+  input?: string;
+  output?: string;
+}
+
+/** One step of an answer as the model wrote it, before the values were restored. */
+export interface ModelStepView {
+  text?: string;
+  tools: ModelToolView[];
+}
+
+/**
+ * What the model saw for one message (PII-GUARD-PLAN З4, P31): the person's message as it went, or an
+ * answer's steps as the model wrote them; with the labels in them. Kept only when data protection was on.
+ */
+export interface ModelPayload {
+  labels: ModelLabel[];
+  /** The person's message as the model got it. */
+  text?: string;
+  /** An answer's steps (the sum-up pass is a step too). */
+  steps?: ModelStepView[];
+}
+
 /** What `POST /api/chat` answers instead of a stream; the chat screen says it in the user's language. */
 export const chatErrorCodes = [
   "unauthorized",

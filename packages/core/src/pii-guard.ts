@@ -35,8 +35,16 @@ export interface GuardEntity {
 export interface MaskedCall {
   /** The chat messages as the model got them, the guard's note included. */
   messages: ChatMessage[];
+  /** The same request as AI SDK's prompt (tool calls keep their ids), without the note. */
+  prompt?: Prompt;
   entities: GuardEntity[];
   ms: number;
+}
+
+/** What the model wrote in one call, before the values were restored (З4: "what the model said"). */
+export interface ModelAnswer {
+  text: string;
+  toolCalls: { toolCallId: string; toolName: string; input: string }[];
 }
 
 export interface GuardOptions {
@@ -47,6 +55,8 @@ export interface GuardOptions {
   fetch?: typeof globalThis.fetch;
   /** Called with every masked prompt (the step's request as the model saw it). */
   onMasked?: (call: MaskedCall) => void;
+  /** Called with every answer as the model wrote it, before restoring. */
+  onAnswer?: (answer: ModelAnswer) => void;
 }
 
 /** The guard did not answer: the call is not made (fail closed). */
@@ -107,7 +117,7 @@ const pick = <T>(items: readonly T[], i: number): T => {
 };
 const asMessage = (value: unknown) => value as PromptMessage;
 
-const toolOutputText = (output: unknown): string | null => {
+export const toolOutputText = (output: unknown): string | null => {
   const o = output as { type: string; value: unknown };
   switch (o.type) {
     case "text":
@@ -444,6 +454,7 @@ export const maskingMiddleware = (
         entities: result.entities,
         messages: masked,
         ms: result.ms,
+        prompt: prompt as Prompt,
       });
       const head = masked.slice(0, notes).map((m) => ({
         content: String(m.content ?? ""),
@@ -455,6 +466,19 @@ export const maskingMiddleware = (
     wrapGenerate: async ({ doGenerate, params }) => {
       const result = (await doGenerate()) as GenerateResult;
       const content = result.content as Record<string, unknown>[];
+      options.onAnswer?.({
+        text: content
+          .filter((c) => c.type === "text")
+          .map((c) => String(c.text))
+          .join(""),
+        toolCalls: content
+          .filter((c) => c.type === "tool-call")
+          .map((c) => ({
+            input: String(c.input),
+            toolCallId: String(c.toolCallId),
+            toolName: String(c.toolName),
+          })),
+      });
       const textual = content
         .map((c, i) => [c, i] as const)
         .filter(
@@ -517,12 +541,27 @@ export const maskingMiddleware = (
         held.set(id, r.held ?? "");
         return r.text;
       };
+      // The answer as the model wrote it, for "what the model saw" (reported once, at the end).
+      const answer: ModelAnswer = { text: "", toolCalls: [] };
       const transform = new TransformStream<StreamPart, StreamPart>({
+        flush() {
+          options.onAnswer?.(answer);
+        },
         async transform(part, controller) {
           const p = part as Record<string, unknown> & {
             type: string;
             id?: string;
           };
+          if (p.type === "text-delta") {
+            answer.text += String(p.delta);
+          }
+          if (p.type === "tool-call") {
+            answer.toolCalls.push({
+              input: String(p.input),
+              toolCallId: String(p.toolCallId),
+              toolName: String(p.toolName),
+            });
+          }
           if (p.type === "text-delta" || p.type === "reasoning-delta") {
             const text = await feed(`${p.type}:${p.id}`, String(p.delta));
             if (text) {
