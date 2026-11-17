@@ -175,6 +175,9 @@ else
     echo "# Encrypts source keys and connection secrets. Losing it makes them unrecoverable."
     echo "SECRETS_KEY=$(secret)"
     echo "SEARXNG_SECRET=$(password)"
+    # Data protection (the `pii` profile, off by default): the labels' key and the app's token to the service.
+    echo "PII_GUARD_TENANT_KEY=$(password)"
+    echo "PII_GUARD_API_TOKEN=$(password)"
     profiles=""
     if [ -n "${METOBE_DATABASE_URL:-}" ]; then
       echo "APP_DATABASE_URL=$METOBE_DATABASE_URL"

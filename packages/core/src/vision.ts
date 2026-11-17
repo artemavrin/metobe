@@ -67,7 +67,9 @@ export const describeImage = async (run: {
   const started = Date.now();
   try {
     const result = await describeCall(
-      await getLanguageModel(model.sourceId, model.modelId),
+      await getLanguageModel(model.sourceId, model.modelId, {
+        session: run.chatId,
+      }),
       run.bytes,
       run.mediaType
     );

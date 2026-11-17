@@ -3,9 +3,10 @@ import type {
   ChatKind,
   ChatMessage,
   ChatVisibility,
+  ModelPayload,
 } from "@metobe/contracts/chat";
 import { user } from "@metobe/db/schema/auth";
-import { chats, messages, votes } from "@metobe/db/schema/chat";
+import { chats, messages, modelPayloads, votes } from "@metobe/db/schema/chat";
 import {
   modelRuns,
   models,
@@ -255,6 +256,20 @@ export const searchChats = async (
     }
   }
   return [...hits.values()].slice(0, limit);
+};
+
+/** What the model saw in a chat (PII-GUARD-PLAN З5): message id → its record; only messages that had values hidden. */
+export const listModelPayloads = async (
+  chatId: string
+): Promise<Record<string, ModelPayload>> => {
+  const rows = await getDb()
+    .db.select({
+      messageId: modelPayloads.messageId,
+      payload: modelPayloads.payload,
+    })
+    .from(modelPayloads)
+    .where(eq(modelPayloads.chatId, chatId));
+  return Object.fromEntries(rows.map((r) => [r.messageId, r.payload]));
 };
 
 /** The user's votes in a chat: answer id → helpful (true) or not (false). */

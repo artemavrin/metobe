@@ -30,7 +30,7 @@ import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 
 import { SettingsListLevel } from "@/components/settings/settings-list";
-import { lastPage } from "@/lib/last-page";
+import { lastPage, settingsSteps } from "@/lib/last-page";
 import { levelMotion } from "@/lib/level-motion";
 import type { SettingsLists } from "@/lib/settings-lists";
 import { findSection, SETTINGS_NAV } from "@/lib/settings-nav";
@@ -276,20 +276,10 @@ export const SettingsShell = ({
   }, []);
   // Focus lands on the window, not on its search field: a ring on a field nobody asked for.
   const popup = useRef<HTMLDivElement>(null);
-  // Sections visited in the window: none — closing takes the entry it added away; some — it goes to the page it was
-  // opened over, not to the section before.
-  const visited = useRef(0);
-  const first = useRef(pathname);
-  useEffect(() => {
-    if (pathname !== first.current) {
-      visited.current += 1;
-      first.current = pathname;
-    }
-  }, [pathname]);
   const close = () => {
     if (!intercepted) {
       router.push("/");
-    } else if (visited.current === 0) {
+    } else if (settingsSteps() <= 1) {
       router.back();
     } else {
       router.push(lastPage());

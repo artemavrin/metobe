@@ -305,7 +305,9 @@ export const proposeTaskChange = async (input: {
       abortSignal: AbortSignal.timeout(CHANGE_TIMEOUT_MS),
       instructions: instructionsFor(task, current, kit, input.locale),
       maxRetries: 1,
-      model: await getLanguageModel(model.sourceId, model.modelId),
+      model: await getLanguageModel(model.sourceId, model.modelId, {
+        session: `task-${input.taskId}`,
+      }),
       prompt: input.request,
       stopWhen: [stepCountIs(3), () => proposed !== null],
       tools: {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ModelPayload, ModelToolView } from "@metobe/contracts/chat";
 import type { ChatServer } from "@metobe/core/mcp";
 import { cn } from "@metobe/ui/lib/utils";
 import { GridLoader } from "gridora";
@@ -24,6 +25,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { LensMark, Seen, useLens } from "@/components/chat/model-lens";
 import { useClock } from "@/components/chat/server-clock";
 import { ThoughtWindow } from "@/components/chat/thought-window";
 import {
@@ -40,6 +42,13 @@ import {
 } from "@/lib/activity";
 import type { ActivityRow } from "@/lib/activity";
 import type { ReadPart, ToolPart } from "@/lib/answer-work";
+import {
+  countHidden,
+  inputText,
+  splitLabels,
+  toolTexts,
+  toolViews,
+} from "@/lib/model-view";
 
 // The work of an answer as a ribbon (prototype P4 «Лента»): one line of status, and under it the steps — a line down
 // the left, an icon by kind, the time on the right. The busy step shows what it does and the finished ones fold into
@@ -193,7 +202,7 @@ const RowIcon = ({
   return (
     <span
       className={cn(
-        "relative z-10 grid size-5 place-items-center transition-colors duration-200",
+        "pointer-events-none relative z-10 grid size-5 place-items-center transition-colors duration-200",
         tint,
         SURFACE
       )}
@@ -621,6 +630,131 @@ const RowDetail = ({
   );
 };
 
+/** The calls of a step: a tool step has several, any other one. */
+const callIdsOf = (row: ActivityRow) => {
+  const { step } = row;
+  if (step.kind === "tool") {
+    return step.calls.map((c) => c.toolCallId);
+  }
+  return step.kind === "thought" || step.kind === "note"
+    ? []
+    : [step.part.toolCallId];
+};
+
+/** One block of what the model saw: what it sent or got, its labels as chips. */
+const SeenBlock = ({
+  title,
+  text,
+  labels,
+}: {
+  title: string;
+  text: string;
+  labels: ModelPayload["labels"];
+}) => (
+  <div className="flex min-w-0 flex-col gap-1">
+    <span className="font-medium">{title}</span>
+    <pre className="bg-muted overflow-auto rounded-md p-2 whitespace-pre-wrap">
+      <Seen pieces={splitLabels(text, labels)} />
+    </pre>
+  </div>
+);
+
+/** A step as the model saw it (PII-GUARD-PLAN З5): for each call, what it sent to the tool and what it got back. */
+const SeenDetail = ({
+  views,
+  labels,
+  swap,
+}: {
+  views: ModelToolView[];
+  labels: ModelPayload["labels"];
+  swap?: string;
+}) => {
+  const t = useTranslations("chat.lens");
+  return (
+    <div className="pt-1 pb-2 pl-7">
+      <ThoughtWindow bounded following={false} maxHeightClass="max-h-72">
+        <div
+          className={cn(
+            "text-muted-foreground flex flex-col gap-2 text-xs",
+            swap
+          )}
+        >
+          {views.map((v, i) => {
+            const n = views.length > 1 ? `№${i + 1} · ` : "";
+            return (
+              <div className="flex flex-col gap-2" key={v.toolCallId}>
+                {v.input !== undefined && (
+                  <SeenBlock
+                    labels={labels}
+                    text={inputText(v.input)}
+                    title={`${n}${t("sent")}`}
+                  />
+                )}
+                {v.output !== undefined && (
+                  <SeenBlock
+                    labels={labels}
+                    text={v.output}
+                    title={`${n}${t("got")}`}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </ThoughtWindow>
+    </div>
+  );
+};
+
+/** The shield of a step: off the hover it hides, like the row's own hover. */
+const ROW_HOVER =
+  "opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100";
+
+/** A step as the model saw it (PII-GUARD-PLAN З5): its shield, and its calls in the model's version while pressed. */
+const useStepLens = (
+  row: ActivityRow,
+  payload: ModelPayload | undefined,
+  open: boolean,
+  onToggle: () => void
+) => {
+  const t = useTranslations("chat.lens");
+  const views = payload ? toolViews(payload, callIdsOf(row)) : [];
+  const hidden = payload ? countHidden(toolTexts(views), payload.labels) : 0;
+  const lens = useLens();
+  const seen = lens.on && open && hidden > 0;
+  return {
+    detail: (normal: ReactNode) =>
+      seen && payload ? (
+        <SeenDetail labels={payload.labels} swap={lens.swap} views={views} />
+      ) : (
+        <div className={lens.swap} key={String(lens.on)}>
+          {normal}
+        </div>
+      ),
+    mark:
+      hidden > 0 ? (
+        <span className="relative z-10 flex">
+          <LensMark
+            compact
+            count={hidden}
+            hover={ROW_HOVER}
+            label={t("tool")}
+            on={seen}
+            onToggle={() => {
+              // From a folded step the shield opens it at once, as the model saw it.
+              if (open) {
+                lens.handleToggle();
+              } else {
+                onToggle();
+                lens.set(true);
+              }
+            }}
+          />
+        </span>
+      ) : null,
+  };
+};
+
 const hasDetail = (row: ActivityRow) => {
   const { step } = row;
   if (step.kind === "thought" || step.kind === "note") {
@@ -652,15 +786,19 @@ const Row = ({
   servers,
   open,
   onToggle,
+  payload,
 }: {
   row: ActivityRow;
   servers: ChatServer[];
   open: boolean;
   onToggle: () => void;
+  /** What the model saw in this answer: the step's shield and its version of the calls. */
+  payload?: ModelPayload;
 }) => {
   const seconds = useSeconds();
   const title = useTitle(row, servers);
-  const expandable = hasDetail(row);
+  const lens = useStepLens(row, payload, open, onToggle);
+  const expandable = hasDetail(row) || lens.mark !== null;
   let time: ReactNode = null;
   if (row.state === "running") {
     time = LIVE_TIMERS ? (
@@ -669,28 +807,36 @@ const Row = ({
   } else if (row.state !== "waiting" && row.ms !== undefined) {
     time = seconds(row.ms);
   }
+  // The whole row opens the step; the shield is a button of its own above it.
   return (
     <div className={APPEAR}>
-      <button
-        aria-expanded={expandable ? open : undefined}
-        className="hover:bg-muted/60 grid w-full grid-cols-[1.25rem_1fr_auto_0.875rem] items-center gap-2 rounded-md py-1 pr-1 text-left text-sm transition-colors duration-150 disabled:cursor-default disabled:hover:bg-transparent"
-        disabled={!expandable}
-        onClick={onToggle}
-        type="button"
+      <div
+        className={cn(
+          "group/row relative grid w-full items-center gap-2 rounded-md py-1 pr-1 text-sm transition-colors duration-150",
+          lens.mark
+            ? "grid-cols-[1.25rem_1fr_auto_auto_0.875rem]"
+            : "grid-cols-[1.25rem_1fr_auto_0.875rem]",
+          expandable && "hover:bg-muted/60"
+        )}
       >
         <RowIcon row={row} servers={servers} />
-        <span
+        <button
+          aria-expanded={expandable ? open : undefined}
           className={cn(
-            "min-w-0 truncate transition-colors duration-200",
+            "focus-visible:after:ring-ring/50 min-w-0 truncate text-left transition-colors duration-200 outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-2 disabled:cursor-default",
             row.state === "running" && "shimmer",
             row.state === "waiting" && "text-amber-700 dark:text-amber-300",
             row.state === "failed" && "text-destructive",
             (row.state === "done" || row.state === "denied") &&
               "text-muted-foreground"
           )}
+          disabled={!expandable}
+          onClick={onToggle}
+          type="button"
         >
           {title}
-        </span>
+        </button>
+        {lens.mark}
         <span className="text-muted-foreground text-xs tabular-nums">
           {time}
         </span>
@@ -705,9 +851,9 @@ const Row = ({
         ) : (
           <span />
         )}
-      </button>
+      </div>
       <Expand open={expandable && open}>
-        <RowDetail row={row} servers={servers} />
+        {lens.detail(<RowDetail row={row} servers={servers} />)}
       </Expand>
     </div>
   );
@@ -729,7 +875,10 @@ export const ActivityBlock = ({
   metadata,
   servers,
   keepOpen = false,
+  payload,
 }: {
+  /** What the model saw in this answer (PII-GUARD-PLAN З5): a shield on each step that had values hidden. */
+  payload?: ModelPayload;
   steps: Parameters<typeof activityRows>[0];
   working: boolean;
   /** Open from the start, and left open when the work ends. */
@@ -870,6 +1019,7 @@ export const ActivityBlock = ({
                     }))
                   }
                   open={toggled[row.key] ?? opensByItself(row)}
+                  payload={payload}
                   row={row}
                   servers={servers}
                 />

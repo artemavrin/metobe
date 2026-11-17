@@ -3,15 +3,13 @@
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
-import { rememberPage } from "@/lib/last-page";
+import { notePath } from "@/lib/last-page";
 
-/** Remembers the last page that is not settings, with its query: where the settings window returns to. */
+/** Remembers the last page that is not settings, with its query, and the settings screens shown since: where and how the settings window closes. */
 export const LastPage = () => {
   const pathname = usePathname();
   useEffect(() => {
-    if (!pathname.startsWith("/settings")) {
-      rememberPage(`${window.location.pathname}${window.location.search}`);
-    }
+    notePath(pathname, `${window.location.pathname}${window.location.search}`);
   }, [pathname]);
   return null;
 };

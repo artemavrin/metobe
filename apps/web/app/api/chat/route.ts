@@ -77,7 +77,9 @@ import {
 } from "@metobe/core/memory-read";
 import { rememberTool } from "@metobe/core/memory-remember";
 import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
+import { payloadRecorder } from "@metobe/core/model-payloads";
 import { getPersonalPolicy } from "@metobe/core/personal";
+import { isGuardUnavailable } from "@metobe/core/pii-guard";
 import { skillsForChat } from "@metobe/core/skills";
 import { getTaskByChat } from "@metobe/core/tasks";
 import { isDraining } from "@metobe/core/updater-bus";
@@ -406,6 +408,9 @@ const uiError = (error: unknown) => {
   if (isContextOverflow(error)) {
     return "context-full";
   }
+  if (isGuardUnavailable(error)) {
+    return "guard-unavailable";
+  }
   return error instanceof SourceError ? error.message : "An error occurred.";
 };
 
@@ -464,9 +469,15 @@ export const POST = async (request: Request) => {
     return fail("model-unavailable", 422);
   }
 
+  // What the model saw (PII-GUARD-PLAN З4): kept next to the messages when data protection masked the call.
+  const payloads = payloadRecorder();
   let languageModel: Awaited<ReturnType<typeof getLanguageModel>>;
   try {
-    languageModel = await getLanguageModel(model.sourceId, model.modelId);
+    // The data protection session is the chat: a person keeps one label across turns.
+    languageModel = await getLanguageModel(model.sourceId, model.modelId, {
+      session: id,
+      ...payloads.use,
+    });
   } catch (error) {
     console.error("chat: could not build the model", model.id, error);
     return fail("model-unavailable", 422);
@@ -919,6 +930,22 @@ export const POST = async (request: Request) => {
       } finally {
         recording.saved?.();
       }
+      // A failed record never fails the answer: the chat has it already.
+      let answerId: string | undefined;
+      for (const m of finished) {
+        if (m.role === "assistant") {
+          answerId = m.id;
+        }
+      }
+      await payloads
+        .save({
+          answerId,
+          chatId: id,
+          questionId: message?.id,
+        })
+        .catch((error: unknown) => {
+          console.error("chat: could not keep what the model saw", error);
+        });
       // The person's message, once the answer is saved, goes to the memory's queue (ARCH §19.4) — not at all while
       // the memory is off. Nothing here holds the chat up.
       if (message) {
@@ -935,6 +962,9 @@ export const POST = async (request: Request) => {
       endGeneration(id, generation);
       console.error("chat: generation failed", model.id, error);
       // A history too long for the model's window is said as that, not as «the model did not answer».
+      if (isGuardUnavailable(error)) {
+        return "guard-unavailable" satisfies ChatErrorCode;
+      }
       return (
         isContextOverflow(error) ? "context-full" : "generation-failed"
       ) satisfies ChatErrorCode;

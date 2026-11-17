@@ -13,6 +13,10 @@ services:
       REDIS_URL: redis://redis:6379
       # The chat's web search (ARCH §8.1); without it the chat simply has no web.
       SEARXNG_URL: http://searxng:8080
+      # Data protection (docs/PII-GUARD-PLAN.md): set PII_GUARD_URL=http://pii-guard:8787 with the `pii` profile on.
+      # Unset, calls go to models as they are.
+      PII_GUARD_URL: ${PII_GUARD_URL:-}
+      PII_GUARD_TOKEN: ${PII_GUARD_API_TOKEN:-}
     volumes:
       # Admin downloads are served by the app; the updater is the only writer to the shared backup volume.
       - backups:/backups:ro
@@ -123,6 +127,20 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Data protection: our PII Guard fork masks personal data before a call to an external model
+  # (docs/PII-GUARD-PLAN.md). Inside network only; the NER model is in the image (about 3 GB), so it runs offline and
+  # only with the `pii` profile on. Until it has loaded, the app refuses external calls (fail closed).
+  pii-guard:
+    image: ${PII_GUARD_IMAGE:-ghcr.io/artemavrin/pii-guard:ru-s34}
+    profiles: ["pii"]
+    restart: unless-stopped
+    environment:
+      # install.sh writes both; the key derives the labels, the token is what the app sends. Without the key the
+      # service refuses to mask, and the app does not send (an older install: add both to .env).
+      PII_GUARD_TENANT_KEY: ${PII_GUARD_TENANT_KEY:-}
+      PII_GUARD_API_TOKEN: ${PII_GUARD_API_TOKEN:-}
+    mem_limit: 3g
 
   # Web search: SearXNG on the inside network only (no port out), JSON on, the load spread over several engines and
   # a refusing engine rested for minutes, not a day — they ban an IP that asks too often (spike S8, D21).
