@@ -21,12 +21,22 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@metobe/ui/components/sidebar";
+import { cn } from "@metobe/ui/lib/utils";
 import { ChevronRight, Search } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, useEffect, useRef, useState, useCallback } from "react";
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  useSyncExternalStore,
+} from "react";
 import type { ReactNode } from "react";
 
 import { SettingsListLevel } from "@/components/settings/settings-list";
@@ -35,6 +45,12 @@ import { levelMotion } from "@/lib/level-motion";
 import type { SettingsLists } from "@/lib/settings-lists";
 import { findSection, SETTINGS_NAV } from "@/lib/settings-nav";
 import type { SettingsSectionId } from "@/lib/settings-nav";
+import {
+  mountSettingsWindow,
+  settingsWindowInPage,
+  settingsWindowOver,
+  subscribeSettingsWindows,
+} from "@/lib/settings-window";
 
 /** Keeps password managers and autofill off the search field. */
 const NO_AUTOFILL = {
@@ -276,6 +292,19 @@ export const SettingsShell = ({
   }, []);
   // Focus lands on the window, not on its search field: a ring on a field nobody asked for.
   const popup = useRef<HTMLDivElement>(null);
+  // Opened by its address, the window is in the page; the first section picked in it opens a window over it
+  // (lib/settings-window): that one takes the place without opening anew, this one steps aside meanwhile.
+  // Read once, as the window mounts: the one in the page steps aside right after.
+  const handover = useMemo(
+    () => intercepted && settingsWindowInPage(),
+    [intercepted]
+  );
+  const steppedAside = useSyncExternalStore(
+    subscribeSettingsWindows,
+    () => !intercepted && settingsWindowOver(),
+    () => false
+  );
+  useLayoutEffect(() => mountSettingsWindow(intercepted), [intercepted]);
   const close = () => {
     if (!intercepted) {
       router.push("/");
@@ -285,6 +314,9 @@ export const SettingsShell = ({
       router.push(lastPage());
     }
   };
+  if (steppedAside) {
+    return null;
+  }
   return (
     <Dialog
       onOpenChange={(open) => {
@@ -297,9 +329,15 @@ export const SettingsShell = ({
       <DialogContent
         // The page stays under it, blurred: opening settings does not take the chat away.
         initialFocus={popup}
-        overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-md"
+        overlayClassName={cn(
+          "bg-black/20 supports-backdrop-filter:backdrop-blur-md",
+          handover && "data-open:animate-none!"
+        )}
         ref={popup}
-        className="h-[min(60rem,calc(100dvh-3rem))] w-[min(84rem,calc(100vw-3rem))] max-w-none gap-0 overflow-hidden p-0 max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:w-screen max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none sm:max-w-none"
+        className={cn(
+          handover && "data-open:animate-none!",
+          "h-[min(60rem,calc(100dvh-3rem))] w-[min(84rem,calc(100vw-3rem))] max-w-none gap-0 overflow-hidden p-0 max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:w-screen max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none sm:max-w-none"
+        )}
       >
         <DialogTitle className="sr-only">{t("title")}</DialogTitle>
         <SidebarProvider className="h-full min-h-0 w-full">
