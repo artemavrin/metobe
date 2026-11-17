@@ -28,7 +28,6 @@ const compaction = (id: string, summary: string): ChatMessage => ({
 });
 
 const query = {
-  dynamic: true,
   input: { query: "ВЫБРАТЬ Сумма ИЗ Продажи" },
   output: { rows: Array.from({ length: 500 }, (_, i) => ({ i })) },
   state: "output-available",
