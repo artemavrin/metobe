@@ -332,14 +332,12 @@ const client = (options: GuardOptions) => {
     return (await response.json()) as T;
   };
   return {
-    mask: (messages: ChatMessage[]) =>
+    mask: (messages: ChatMessage[], dry = false) =>
       post<{
         body: { messages: ChatMessage[] };
         entities: GuardEntity[];
         ms: number;
-      }>("mask", {
-        messages,
-      }),
+      }>("mask", dry ? { dry, messages } : { messages }),
     restore: async (items: RestoreItem[]) => {
       const answer = await post<{ items: { text: string; held?: string }[] }>(
         "restore",
@@ -414,6 +412,22 @@ export const maskStrings = async <T>(
     at += 1;
     return String(message.content ?? "");
   }) as T;
+};
+
+/**
+ * A draft as the model would get it (P31, З7): masked in a fork of the session, so the labels are
+ * the ones a send would print and nothing is kept unless the message is sent.
+ */
+export const previewMask = async (
+  text: string,
+  options: GuardOptions
+): Promise<{ text: string; entities: GuardEntity[] }> => {
+  const result = await client(options).mask(
+    [{ content: text, role: "user" }],
+    true
+  );
+  const last = result.body.messages.at(-1);
+  return { entities: result.entities, text: String(last?.content ?? "") };
 };
 
 /** Masks every prompt, restores text, reasoning and tool-call arguments in the answer. */

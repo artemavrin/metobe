@@ -16,6 +16,7 @@ import {
   guardSession,
   isGuardUnavailable,
   maskStrings,
+  previewMask,
   maskingMiddleware,
   toChat,
 } from "./pii-guard";
@@ -158,6 +159,19 @@ describe("maskStrings", () => {
     expect(masked.message).toBe("почта [[EMAIL_e1f2a3]]");
     expect(masked.today).toBe("17 November 2026");
     expect(guard.requests).toHaveLength(1);
+  });
+});
+
+describe("previewMask", () => {
+  it("asks for a dry run and gives the draft as the model would get it", async () => {
+    const guard = fakeGuard();
+    const preview = await previewMask("Позвони Ольге Петровне", {
+      fetch: guard.fetch,
+      session: "chat-7",
+      url: "http://guard",
+    });
+    expect(preview.text).toBe("Позвони Персоне_Женщине_ab12cd");
+    expect(guard.requests[0]?.body).toMatchObject({ dry: true });
   });
 });
 

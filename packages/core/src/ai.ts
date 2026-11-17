@@ -1,4 +1,5 @@
 import "server-only";
+import type { ModelLabel } from "@metobe/contracts/chat";
 import { sources } from "@metobe/db/schema/models";
 import type { Source } from "@metobe/db/schema/models";
 import { wrapLanguageModel } from "ai";
@@ -10,7 +11,11 @@ import { onConfigChange } from "./config-bus";
 import { getDb } from "./db";
 import { getEnv } from "./env";
 import { fetchFor, onNetChange } from "./net";
-import { maskingMiddleware } from "./pii-guard";
+import {
+  isGuardUnavailable,
+  maskingMiddleware,
+  previewMask,
+} from "./pii-guard";
 import type { GuardOptions, MaskedCall, ModelAnswer } from "./pii-guard";
 import { withSecret } from "./secrets";
 
@@ -117,6 +122,44 @@ export const getLanguageModel = async (
     middleware: maskingMiddleware(guard),
     model: model as Parameters<typeof wrapLanguageModel>[0]["model"],
   });
+};
+
+/** How a draft would reach a source's model (P31, З7): as it is, or masked like a send would be. */
+export type DraftPreview =
+  | { state: "off" }
+  | { state: "local" }
+  | { state: "down" }
+  | { state: "masked"; text: string; labels: ModelLabel[] };
+
+export const previewDraft = async (
+  sourceId: string,
+  session: string,
+  text: string
+): Promise<DraftPreview> => {
+  if (!getEnv().PII_GUARD_URL) {
+    return { state: "off" };
+  }
+  const guard = await guardFor(sourceId, { session });
+  if (!guard) {
+    return { state: "local" };
+  }
+  try {
+    const masked = await previewMask(text, guard);
+    return {
+      labels: masked.entities.map((e) => ({
+        label: e.placeholder,
+        type: e.type,
+        value: e.value,
+      })),
+      state: "masked",
+      text: masked.text,
+    };
+  } catch (error) {
+    if (isGuardUnavailable(error)) {
+      return { state: "down" };
+    }
+    throw error;
+  }
 };
 
 /** A decision model of a source (ARCH §19.4); a source whose kind serves none is an error. */
