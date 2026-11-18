@@ -133,7 +133,9 @@ services:
   # (docs/PII-GUARD-PLAN.md). Inside network only; the NER model is in the image (about 3 GB), so it runs offline and
   # only with the `pii` profile on. Until it has loaded, the app refuses external calls (fail closed).
   pii-guard:
-    image: ${PII_GUARD_IMAGE:-ghcr.io/artemavrin/pii-guard:ru-s34}
+    # Pinned by commit, not by the model's tag (ru-s34 moves with each build): a server that has the image takes a new
+    # one only under a new name. The updater recreates the service after an update, so it pulls this one.
+    image: ${PII_GUARD_IMAGE:-ghcr.io/artemavrin/pii-guard:sha-e962855}
     profiles: ["pii"]
     restart: unless-stopped
     environment:

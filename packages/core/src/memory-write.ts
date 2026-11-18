@@ -74,7 +74,7 @@ import {
 } from "./memory-types";
 import type { TypeAnswers } from "./memory-types";
 import { getSlotModel } from "./model-slots";
-import { maskStrings } from "./pii-guard";
+import { isGuardUnavailable, maskStrings } from "./pii-guard";
 
 // The silent writer (ARCH §19.4): what the person said is read by the «Память» model, and what it finds goes into
 // their memory. It reads material — a text, when it was said, what was said before — that the adapter of the write's
@@ -280,6 +280,10 @@ const nothingToKeepSaid = async (
     });
     return nothingToKeep(result.answers);
   } catch (error) {
+    if (isGuardUnavailable(error)) {
+      // Not «nothing decided»: the reading after it would fail the same way. The queue waits (memory-queue).
+      throw error;
+    }
     console.error("memory: the decision model did not answer", error);
     await recordRun({
       chatId: job.chatId,
@@ -370,6 +374,10 @@ const withRelations = async (
       )
     );
   } catch (error) {
+    if (isGuardUnavailable(error)) {
+      // Not «nothing decided»: the reading after it would fail the same way. The queue waits (memory-queue).
+      throw error;
+    }
     console.error("memory: the decision model did not answer", error);
     await recordRun({
       chatId: job.chatId,
@@ -459,6 +467,10 @@ const withThingTypes = async (
       )
     );
   } catch (error) {
+    if (isGuardUnavailable(error)) {
+      // Not «nothing decided»: the reading after it would fail the same way. The queue waits (memory-queue).
+      throw error;
+    }
     console.error("memory: the decision model did not answer", error);
     await recordRun({
       chatId: job.chatId,

@@ -10,9 +10,11 @@ export interface Drain<W extends { id: string }> {
   fail: (id: string, error: string) => Promise<{ failed: boolean }>;
   /** Holds the lock longer; false — it was lost, another reader may be at the queue now. */
   hold: () => Promise<boolean>;
+  /** A failure that is nobody's fault (data protection down): not counted, the queue waits and tries later. */
+  waits?: (error: unknown) => boolean;
 }
 
-export type DrainEnd = "read" | "off" | "lost";
+export type DrainEnd = "read" | "off" | "lost" | "waiting";
 
 /**
  * Reads until the queue is empty. A failed read under its limit is thrown again: the job is retried later and that
@@ -30,6 +32,9 @@ export const drainQueue = async <W extends { id: string }>(
       return "off";
     }
   } catch (error) {
+    if (drain.waits?.(error)) {
+      return "waiting";
+    }
     const message = error instanceof Error ? error.message : String(error);
     const { failed } = await drain.fail(write.id, message);
     if (!failed) {
