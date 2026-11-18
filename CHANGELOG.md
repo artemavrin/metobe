@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/artemavrin/metobe/compare/v0.10.0...v0.10.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **pii-guard:** the switch sets up data protection ([f65268d](https://github.com/artemavrin/metobe/commit/f65268d17e66fac2916663a44ad3f971225e4c89))
+* **pii-guard:** the switch sets up data protection, no hand edits ([199ae77](https://github.com/artemavrin/metobe/commit/199ae77ca165be7477c6be9d14f1bdb132596547))
+
 ## [0.10.0](https://github.com/artemavrin/metobe/compare/v0.9.0...v0.10.0) (2026-11-17)
 
 
