@@ -40,12 +40,24 @@ const queueOf = (ids: string[], failing: Record<string, number> = {}) => {
   return { drain, read, rows };
 };
 
+/** Here the reader's failure stands for data protection being down. */
+const waits = (error: unknown) =>
+  error instanceof Error && error.message.startsWith("model timed out");
+
 describe("reading a person's memory queue (ARCH §19.8.1)", () => {
   it("reads every queued message in order, once", async () => {
     const { drain, read, rows } = queueOf(["m1", "m2", "m3"]);
     await expect(drainQueue(drain)).resolves.toBe("read");
     expect(read).toEqual(["m1", "m2", "m3"]);
     expect(rows.every((r) => r.status === "done")).toBe(true);
+  });
+
+  it("waits when data protection is down: the message stays first and loses no attempt", async () => {
+    const { drain, read, rows } = queueOf(["m1", "m2"], { m1: 1 });
+    await expect(drainQueue({ ...drain, waits })).resolves.toBe("waiting");
+    expect(rows[0]).toMatchObject({ attempts: 0, status: "queued" });
+    await expect(drainQueue({ ...drain, waits })).resolves.toBe("read");
+    expect(read).toEqual(["m1", "m1", "m2"]);
   });
 
   it("throws on a failed read and keeps that message first for the next try", async () => {

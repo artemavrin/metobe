@@ -15,6 +15,7 @@ import type { WriteMaterial } from "./memory";
 import { drainQueue } from "./memory-drain";
 import { memorySource } from "./memory-sources";
 import { isMemoryOnFor, readWrite } from "./memory-write";
+import { isGuardUnavailable } from "./pii-guard";
 import { tasksConnection } from "./tasks-queue";
 
 // The memory's queue (ARCH §19.4, §19.8.1). Material to read — a chat's message today (ARCH §19.9.5) — is a row in
@@ -56,6 +57,11 @@ const MAX_ATTEMPTS = 3;
 const LOCK_MS = 120_000;
 /** A job that finds the person's queue being read waits this long and looks again. */
 const BUSY_DELAY_MS = 5000;
+/**
+ * Data protection down: the queue waits this long, the message stays first and loses no attempt. Retried sooner, each
+ * read is half a minute of the service's work while it is overloaded, and three of them gave the message up.
+ */
+const GUARD_DELAY_MS = 5 * 60_000;
 
 /** A job: whose queue to read. Jobs queued before §19.8.1 carry the message too — it is put in the queue first. */
 type QueueJob = { ownerId: string } | ChatMessageJob;
@@ -197,16 +203,24 @@ const readQueue = async (job: Job<QueueJob>, token?: string) => {
     await job.moveToDelayed(Date.now() + BUSY_DELAY_MS, token);
     throw new DelayedError();
   }
+  let end: Awaited<ReturnType<typeof drainQueue>>;
   try {
-    return await drainQueue({
+    end = await drainQueue({
       fail: (id, error) => failWriteAttempt(ownerId, id, error, MAX_ATTEMPTS),
       hold: () => holdLock(ownerId, lock),
       next: () => nextQueuedWrite(ownerId),
       read: (write) => readWrite(ownerId, write),
+      waits: isGuardUnavailable,
     });
   } finally {
     await dropLock(ownerId, lock);
   }
+  if (end === "waiting") {
+    console.warn("memory: data protection is down, the queue waits");
+    await job.moveToDelayed(Date.now() + GUARD_DELAY_MS, token);
+    throw new DelayedError();
+  }
+  return end;
 };
 
 /** Starts reading queued messages; answers how to stop. */
