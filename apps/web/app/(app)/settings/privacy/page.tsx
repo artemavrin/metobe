@@ -1,9 +1,14 @@
 import { getEnv } from "@metobe/core/env";
 import {
+  availableMemory,
+  BUNDLED_GUARD_URL,
+  GUARD_MEMORY,
   checkGuard,
-  getPrivacySettings,
+  readPrivacySettings,
   guardUrl,
+  usesBundledGuard,
 } from "@metobe/core/privacy-settings";
+import { readGuardRun, updaterAlive } from "@metobe/core/updater-bus";
 import { getTranslations } from "next-intl/server";
 
 import {
@@ -15,9 +20,12 @@ import { PrivacySettingsForm } from "./privacy-settings";
 
 // Data protection (PII-GUARD-PLAN З6, P31): the service is checked each time the section opens.
 const PrivacyPage = async () => {
-  const [settings, t] = await Promise.all([
-    getPrivacySettings(),
+  const [settings, t, updater, run, memory] = await Promise.all([
+    readPrivacySettings(),
     getTranslations("privacy"),
+    updaterAlive(),
+    readGuardRun(),
+    availableMemory(),
   ]);
   const url = guardUrl(settings);
   const check = await checkGuard(url);
@@ -26,8 +34,17 @@ const PrivacyPage = async () => {
       <SettingsHeader description={t("description")} title={t("title")} />
       <PrivacySettingsForm
         check={check}
-        defaultUrl={getEnv().PII_GUARD_URL ?? null}
+        defaultUrl={
+          getEnv().PII_GUARD_URL ??
+          (settings.bundled ? BUNDLED_GUARD_URL : null)
+        }
         settings={settings}
+        setup={{
+          bundled: usesBundledGuard(settings),
+          lowMemory: memory !== null && memory < GUARD_MEMORY ? memory : null,
+          run,
+          updater: updater !== null,
+        }}
       />
     </SettingsPageFrame>
   );

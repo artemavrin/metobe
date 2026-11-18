@@ -18,6 +18,10 @@ const KEYS = {
   automation: "metobe:update:auto:",
   /** Set while the updater waits for the answers and restarts: the app takes no new messages. */
   drain: "metobe:update:drain",
+  /** «Start / stop data protection's service», waiting for the updater to take it. */
+  guardRequest: "metobe:guard:request",
+  /** How starting or stopping it goes, or went last. */
+  guardRun: "metobe:guard:run",
   /** «Update to X», waiting for the updater to take it. */
   request: "metobe:update:request",
   /** The current or the last run. */
@@ -33,6 +37,30 @@ const requestSchema = z.object({
   trigger: z.enum(["manual", "patch", "nightly", "rollback"]).default("manual"),
 });
 export type UpdateRequest = z.infer<typeof requestSchema>;
+
+const guardRequestSchema = z.object({
+  at: z.string(),
+  on: z.boolean(),
+  /** The app runs without the token to the service (an older `.env`): it is recreated with it. */
+  restartApp: z.boolean(),
+});
+export type GuardRequest = z.infer<typeof guardRequestSchema>;
+
+/**
+ * pull — the image (about 4 GB, once), start — the service and its model, restart — the app with the token, stop — the
+ * service off and its memory back.
+ */
+export const GUARD_STEPS = ["pull", "start", "restart", "stop"] as const;
+
+const guardRunSchema = z.object({
+  error: z.string().nullable(),
+  finishedAt: z.string().nullable(),
+  on: z.boolean(),
+  startedAt: z.string(),
+  status: z.enum(["running", "done", "failed"]),
+  step: z.enum(GUARD_STEPS).nullable(),
+});
+export type GuardRun = z.infer<typeof guardRunSchema>;
 
 const connect = async () => {
   const url = z.url().optional().safeParse(process.env.REDIS_URL);
@@ -139,6 +167,48 @@ export const requestRollback = async (
   return setIfAbsent(KEYS.request, JSON.stringify(ask), 120);
 };
 
+/** The last start or stop; an ask no updater took in its two minutes reads as failed, not as waiting forever. */
+export const readGuardRun = async (): Promise<GuardRun | null> => {
+  const run = parse(await get(KEYS.guardRun), guardRunSchema);
+  const untaken =
+    run?.status === "running" &&
+    run.step === null &&
+    Date.now() - Date.parse(run.startedAt) > 120_000;
+  return untaken ? { ...run, error: "not taken", status: "failed" } : run;
+};
+
+export const writeGuardRun = (run: GuardRun) =>
+  set(KEYS.guardRun, JSON.stringify(run));
+
+/**
+ * Asks the updater to start data protection's service (`on`) or stop it; false when it is busy with this or an update,
+ * or there is no updater to ask.
+ */
+export const requestGuard = async (on: boolean, restartApp: boolean) => {
+  const [run, guard] = await Promise.all([readUpdateRun(), readGuardRun()]);
+  if (
+    run?.status === "running" ||
+    guard?.status === "running" ||
+    !(await updaterAlive())
+  ) {
+    return false;
+  }
+  const at = new Date().toISOString();
+  const ask: GuardRequest = { at, on, restartApp };
+  // Taken within seconds; an ask from before the switch flipped back is replaced, not queued.
+  await set(KEYS.guardRequest, JSON.stringify(ask), 120);
+  // Shown at once as waiting (no step yet); the updater writes its own when it takes the ask.
+  await writeGuardRun({
+    error: null,
+    finishedAt: null,
+    on,
+    startedAt: at,
+    status: "running",
+    step: null,
+  });
+  return true;
+};
+
 /** Whether new messages wait: the updater is finishing the answers and restarting the app. */
 export const isDraining = async () => (await get(KEYS.drain)) !== null;
 
@@ -158,6 +228,14 @@ export const takeUpdateRequest = async () => {
   return parse(
     client ? await client.getDel(KEYS.request) : null,
     requestSchema
+  );
+};
+
+export const takeGuardRequest = async () => {
+  const client = await redis();
+  return parse(
+    client ? await client.getDel(KEYS.guardRequest) : null,
+    guardRequestSchema
   );
 };
 

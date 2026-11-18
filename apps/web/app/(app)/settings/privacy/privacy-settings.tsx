@@ -9,6 +9,7 @@ import type {
   PrivacySettings,
   PrivacyType,
 } from "@metobe/core/privacy-settings";
+import type { GuardRun } from "@metobe/core/updater-bus";
 import { Button } from "@metobe/ui/components/button";
 import { Input } from "@metobe/ui/components/input";
 import { Alert, AlertDescription } from "@metobe/ui/components/reui/alert";
@@ -34,7 +35,8 @@ import {
   UserRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useState, useTransition } from "react";
 
 import { Seen } from "@/components/chat/model-lens";
@@ -121,6 +123,17 @@ const NO_AUTOFILL = {
   "data-lpignore": "true",
   spellCheck: false,
 } as const;
+
+/** How the bundled service is being started or stopped, and whether the page has it to manage. */
+export interface GuardSetup {
+  /** The install's own service is the one meant: the switch starts and stops it. */
+  bundled: boolean;
+  /** An updater runs on this server to do it. */
+  updater: boolean;
+  run: GuardRun | null;
+  /** The host's free memory, bytes, when it is short for the service; null — enough, or unknown. */
+  lowMemory: number | null;
+}
 
 const stateLabel = (check: GuardCheck, busy: boolean, t: T) => {
   if (busy) {
@@ -224,20 +237,245 @@ const Sandbox = ({ t }: { t: T }) => {
   );
 };
 
+/**
+ * Polls the page while the updater starts or stops the service: its steps and, at the end, the check. Asks the app
+ * first: while the updater recreates it, a refresh would fall back to a full load and the browser's error page.
+ */
+const useWhileRunning = (running: boolean) => {
+  const router = useRouter();
+  useEffect(() => {
+    if (!running) {
+      return;
+    }
+    const poll = async () => {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        if (response.ok) {
+          router.refresh();
+        }
+      } catch {
+        // Not up yet: the next tick asks again.
+      }
+    };
+    const timer = setInterval(poll, 3000);
+    return () => clearInterval(timer);
+  }, [running, router]);
+};
+
+/** What the switch needs said: set up by the installer, short of memory, the updater busy, or a start that failed. */
+const SetupNotes = ({
+  setup,
+  active,
+  busy,
+  failed,
+  manual,
+  t,
+}: {
+  setup: GuardSetup;
+  active: boolean;
+  busy: boolean;
+  failed: boolean;
+  manual: boolean;
+  t: T;
+}) => {
+  const format = useFormatter();
+  const running = setup.run?.status === "running";
+  const short =
+    setup.bundled &&
+    setup.updater &&
+    !active &&
+    !running &&
+    setup.lowMemory !== null;
+  return (
+    <>
+      {manual && (
+        <Alert variant="info">
+          <CircleAlert />
+          <AlertDescription>{t("setup.manual")}</AlertDescription>
+        </Alert>
+      )}
+      {short && (
+        <Alert variant="warning">
+          <CircleAlert />
+          <AlertDescription>
+            {t("setup.memory", {
+              free: format.number((setup.lowMemory ?? 0) / 1024 ** 3, {
+                maximumFractionDigits: 1,
+              }),
+            })}
+          </AlertDescription>
+        </Alert>
+      )}
+      {busy && (
+        <Alert variant="warning">
+          <CircleAlert />
+          <AlertDescription>{t("setup.busy")}</AlertDescription>
+        </Alert>
+      )}
+      {failed && (
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertDescription>
+            {t("setup.failed", { error: setup.run?.error ?? "" })}
+          </AlertDescription>
+        </Alert>
+      )}
+    </>
+  );
+};
+
+/** The service's state: the updater's step while it starts or stops it, «off» once stopped, else the check. */
+const ServiceState = ({
+  check,
+  checking,
+  run,
+  stopped,
+  t,
+}: {
+  check: GuardCheck;
+  checking: boolean;
+  run: GuardRun | null;
+  stopped: boolean;
+  t: T;
+}) => {
+  let dot = stateDot(check, checking);
+  let label = stateLabel(check, checking, t);
+  if (run?.status === "running") {
+    dot = "bg-warning animate-pulse";
+    label = t(`setup.steps.${run.step ?? "waiting"}`);
+  } else if (stopped) {
+    dot = "bg-muted-foreground/40";
+    label = t("service.state.off");
+  }
+  return (
+    <Row
+      hint={
+        run?.status === "running" ? t("setup.hint") : t("service.state.hint")
+      }
+      label={t("service.state.label")}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <span className={cn("size-2 shrink-0 rounded-full", dot)} />
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
+    </Row>
+  );
+};
+
+/** The service: its address (the admin's, else the install's) and its state, checked again on demand. */
+const ServiceSection = ({
+  settings,
+  check,
+  defaultUrl,
+  run,
+  down,
+  stopped,
+  t,
+}: {
+  settings: PrivacySettings;
+  check: GuardCheck;
+  defaultUrl: string | null;
+  run: GuardRun | null;
+  down: boolean;
+  stopped: boolean;
+  t: T;
+}) => {
+  const [checking, startCheck] = useTransition();
+  const [draft, setDraft] = useState(settings.url ?? "");
+  const address = settings.url ?? defaultUrl;
+  return (
+    <Section
+      action={
+        address && (
+          <Button
+            disabled={checking}
+            onClick={() => startCheck(() => recheck())}
+            size="sm"
+            variant="outline"
+          >
+            <RefreshCw className={cn(checking && "animate-spin")} />
+            {t("service.recheck")}
+          </Button>
+        )
+      }
+      title={t("service.title")}
+    >
+      {down && !checking && (
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertDescription>{t("service.down")}</AlertDescription>
+        </Alert>
+      )}
+      <Rows>
+        <EditRow
+          editor={
+            <Input
+              {...NO_AUTOFILL}
+              aria-label={t("service.address.label")}
+              autoFocus
+              className="font-mono"
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={defaultUrl ?? "http://pii-guard:8787"}
+              value={draft}
+            />
+          }
+          hint={
+            settings.url && defaultUrl
+              ? t("service.address.hint", { url: defaultUrl })
+              : t("service.address.hintNoDefault")
+          }
+          label={t("service.address.label")}
+          onSave={async () => {
+            const result = await saveAddress(draft);
+            return result.ok ? null : t("service.address.invalid");
+          }}
+          value={
+            address ? (
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-mono text-sm">{address}</span>
+                {!settings.url && (
+                  <span className="text-muted-foreground shrink-0 text-xs">
+                    {t("service.address.default")}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                {t("service.address.none")}
+              </span>
+            )
+          }
+        />
+        <ServiceState
+          check={check}
+          checking={checking}
+          run={run}
+          stopped={stopped}
+          t={t}
+        />
+      </Rows>
+    </Section>
+  );
+};
+
 export const PrivacySettingsForm = ({
   settings,
   check,
   defaultUrl,
+  setup,
 }: {
   settings: PrivacySettings;
   check: GuardCheck;
-  /** PII_GUARD_URL of the install: what an empty address goes back to. */
+  /** PII_GUARD_URL of the install, or the bundled service once up: what an empty address goes back to. */
   defaultUrl: string | null;
+  setup: GuardSetup;
 }) => {
   const t = useTranslations("privacy");
   const [, startChange] = useTransition();
-  const [checking, startCheck] = useTransition();
-  const [draft, setDraft] = useState(settings.url ?? "");
+  const running = setup.run?.status === "running";
+  const [starting, setStarting] = useOptimistic(running);
+  const [busy, setBusy] = useState(false);
+  useWhileRunning(running);
   const [shown, patch] = useOptimistic(
     settings,
     (current, change: Partial<PrivacySettings>) => ({ ...current, ...change })
@@ -248,7 +486,18 @@ export const PrivacySettingsForm = ({
       await save();
     });
   const address = settings.url ?? defaultUrl;
-  const down = shown.on && !check.ok && check.reason !== "unset";
+  // Masking happens: on, and a service to mask with (or one on its way).
+  const active = shown.on && (address !== null || starting);
+  const flip = (on: boolean) =>
+    startChange(async () => {
+      patch({ on });
+      setBusy(false);
+      if (on && setup.bundled && setup.updater) {
+        setStarting(true);
+      }
+      const { setup: result } = await toggleOn(on);
+      setBusy(result === "busy");
+    });
 
   return (
     <>
@@ -256,89 +505,35 @@ export const PrivacySettingsForm = ({
         <Row hint={t("on.hint")} label={t("on.label")}>
           <Switch
             aria-label={t("on.label")}
-            checked={shown.on}
-            onCheckedChange={(on) => change({ on }, () => toggleOn(on))}
+            checked={active}
+            disabled={running}
+            onCheckedChange={flip}
           />
         </Row>
       </Rows>
-
-      <Section
-        action={
-          address && (
-            <Button
-              disabled={checking}
-              onClick={() => startCheck(() => recheck())}
-              size="sm"
-              variant="outline"
-            >
-              <RefreshCw className={cn(checking && "animate-spin")} />
-              {t("service.recheck")}
-            </Button>
-          )
+      <SetupNotes
+        active={active}
+        busy={busy}
+        failed={
+          !running &&
+          setup.run?.status === "failed" &&
+          setup.run.on &&
+          shown.on &&
+          !check.ok
         }
-        title={t("service.title")}
-      >
-        {down && !checking && (
-          <Alert variant="destructive">
-            <CircleAlert />
-            <AlertDescription>{t("service.down")}</AlertDescription>
-          </Alert>
-        )}
-        <Rows>
-          <EditRow
-            editor={
-              <Input
-                {...NO_AUTOFILL}
-                aria-label={t("service.address.label")}
-                autoFocus
-                className="font-mono"
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={defaultUrl ?? "http://pii-guard:8787"}
-                value={draft}
-              />
-            }
-            hint={
-              settings.url && defaultUrl
-                ? t("service.address.hint", { url: defaultUrl })
-                : t("service.address.hintNoDefault")
-            }
-            label={t("service.address.label")}
-            onSave={async () => {
-              const result = await saveAddress(draft);
-              return result.ok ? null : t("service.address.invalid");
-            }}
-            value={
-              address ? (
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-mono text-sm">{address}</span>
-                  {!settings.url && (
-                    <span className="text-muted-foreground shrink-0 text-xs">
-                      {t("service.address.default")}
-                    </span>
-                  )}
-                </span>
-              ) : (
-                <span className="text-muted-foreground">
-                  {t("service.address.none")}
-                </span>
-              )
-            }
-          />
-          <Row hint={t("service.state.hint")} label={t("service.state.label")}>
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                className={cn(
-                  "size-2 shrink-0 rounded-full",
-                  stateDot(check, checking)
-                )}
-              />
-              <span className="min-w-0 truncate">
-                {stateLabel(check, checking, t)}
-              </span>
-            </span>
-          </Row>
-        </Rows>
-      </Section>
+        manual={setup.bundled && !setup.updater && address === null}
+        setup={setup}
+        t={t}
+      />
+      <ServiceSection
+        check={check}
+        defaultUrl={defaultUrl}
+        down={shown.on && !check.ok && check.reason !== "unset" && !running}
+        run={setup.run}
+        settings={settings}
+        stopped={!shown.on && setup.bundled && !check.ok}
+        t={t}
+      />
 
       <Section title={t("places.title")}>
         <Rows>

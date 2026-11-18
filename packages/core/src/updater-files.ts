@@ -44,6 +44,40 @@ export const pinImage = (env: string, image: string, updaterImage?: string) =>
       )
     : setEnv(env, "METOBE_IMAGE", image);
 
+/** Data protection's labels key and the app's token to it; install.sh writes both, older installs lack them. */
+export const GUARD_KEYS = [
+  "PII_GUARD_TENANT_KEY",
+  "PII_GUARD_API_TOKEN",
+] as const;
+
+/** `.env` with each of GUARD_KEYS made by `make` where it is missing or empty; the rest as it was. */
+export const withGuardKeys = (env: string, make: () => string) => {
+  let text = env;
+  for (const key of GUARD_KEYS) {
+    if (!envValue(text, key)) {
+      text = setEnv(text, key, make());
+    }
+  }
+  return text;
+};
+
+/** The profiles COMPOSE_PROFILES turns on. */
+export const profilesOf = (env: string) =>
+  (envValue(env, "COMPOSE_PROFILES") ?? "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+/** `.env` with `profile` added to COMPOSE_PROFILES or taken out of it; the others kept in their order. */
+export const withProfile = (env: string, profile: string, on: boolean) => {
+  const rest = profilesOf(env).filter((p) => p !== profile);
+  return setEnv(
+    env,
+    "COMPOSE_PROFILES",
+    (on ? [...rest, profile] : rest).join(",")
+  );
+};
+
 /** The copies past the newest `keep`, to delete. */
 export const backupsToDrop = (
   files: { name: string; mtimeMs: number }[],

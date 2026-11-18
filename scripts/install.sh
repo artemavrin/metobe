@@ -8,7 +8,8 @@
 #
 # Non-interactive: METOBE_YES=1 plus METOBE_URL, METOBE_PORT, METOBE_DATABASE_URL, METOBE_PROXY, METOBE_SMTP_URL,
 # METOBE_S3_CHOICE (1 bundled, 2 your own S3 via METOBE_S3_ENDPOINT/_BUCKET/_ACCESS_KEY/_SECRET_KEY/_REGION, 3 none),
-# METOBE_UPDATER (y — updates from the app, n — by this script only) as needed.
+# METOBE_UPDATER (y — updates from the app, n — by this script only), METOBE_PII (y — data protection's service on;
+# with the updater the switch in Settings → Data protection does it too) as needed.
 # Inputs are METOBE_-prefixed on purpose: a shell-wide HTTPS_PROXY must not leak into the containers.
 set -euo pipefail
 
@@ -175,9 +176,6 @@ else
     echo "# Encrypts source keys and connection secrets. Losing it makes them unrecoverable."
     echo "SECRETS_KEY=$(secret)"
     echo "SEARXNG_SECRET=$(password)"
-    # Data protection (the `pii` profile, off by default): the labels' key and the app's token to the service.
-    echo "PII_GUARD_TENANT_KEY=$(password)"
-    echo "PII_GUARD_API_TOKEN=$(password)"
     profiles=""
     if [ -n "${METOBE_DATABASE_URL:-}" ]; then
       echo "APP_DATABASE_URL=$METOBE_DATABASE_URL"
@@ -198,6 +196,18 @@ else
 fi
 
 services="app worker searxng"
+
+# --- data protection (PII-GUARD-PLAN) ---------------------------------------------------------------
+# Its labels' key and the app's token to the service: made once, so an install from before them has them too.
+grep -qE '^PII_GUARD_TENANT_KEY=.+' .env || set_env PII_GUARD_TENANT_KEY "$(password)"
+grep -qE '^PII_GUARD_API_TOKEN=.+' .env || set_env PII_GUARD_API_TOKEN "$(password)"
+case "${METOBE_PII:-}" in y|Y|yes|д|Д|да|1) add_profile pii ;; esac
+if grep -qE '^COMPOSE_PROFILES=(.*,)?pii(,.*)?$' .env; then
+  # The app finds the bundled service at this address (about 4 GB image, about 1.5 GB of memory once loaded).
+  grep -q '^PII_GUARD_URL=' .env || set_env PII_GUARD_URL http://pii-guard:8787
+  services="$services pii-guard"
+fi
+
 if grep -q '^METOBE_UPDATER=1$' .env; then
   # The updater sees this folder at the host's own path: kept current should the folder move.
   set_env METOBE_DIR "$(pwd)"
