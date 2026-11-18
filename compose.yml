@@ -13,8 +13,9 @@ services:
       REDIS_URL: redis://redis:6379
       # The chat's web search (ARCH §8.1); without it the chat simply has no web.
       SEARXNG_URL: http://searxng:8080
-      # Data protection (docs/PII-GUARD-PLAN.md): set PII_GUARD_URL=http://pii-guard:8787 with the `pii` profile on.
-      # Unset, calls go to models as they are.
+      # Data protection (docs/PII-GUARD-PLAN.md): the switch in its settings has the updater start `pii-guard`, and the
+      # app then finds it on its own; install.sh with METOBE_PII=1 sets this for an install without the updater.
+      # Unset and not started, calls go to models as they are.
       PII_GUARD_URL: ${PII_GUARD_URL:-}
       PII_GUARD_TOKEN: ${PII_GUARD_API_TOKEN:-}
     volumes:
@@ -136,10 +137,12 @@ services:
     profiles: ["pii"]
     restart: unless-stopped
     environment:
-      # install.sh writes both; the key derives the labels, the token is what the app sends. Without the key the
-      # service refuses to mask, and the app does not send (an older install: add both to .env).
+      # install.sh and the updater write both, an older install's too; the key derives the labels, the token is what
+      # the app sends. Without the key the service refuses to mask, and the app does not send.
       PII_GUARD_TENANT_KEY: ${PII_GUARD_TENANT_KEY:-}
       PII_GUARD_API_TOKEN: ${PII_GUARD_API_TOKEN:-}
+      # The app calls it by this name; otherwise it answers only to localhost and refuses the app with 400.
+      PII_GUARD_ALLOWED_HOSTS: pii-guard
     mem_limit: 3g
 
   # Web search: SearXNG on the inside network only (no port out), JSON on, the load spread over several engines and

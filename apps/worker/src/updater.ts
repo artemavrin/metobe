@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   chmod,
@@ -21,6 +21,7 @@ import type {
 } from "@metobe/contracts/updates";
 import { getDb } from "@metobe/core/db";
 import { fetchFor } from "@metobe/core/net";
+import { setPrivacySettings } from "@metobe/core/privacy-settings";
 import {
   getUpdateAutomation,
   localUpdateClock,
@@ -33,18 +34,28 @@ import {
   answersInProgress,
   claimUpdateAutomation,
   heartbeat,
+  readGuardRun,
   readUpdateRun,
   setDraining,
+  takeGuardRequest,
   takeUpdateRequest,
+  writeGuardRun,
   writeUpdateRun,
 } from "@metobe/core/updater-bus";
-import type { UpdateRequest } from "@metobe/core/updater-bus";
+import type {
+  GuardRequest,
+  GuardRun,
+  UpdateRequest,
+} from "@metobe/core/updater-bus";
 import {
   backupsToDrop,
   composeHasUpdater,
   envValue,
   imageRepo,
   pinImage,
+  profilesOf,
+  withGuardKeys,
+  withProfile,
 } from "@metobe/core/updater-files";
 import { fetchReleases } from "@metobe/core/updates";
 import type { PublishedRelease } from "@metobe/core/updates";
@@ -56,6 +67,7 @@ import { APP_VERSION } from "@metobe/core/version";
 // version works, copies the base, holds new messages while the answers finish, pins X in `.env` and recreates `app`
 // and `worker` with the release's compose file, checks the new app is healthy and says X. A failure puts the old
 // files back, and the base from the copy when migrations ran. Last, it hands itself over to X's updater.
+// It also starts and stops data protection's service (`pii-guard`, profile `pii`) when the admin flips its switch.
 
 const exec = promisify(execFile);
 
@@ -70,6 +82,11 @@ const KEEP_BACKUPS = 3;
 const UP_TIMEOUT = "900";
 const APP = "http://app:3000";
 const SERVICES = ["app", "worker", "searxng"];
+/** Data protection's service and its profile (compose.yml). */
+const GUARD = "pii-guard";
+const GUARD_PROFILE = "pii";
+/** Its model loads in a minute or two; a slow disk or a busy host gets more. */
+const GUARD_UP_TIMEOUT = "600";
 const BACKUP_NAME = /^metobe-\d+\.\d+\.\d+-[\dTZ-]+\.dump$/u;
 const VERIFY_SIGNATURES = process.env.METOBE_VERIFY_SIGNATURES !== "0";
 const SIGNER =
@@ -211,6 +228,25 @@ const waitForApp = async (version: string) => {
 
 const stamp = () => new Date().toISOString().replaceAll(/[:.]/gu, "-");
 
+/** As install.sh makes them (`openssl rand -hex 24`). */
+const guardSecret = () => randomBytes(24).toString("hex");
+
+/** Holds new messages, waits a minute at most for the answers being written, then does `work`; lets them go after. */
+const drained = async <T>(work: () => Promise<T>) => {
+  await setDraining(true);
+  try {
+    const until = Date.now() + 60_000;
+    // oxlint-disable-next-line no-await-in-loop -- waiting for the answers, a minute at most
+    while (Date.now() < until && (await answersInProgress()) > 0) {
+      // oxlint-disable-next-line no-await-in-loop -- as above
+      await sleep(1000);
+    }
+    return await work();
+  } finally {
+    await setDraining(false);
+  }
+};
+
 /** The old files back, the base from the copy when the new version migrated it, and the old app up again. */
 const rollback = async (
   envBefore: string,
@@ -274,6 +310,159 @@ const handOver = async () => {
   } catch (error) {
     // This updater keeps working; the next update tries again.
     console.error("updater: hand-over failed", error);
+  }
+};
+
+/**
+ * After an update, data protection's service as the new compose file has it, when it is on. Apart from the update:
+ * its failing must not roll the app back. Unchanged, compose leaves it running.
+ */
+const refreshGuard = async () => {
+  try {
+    const env = await readFile(path.join(DIR, ".env"), "utf-8");
+    if (profilesOf(env).includes(GUARD_PROFILE)) {
+      await compose(["up", "-d", "--no-deps", GUARD], 30 * 60_000);
+    }
+  } catch (error) {
+    console.error("updater: data protection after the update", error);
+  }
+};
+
+/** An image is already on this host: no pull, no network needed. */
+const guardImagePresent = async () => {
+  const images = await compose(["config", "--images", GUARD], 30_000);
+  const image = images.split("\n")[0]?.trim();
+  if (!image) {
+    return false;
+  }
+  try {
+    await sh("docker", ["image", "inspect", image], 30_000);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** A start that failed, not left half on: the profile off again, so an update or a hand `up` does not retry it. */
+const takeGuardDown = async (envPath: string) => {
+  try {
+    const env = await readFile(envPath, "utf-8");
+    await writeFile(envPath, withProfile(env, GUARD_PROFILE, false));
+    await compose(["rm", "--stop", "--force", GUARD]);
+  } catch (error) {
+    console.error("updater: data protection cleanup", error);
+  }
+};
+
+/**
+ * Data protection's switch: on — the key and token in `.env`, profile `pii` on, the image pulled, the service up with
+ * its model loaded, and only then the app told to use it (until then calls go as they did, not refused); the app is
+ * recreated when it runs without the token. Off — the app told first, then the service stopped and the profile off.
+ */
+const setGuard = async (ask: GuardRequest) => {
+  const run: GuardRun = {
+    error: null,
+    finishedAt: null,
+    on: ask.on,
+    startedAt: new Date().toISOString(),
+    status: "running",
+    step: null,
+  };
+  const at = async (step: GuardRun["step"]) => {
+    run.step = step;
+    await writeGuardRun(run);
+    console.log(`updater: data protection, ${step}…`);
+  };
+  const envPath = path.join(DIR, ".env");
+  console.log(`updater: data protection ${ask.on ? "on" : "off"}`);
+  try {
+    const env = await readFile(envPath, "utf-8");
+    if (ask.on) {
+      await writeFile(
+        envPath,
+        withProfile(withGuardKeys(env, guardSecret), GUARD_PROFILE, true)
+      );
+      if (!(await guardImagePresent())) {
+        await at("pull");
+        await compose(["pull", "--quiet", GUARD], 30 * 60_000);
+      }
+      await at("start");
+      await compose(
+        [
+          "up",
+          "-d",
+          "--no-deps",
+          "--wait",
+          "--wait-timeout",
+          GUARD_UP_TIMEOUT,
+          GUARD,
+        ],
+        12 * 60_000
+      );
+      if (ask.restartApp) {
+        await at("restart");
+        await drained(() =>
+          compose([
+            "up",
+            "-d",
+            "--no-deps",
+            "--wait",
+            "--wait-timeout",
+            UP_TIMEOUT,
+            "app",
+            "worker",
+          ])
+        );
+      }
+      await setPrivacySettings((s) => ({ ...s, bundled: true }));
+    } else {
+      await at("stop");
+      await setPrivacySettings((s) => ({ ...s, bundled: false }));
+      await writeFile(envPath, withProfile(env, GUARD_PROFILE, false));
+      await compose(["rm", "--stop", "--force", GUARD]);
+    }
+    run.status = "done";
+  } catch (error) {
+    console.error("updater: data protection failed", error);
+    run.status = "failed";
+    run.error = error instanceof Error ? error.message : String(error);
+    if (ask.on) {
+      await takeGuardDown(envPath);
+    }
+  } finally {
+    run.finishedAt = new Date().toISOString();
+    await writeGuardRun(run);
+  }
+};
+
+/**
+ * A start cut short by a restart of the updater: it failed, and the switch can be flipped again. One with no step yet
+ * is the app's ask still waiting: this updater takes it next.
+ */
+const closeInterruptedGuard = async () => {
+  const last = await readGuardRun();
+  if (last?.status === "running" && last.step !== null) {
+    await writeGuardRun({
+      ...last,
+      error: "interrupted",
+      finishedAt: new Date().toISOString(),
+      status: "failed",
+    });
+  }
+};
+
+/** An install from before data protection: its key and token, so the switch has them when flipped. */
+const addGuardKeys = async () => {
+  const envPath = path.join(DIR, ".env");
+  try {
+    const env = await readFile(envPath, "utf-8");
+    const next = withGuardKeys(env, guardSecret);
+    if (next !== env) {
+      await writeFile(envPath, next);
+      console.log("updater: data protection's key and token added to .env");
+    }
+  } catch (error) {
+    console.error("updater: data protection keys", error);
   }
 };
 
@@ -437,7 +626,11 @@ const update = async (ask: UpdateRequest) => {
         await writeFile(envPath, pinImage(envBefore, image, updaterImage));
       } else {
         await writeFile(composePath, composeNext);
-        await writeFile(envPath, pinImage(envBefore, image, image));
+        // An install from before data protection gets its key and token here, so the app starts with them.
+        await writeFile(
+          envPath,
+          withGuardKeys(pinImage(envBefore, image, image), guardSecret)
+        );
       }
       await compose([
         "up",
@@ -482,6 +675,7 @@ const update = async (ask: UpdateRequest) => {
   }
   console.log(`updater: ${run.status}`);
   if (run.status === "done") {
+    await refreshGuard();
     await pruneBackups().catch((error: unknown) =>
       console.error("updater: backup cleanup", error)
     );
@@ -620,16 +814,24 @@ const main = async () => {
     );
     process.exit(1);
   }
-  await closeInterrupted();
-  await beat();
+  // First: the Redis connection is unref'd, so until a timer holds the process, Node may end it mid-request.
   setInterval(beat, 20_000);
+  await closeInterrupted();
+  await closeInterruptedGuard();
+  await addGuardKeys();
+  await beat();
   console.log(`updater ${APP_VERSION} ready, ${DIR}`);
   for (;;) {
     // oxlint-disable-next-line no-await-in-loop -- one ask at a time, by design
     const ask = await takeUpdateRequest().catch(() => null);
+    // oxlint-disable-next-line no-await-in-loop -- as above
+    const guard = ask ? null : await takeGuardRequest().catch(() => null);
     if (ask) {
       // oxlint-disable-next-line no-await-in-loop -- one update at a time
       await update(ask);
+    } else if (guard) {
+      // oxlint-disable-next-line no-await-in-loop -- as above
+      await setGuard(guard);
     } else {
       try {
         // oxlint-disable-next-line no-await-in-loop -- one update at a time; the schedule is rate limited to a minute

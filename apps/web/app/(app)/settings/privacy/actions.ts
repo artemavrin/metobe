@@ -1,13 +1,18 @@
 "use server";
 
 import { sandboxMask } from "@metobe/core/ai";
+import { getEnv } from "@metobe/core/env";
 import {
+  readPrivacySettings,
+  guardUrl,
   PRIVACY_ACTIONS,
   PRIVACY_PLACES,
   PRIVACY_RETENTION,
   PRIVACY_TYPES,
   setPrivacySettings,
+  usesBundledGuard,
 } from "@metobe/core/privacy-settings";
+import { requestGuard, updaterAlive } from "@metobe/core/updater-bus";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -24,10 +29,36 @@ const requireAdmin = async () => {
 
 const refresh = () => revalidatePath("/settings/privacy");
 
-export const toggleOn = async (on: boolean) => {
+/**
+ * Masking on or off. With the install's own service meant, the updater starts or stops it; a service of another
+ * server is its admin's. `setup`: started — the updater took it; busy — it is updating or starting already; manual —
+ * no updater on this server, and nothing to mask with yet.
+ */
+export const toggleOn = async (
+  on: boolean
+): Promise<{ setup: "started" | "busy" | "manual" | null }> => {
   await requireAdmin();
-  await setPrivacySettings((s) => ({ ...s, on: z.boolean().parse(on) }));
+  const value = z.boolean().parse(on);
+  const settings = await readPrivacySettings();
+  await setPrivacySettings((s) => ({ ...s, on: value }));
+  let setup: "started" | "busy" | "manual" | null = null;
+  if (usesBundledGuard(settings)) {
+    if (await updaterAlive()) {
+      // On: unless it is up and the app has its token. Off: unless there is nothing running to stop.
+      const needed = value
+        ? !settings.bundled || !getEnv().PII_GUARD_TOKEN
+        : guardUrl(settings) !== null;
+      if (needed) {
+        setup = (await requestGuard(value, !getEnv().PII_GUARD_TOKEN))
+          ? "started"
+          : "busy";
+      }
+    } else if (value && !guardUrl(settings)) {
+      setup = "manual";
+    }
+  }
   refresh();
+  return { setup };
 };
 
 export const togglePlace = async (place: string, on: boolean) => {

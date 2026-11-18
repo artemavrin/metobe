@@ -3370,9 +3370,24 @@
         "unset": "No address",
         "unreachable": "Does not answer",
         "status": "Answers with an error",
-        "running": "Checking…"
+        "running": "Checking…",
+        "off": "Off"
       },
       "down": "Not sent: data protection is unavailable. Requests to external models are stopped; local models work."
+    },
+    "setup": {
+      "hint": "The update service starts it on this server",
+      "steps": {
+        "waiting": "Waiting for the update service…",
+        "pull": "Downloading the image, about 4 GB…",
+        "start": "Starting, loading the model…",
+        "restart": "Restarting the app…",
+        "stop": "Stopping…"
+      },
+      "manual": "Without the update service, the installer turns it on: run it again in the install folder with METOBE_PII=1.",
+      "memory": "{free} GB of memory free. The service takes about 1.5 GB: without room to spare, the server may slow down.",
+      "busy": "The update service is busy. Try again in a minute.",
+      "failed": "The service did not start: {error}. Requests go unmasked."
     },
     "places": {
       "title": "Where to apply",

@@ -6,6 +6,9 @@ import {
   envValue,
   imageRepo,
   pinImage,
+  profilesOf,
+  withGuardKeys,
+  withProfile,
 } from "./updater-files";
 
 describe("imageRepo", () => {
@@ -67,5 +70,33 @@ describe("composeHasUpdater", () => {
     ).toBe(true);
     expect(composeHasUpdater("services:\n  app: {}\n")).toBe(false);
     expect(composeHasUpdater(": not yaml [")).toBe(false);
+  });
+});
+
+describe("withGuardKeys", () => {
+  it("makes the keys an older install lacks and keeps the ones it has", () => {
+    let n = 0;
+    const make = () => `k${(n += 1)}`;
+    expect(withGuardKeys("APP_PORT=3000\n", make)).toBe(
+      "APP_PORT=3000\nPII_GUARD_TENANT_KEY=k1\nPII_GUARD_API_TOKEN=k2\n"
+    );
+    const full = "PII_GUARD_TENANT_KEY=a\nPII_GUARD_API_TOKEN=b\n";
+    expect(withGuardKeys(full, make)).toBe(full);
+    expect(
+      withGuardKeys("PII_GUARD_TENANT_KEY=\nPII_GUARD_API_TOKEN=b\n", make)
+    ).toBe("PII_GUARD_TENANT_KEY=k3\nPII_GUARD_API_TOKEN=b\n");
+  });
+});
+
+describe("withProfile", () => {
+  it("adds a profile once, takes it out, and writes the line when there was none", () => {
+    const env = "COMPOSE_PROFILES=db,s3,updater\nAPP_PORT=3000\n";
+    const on = withProfile(env, "pii", true);
+    expect(envValue(on, "COMPOSE_PROFILES")).toBe("db,s3,updater,pii");
+    expect(withProfile(on, "pii", true)).toBe(on);
+    expect(withProfile(on, "pii", false)).toBe(env);
+    expect(profilesOf(withProfile("APP_PORT=3000\n", "pii", true))).toEqual([
+      "pii",
+    ]);
   });
 });
