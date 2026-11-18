@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2](https://github.com/artemavrin/metobe/compare/v0.10.1...v0.10.2) (2026-11-18)
+
+
+### Bug Fixes
+
+* **pii-guard:** long chats get through on a slow server ([74564f6](https://github.com/artemavrin/metobe/commit/74564f6527849d7234183e51d139bca155c28e1e))
+* **pii-guard:** long chats get through on a slow server, memory waits for the guard ([439b842](https://github.com/artemavrin/metobe/commit/439b842408172b9d4b6c87bfe1ba8dd1cf77911d))
+
 ## [0.10.1](https://github.com/artemavrin/metobe/compare/v0.10.0...v0.10.1) (2026-11-18)
 
 
