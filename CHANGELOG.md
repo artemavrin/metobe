@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/artemavrin/metobe/compare/v0.11.0...v0.11.1) (2026-11-20)
+
+
+### Features
+
+* **sandbox:** manage the sandbox in Settings — limits, shutting a box down, internet ([#130](https://github.com/artemavrin/metobe/issues/130)) ([294e5ce](https://github.com/artemavrin/metobe/commit/294e5ceadaf165ca80f916fe524f6672999dff5e))
+
 ## [0.11.0](https://github.com/artemavrin/metobe/compare/v0.10.2...v0.11.0) (2026-11-20)
 
 
