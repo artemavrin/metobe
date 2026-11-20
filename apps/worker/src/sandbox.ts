@@ -30,8 +30,10 @@ const config: PoolConfig = {
   leaseSeconds: 180,
   // Not less: the address-space cap of a run is 3/4 of it, and the image's libraries reserve ~535 MB (pool.ts).
   memoryMb: Math.max(num("SANDBOX_MEMORY_MB", 1024), 1024),
+  network: false,
   outputBytes: 40 * 1024,
   perUser: num("SANDBOX_PER_USER", 1),
+  runSeconds: 60,
   runtime: env("SANDBOX_RUNTIME", "runsc"),
   total: num("SANDBOX_TOTAL", 4),
   waitSeconds: { chat: 30, task: 300 },
@@ -41,11 +43,15 @@ const docker = createDocker(env("DOCKER_SOCKET", "/var/run/docker.sock"));
 const pool = createPool(docker, config);
 
 let readiness: Readiness = { problem: "docker", ready: false };
+let hostMemoryMb: number | undefined;
 
 /** Docker answers, has the runtime, has the image (pulled if missing). Tried again until it holds. */
 const prepare = async () => {
   try {
     const info = await docker.info();
+    hostMemoryMb = info.MemTotal
+      ? Math.round(info.MemTotal / 1024 / 1024)
+      : undefined;
     if (!info.Runtimes?.[config.runtime]) {
       readiness = { problem: "runtime", ready: false };
       console.error(
@@ -70,6 +76,7 @@ const prepare = async () => {
 
 const server = createSandboxServer({
   config,
+  hostMemoryMb: () => hostMemoryMb,
   pool,
   readiness: () => readiness,
   token,

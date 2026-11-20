@@ -1,6 +1,6 @@
 import "server-only";
 import { madeFile } from "@metobe/contracts/files";
-import type { SandboxClass } from "@metobe/contracts/sandbox";
+import type { SandboxClass, SandboxLimits } from "@metobe/contracts/sandbox";
 import { files } from "@metobe/db/schema/files";
 import { tool } from "ai";
 import type { ToolSet } from "ai";
@@ -41,11 +41,30 @@ const INPUT_DIR = "/workspace/in";
 const FILES_DIR = "/workspace/files";
 const HEARTBEAT_MS = 60_000;
 
+/** What a run may take, as the admin set it (P35): the model is told, and told why a run stopped. */
+export type RunLimits = Pick<
+  SandboxLimits,
+  "memoryMb" | "network" | "runSeconds"
+>;
+
+const DEFAULT_LIMITS: RunLimits = {
+  memoryMb: 1024,
+  network: false,
+  runSeconds: 60,
+};
+
+const memoryText = (mb: number) =>
+  mb % 1024 === 0 ? `${mb / 1024} GB` : `${Math.round(mb / 102.4) / 10} GB`;
+
 /** Told to the model with the tools. Kept in step with docker/sandbox/requirements.txt by a test. */
-export const SANDBOX_NOTE = `You can run Python 3.13 with ${RUN_CODE}: pandas, numpy, openpyxl, xlsxwriter, python-docx, python-pptx, matplotlib, reportlab, pypdf and the standard library. There is no network and nothing can be installed. Work in /workspace; the chat's attached files are in ${INPUT_DIR} (read-only copies). Use it to analyse data, compute, and make files (tables, documents, slides, charts, PDF).
+export const sandboxNote = (
+  limits: RunLimits = DEFAULT_LIMITS
+) => `You can run Python 3.13 with ${RUN_CODE}: pandas, numpy, openpyxl, xlsxwriter, python-docx, python-pptx, matplotlib, reportlab, pypdf and the standard library. ${limits.network ? "The box can reach the internet: download data from a link when the user asks." : "There is no network and nothing can be installed."} Work in /workspace; the chat's attached files are in ${INPUT_DIR} (read-only copies). Use it to analyse data, compute, and make files (tables, documents, slides, charts, PDF).
 A file the user should get must be handed over with ${SHARE_FILE}: it then appears in the chat. Never write a /workspace path or a link to one in your answer — the user cannot open it. Hand over only the final files, not intermediate ones.
 To show numbers you computed as a table or a chart, write them to a JSON file (a list of objects, one per row) and call ${LOAD_DATA} with its path; then call the table or chart tool with \`from\` set to the ref it answers — never retype computed numbers into the call, and do not draw a matplotlib picture for what the chart tool can show.
-The box may be the same as in your last answer in this chat (its files still there) or a new one: the first ${RUN_CODE} says which. A file you handed over earlier comes back with ${USE_FILE}. A skill with scripts runs here: ${RUN_SKILL_FILES} puts its folder in /workspace/skills/<name>, then run its scripts from there instead of reading them. Each ${RUN_CODE} call is a new Python process: variables and imports do not carry over to the next call, files in /workspace do — load what you need again, or save it to a file. Each run has 60 seconds and about 1 GB of memory; print what you need to see, keep the output short.`;
+The box may be the same as in your last answer in this chat (its files still there) or a new one: the first ${RUN_CODE} says which. A file you handed over earlier comes back with ${USE_FILE}. A skill with scripts runs here: ${RUN_SKILL_FILES} puts its folder in /workspace/skills/<name>, then run its scripts from there instead of reading them. Each ${RUN_CODE} call is a new Python process: variables and imports do not carry over to the next call, files in /workspace do — load what you need again, or save it to a file. Each run has ${limits.runSeconds} seconds and about ${memoryText(limits.memoryMb)} of memory; print what you need to see, keep the output short.`;
+
+export const SANDBOX_NOTE = sandboxNote();
 
 type Output = Record<string, unknown>;
 
@@ -138,12 +157,21 @@ const ocrScript = (path: string, page: number) =>
   ].join("\n");
 
 /** Why a run stopped short, for the model. */
-const noteOf = (result: { timedOut: boolean; outOfMemory: boolean }) => {
+const noteOf = (
+  result: { timedOut: boolean; outOfMemory: boolean },
+  limits: RunLimits
+) => {
   if (result.timedOut) {
-    return { limit: "time", note: "Stopped at the 60-second limit." };
+    return {
+      limit: "time",
+      note: `Stopped at the ${limits.runSeconds}-second limit.`,
+    };
   }
   if (result.outOfMemory) {
-    return { limit: "memory", note: "Ran out of memory (about 1 GB)." };
+    return {
+      limit: "memory",
+      note: `Ran out of memory (about ${memoryText(limits.memoryMb)}).`,
+    };
   }
   return {};
 };
@@ -179,7 +207,10 @@ export const sandboxSession = (options: {
   shareTo?: { chatId: string | null; taskId?: string };
   /** The widgets' data (tool-sources): load_data puts a computed table there for show_table and show_chart. */
   sources?: Sources;
+  /** The limits in force (`sandboxOn`); the service's defaults when left out. */
+  limits?: RunLimits;
 }) => {
+  const limits = options.limits ?? DEFAULT_LIMITS;
   let box: { id: string; fresh: boolean; told: boolean } | null = null;
   let taking: Promise<{ id: string; fresh: boolean; told: boolean }> | null =
     null;
@@ -287,7 +318,7 @@ export const sandboxSession = (options: {
             exitCode: result.exitCode,
             ...(result.stdout ? { stdout: result.stdout } : {}),
             ...(result.stderr ? { stderr: result.stderr } : {}),
-            ...noteOf(result),
+            ...noteOf(result, limits),
             ...(result.truncated
               ? {
                   truncated:
@@ -485,7 +516,7 @@ export const sandboxSession = (options: {
   };
 
   return {
-    note: SANDBOX_NOTE,
+    note: sandboxNote(limits),
     ocrPage,
     /** The answer ended. Never throws. */
     release: async (keep: boolean) => {

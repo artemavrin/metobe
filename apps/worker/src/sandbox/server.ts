@@ -5,8 +5,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   acquireRequestSchema,
   execRequestSchema,
+  sandboxLimitsSchema,
 } from "@metobe/contracts/sandbox";
-import type { SandboxStatus } from "@metobe/contracts/sandbox";
+import type { SandboxLimits, SandboxStatus } from "@metobe/contracts/sandbox";
 
 import { PoolError } from "./pool";
 import type { Pool, PoolConfig } from "./pool";
@@ -54,13 +55,41 @@ const tokenMatches = (header: string | undefined, token: string) => {
 
 export type Readiness = Pick<SandboxStatus, "ready" | "problem">;
 
+const MB = 1024 * 1024;
+
+/** The admin's limits into the running config: new boxes and the next runs take them, running boxes keep theirs. */
+export const applyLimits = (config: PoolConfig, limits: SandboxLimits) => {
+  config.total = limits.total;
+  config.perUser = limits.perUser;
+  config.idleSeconds = limits.idleSeconds;
+  config.memoryMb = limits.memoryMb;
+  config.runSeconds = limits.runSeconds;
+  config.fileBytes = limits.fileMb * MB;
+  config.network = limits.network;
+};
+
+export const limitsOf = (config: PoolConfig): SandboxLimits => ({
+  fileMb: Math.round(config.fileBytes / MB),
+  idleSeconds: config.idleSeconds,
+  memoryMb: config.memoryMb,
+  network: config.network,
+  perUser: config.perUser,
+  runSeconds: config.runSeconds,
+  total: config.total,
+});
+
 export const createSandboxServer = (options: {
   pool: Pool;
   config: PoolConfig;
   token: string;
   readiness: () => Readiness;
+  hostMemoryMb?: () => number | undefined;
 }) => {
   const { pool, config, token, readiness } = options;
+  const setLimits = (limits: SandboxLimits) => {
+    applyLimits(config, limits);
+    pool.limitsChanged();
+  };
 
   /** A box's own door: run code, move files, list them, keep it alive, let it go. */
   const boxRoute = async (
@@ -131,13 +160,9 @@ export const createSandboxServer = (options: {
       const status: SandboxStatus = {
         ...readiness(),
         ...pool.status(),
+        hostMemoryMb: options.hostMemoryMb?.(),
         image: config.image,
-        limits: {
-          idleSeconds: config.idleSeconds,
-          memoryMb: config.memoryMb,
-          perUser: config.perUser,
-          total: config.total,
-        },
+        limits: limitsOf(config),
         runtime: config.runtime,
       };
       send(res, 200, status);
@@ -152,7 +177,15 @@ export const createSandboxServer = (options: {
         return;
       }
       const request = acquireRequestSchema.parse(await readJson(req));
+      if (request.limits) {
+        setLimits(request.limits);
+      }
       send(res, 201, await pool.acquire(request));
+      return;
+    }
+    if (method === "PUT" && url.pathname === "/limits") {
+      setLimits(sandboxLimitsSchema.parse(await readJson(req)));
+      send(res, 204);
       return;
     }
     if (parts[0] === "chats" && parts[1] && method === "DELETE") {

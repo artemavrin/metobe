@@ -37,6 +37,10 @@ export interface PoolConfig {
   agingSeconds: number;
   outputBytes: number;
   fileBytes: number;
+  /** A run's time when the caller names none. */
+  runSeconds: number;
+  /** New boxes reach the internet through Docker's bridge; off — no network at all. */
+  network: boolean;
 }
 
 export class PoolError extends Error {
@@ -83,7 +87,7 @@ export const containerConfig = (
     Memory: config.memoryMb * MB,
     MemorySwap: config.memoryMb * MB,
     NanoCpus: 1e9,
-    NetworkMode: "none",
+    NetworkMode: config.network ? "bridge" : "none",
     PidsLimit: 64,
     ReadonlyRootfs: true,
     Runtime: config.runtime,
@@ -311,7 +315,7 @@ export const createPool = (
     exec: async (
       id: string,
       code: string,
-      timeoutSeconds = 60
+      timeoutSeconds = config.runSeconds
     ): Promise<ExecResponse> => {
       const box = boxOf(id);
       const started = now();
@@ -383,6 +387,11 @@ export const createPool = (
 
     heartbeat: (id: string) => {
       boxOf(id);
+    },
+
+    /** The limits changed (P35): a higher cap may let a waiter in now. */
+    limitsChanged: () => {
+      wakeNext();
     },
 
     list: async (id: string): Promise<SandboxFileEntry[]> => {

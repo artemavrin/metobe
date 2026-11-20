@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { createDocker } from "./docker";
 import type { Docker } from "./docker";
-import { createPool, inWorkspace } from "./pool";
+import { containerConfig, createPool, inWorkspace } from "./pool";
 import type { PoolConfig } from "./pool";
+import { applyLimits, limitsOf } from "./server";
 
 const config: PoolConfig = {
   agingSeconds: 60,
@@ -13,8 +14,10 @@ const config: PoolConfig = {
   image: "python:3.13-slim",
   leaseSeconds: 180,
   memoryMb: 1024,
+  network: false,
   outputBytes: 4096,
   perUser: 1,
+  runSeconds: 60,
   runtime: "runc",
   total: 2,
   waitSeconds: { chat: 0.3, task: 0.3 },
@@ -156,6 +159,42 @@ describe("pool", () => {
     await pool.release(a.boxId, false);
     const served = await waiting;
     expect(served.fresh).toBe(true);
+  });
+
+  it("lets a waiter in when the admin raises the cap (P35)", async () => {
+    const { docker } = fakeDocker();
+    const live = { ...config, total: 1, waitSeconds: { chat: 5, task: 5 } };
+    const pool = createPool(docker, live);
+    await pool.acquire(chat("a", "u1"));
+    const waiting = pool.acquire(chat("b", "u2"));
+    applyLimits(live, { ...limitsOf(live), total: 2 });
+    pool.limitsChanged();
+    const served = await waiting;
+    expect(served.fresh).toBe(true);
+  });
+
+  it("takes the admin's limits whole and gives them back the same", () => {
+    const live = { ...config };
+    const limits = {
+      fileMb: 50,
+      idleSeconds: 600,
+      memoryMb: 2048,
+      network: true,
+      perUser: 2,
+      runSeconds: 120,
+      total: 6,
+    };
+    applyLimits(live, limits);
+    expect(limitsOf(live)).toEqual(limits);
+    expect(live.fileBytes).toBe(50 * 1024 * 1024);
+  });
+
+  it("gives a new box the network only when the admin turned it on", () => {
+    const box = { key: "a", userId: "u1" };
+    expect(containerConfig(config, box).HostConfig.NetworkMode).toBe("none");
+    expect(
+      containerConfig({ ...config, network: true }, box).HostConfig.NetworkMode
+    ).toBe("bridge");
   });
 
   it("forgets a chat's box on an edit", async () => {

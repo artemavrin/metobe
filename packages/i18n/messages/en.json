@@ -2120,42 +2120,92 @@
       "title": "The sandbox is not installed",
       "text": "Models in chat work without code. To turn it on, run the installer again: it needs Docker with gVisor (runsc)."
     },
-    "state": {
-      "title": "State",
-      "label": "Running",
+    "enabled": {
+      "label": "On",
+      "hint": "With the sandbox off, the model answers without code and files"
+    },
+    "now": {
+      "title": "Now",
+      "check": "Check",
+      "gvisor": "gVisor",
+      "runc": "without gVisor — for development only",
+      "works": "Running",
       "ready": "Ready",
-      "down": "Not answering",
+      "turnedOff": "Off",
+      "notReady": "Not ready",
+      "busy": "In use",
+      "busyValue": "{used} of {total}",
+      "waiting": "Waiting",
+      "down": "The sandbox service is not answering: models in chat work without code. Limits can still be changed — the service takes them when it is back.",
+      "runcHint": "The model's code runs in a plain container. Not for a server.",
       "problems": {
         "docker": "No connection to Docker",
         "runtime": "Docker has no gVisor (runsc)",
         "image": "Pulling the sandbox image"
       }
     },
-    "runtime": {
-      "label": "Isolation",
-      "gvisor": "gVisor",
-      "runc": "Without gVisor, for development only",
-      "runcHint": "The model's code runs in a plain container. Not for a server."
-    },
-    "image": "Image",
-    "limits": {
-      "title": "Limits",
-      "total": "Sandboxes at once",
-      "perUser": "Per person",
-      "idle": "Waits for the next answer",
-      "idleValue": "{minutes, plural, one {# minute} other {# minutes}}",
-      "memory": "Sandbox memory",
-      "memoryValue": "{mb} MB",
-      "note": "Limits are set in .env: SANDBOX_TOTAL, SANDBOX_PER_USER, SANDBOX_IDLE_SECONDS, SANDBOX_MEMORY_MB."
-    },
     "boxes": {
-      "title": "Now",
-      "empty": "No sandboxes",
+      "empty": "No sandboxes — they appear when the model runs code",
       "busy": "Running code",
       "idle": "Waits until {time}",
-      "task": "Task",
-      "waiting": "{count, plural, one {# waits for room} other {# wait for room}}",
-      "unknown": "Unknown user"
+      "chat": "chat",
+      "task": "task",
+      "age": "{minutes} min",
+      "unknown": "Unknown user",
+      "kill": "Shut down",
+      "killTitle": "Shut down the sandbox?",
+      "killText": "{busy, select, yes {The code running now stops. } other {}}The sandbox's files are lost; the next answer in the {kind, select, task {task} other {chat}} starts with a new one. Files already handed to the chat stay.",
+      "cancel": "Cancel",
+      "killFailed": "Not shut down: the sandbox service did not answer"
+    },
+    "limits": {
+      "title": "Limits",
+      "total": {
+        "label": "Sandboxes at once",
+        "hint": "Beyond this, requests wait in line, chats before tasks",
+        "unit": ""
+      },
+      "perUser": {
+        "label": "Per person",
+        "hint": "Two chats of one person — two sandboxes",
+        "unit": ""
+      },
+      "idleMinutes": {
+        "label": "Waits for the next answer",
+        "hint": "A chat's files live while its sandbox waits for the next answer",
+        "unit": "min"
+      },
+      "memoryMb": {
+        "label": "Sandbox memory",
+        "hint": "More memory — bigger tables the model can read",
+        "unit": "MB"
+      },
+      "runSeconds": {
+        "label": "One code run",
+        "hint": "Longer, and the code is stopped",
+        "unit": "s"
+      },
+      "fileMb": {
+        "label": "File from the sandbox",
+        "hint": "Larger, and the model cannot hand it to the chat",
+        "unit": "MB"
+      },
+      "integer": "A whole number",
+      "min": "At least {n}",
+      "max": "At most {n}",
+      "perUserMax": "At most the total ({n})",
+      "saved": "Saved",
+      "saveFailed": "Not saved",
+      "memory": "All sandboxes together — up to {need} GB of memory{host, select, none {} other { of {host} GB on the server}}",
+      "memoryOver": " — the server may run short",
+      "applies": "New limits apply to new sandboxes; running ones keep the old."
+    },
+    "access": {
+      "title": "Access",
+      "network": "Internet from the sandbox",
+      "networkOn": "Code downloads data from links",
+      "networkOff": "Code downloads no packages and sends nothing out",
+      "warning": "The model's code could send file contents to any address. Turn it on only if the internet is truly needed."
     }
   },
   "profile": {
