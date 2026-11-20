@@ -18,6 +18,7 @@ import {
   MessageSquareText,
   Search,
   Sparkles,
+  SquareTerminal,
   Wrench,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -41,7 +42,7 @@ import {
   toolOwner,
 } from "@/lib/activity";
 import type { ActivityRow } from "@/lib/activity";
-import type { ReadPart, ToolPart } from "@/lib/answer-work";
+import type { CodePart, ReadPart, ToolPart } from "@/lib/answer-work";
 import {
   countHidden,
   inputText,
@@ -172,6 +173,8 @@ const RowIcon = ({
     inner = <Paperclip className="size-3.5" />;
   } else if (step.kind === "skill") {
     inner = <Sparkles className="size-3.5" />;
+  } else if (step.kind === "code") {
+    inner = <SquareTerminal className="size-3.5" />;
   } else if (step.kind === "web") {
     inner =
       step.part.type === "tool-web_fetch" ? (
@@ -240,6 +243,7 @@ const isMemoryTool = (
 const useSay = () => ({
   activity: useTranslations("chat.activity"),
   chat: useTranslations("chat"),
+  code: useTranslations("chat.code"),
   mail: useTranslations("mail.tools"),
   memory: useTranslations("memory.tools"),
   read: useTranslations("chat.read"),
@@ -334,6 +338,72 @@ const readTitle = (
   return `${say.read("done")} · ${name}${where}`;
 };
 
+const codeTitle = (
+  row: ActivityRow & { step: Extract<ActivityRow["step"], { kind: "code" }> },
+  say: Say
+) => {
+  const { part } = row.step;
+  const running = row.state === "running";
+  const failed = row.state === "failed";
+  if (part.type === "tool-use_file") {
+    if (running) {
+      return say.code("putting");
+    }
+    return say.code(failed ? "refused" : "put");
+  }
+  if (part.type === "tool-share_file") {
+    return say.code(running ? "sharing" : "notShared");
+  }
+  if (running) {
+    return say.code("running");
+  }
+  if (!failed) {
+    return say.code("done");
+  }
+  // Not run at all (busy, lost) differs from code that ran and failed.
+  return part.state === "output-available" && part.output.error
+    ? say.code("refused")
+    : say.code("failed");
+};
+
+/** The code and what it printed; a refusal in its words. */
+const CodeBlocks = ({ part }: { part: CodePart }) => {
+  const t = useTranslations("chat.code");
+  const output =
+    part.state === "output-available"
+      ? [
+          "error" in part.output ? part.output.error : undefined,
+          "stdout" in part.output ? part.output.stdout : undefined,
+          "stderr" in part.output ? part.output.stderr : undefined,
+          "note" in part.output ? part.output.note : undefined,
+          "path" in part.output ? part.output.path : undefined,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .trim()
+      : "";
+  return (
+    <div className="text-muted-foreground flex flex-col gap-2 text-xs">
+      {part.type === "tool-run_code" && part.input?.code && (
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">{t("code")}</span>
+          <pre className="bg-muted overflow-auto rounded-md p-2 font-mono whitespace-pre-wrap">
+            {part.input.code}
+          </pre>
+        </div>
+      )}
+      {output && (
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">{t("output")}</span>
+          <pre className="bg-muted overflow-auto rounded-md p-2 font-mono whitespace-pre-wrap">
+            {output}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const skillTitle = (
   row: ActivityRow & { step: Extract<ActivityRow["step"], { kind: "skill" }> },
   say: Say
@@ -375,6 +445,9 @@ const useTitle = (row: ActivityRow, servers: ChatServer[]) => {
     }
     case "skill": {
       return skillTitle({ ...row, step }, say);
+    }
+    case "code": {
+      return codeTitle({ ...row, step }, say);
     }
     default: {
       return webTitle({ ...row, step }, say);
@@ -566,6 +639,8 @@ const RowDetail = ({
     );
   } else if (step.kind === "read") {
     body = readFailed(step.part) ? <ReadFailure part={step.part} /> : null;
+  } else if (step.kind === "code") {
+    body = <CodeBlocks part={step.part} />;
   } else if (
     step.part.type === "tool-web_search" &&
     step.part.state === "output-available"
@@ -771,6 +846,9 @@ const hasDetail = (row: ActivityRow) => {
   }
   if (step.kind === "read") {
     return readFailed(step.part);
+  }
+  if (step.kind === "code") {
+    return true;
   }
   if (step.part.type === "tool-web_search") {
     return (

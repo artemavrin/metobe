@@ -1,0 +1,10 @@
+# What the model's code may import (D47). The prompt says these names; a test checks them against the image.
+matplotlib==3.11.2
+numpy==2.5.5
+openpyxl==3.1.5
+pandas==3.1.1
+pypdf==7.1.1
+python-docx==1.2.0
+python-pptx==1.0.2
+reportlab==5.1.0
+xlsxwriter==3.3.3

@@ -76,6 +76,7 @@ const note = (text: string): Part => ({ text, type: "text" });
 const KIND_NAME: Record<FileRow["kind"], string> = {
   doc: "document",
   image: "picture",
+  other: "file",
   pdf: "PDF",
   sheet: "spreadsheet",
   text: "text file",

@@ -54,6 +54,7 @@ const put = (
     kind,
     mediaType: "application/octet-stream",
     name,
+    origin: "upload" as const,
     size: bytes.length,
     storageKey: `files/${id}`,
     taskId: null,

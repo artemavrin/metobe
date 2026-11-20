@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# One image, four commands: web (default), worker, updater, and the `metobe` CLI.
+# One image, five commands: web (default), worker, updater, sandbox, and the `metobe` CLI.
 FROM ghcr.io/sigstore/cosign/cosign:v3.1.4 AS cosign-bin
 
 FROM node:24-alpine AS build

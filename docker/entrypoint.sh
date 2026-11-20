@@ -18,6 +18,9 @@ case "$1" in
   worker)
     exec node worker/index.js
     ;;
+  sandbox)
+    exec node /app/worker/sandbox.js
+    ;;
   updater)
     # Absolute: compose starts it in the installation's folder (D35).
     exec node /app/worker/updater.js

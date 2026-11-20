@@ -6,7 +6,9 @@
     "build": "tsup",
     "check-types": "tsc --noEmit",
     "dev": "tsx watch --import ./no-server-only.mjs --env-file=../../.env src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "sandbox:dev": "tsx watch --env-file=../../.env src/sandbox.ts"
   },
   "dependencies": {
     "@metobe/contracts": "workspace:*",

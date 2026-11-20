@@ -40,6 +40,10 @@ import {
   METRICS_TOOL,
   metricsTool,
 } from "@metobe/core/chat-tools/metrics-tool";
+import {
+  madeFileIdsOf,
+  sandboxSession,
+} from "@metobe/core/chat-tools/sandbox-tools";
 import { skillsOfChat } from "@metobe/core/chat-tools/skill-tools";
 import { TABLE_TOOL, tableTool } from "@metobe/core/chat-tools/table-tool";
 import { taskDraftFor } from "@metobe/core/chat-tools/task-draft-tool";
@@ -80,7 +84,9 @@ import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
 import { payloadRecorder } from "@metobe/core/model-payloads";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { isGuardUnavailable } from "@metobe/core/pii-guard";
+import { forgetChatBox, sandboxReady } from "@metobe/core/sandbox";
 import { skillsForChat } from "@metobe/core/skills";
+import { getStorage } from "@metobe/core/storage";
 import { getTaskByChat } from "@metobe/core/tasks";
 import { isDraining } from "@metobe/core/updater-bus";
 import { webToolsOn } from "@metobe/core/web-settings";
@@ -372,9 +378,38 @@ const settleFiles = async (
 ) => {
   await attachFiles(userId, chatId, fileIdsOf(message));
   if (message && dropFrom) {
-    await pruneChatFiles(chatId, history.flatMap(fileIdsOf));
+    // The files the answers handed over stay while their answers do (D47).
+    await pruneChatFiles(
+      chatId,
+      history.flatMap((m) => [...fileIdsOf(m), ...madeFileIdsOf(m)])
+    );
+    // The chat's box may hold files of the dropped answers: the next one starts clean.
+    await forgetChatBox(chatId);
   }
 };
+
+/** No sandbox: no code tools, nothing to release. */
+const NO_BOX = {
+  note: "",
+  release: (_keep: boolean) => Promise.resolve(),
+  tools: {},
+};
+
+/** Code and files (D47): only with the sandbox up and somewhere to put the files it hands over. */
+const codeBox = async (options: {
+  chatId: string;
+  thread: ChatMessage[];
+  tools: boolean;
+  userId: string;
+}) =>
+  options.tools && getStorage() && (await sandboxReady())
+    ? sandboxSession({
+        chatId: options.chatId,
+        class: "chat",
+        fileIds: [...new Set(options.thread.flatMap(fileIdsOf))],
+        userId: options.userId,
+      })
+    : NO_BOX;
 
 /** The client's message, its files checked to be the user's own with name and type from our rows (D33); null — invalid. */
 const readMessage = (userId: string, message: ChatRequest["message"]) =>
@@ -651,6 +686,12 @@ export const POST = async (request: Request) => {
         }
       );
       const memory = await chatMemoryOf(session.user.id, id, message, timeZone);
+      const box = await codeBox({
+        chatId: id,
+        thread: uiMessages,
+        tools: model.capabilities.tools !== false,
+        userId: session.user.id,
+      });
       const tools: ToolSet =
         model.capabilities.tools === false
           ? {}
@@ -676,6 +717,7 @@ export const POST = async (request: Request) => {
               // What only the user knows: the model asks instead of guessing.
               [ASK_USER]: askUserTool,
               ...skilled.tools,
+              ...box.tools,
               // The files of the thread, for a model that cannot see them itself.
               ...(hasFiles
                 ? { [READ_ATTACHMENT]: readAttachmentTool(session.user.id, id) }
@@ -723,6 +765,7 @@ export const POST = async (request: Request) => {
         // The memory writes on its own (ARCH §19): the model must not claim it saved or removed anything.
         await chatMemoryNote(session.user.id),
         hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
+        box.note,
         skilled.note,
         drafting.note,
         withNotes(notes, servicesNote(servers)),
@@ -919,8 +962,9 @@ export const POST = async (request: Request) => {
         toUI,
         write: (chunk) => writer.write(chunk),
       });
-      // Whatever way the answer ended, the chat is free again.
+      // Whatever way the answer ended, the chat is free again; its box waits for the next answer (D47).
       endGeneration(id, generation);
+      await box.release(true);
       await naming;
     },
     generateId: () => crypto.randomUUID(),

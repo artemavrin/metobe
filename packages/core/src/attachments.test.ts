@@ -37,6 +37,7 @@ const row = (over: Partial<FileRow> & Pick<FileRow, "kind" | "name">) => {
     description: null,
     id,
     mediaType: "application/octet-stream",
+    origin: "upload",
     size: 1,
     storageKey: `files/${id}`,
     taskId: null,

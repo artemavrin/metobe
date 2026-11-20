@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage, ModelPayload } from "@metobe/contracts/chat";
-import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
+import { ACCEPT_ATTRIBUTE, fileUrl } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
 import { splitSkills } from "@metobe/core/skill-mentions";
@@ -91,7 +91,12 @@ import { WebSources } from "@/components/chat/web-step";
 import { TaskDraftCard } from "@/components/tasks/task-draft-card";
 import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
-import type { AnswerBlock, ToolPart, WorkStep } from "@/lib/answer-work";
+import type {
+  AnswerBlock,
+  MadePart,
+  ToolPart,
+  WorkStep,
+} from "@/lib/answer-work";
 import { splitMentions } from "@/lib/mentions";
 import {
   answerTexts,
@@ -405,6 +410,34 @@ const Mentioned = ({
       );
     });
   });
+
+/**
+ * A file the sandbox handed over (D47): a chip like an attachment's — it opens in a new tab (a picture, a PDF) or
+ * downloads. The card's own look is prototype P33.
+ */
+const MadeFile = ({ part }: { part: MadePart }) => {
+  if (part.state !== "output-available" || !("id" in part.output)) {
+    return null;
+  }
+  const { id, kind, name, size } = part.output;
+  const url = fileUrl(id);
+  return (
+    <Shelf scroll={false}>
+      <FileChip
+        file={{
+          key: id,
+          kind,
+          name,
+          preview: kind === "image" ? url : undefined,
+          progress: 1,
+          size,
+          status: "done",
+        }}
+        onOpen={() => window.open(url, "_blank", "noopener")}
+      />
+    </Shelf>
+  );
+};
 
 /** The user's message: a bubble on the right that rises in when it goes; its time, copy and edit under it. */
 /**
@@ -1060,6 +1093,9 @@ const AnswerPiece = ({
         servers={servers}
       />
     );
+  }
+  if (block.kind === "file") {
+    return <MadeFile part={block.part} />;
   }
   if (seen) {
     // Another block of words whose model's version stands in the first: it gives way.

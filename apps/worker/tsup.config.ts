@@ -10,7 +10,7 @@ const requireShim =
 
 export default defineConfig({
   banner: { js: requireShim },
-  entry: ["src/index.ts", "src/updater.ts"],
+  entry: ["src/index.ts", "src/updater.ts", "src/sandbox.ts"],
   esbuildOptions: (options) => {
     options.alias = { "server-only": "./src/no-server-only.ts" };
   },

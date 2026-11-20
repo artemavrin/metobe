@@ -257,6 +257,18 @@
       "text": "This looks like a password or a key. Do not send it in the chat: connect the service in",
       "link": "My connections"
     },
+    "code": {
+      "running": "Running code",
+      "done": "Ran code",
+      "failed": "The code ended with an error",
+      "refused": "The code did not run",
+      "putting": "Putting a file back into the sandbox",
+      "put": "Put a file back into the sandbox",
+      "sharing": "Handing over a file",
+      "notShared": "The file was not handed over",
+      "code": "Code",
+      "output": "Output"
+    },
     "read": {
       "reading": "Reading a file",
       "done": "Read the file",
@@ -2057,7 +2069,8 @@
       "pdf": "PDF",
       "text": "Text",
       "doc": "Word",
-      "sheet": "Spreadsheets"
+      "sheet": "Spreadsheets",
+      "other": "Other"
     },
     "units": {
       "b": "B",

@@ -1,6 +1,7 @@
 import type { ChatServer } from "@metobe/core/mcp";
 
 import type {
+  CodePart,
   ReadPart,
   SearchPart,
   SkillPart,
@@ -82,12 +83,28 @@ export const readFailed = (part: ReadPart) =>
 export const skillFailed = (part: SkillPart) =>
   part.state === "output-available" && "error" in part.output;
 
+/** Code that did not run or ended with an error, a file not handed over or not put back (D47). */
+export const codeFailed = (part: CodePart) =>
+  part.state === "output-available" &&
+  (("error" in part.output && part.output.error !== undefined) ||
+    (part.type === "tool-run_code" &&
+      part.output.exitCode !== undefined &&
+      part.output.exitCode !== 0));
+
 /** Where a search for tools, or of the web, or a page read, or a file read, or a skill load stands. */
 const partState = (
-  part: SearchPart | WebPart | ReadPart | SkillPart
+  part: SearchPart | WebPart | ReadPart | SkillPart | CodePart
 ): CallState => {
   if (part.state === "input-streaming" || part.state === "input-available") {
     return "running";
+  }
+  if (
+    (part.type === "tool-run_code" ||
+      part.type === "tool-use_file" ||
+      part.type === "tool-share_file") &&
+    codeFailed(part)
+  ) {
+    return "failed";
   }
   if (part.type === "tool-read_attachment" && readFailed(part)) {
     return "failed";

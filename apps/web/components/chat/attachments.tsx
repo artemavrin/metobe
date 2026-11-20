@@ -300,6 +300,7 @@ export const useAttachments = (initial: FileUIPart[] = []) => {
 const ICON: Record<FileKind, typeof File> = {
   doc: FileText,
   image: ImageIcon,
+  other: File,
   pdf: FileText,
   sheet: ChartNoAxesColumn,
   text: FileText,
