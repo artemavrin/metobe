@@ -134,8 +134,8 @@ const Head = ({ s }: { s: State }) => (
   <>
     <SettingsHeader description="Здесь модель выполняет код на Python: считает данные из файлов и делает таблицы, документы, презентации и графики." title="Песочница" />
     <Rows>
-      <Row hint={s.enabled ? "Модель в чатах и задачах может выполнять код" : "Модель работает без кода, песочницы погашены"} label="Выполнять код">
-        <Switch aria-label="Выполнять код" checked={s.enabled} onCheckedChange={s.setEnabled} />
+      <Row hint={s.enabled ? "Модель в чатах и задачах считает данные и делает файлы" : "Модель отвечает без кода и файлов, песочницы погашены"} label="Включить песочницу">
+        <Switch aria-label="Включить песочницу" checked={s.enabled} onCheckedChange={s.setEnabled} />
       </Row>
     </Rows>
   </>
@@ -367,7 +367,8 @@ const LimitsInline = ({ s }: { s: State }) => {
 };
 
 /** Правка окном: таблица только для чтения, «Изменить» открывает окно с полями. */
-const LimitsDialog = ({ s }: { s: State }) => {
+// Отвергнуто 2026-11-21: правка окном. Оставлено для истории раунда.
+export const LimitsDialog = ({ s }: { s: State }) => {
   const [draft, setDraft] = useState<Limits | null>(null);
   return (
     <Section
@@ -517,7 +518,7 @@ export const Summary = () => {
             {s.enabled && <BoxList onKill={kill.ask} s={s} />}
           </Section>
         )}
-        <LimitsDialog s={s} />
+        <LimitsInline s={s} />
         <Network s={s} />
         {kill.dialog}
       </SettingsPageFrame>
