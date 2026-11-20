@@ -1,0 +1,12 @@
+{
+  "name": "spike-s11-sandbox",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "node spike.mjs"
+  },
+  "dependencies": {
+    "dockerode": "5.0.1",
+    "tar-stream": "3.2.2"
+  }
+}
