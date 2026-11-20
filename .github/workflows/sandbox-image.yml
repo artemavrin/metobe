@@ -41,4 +41,4 @@ jobs:
         run: |
           docker run --rm --read-only --network none --user 1000:1000 --tmpfs /tmp --tmpfs /workspace:uid=1000 \
             "$IMAGE:${{ steps.version.outputs.version }}" \
-            sh -c 'ulimit -v 786432; python -c "import pandas, numpy, openpyxl, xlsxwriter, docx, pptx, matplotlib.pyplot, reportlab, pypdf; print(\"ok\")"'
+            sh -c 'ulimit -v 786432; python -c "import pandas, numpy, openpyxl, xlsxwriter, docx, pptx, matplotlib.pyplot, reportlab, pypdf; print(\"ok\")" && tesseract --list-langs | grep -qx rus && command -v pdftoppm >/dev/null'
