@@ -76,6 +76,7 @@ const note = (text: string): Part => ({ text, type: "text" });
 const KIND_NAME: Record<FileRow["kind"], string> = {
   doc: "document",
   image: "picture",
+  other: "file",
   pdf: "PDF",
   sheet: "spreadsheet",
   text: "text file",
@@ -110,6 +111,12 @@ const asModelPart = async (
   if (!row) {
     return note(
       `[Attached file «${part.filename ?? "file"}» is no longer available.]`
+    );
+  }
+  // A file of a type we do not read (D47): only code in the sandbox opens it, where it lies under /workspace/in.
+  if (row.kind === "other") {
+    return note(
+      `[Attached file «${row.name}» (id ${row.id}): not readable as text — if you can run code, it is at /workspace/in/${row.name.replaceAll("/", "_")}.]`
     );
   }
   const seen =

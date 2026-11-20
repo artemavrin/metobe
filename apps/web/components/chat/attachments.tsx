@@ -5,6 +5,7 @@ import {
   FILE_MAX_BYTES,
   FILES_PER_MESSAGE,
   acceptedFile,
+  madeFile,
   fileIdOf,
   fileUrl,
   uploadedFileSchema,
@@ -109,9 +110,12 @@ const discard = async (id: string) => {
   }
 };
 
-/** A picked file as the composer keeps it: refused here already when its type, size or the count says so. */
+/**
+ * A picked file as the composer keeps it: refused here already when its size or the count says so. Its type the
+ * server decides — with the sandbox any file goes (D47) — and a refusal comes back on the chip.
+ */
 const toAttachment = (file: File, room: number): Attachment => {
-  const accepted = acceptedFile(file.name);
+  const accepted = acceptedFile(file.name) ?? madeFile(file.name);
   seq += 1;
   const base = {
     file,
@@ -123,9 +127,7 @@ const toAttachment = (file: File, room: number): Attachment => {
     size: file.size,
   };
   let problem: Problem | undefined;
-  if (!accepted) {
-    problem = "type";
-  } else if (file.size > FILE_MAX_BYTES) {
+  if (file.size > FILE_MAX_BYTES) {
     problem = "too-big";
   } else if (room <= 0) {
     problem = "too-many";
@@ -300,6 +302,7 @@ export const useAttachments = (initial: FileUIPart[] = []) => {
 const ICON: Record<FileKind, typeof File> = {
   doc: FileText,
   image: ImageIcon,
+  other: File,
   pdf: FileText,
   sheet: ChartNoAxesColumn,
   text: FileText,

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { ChartInput, ChartOutput } from "./chart";
 import { FILES_PER_MESSAGE } from "./files";
+import type { FileKind } from "./files";
 import type { ShowCardOutput, ShowPromisesOutput } from "./memory";
 import type { MetricsInput, MetricsOutput } from "./metrics";
 import type { TableInput, TableOutput } from "./table";
@@ -139,12 +140,59 @@ export type ChatTools = {
     input: { card?: string; overdueOnly?: boolean };
     output: ShowPromisesOutput;
   };
+  /** Python in the chat's sandbox box (D47); a refusal (busy, lost) comes back as `{ error }`. */
+  run_code: { input: { code: string }; output: RunCodeOutput };
+  /** A file from the box handed over to the user: a file of the chat. */
+  share_file: {
+    input: { path: string; name?: string };
+    output:
+      | {
+          id: string;
+          name: string;
+          kind: FileKind;
+          mediaType: string;
+          size: number;
+        }
+      | { error: string };
+  };
+  /** A JSON table the code wrote, loaded for the table and chart tools (their `from.ref`). */
+  load_data: {
+    input: { path: string };
+    output:
+      | { ref: string; columns: string[]; rows: number; data?: unknown[] }
+      | { error: string };
+  };
+  /** A skill's folder put into the box, to run its scripts. */
+  run_skill_files: {
+    input: { name: string };
+    output: { folder: string; files: string[] } | { error: string };
+  };
+  /** A file handed over earlier, put back in the box. */
+  use_file: {
+    input: { id: string };
+    output: { path: string } | { error: string };
+  };
   show_chart: { input: ChartInput; output: ChartOutput };
   show_metrics: { input: MetricsInput; output: MetricsOutput };
   show_table: { input: TableInput; output: TableOutput };
   web_fetch: { input: WebFetchInput; output: WebFetchOutput };
   web_search: { input: WebSearchInput; output: WebSearchOutput };
 };
+
+/** What run_code answers the model: the run's output, or why it did not run. */
+export interface RunCodeOutput {
+  /** The first call of an answer: whether the box is new or the chat's last one, and the files in it. */
+  box?: string;
+  files?: string[];
+  exitCode?: number | null;
+  stdout?: string;
+  stderr?: string;
+  note?: string;
+  /** Which limit stopped the run: the person is told it in their language. */
+  limit?: "time" | "memory";
+  truncated?: string;
+  error?: string;
+}
 
 export type ChatMessage = UIMessage<
   ChatMessageMetadata,

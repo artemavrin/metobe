@@ -1,0 +1,44 @@
+# The sandbox's box image (D47, docker/sandbox): built when it changes, tagged with docker/sandbox/VERSION — compose
+# pins that tag, so a server takes a new image only under a new number. Bump VERSION with any change to the image.
+name: sandbox-image
+
+on:
+  push:
+    branches: [main]
+    paths: ["docker/sandbox/**", ".github/workflows/sandbox-image.yml"]
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}-sandbox
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: version
+        run: echo "version=$(tr -d '[:space:]' < docker/sandbox/VERSION)" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v7
+        with:
+          context: docker/sandbox
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+          push: true
+          cache-from: type=gha,scope=sandbox
+          cache-to: type=gha,mode=max,scope=sandbox
+      # The libraries the prompt names import in the image, under the box's address-space cap.
+      - name: Check the image
+        run: |
+          docker run --rm --read-only --network none --user 1000:1000 --tmpfs /tmp --tmpfs /workspace:uid=1000 \
+            "$IMAGE:${{ steps.version.outputs.version }}" \
+            sh -c 'ulimit -v 786432; python -c "import pandas, numpy, openpyxl, xlsxwriter, docx, pptx, matplotlib.pyplot, reportlab, pypdf; print(\"ok\")" && tesseract --list-langs | grep -qx rus && command -v pdftoppm >/dev/null'

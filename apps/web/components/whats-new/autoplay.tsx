@@ -37,6 +37,7 @@ const pressOnce = (target: string, after = 3000): Step[] => [
 const SCRIPTS: Record<string, Step[]> = {
   askUser: [{ wait: 900 }, { move: OPTION }, { click: OPTION }, { wait: 2600 }],
   calendar: pressOnce('[data-demo="calendar-chip"]'),
+  codeFiles: pressOnce('[data-demo="code-step"]'),
   compactChat: [
     { wait: 900 },
     { move: COMPACT },
@@ -44,6 +45,7 @@ const SCRIPTS: Record<string, Step[]> = {
     { wait: 3800 },
   ],
   draftCheck: pressOnce('[data-demo="privacy-draft"] button'),
+  filePanel: pressOnce('[data-demo="file-card"] button', 3600),
   forToday: pressOnce('[data-demo="today-late"]'),
   mailWaits: pressOnce('[data-demo="mail-remind"]'),
   memory: pressOnce('[data-demo="memory-undo"]'),

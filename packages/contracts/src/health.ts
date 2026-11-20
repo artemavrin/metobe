@@ -7,6 +7,8 @@ export const healthResponseSchema = z.object({
     db: serviceStatusSchema,
     // Optional services (D34): «off» — not installed.
     s3: z.enum(["ok", "down", "off"]),
+    // The sandbox (D47): «down» — installed and not ready (no Docker, no gVisor, no image yet).
+    sandbox: z.enum(["ok", "down", "off"]),
   }),
   status: serviceStatusSchema,
   /** The running build: the updater (D35) checks the new version came up. */

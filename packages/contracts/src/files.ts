@@ -6,7 +6,15 @@ export const FILE_MAX_BYTES = 20 * 1024 * 1024;
 /** One message carries at most this many files. */
 export const FILES_PER_MESSAGE = 10;
 
-export const fileKinds = ["image", "pdf", "text", "doc", "sheet"] as const;
+/** `other` — a file the sandbox made that is none of these (slides, an archive…): it is only downloaded (D47). */
+export const fileKinds = [
+  "image",
+  "pdf",
+  "text",
+  "doc",
+  "sheet",
+  "other",
+] as const;
 export type FileKind = (typeof fileKinds)[number];
 
 /** Extension → kind and the media type it is stored and sent with. Documents and sheets the model reads page by page through read_attachment. */
@@ -33,16 +41,40 @@ export const ACCEPTED: Record<string, { kind: FileKind; mediaType: string }> = {
   },
 };
 
+/** Where a file came from: picked by the person, or made by the model's code in the sandbox (D47). */
+export const fileOrigins = ["upload", "generated"] as const;
+export type FileOrigin = (typeof fileOrigins)[number];
+
+/** What the sandbox may hand over besides what is accepted from the person: everything else goes as `other`. */
+const MADE: Record<string, { kind: FileKind; mediaType: string }> = {
+  html: { kind: "text", mediaType: "text/html" },
+  pptx: {
+    kind: "other",
+    mediaType:
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  },
+  svg: { kind: "other", mediaType: "image/svg+xml" },
+  zip: { kind: "other", mediaType: "application/zip" },
+};
+
+/** The kind of a file the sandbox made, by its name: anything goes, unknown types as bytes to download. */
+export const madeFile = (name: string) => {
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  return (
+    ACCEPTED[ext] ??
+    MADE[ext] ?? {
+      kind: "other" as const,
+      mediaType: "application/octet-stream",
+    }
+  );
+};
+
 /** The kind of a file by its name; null — not accepted. */
 export const acceptedFile = (name: string) => {
   const dot = name.lastIndexOf(".");
   return dot > 0 ? (ACCEPTED[name.slice(dot + 1).toLowerCase()] ?? null) : null;
 };
-
-/** The `accept` attribute of the file input. */
-export const ACCEPT_ATTRIBUTE = Object.keys(ACCEPTED)
-  .map((e) => `.${e}`)
-  .join(",");
 
 /** What POST /api/files answers: the file as the composer keeps it until the message goes. */
 export const uploadedFileSchema = z.object({
@@ -67,3 +99,20 @@ export const uploadErrors = [
   "failed",
 ] as const;
 export type UploadError = (typeof uploadErrors)[number];
+
+/** What GET /api/files/[id]/preview answers: a file drawn in the viewer (D47). A PDF and a picture open as they are. */
+export type FilePreview =
+  | {
+      type: "sheet";
+      sheets: { name: string; rows: string[][] }[];
+      /** Rows or columns were cut to fit the viewer. */
+      cut: boolean;
+    }
+  | { type: "html"; html: string }
+  | { type: "text"; text: string; markdown: boolean; cut: boolean }
+  | { type: "none" };
+
+/** What the viewer shows at most. */
+export const PREVIEW_MAX_ROWS = 1000;
+export const PREVIEW_MAX_COLUMNS = 50;
+export const PREVIEW_MAX_TEXT = 200_000;

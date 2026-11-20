@@ -1,4 +1,4 @@
-import type { FileKind } from "@metobe/contracts/files";
+import type { FileKind, FileOrigin } from "@metobe/contracts/files";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -32,6 +32,8 @@ export const files = pgTable(
     kind: text("kind").$type<FileKind>().notNull(),
     mediaType: text("media_type").notNull(),
     name: text("name").notNull(),
+    /** Picked by the person, or made by the model's code in the sandbox and handed over with share_file (D47). */
+    origin: text("origin").$type<FileOrigin>().notNull().default("upload"),
     size: integer("size").notNull(),
     storageKey: text("storage_key").notNull(),
     /** A periodic task's own file (ARCH §16.1a): every run gets it. Such a file has no chat and is not a draft. */
@@ -46,8 +48,9 @@ export const files = pgTable(
     index("files_task").on(table.taskId),
     check(
       "files_kind",
-      sql`${table.kind} in ('image', 'pdf', 'text', 'doc', 'sheet')`
+      sql`${table.kind} in ('image', 'pdf', 'text', 'doc', 'sheet', 'other')`
     ),
+    check("files_origin", sql`${table.origin} in ('upload', 'generated')`),
   ]
 );
 

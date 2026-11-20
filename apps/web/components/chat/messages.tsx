@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage, ModelPayload } from "@metobe/contracts/chat";
-import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
+import { fileIdOf } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
 import { splitSkills } from "@metobe/core/skill-mentions";
@@ -77,6 +77,13 @@ import {
 } from "@/components/chat/attachments";
 import { CardPeek } from "@/components/chat/card-peek";
 import { ConnectRequest } from "@/components/chat/connect-request";
+import { useFilePanel, useRegisterFile } from "@/components/chat/file-panel";
+import {
+  FileViewer,
+  MadeFileCard,
+  viewable,
+} from "@/components/chat/file-viewer";
+import type { ViewedFile } from "@/components/chat/file-viewer";
 import {
   LensMark,
   ModelPayloadsContext,
@@ -91,7 +98,12 @@ import { WebSources } from "@/components/chat/web-step";
 import { TaskDraftCard } from "@/components/tasks/task-draft-card";
 import { isMailTool, toolLook } from "@/lib/activity";
 import { answerWork } from "@/lib/answer-work";
-import type { AnswerBlock, ToolPart, WorkStep } from "@/lib/answer-work";
+import type {
+  AnswerBlock,
+  MadePart,
+  ToolPart,
+  WorkStep,
+} from "@/lib/answer-work";
 import { splitMentions } from "@/lib/mentions";
 import {
   answerTexts,
@@ -285,7 +297,6 @@ const EditMessage = ({
           <Plus className="size-[18px]" />
         </button>
         <input
-          accept={ACCEPT_ATTRIBUTE}
           className="hidden"
           multiple
           onChange={(e) => {
@@ -406,6 +417,35 @@ const Mentioned = ({
     });
   });
 
+/**
+ * A file the sandbox handed over (D47): its card in the answer. It opens in the chat's file panel, or in the file
+ * window where there is no panel (P33, P34).
+ */
+const MadeFile = ({ part }: { part: MadePart }) => {
+  const [open, setOpen] = useState(false);
+  const panel = useFilePanel();
+  const file =
+    part.state === "output-available" && "id" in part.output
+      ? part.output
+      : null;
+  useRegisterFile(file && viewable(file) ? file : null);
+  if (!file) {
+    return null;
+  }
+  return (
+    <>
+      <MadeFileCard
+        active={panel?.current === file.id}
+        file={file}
+        onOpen={() => (panel ? panel.open(file) : setOpen(true))}
+      />
+      {!panel && (
+        <FileViewer file={open ? file : null} onClose={() => setOpen(false)} />
+      )}
+    </>
+  );
+};
+
 /** The user's message: a bubble on the right that rises in when it goes; its time, copy and edit under it. */
 /**
  * A question's files above its words — the composer's chips, without ×: a picture opens large here, anything else
@@ -416,6 +456,8 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
   const [viewing, setViewing] = useState<{ url: string; name: string } | null>(
     null
   );
+  const [shown, setShown] = useState<ViewedFile | null>(null);
+  const panel = useFilePanel();
   const list = message.parts.filter((p) => p.type === "file");
   if (list.length === 0) {
     return null;
@@ -437,11 +479,26 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
                 status: "done",
               }}
               key={p.url}
-              onOpen={() =>
-                image
-                  ? setViewing({ name, url: p.url })
-                  : window.open(p.url, "_blank", "noopener")
-              }
+              onOpen={() => {
+                const id = fileIdOf(p.url);
+                const file: ViewedFile | null = id
+                  ? {
+                      id,
+                      kind: kindOfMedia(p.mediaType),
+                      mediaType: p.mediaType,
+                      name,
+                    }
+                  : null;
+                if (file && viewable(file) && panel) {
+                  panel.open(file);
+                } else if (image) {
+                  setViewing({ name, url: p.url });
+                } else if (file && viewable(file)) {
+                  setShown(file);
+                } else {
+                  window.open(p.url, "_blank", "noopener");
+                }
+              }}
             />
           );
         })}
@@ -462,6 +519,7 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
           )}
         </DialogContent>
       </Dialog>
+      <FileViewer file={shown} onClose={() => setShown(null)} />
     </>
   );
 };
@@ -1060,6 +1118,9 @@ const AnswerPiece = ({
         servers={servers}
       />
     );
+  }
+  if (block.kind === "file") {
+    return <MadeFile part={block.part} />;
   }
   if (seen) {
     // Another block of words whose model's version stands in the first: it gives way.

@@ -5,6 +5,7 @@ import { Button } from "@metobe/ui/components/button";
 import {
   ChartNoAxesColumn,
   ExternalLink,
+  FileIcon,
   FileText,
   ImageIcon,
   MessageSquare,
@@ -27,6 +28,7 @@ interface UserFile {
 const ICON: Record<FileKind, typeof FileText> = {
   doc: FileText,
   image: ImageIcon,
+  other: FileIcon,
   pdf: FileText,
   sheet: ChartNoAxesColumn,
   text: FileText,

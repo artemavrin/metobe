@@ -16,6 +16,7 @@ import {
   Shield,
   ShieldCheck,
   Sparkles,
+  SquareTerminal,
   UserRound,
   Users,
 } from "lucide-react";
@@ -64,6 +65,7 @@ export const SETTINGS_NAV = [
       { icon: Blocks, id: "mcp", kind: "list" },
       { icon: Sparkles, id: "skills", kind: "screen" },
       { icon: Search, id: "search", kind: "screen" },
+      { icon: SquareTerminal, id: "sandbox", kind: "screen" },
     ],
     key: "tools",
     scope: "admin",

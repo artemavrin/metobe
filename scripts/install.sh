@@ -9,7 +9,8 @@
 # Non-interactive: METOBE_YES=1 plus METOBE_URL, METOBE_PORT, METOBE_DATABASE_URL, METOBE_PROXY, METOBE_SMTP_URL,
 # METOBE_S3_CHOICE (1 bundled, 2 your own S3 via METOBE_S3_ENDPOINT/_BUCKET/_ACCESS_KEY/_SECRET_KEY/_REGION, 3 none),
 # METOBE_UPDATER (y — updates from the app, n — by this script only), METOBE_PII (y — data protection's service on;
-# with the updater the switch in Settings → Data protection does it too) as needed.
+# with the updater the switch in Settings → Data protection does it too), METOBE_SANDBOX (y — the code sandbox, only
+# when Docker has gVisor's runsc) as needed.
 # Inputs are METOBE_-prefixed on purpose: a shell-wide HTTPS_PROXY must not leak into the containers.
 set -euo pipefail
 
@@ -206,6 +207,33 @@ if grep -qE '^COMPOSE_PROFILES=(.*,)?pii(,.*)?$' .env; then
   # The app finds the bundled service at this address (about 4 GB image, about 1.5 GB of memory once loaded).
   grep -q '^PII_GUARD_URL=' .env || set_env PII_GUARD_URL http://pii-guard:8787
   services="$services pii-guard"
+fi
+
+# --- the sandbox (D47) ------------------------------------------------------------------------------
+# The model's code in a box per chat. Only under gVisor: without `runsc` in Docker it is not offered (D34).
+sandbox_env() {
+  if ! docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q '"runsc"'; then
+    say "${dim}Песочница для кода модели не включена: в Docker нет gVisor (runsc). Как поставить: https://gvisor.dev/docs/user_guide/install/ — потом запустите установщик ещё раз.${off}" >&2
+    return
+  fi
+  ask METOBE_SANDBOX "Включить песочницу: модель считает данные кодом и делает файлы? Сервис песочницы получит доступ к Docker (y/n)" "y" >&2
+  case "$METOBE_SANDBOX" in
+    y|Y|yes|д|Д|да|1) echo "METOBE_SANDBOX=1" ;;
+    *) echo "METOBE_SANDBOX=0" ;;
+  esac
+}
+if ! grep -qE '^METOBE_SANDBOX=1$' .env; then
+  # Asked until gVisor is there and the answer is given; an answer «no» is kept.
+  if ! grep -q '^METOBE_SANDBOX=0$' .env; then
+    answer="$(sandbox_env)"
+    [ -z "$answer" ] || set_env METOBE_SANDBOX "${answer#METOBE_SANDBOX=}"
+  fi
+fi
+if grep -q '^METOBE_SANDBOX=1$' .env; then
+  grep -qE '^SANDBOX_TOKEN=.+' .env || set_env SANDBOX_TOKEN "$(password)"
+  grep -q '^SANDBOX_URL=' .env || set_env SANDBOX_URL http://sandbox:8090
+  add_profile sandbox
+  services="$services sandbox"
 fi
 
 if grep -q '^METOBE_UPDATER=1$' .env; then

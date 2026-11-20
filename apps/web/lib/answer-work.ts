@@ -12,6 +12,15 @@ export type AskPart = Extract<Part, { type: "tool-ask_user" }>;
 export type TaskDraftPart = Extract<Part, { type: "tool-draft_task" }>;
 export type SearchPart = Extract<Part, { type: "tool-find_tools" }>;
 export type ReadPart = Extract<Part, { type: "tool-read_attachment" }>;
+export type CodePart = Extract<
+  Part,
+  | { type: "tool-run_code" }
+  | { type: "tool-use_file" }
+  | { type: "tool-share_file" }
+  | { type: "tool-load_data" }
+  | { type: "tool-run_skill_files" }
+>;
+export type MadePart = Extract<Part, { type: "tool-share_file" }>;
 export type SkillPart = Extract<
   Part,
   { type: "tool-load_skill" } | { type: "tool-read_skill_file" }
@@ -33,7 +42,9 @@ export type WorkStep =
   /** The model reading a file the user attached. */
   | { kind: "read"; key: string; part: ReadPart }
   /** The model loading a skill, or reading a file of one. */
-  | { kind: "skill"; key: string; part: SkillPart };
+  | { kind: "skill"; key: string; part: SkillPart }
+  /** Code run in the sandbox, a file put back in it, or one that could not be handed over (D47). */
+  | { kind: "code"; key: string; part: CodePart };
 
 /** What the answer shows, in order: its words, the tables, charts and figures the model built, and its asks to connect. */
 export type AnswerBlock =
@@ -49,7 +60,9 @@ export type AnswerBlock =
   /** The model's questions: answered, what the user said stands there as their own message. */
   | { kind: "ask"; key: string; part: AskPart }
   /** A periodic task drafted from the person's words: its card, created from there (P11). */
-  | { kind: "task"; key: string; part: TaskDraftPart };
+  | { kind: "task"; key: string; part: TaskDraftPart }
+  /** A file the sandbox handed over (D47). */
+  | { kind: "file"; key: string; part: MadePart };
 
 /** Reasoning or words between tool calls: one step, or more of the step before it when it is of the same kind. */
 const addWords = (
@@ -96,7 +109,11 @@ const lastToolAt = (parts: Part[]) => {
       p.type === "tool-web_fetch" ||
       p.type === "tool-read_attachment" ||
       p.type === "tool-load_skill" ||
-      p.type === "tool-read_skill_file"
+      p.type === "tool-read_skill_file" ||
+      p.type === "tool-run_code" ||
+      p.type === "tool-use_file" ||
+      p.type === "tool-load_data" ||
+      p.type === "tool-run_skill_files"
     ) {
       at = i;
     }
@@ -120,6 +137,13 @@ const singleStep = (part: Part): WorkStep | null => {
     case "tool-load_skill":
     case "tool-read_skill_file": {
       return { key: part.toolCallId, kind: "skill", part };
+    }
+    case "tool-run_code":
+    case "tool-use_file":
+    case "tool-load_data":
+    case "tool-run_skill_files":
+    case "tool-share_file": {
+      return { key: part.toolCallId, kind: "code", part };
     }
     default: {
       return null;
@@ -153,6 +177,12 @@ const blockOf = (part: Part): AnswerBlock | null => {
     }
     case "tool-draft_task": {
       return { key: part.toolCallId, kind: "task", part };
+    }
+    // Handed over, the file is part of the answer; a failure stays a step of the work.
+    case "tool-share_file": {
+      return part.state === "output-available" && "id" in part.output
+        ? { key: part.toolCallId, kind: "file", part }
+        : null;
     }
     default: {
       return null;

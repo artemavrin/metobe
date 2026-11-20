@@ -30,6 +30,7 @@ import {
 import { CHART_TOOL, chartTool } from "./chat-tools/chart-tool";
 import { emailTools } from "./chat-tools/email-tools";
 import { METRICS_TOOL, metricsTool } from "./chat-tools/metrics-tool";
+import { sandboxSession } from "./chat-tools/sandbox-tools";
 import { SAVE_SKILL, skillsOfChat } from "./chat-tools/skill-tools";
 import { TABLE_TOOL, tableTool } from "./chat-tools/table-tool";
 import { TIME_NOTE, TIME_TOOL, timeTool } from "./chat-tools/time-tool";
@@ -46,7 +47,9 @@ import { listMailboxes } from "./mailboxes";
 import { listChatServers, toolsForUser } from "./mcp";
 import { taskMemory } from "./memory-task";
 import { getPersonalPolicy } from "./personal";
+import { sandboxReady } from "./sandbox";
 import { skillsByIds, skillsForChat } from "./skills";
+import { getStorage } from "./storage";
 import { sendRunLetter } from "./task-mail";
 import {
   announceRun,
@@ -151,7 +154,11 @@ const toolsFor = async (
     inputSchema: taskReportSchema,
   });
   if (model.capabilities.tools === false) {
-    return { note: STYLE_NOTE, tools: { [REPORT]: report } as ToolSet };
+    return {
+      note: STYLE_NOTE,
+      release: () => Promise.resolve(),
+      tools: { [REPORT]: report } as ToolSet,
+    };
   }
   const [chatServers, ownBoxes, personal, web, owned, picked, memory] =
     await Promise.all([
@@ -185,6 +192,17 @@ const toolsFor = async (
   const room =
     model.contextWindow === null || model.contextWindow >= WIDGETS_MIN_WINDOW;
   const boxes = personal.mode === "off" ? [] : ownBoxes;
+  // Code and files (D47): a box for this run only, the task's files in it; what it hands over joins the run's chat.
+  const code =
+    getStorage() && (await sandboxReady())
+      ? sandboxSession({
+          chatId,
+          class: "task",
+          fileIds: snapshot.fileIds ?? [],
+          sources,
+          userId: task.ownerId,
+        })
+      : null;
   const tools: ToolSet = {
     ...lendTools(
       servers.map((server) => ({
@@ -203,8 +221,15 @@ const toolsFor = async (
     [TIME_TOOL]: timeTool(snapshot.timezone),
     ...memory.tools,
     ...skillTools,
+    ...code?.tools,
     ...(hasFiles
-      ? { [READ_ATTACHMENT]: readAttachmentTool(task.ownerId, chatId) }
+      ? {
+          [READ_ATTACHMENT]: readAttachmentTool(
+            task.ownerId,
+            chatId,
+            code?.ocrPage
+          ),
+        }
       : {}),
     ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
     ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
@@ -218,12 +243,15 @@ const toolsFor = async (
       TIME_NOTE,
       STYLE_NOTE,
       hasFiles ? ATTACHMENT_NOTE : "",
+      code?.note ?? "",
       skilled.note,
       memory.note,
       servicesNote(servers),
     ]
       .filter(Boolean)
       .join("\n\n"),
+    // A run's box goes when the run ends: the next run is hours away.
+    release: () => code?.release(false) ?? Promise.resolve(),
     tools,
   };
 };
@@ -496,10 +524,14 @@ const mailGap = async (ownerId: string, answer: ChatMessage | undefined) => {
     : null;
 };
 
+/** No box to let go. */
+const noBox = () => Promise.resolve();
+
 /**
  * The run's work to its end, or to a tool that waits for the person's yes — then it stops (pauseRun) and goes on
  * later from the same answer (resumeRun). Never throws: whatever happens, the run row says how it ended.
  */
+
 const carry = async (c: {
   ctx: Context;
   model: ChatModel;
@@ -514,6 +546,7 @@ const carry = async (c: {
   const { chatId, model, question } = c;
   const started = Date.now();
   const timeout = AbortSignal.timeout(task.timeoutS * 1000);
+  let releaseBox: () => Promise<void> = noBox;
   const record = (status: "ok" | "error" | "aborted", steps: Steps = []) =>
     recordRun({
       chatId,
@@ -529,13 +562,14 @@ const carry = async (c: {
     const last = await lastResultChat(task.id, runId);
     const previous = await lastAnswer(last?.chatId ?? null);
     const reported: { value: TaskReport | null } = { value: null };
-    const { note, tools } = await toolsFor(
+    const { note, release, tools } = await toolsFor(
       task,
       snapshot,
       model,
       chatId,
       reported
     );
+    releaseBox = release;
     const pass: Pass = {
       instructions: instructionsFor(
         task,
@@ -600,6 +634,8 @@ const carry = async (c: {
       status: aborted ? "cancelled" : "failed",
     });
     await sendRunLetter(runId);
+  } finally {
+    await releaseBox();
   }
 };
 

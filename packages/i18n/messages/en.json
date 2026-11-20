@@ -257,6 +257,48 @@
       "text": "This looks like a password or a key. Do not send it in the chat: connect the service in",
       "link": "My connections"
     },
+    "viewer": {
+      "open": "Open «{name}»",
+      "openShort": "Open",
+      "panel": "File view",
+      "previous": "Previous file",
+      "next": "Next file",
+      "widen": "Widen",
+      "collapse": "Collapse",
+      "close": "Close",
+      "show": "Show «{name}»",
+      "resize": "File view width",
+      "download": "Download",
+      "failed": "The file could not be shown. You can download it.",
+      "cut": "Only a part is shown: the file is large. Download it for the whole.",
+      "none": {
+        "title": "This file cannot be shown here",
+        "text": "Download it to open."
+      }
+    },
+    "code": {
+      "running": "Running code",
+      "done": "Ran code",
+      "failed": "The code ended with an error",
+      "refused": "The code did not run",
+      "putting": "Putting a file back into the sandbox",
+      "put": "Put a file back into the sandbox",
+      "sharing": "Handing over a file",
+      "notShared": "The file was not handed over",
+      "loading": "Loading data for a table",
+      "loaded": "Loaded data for a table",
+      "notLoaded": "The data was not loaded",
+      "skilling": "Putting a skill into the sandbox",
+      "skilled": "Put a skill into the sandbox",
+      "notSkilled": "The skill was not put in",
+      "code": "Code",
+      "output": "Output",
+      "limit": {
+        "time": "Stopped: 60 seconds passed",
+        "memory": "Stopped: out of memory"
+      },
+      "truncated": "The output was long: its middle is not shown"
+    },
     "read": {
       "reading": "Reading a file",
       "done": "Read the file",
@@ -841,6 +883,10 @@
       "search": {
         "label": "Search",
         "hint": "Web search for models and agents"
+      },
+      "sandbox": {
+        "label": "Sandbox",
+        "hint": "The model's code and the files it makes"
       },
       "privacy": {
         "label": "Data protection",
@@ -2057,13 +2103,59 @@
       "pdf": "PDF",
       "text": "Text",
       "doc": "Word",
-      "sheet": "Spreadsheets"
+      "sheet": "Spreadsheets",
+      "other": "Other"
     },
     "units": {
       "b": "B",
       "kb": "KB",
       "mb": "MB",
       "gb": "GB"
+    }
+  },
+  "sandbox": {
+    "title": "Sandbox",
+    "description": "The model runs Python code here: it works with data from files and makes tables, documents, slides and charts.",
+    "off": {
+      "title": "The sandbox is not installed",
+      "text": "Models in chat work without code. To turn it on, run the installer again: it needs Docker with gVisor (runsc)."
+    },
+    "state": {
+      "title": "State",
+      "label": "Running",
+      "ready": "Ready",
+      "down": "Not answering",
+      "problems": {
+        "docker": "No connection to Docker",
+        "runtime": "Docker has no gVisor (runsc)",
+        "image": "Pulling the sandbox image"
+      }
+    },
+    "runtime": {
+      "label": "Isolation",
+      "gvisor": "gVisor",
+      "runc": "Without gVisor, for development only",
+      "runcHint": "The model's code runs in a plain container. Not for a server."
+    },
+    "image": "Image",
+    "limits": {
+      "title": "Limits",
+      "total": "Sandboxes at once",
+      "perUser": "Per person",
+      "idle": "Waits for the next answer",
+      "idleValue": "{minutes, plural, one {# minute} other {# minutes}}",
+      "memory": "Sandbox memory",
+      "memoryValue": "{mb} MB",
+      "note": "Limits are set in .env: SANDBOX_TOTAL, SANDBOX_PER_USER, SANDBOX_IDLE_SECONDS, SANDBOX_MEMORY_MB."
+    },
+    "boxes": {
+      "title": "Now",
+      "empty": "No sandboxes",
+      "busy": "Running code",
+      "idle": "Waits until {time}",
+      "task": "Task",
+      "waiting": "{count, plural, one {# waits for room} other {# wait for room}}",
+      "unknown": "Unknown user"
     }
   },
   "profile": {
@@ -2481,6 +2573,24 @@
     "replay": "Show again",
     "again": "Again",
     "changes": {
+      "codeFiles": {
+        "short": "Numbers and files",
+        "title": "The model computes and makes files",
+        "text": "If your admin turned the sandbox on, the model runs code: it works through attached tables and makes Excel, Word, PowerPoint, PDF and charts. The file appears in the answer, and the «Ran code» step shows what the code did."
+      },
+      "filePanel": {
+        "short": "File beside",
+        "title": "A file opens beside the chat",
+        "text": "Press a file's card and the table, document or picture opens in a panel on the right, with the talk still in view. Drag its edge like the sidebar's; the arrows in its header step through the chat's files."
+      },
+      "anyFile": {
+        "title": "Attach a file of any type",
+        "text": "With the sandbox the model takes files of any type and reads them with code, and it reads scanned PDFs itself."
+      },
+      "sandbox": {
+        "title": "A sandbox for code",
+        "text": "The model's code runs in a separate Docker container under gVisor: no network, time and memory limits, one sandbox per chat. The installer offers it when Docker has gVisor (runsc); in compose it is the sandbox profile. Its state and limits are in «Settings → Sandbox»."
+      },
       "memory": {
         "short": "Memory",
         "title": "Metobe remembers people and promises",
@@ -2617,6 +2727,19 @@
       }
     },
     "demo": {
+      "files": {
+        "answer": "Revenue has grown six months in a row: from 120 thousand in January to 207 thousand in June. I put the monthly totals in a table and wrote a report.",
+        "printed": "April    172500\nMay      190000\nJune     207500",
+        "source": "sales.xlsx",
+        "sheet": "revenue-by-month.xlsx",
+        "doc": "half-year-results.docx",
+        "note": "takeaways.md",
+        "sheetName": "Totals",
+        "month": "Month",
+        "revenue": "Revenue",
+        "orders": "Orders",
+        "average": "Average order"
+      },
       "memory": {
         "message": "Olga promised to send the supply contract by Friday",
         "reply": "Noted: Olga Lee will send the supply contract by Friday.",

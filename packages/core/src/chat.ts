@@ -18,6 +18,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, or, sql } from "drizzle-orm";
 import { withCopiedFiles } from "./chat-share";
 import { getDb } from "./db";
 import { copyChatFiles, deleteChatObjects } from "./files";
+import { forgetChatBox } from "./sandbox";
 
 // Chats and their messages (ARCH §5.3, §6): what `api/chat` reads and writes. Messages are AI SDK UI messages
 // stored as they are; the history is always read from here, the client sends only its newest message.
@@ -153,6 +154,8 @@ export const deleteChat = async (userId: string, id: string) => {
   }
   // The files' objects first: their rows go with the chat, and after that nothing would name the objects.
   await deleteChatObjects(id);
+  // Its box, waiting for the next answer, goes too (D47).
+  await forgetChatBox(id);
   await db.delete(chats).where(own(userId, id));
 };
 

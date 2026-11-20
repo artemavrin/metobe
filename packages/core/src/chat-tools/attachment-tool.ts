@@ -36,6 +36,13 @@ export type ReadOutput =
     }
   | { error: string };
 
+/** Reads a scanned PDF's page as a picture (the sandbox, D47); null when nothing was read. */
+type OcrPage = (
+  fileId: string,
+  bytes: Uint8Array,
+  page: number
+) => Promise<string | null>;
+
 // The text of the last few files read, so the next page of a file is not parsed again. Per process, small.
 const KEPT = 16;
 const kept = new Map<string, string[]>();
@@ -57,10 +64,42 @@ const partsOf = async (id: string, load: () => Promise<string[] | null>) => {
   return parts;
 };
 
+/** A page's text and what the model is told of it; a scanned PDF's page read as a picture when it can be. */
+const pageOf = async (
+  row: { id: string; kind: string },
+  parts: string[],
+  page: number,
+  bytes: Uint8Array,
+  ocrPage: OcrPage | undefined
+) => {
+  let text = parts[page - 1] ?? "";
+  // A page without text is likely a scan: with the sandbox, it is read as a picture.
+  const scanned = !text && row.kind === "pdf" && ocrPage !== undefined;
+  if (scanned) {
+    text = (await ocrPage(row.id, bytes, page)) ?? "";
+  }
+  const more =
+    page < parts.length ? ` Page ${page + 1} of ${parts.length} follows.` : "";
+  let note: string | undefined;
+  if (scanned && text) {
+    note = `This page is a scan: its text was recognized (OCR) and may have mistakes.${more}`;
+  } else if (!text) {
+    note =
+      row.kind === "pdf"
+        ? "This page has no text — it may be a scan or a picture."
+        : "The file has no text.";
+  } else if (more) {
+    note = more.trim();
+  }
+  return { note, text };
+};
+
 /** Reads one page of one of the user's attachments as text: a PDF by its pages, anything else by parts. */
 export const readAttachmentTool = (
   userId: string,
-  chatId: string
+  chatId: string,
+  /** Reads a scanned PDF's page as a picture, when the sandbox is there (D47). */
+  ocrPage?: OcrPage
 ): Tool<ReadInput, ReadOutput> =>
   tool({
     description:
@@ -108,16 +147,7 @@ export const readAttachmentTool = (
       if (page > parts.length) {
         return { error: `The file has only ${parts.length} pages.` };
       }
-      const text = parts[page - 1] ?? "";
-      let note: string | undefined;
-      if (!text) {
-        note =
-          row.kind === "pdf"
-            ? "This page has no text — it may be a scan or a picture."
-            : "The file has no text.";
-      } else if (page < parts.length) {
-        note = `Page ${page + 1} of ${parts.length} follows.`;
-      }
+      const { note, text } = await pageOf(row, parts, page, bytes, ocrPage);
       return { name: row.name, note, page, pages: parts.length, text };
     },
     inputSchema: readInput,

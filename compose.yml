@@ -18,6 +18,10 @@ services:
       # Unset and not started, calls go to models as they are.
       PII_GUARD_URL: ${PII_GUARD_URL:-}
       PII_GUARD_TOKEN: ${PII_GUARD_API_TOKEN:-}
+      # The sandbox (D47): code and files in a box per chat, with the `sandbox` profile on. Unset, the model has no
+      # code tools.
+      SANDBOX_URL: ${SANDBOX_URL:-}
+      SANDBOX_TOKEN: ${SANDBOX_TOKEN:-}
     volumes:
       # Admin downloads are served by the app; the updater is the only writer to the shared backup volume.
       - backups:/backups:ro
@@ -77,6 +81,31 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+
+  # The sandbox (D47): runs the model's code in a box per chat under gVisor. Like the updater it has docker.sock, so
+  # it holds none of the app's secrets — only its token — and takes no connections from outside the network. The
+  # boxes are the host's own containers next to it; install.sh turns it on only when Docker has `runsc`.
+  sandbox:
+    image: ${METOBE_IMAGE:-ghcr.io/artemavrin/metobe:latest}
+    command: ["sandbox"]
+    profiles: ["sandbox"]
+    user: "0:0"
+    restart: unless-stopped
+    environment:
+      SANDBOX_TOKEN: ${SANDBOX_TOKEN:-}
+      # Pinned (docker/sandbox/VERSION): a server takes a new box image only under a new number.
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-ghcr.io/artemavrin/metobe-sandbox:1}
+      SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runsc}
+      SANDBOX_TOTAL: ${SANDBOX_TOTAL:-4}
+      SANDBOX_IDLE_SECONDS: ${SANDBOX_IDLE_SECONDS:-300}
+      SANDBOX_MEMORY_MB: ${SANDBOX_MEMORY_MB:-1024}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
 
   # Bundled database; skipped when install.sh points APP_DATABASE_URL at an external one.
   postgres:

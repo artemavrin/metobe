@@ -947,7 +947,7 @@ export const ChatView = ({
         <ChatMemoryContext value={{ ...memory, composer: composerBox }}>
           <FileSinkContext value={sink}>
             <ModelPayloadsContext value={payloads}>
-              <div className="relative flex min-h-0 flex-1 flex-col">
+              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
                 <style>{SCREEN_CSS}</style>
                 <MemoryToaster composer={composerBox} />
                 {/* A new chat's night sky behind the welcome and the composer: it leaves with the welcome */}

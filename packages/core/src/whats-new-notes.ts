@@ -22,6 +22,13 @@ export const MAX_FEATURED = 6;
 /** Newest first. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    admin: ["sandbox"],
+    date: "2026-11-20",
+    featured: ["codeFiles", "filePanel"],
+    more: ["anyFile"],
+    version: "0.11.0",
+  },
+  {
     admin: ["dataProtection", "modelTitle", "compatDecisions"],
     date: "2026-11-17",
     featured: ["modelSaw", "draftCheck"],
