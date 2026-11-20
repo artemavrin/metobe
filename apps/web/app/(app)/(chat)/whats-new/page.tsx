@@ -19,7 +19,7 @@ const WhatsNewPage = async () => {
     getTranslations("whatsNew"),
     getFormatter(),
   ]);
-  const notes = notesUpTo(APP_VERSION);
+  const notes = notesUpTo(APP_VERSION, undefined, admin);
   const title = (id: string) => t(`changes.${id as ChangeId}.title`);
   const text = (id: string) => t(`changes.${id as ChangeId}.text`);
 

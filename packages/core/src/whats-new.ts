@@ -17,7 +17,11 @@ export interface WhatsNew {
   latest: ReleaseNote | null;
 }
 
-export const getWhatsNew = async (userId: string): Promise<WhatsNew> => {
+/** `admin` — a version with only an admin block opens for admins alone. */
+export const getWhatsNew = async (
+  userId: string,
+  admin = false
+): Promise<WhatsNew> => {
   const { db } = getDb();
   const [row] = await db
     .select({ off: user.whatsNewOff, seen: user.whatsNewSeen })
@@ -30,8 +34,8 @@ export const getWhatsNew = async (userId: string): Promise<WhatsNew> => {
       .where(eq(user.id, userId));
   }
   return {
-    latest: latestNote(APP_VERSION),
-    show: row ? noteToShow(row, APP_VERSION) : null,
+    latest: latestNote(APP_VERSION, undefined, admin),
+    show: row ? noteToShow(row, APP_VERSION, undefined, admin) : null,
   };
 };
 

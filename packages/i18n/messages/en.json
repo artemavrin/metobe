@@ -2774,6 +2774,10 @@
       "compatDecisions": {
         "title": "Decision models in an OpenAI-compatible source",
         "text": "A model of such a source is marked with the «Decision model» switch in its card and can then take the «Decisions» job. It is called through the OpenAI Decisions API (/decisions)."
+      },
+      "sandboxSettings": {
+        "title": "The sandbox is set up in Settings",
+        "text": "In Settings → Sandbox it can be turned off, its limits changed — sandboxes in total and per person, memory, run time, file size — and a stuck sandbox shut down. Limits apply without a restart; .env now holds only the defaults. The sandbox can also be given the internet there: by default it has no network."
       }
     },
     "demo": {
