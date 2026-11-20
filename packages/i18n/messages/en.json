@@ -2573,6 +2573,24 @@
     "replay": "Show again",
     "again": "Again",
     "changes": {
+      "codeFiles": {
+        "short": "Numbers and files",
+        "title": "The model computes and makes files",
+        "text": "If your admin turned the sandbox on, the model runs code: it works through attached tables and makes Excel, Word, PowerPoint, PDF and charts. The file appears in the answer, and the «Ran code» step shows what the code did."
+      },
+      "filePanel": {
+        "short": "File beside",
+        "title": "A file opens beside the chat",
+        "text": "Press a file's card and the table, document or picture opens in a panel on the right, with the talk still in view. Drag its edge like the sidebar's; the arrows in its header step through the chat's files."
+      },
+      "anyFile": {
+        "title": "Attach a file of any type",
+        "text": "With the sandbox the model takes files of any type and reads them with code, and it reads scanned PDFs itself."
+      },
+      "sandbox": {
+        "title": "A sandbox for code",
+        "text": "The model's code runs in a separate Docker container under gVisor: no network, time and memory limits, one sandbox per chat. The installer offers it when Docker has gVisor (runsc); in compose it is the sandbox profile. Its state and limits are in «Settings → Sandbox»."
+      },
       "memory": {
         "short": "Memory",
         "title": "Metobe remembers people and promises",
@@ -2709,6 +2727,19 @@
       }
     },
     "demo": {
+      "files": {
+        "answer": "Revenue has grown six months in a row: from 120 thousand in January to 207 thousand in June. I put the monthly totals in a table and wrote a report.",
+        "printed": "April    172500\nMay      190000\nJune     207500",
+        "source": "sales.xlsx",
+        "sheet": "revenue-by-month.xlsx",
+        "doc": "half-year-results.docx",
+        "note": "takeaways.md",
+        "sheetName": "Totals",
+        "month": "Month",
+        "revenue": "Revenue",
+        "orders": "Orders",
+        "average": "Average order"
+      },
       "memory": {
         "message": "Olga promised to send the supply contract by Friday",
         "reply": "Noted: Olga Lee will send the supply contract by Friday.",

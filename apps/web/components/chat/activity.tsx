@@ -379,7 +379,7 @@ const codeTitle = (
 };
 
 /** The code and what it printed; a refusal in its words. */
-const CodeBlocks = ({ part }: { part: CodePart }) => {
+export const CodeBlocks = ({ part }: { part: CodePart }) => {
   const t = useTranslations("chat.code");
   const out = part.state === "output-available" ? part.output : null;
   const field = (key: string) => {

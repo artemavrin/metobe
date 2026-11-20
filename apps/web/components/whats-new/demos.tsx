@@ -1,6 +1,7 @@
 "use client";
 
 import type { AskUserOutput } from "@metobe/contracts/chat";
+import type { FilePreview } from "@metobe/contracts/files";
 import { Button } from "@metobe/ui/components/button";
 import {
   InputGroup,
@@ -24,25 +25,36 @@ import {
   CalendarClock,
   CalendarHeart,
   Check,
+  ChevronRight,
   Copy,
   Mail,
   Plus,
   RotateCcw,
+  SquareTerminal,
   UsersRound,
+  X,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { CodeBlocks } from "@/components/chat/activity";
 import { AskedAnswer, AskPanel } from "@/components/chat/ask-user";
 import { ChatHeader } from "@/components/chat/chat-header";
 import type { ChatItem, ChatOps } from "@/components/chat/chat-item";
 import { CompactionCard, CompactOffer } from "@/components/chat/compaction";
 import { PreviewMark, PreviewPanel } from "@/components/chat/composer-privacy";
+import {
+  FileBody,
+  FileGlyph,
+  MadeFileCard,
+} from "@/components/chat/file-viewer";
+import type { PreviewLoader, ViewedFile } from "@/components/chat/file-viewer";
 import { LensMark, Seen, useLens } from "@/components/chat/model-lens";
 import { NightSky } from "@/components/chat/night-sky";
 import { ThreadMap } from "@/components/chat/thread-map";
 import { TaskDot } from "@/components/tasks/task-dot";
+import type { CodePart } from "@/lib/answer-work";
 import type { AskUserPart, OpenAskPart } from "@/lib/ask-user";
 import { splitLabels } from "@/lib/model-view";
 
@@ -953,11 +965,193 @@ const DraftCheckDemo = () => {
   );
 };
 
+// ——— Code and files (D47) ———
+
+const FILE_SHEET = "00000000-0000-4000-8000-0000000000a1";
+
+/** The demo's files: names in the reader's language, the sizes made up. */
+const useDemoFiles = () => {
+  const t = useTranslations("whatsNew.demo");
+  return {
+    doc: {
+      id: "00000000-0000-4000-8000-0000000000a2",
+      kind: "doc" as const,
+      mediaType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      name: t("files.doc"),
+      size: 24_120,
+    },
+    note: {
+      id: "00000000-0000-4000-8000-0000000000a3",
+      kind: "text" as const,
+      mediaType: "text/markdown",
+      name: t("files.note"),
+      size: 1840,
+    },
+    sheet: {
+      id: FILE_SHEET,
+      kind: "sheet" as const,
+      mediaType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      name: t("files.sheet"),
+      size: 18_432,
+    },
+  };
+};
+
+const REVENUE = [120_000, 137_500, 155_000, 172_500, 190_000, 207_500];
+const ORDERS = [310, 332, 354, 376, 398, 420];
+
+/** The sheet the panel shows: six months by the reader's locale, its columns in their language. */
+const useSheetLoader = (): PreviewLoader => {
+  const t = useTranslations("whatsNew.demo");
+  const locale = useLocale();
+  return useMemo(() => {
+    const month = new Intl.DateTimeFormat(locale, { month: "long" });
+    const rows = REVENUE.map((sum, i) => {
+      const name = month.format(new Date(2026, i, 1));
+      return [
+        name.charAt(0).toLocaleUpperCase(locale) + name.slice(1),
+        String(sum),
+        String(ORDERS[i]),
+        String(Math.round(sum / (ORDERS[i] ?? 1))),
+      ];
+    });
+    const preview: FilePreview = {
+      cut: false,
+      sheets: [
+        {
+          name: t("files.sheetName"),
+          rows: [
+            [
+              t("files.month"),
+              t("files.revenue"),
+              t("files.orders"),
+              t("files.average"),
+            ],
+            ...rows,
+          ],
+        },
+      ],
+      type: "sheet",
+    };
+    return () => Promise.resolve(preview);
+  }, [locale, t]);
+};
+
+/** An answer that ran code: «Выполнил код» opens the code and what it printed; the files it made stand under. */
+const CodeFilesDemo = () => {
+  const t = useTranslations("whatsNew.demo");
+  const say = useTranslations("chat.code");
+  const files = useDemoFiles();
+  const [open, setOpen] = useState(false);
+  const part = {
+    input: {
+      code: `df = pd.read_excel("/workspace/in/${t("files.source")}")\nby_month = df.groupby("${t("files.month")}")["${t("files.revenue")}"].sum()\nby_month.to_excel("${files.sheet.name}")\nprint(by_month.tail(3))`,
+    },
+    output: { exitCode: 0, stdout: t("files.printed") },
+    state: "output-available",
+    toolCallId: "demo",
+    type: "tool-run_code",
+  } as unknown as CodePart;
+  return (
+    <Contained className="bg-background flex flex-col justify-end gap-3 overflow-hidden px-6 pt-10 pb-14">
+      <div className="flex flex-col gap-2 text-sm">
+        <button
+          className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-2"
+          data-demo="code-step"
+          onClick={() => setOpen((was) => !was)}
+          type="button"
+        >
+          <SquareTerminal className="size-3.5" />
+          {say("done")}
+          <ChevronRight
+            className={cn(
+              "size-3.5 transition-transform duration-200",
+              EASE,
+              open && "rotate-90"
+            )}
+          />
+        </button>
+        {open && (
+          <div className="pl-5">
+            <CodeBlocks part={part} />
+          </div>
+        )}
+      </div>
+      {/* The stage is low: with the code open, the words give it their room. */}
+      {!open && <p className="text-sm leading-relaxed">{t("files.answer")}</p>}
+      <MadeFileCard file={files.sheet} onOpen={nothing} />
+      {open && <Again onClick={() => setOpen(false)} />}
+    </Contained>
+  );
+};
+
+/** The cards of an answer; pressed, the file opens in the panel to the right, the talk stays in view. */
+const FilePanelDemo = () => {
+  const view = useTranslations("chat.viewer");
+  const t = useTranslations("whatsNew.demo");
+  const files = useDemoFiles();
+  const load = useSheetLoader();
+  const [shown, setShown] = useState<ViewedFile | null>(null);
+  return (
+    // Below the window's own ×: the panel's × must not stand on it.
+    <Contained className="bg-background flex gap-2 overflow-hidden p-2 pt-12">
+      <div className="flex min-w-0 flex-1 flex-col justify-end gap-3 px-4 pt-8 pb-12">
+        {/* The narrow column would cut the words at the top: with the panel open, the cards are the answer. */}
+        {!shown && (
+          <p className="text-sm leading-relaxed">{t("files.answer")}</p>
+        )}
+        <div className="flex flex-col gap-2" data-demo="file-card">
+          {[files.sheet, files.doc, files.note].map((file) => (
+            <MadeFileCard
+              active={shown?.id === file.id}
+              file={file}
+              key={file.id}
+              onOpen={() => setShown(file)}
+            />
+          ))}
+        </div>
+      </div>
+      {shown && (
+        <aside
+          aria-label={view("panel")}
+          className="bg-background animate-in fade-in slide-in-from-right-4 flex w-[58%] shrink-0 flex-col overflow-hidden rounded-lg border duration-200 motion-reduce:animate-none"
+        >
+          <div className="flex h-11 shrink-0 items-center gap-1 border-b pr-1.5">
+            <span className="flex size-11 shrink-0 items-center justify-center [&_svg]:size-5">
+              <FileGlyph file={shown} />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm">
+              {shown.name}
+            </span>
+            <Button
+              aria-label={view("close")}
+              className="text-muted-foreground rounded-full"
+              onClick={() => setShown(null)}
+              size="icon-sm"
+              variant="ghost"
+            >
+              <X />
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 p-3">
+            <FileBody file={shown} key={shown.id} load={load} />
+          </div>
+        </aside>
+      )}
+      {shown && <Again onClick={() => setShown(null)} />}
+    </Contained>
+  );
+};
+
 export const DEMOS: Record<string, () => ReactNode> = {
   askUser: AskDemo,
   calendar: CalendarDemo,
+  codeFiles: CodeFilesDemo,
   compactChat: CompactDemo,
   draftCheck: DraftCheckDemo,
+  filePanel: FilePanelDemo,
   forToday: ForTodayDemo,
   greeting: GreetingDemo,
   mailWaits: MailWaitsDemo,
