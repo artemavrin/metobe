@@ -1,4 +1,6 @@
+import { SANDBOX_DEFAULT_LIMITS } from "@metobe/contracts/sandbox";
 import { sandboxConfigured, sandboxStatus } from "@metobe/core/sandbox";
+import { getSandboxSettings } from "@metobe/core/sandbox-settings";
 import { listUsers } from "@metobe/core/users";
 import { getTranslations } from "next-intl/server";
 
@@ -10,8 +12,9 @@ import {
 import { SandboxSettings } from "./sandbox-settings";
 
 const SandboxPage = async () => {
-  const [status, users, t] = await Promise.all([
+  const [status, settings, users, t] = await Promise.all([
     sandboxStatus(),
+    getSandboxSettings(true),
     listUsers(),
     getTranslations("sandbox"),
   ]);
@@ -20,7 +23,9 @@ const SandboxPage = async () => {
     <SettingsPageFrame>
       <SettingsHeader description={t("description")} title={t("title")} />
       <SandboxSettings
+        enabled={settings.enabled}
         installed={sandboxConfigured()}
+        limits={settings.limits ?? status?.limits ?? SANDBOX_DEFAULT_LIMITS}
         names={names}
         status={status}
       />

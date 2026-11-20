@@ -85,7 +85,7 @@ import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
 import { payloadRecorder } from "@metobe/core/model-payloads";
 import { getPersonalPolicy } from "@metobe/core/personal";
 import { isGuardUnavailable } from "@metobe/core/pii-guard";
-import { forgetChatBox, sandboxReady } from "@metobe/core/sandbox";
+import { forgetChatBox, sandboxOn } from "@metobe/core/sandbox";
 import { skillsForChat } from "@metobe/core/skills";
 import { getStorage } from "@metobe/core/storage";
 import { getTaskByChat } from "@metobe/core/tasks";
@@ -404,16 +404,19 @@ const codeBox = async (options: {
   thread: ChatMessage[];
   tools: boolean;
   userId: string;
-}) =>
-  options.tools && getStorage() && (await sandboxReady())
+}) => {
+  const limits = options.tools && getStorage() ? await sandboxOn() : null;
+  return limits
     ? sandboxSession({
         chatId: options.chatId,
         class: "chat",
         fileIds: [...new Set(options.thread.flatMap(fileIdsOf))],
+        limits,
         sources: options.sources,
         userId: options.userId,
       })
     : NO_BOX;
+};
 
 /** The client's message, its files checked to be the user's own with name and type from our rows (D33); null — invalid. */
 const readMessage = (userId: string, message: ChatRequest["message"]) =>

@@ -22,6 +22,13 @@ export const MAX_FEATURED = 6;
 /** Newest first. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    admin: ["sandboxSettings"],
+    date: "2026-11-21",
+    featured: [],
+    more: [],
+    version: "0.11.1",
+  },
+  {
     admin: ["sandbox"],
     date: "2026-11-20",
     featured: ["codeFiles", "filePanel"],
@@ -77,10 +84,15 @@ export const RELEASE_NOTES: ReleaseNote[] = [
  * missed before it are on the history page, a button away. None when the person turned it off, or when nothing was
  * seen yet — a new account starts at the version it came in on.
  */
+/** Whether a version has anything for this person: a version with only an admin block is nothing to the rest. */
+const hasFor = (n: ReleaseNote, admin: boolean) =>
+  n.featured.length + n.more.length > 0 || (admin && n.admin.length > 0);
+
 export const noteToShow = (
   { seen, off }: { seen: string | null; off: boolean },
   running: string,
-  notes: ReleaseNote[] = RELEASE_NOTES
+  notes: ReleaseNote[] = RELEASE_NOTES,
+  admin = false
 ): ReleaseNote | null => {
   if (off || seen === null) {
     return null;
@@ -89,7 +101,8 @@ export const noteToShow = (
     notes.find(
       (n) =>
         compareVersions(n.version, seen) > 0 &&
-        compareVersions(n.version, running) <= 0
+        compareVersions(n.version, running) <= 0 &&
+        hasFor(n, admin)
     ) ?? null
   );
 };
@@ -97,12 +110,19 @@ export const noteToShow = (
 /** «История изменений»: every version of this build, newest first — what it brought, as the window said it. */
 export const notesUpTo = (
   running: string,
-  notes: ReleaseNote[] = RELEASE_NOTES
-) => notes.filter((n) => compareVersions(n.version, running) <= 0);
+  notes: ReleaseNote[] = RELEASE_NOTES,
+  admin = false
+) =>
+  notes.filter(
+    (n) => compareVersions(n.version, running) <= 0 && hasFor(n, admin)
+  );
 
 /** What «Что нового» in the account menu opens: the newest version not past the one running. */
 export const latestNote = (
   running: string,
-  notes: ReleaseNote[] = RELEASE_NOTES
+  notes: ReleaseNote[] = RELEASE_NOTES,
+  admin = false
 ): ReleaseNote | null =>
-  notes.find((n) => compareVersions(n.version, running) <= 0) ?? null;
+  notes.find(
+    (n) => compareVersions(n.version, running) <= 0 && hasFor(n, admin)
+  ) ?? null;

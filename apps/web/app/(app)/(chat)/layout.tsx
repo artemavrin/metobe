@@ -43,7 +43,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
     listChats(user.id),
     getAccount(user.id),
     admin ? availableUpdate() : null,
-    getWhatsNew(user.id),
+    getWhatsNew(user.id, admin),
     listSidebarTasks(user.id, prefs.locale === "en" ? "en" : "ru"),
     isMemoryOnFor(user.id),
   ]);

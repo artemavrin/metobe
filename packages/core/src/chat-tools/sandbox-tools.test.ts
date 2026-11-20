@@ -22,7 +22,7 @@ vi.mock("../files", () => ({
   getFile: () => Promise.resolve(null),
 }));
 
-const { LOAD_DATA, SANDBOX_NOTE, madeFileIdsOf, sandboxSession } =
+const { LOAD_DATA, SANDBOX_NOTE, madeFileIdsOf, sandboxNote, sandboxSession } =
   await import("./sandbox-tools");
 const { createSources } = await import("./tool-sources");
 
@@ -42,6 +42,19 @@ describe("sandbox note", () => {
       expect(SANDBOX_NOTE).toContain(name);
     }
     expect(SANDBOX_NOTE).toContain("Python 3.13");
+  });
+
+  it("tells the model the limits the admin set (P35)", () => {
+    expect(SANDBOX_NOTE).toContain("60 seconds and about 1 GB");
+    expect(SANDBOX_NOTE).toContain("There is no network");
+    const note = sandboxNote({
+      memoryMb: 2048,
+      network: true,
+      runSeconds: 120,
+    });
+    expect(note).toContain("120 seconds and about 2 GB");
+    expect(note).toContain("can reach the internet");
+    expect(note).not.toContain("There is no network");
   });
 
   it("keeps the files the answers handed over", () => {

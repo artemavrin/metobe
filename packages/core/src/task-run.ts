@@ -47,7 +47,7 @@ import { listMailboxes } from "./mailboxes";
 import { listChatServers, toolsForUser } from "./mcp";
 import { taskMemory } from "./memory-task";
 import { getPersonalPolicy } from "./personal";
-import { sandboxReady } from "./sandbox";
+import { sandboxOn } from "./sandbox";
 import { skillsByIds, skillsForChat } from "./skills";
 import { getStorage } from "./storage";
 import { sendRunLetter } from "./task-mail";
@@ -193,16 +193,17 @@ const toolsFor = async (
     model.contextWindow === null || model.contextWindow >= WIDGETS_MIN_WINDOW;
   const boxes = personal.mode === "off" ? [] : ownBoxes;
   // Code and files (D47): a box for this run only, the task's files in it; what it hands over joins the run's chat.
-  const code =
-    getStorage() && (await sandboxReady())
-      ? sandboxSession({
-          chatId,
-          class: "task",
-          fileIds: snapshot.fileIds ?? [],
-          sources,
-          userId: task.ownerId,
-        })
-      : null;
+  const limits = getStorage() ? await sandboxOn() : null;
+  const code = limits
+    ? sandboxSession({
+        chatId,
+        class: "task",
+        fileIds: snapshot.fileIds ?? [],
+        limits,
+        sources,
+        userId: task.ownerId,
+      })
+    : null;
   const tools: ToolSet = {
     ...lendTools(
       servers.map((server) => ({

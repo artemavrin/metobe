@@ -96,6 +96,7 @@ services:
       # Pinned (docker/sandbox/VERSION): a server takes a new box image only under a new number.
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-ghcr.io/artemavrin/metobe-sandbox:1}
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runsc}
+      # Defaults only: once the admin changes a limit in Settings → Sandbox, the app hands it over and it wins.
       SANDBOX_TOTAL: ${SANDBOX_TOTAL:-4}
       SANDBOX_IDLE_SECONDS: ${SANDBOX_IDLE_SECONDS:-300}
       SANDBOX_MEMORY_MB: ${SANDBOX_MEMORY_MB:-1024}

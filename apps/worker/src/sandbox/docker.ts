@@ -211,10 +211,11 @@ export const createDocker = (socketPath: string) => {
     },
 
     info: () =>
-      json<{ Runtimes?: Record<string, unknown>; ServerVersion?: string }>(
-        "GET",
-        "/info"
-      ),
+      json<{
+        MemTotal?: number;
+        Runtimes?: Record<string, unknown>;
+        ServerVersion?: string;
+      }>("GET", "/info"),
 
     inspect: (id: string) =>
       json<{ State: { Running: boolean; OOMKilled: boolean } }>(

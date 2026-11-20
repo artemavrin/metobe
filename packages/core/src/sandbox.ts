@@ -4,8 +4,11 @@ import type {
   AcquireResponse,
   ExecResponse,
   SandboxFileEntry,
+  SandboxLimits,
   SandboxStatus,
 } from "@metobe/contracts/sandbox";
+
+import { getSandboxSettings } from "./sandbox-settings";
 
 // The sandbox service's client (D47): the app and the worker ask it by SANDBOX_URL and SANDBOX_TOKEN. Unset — the
 // sandbox is not installed, and the model has no code tools.
@@ -97,17 +100,50 @@ export const sandboxReady = async () => {
   return status?.ready === true;
 };
 
-export const acquireBox = (request: AcquireRequest) =>
-  callJson<AcquireResponse>("POST", "/boxes", {
-    json: request,
+/**
+ * The limits in force when the code tools may be given — ready, and the admin has not turned it off; else null.
+ * The admin's limits, or the service's own when none were saved.
+ */
+export const sandboxOn = async (): Promise<SandboxLimits | null> => {
+  const saved = await getSandboxSettings();
+  if (!saved.enabled) {
+    return null;
+  }
+  const status = await sandboxStatus();
+  return status?.ready ? (saved.limits ?? status.limits) : null;
+};
+
+/** The admin's limits go with each new box: a restarted service has them back with the first one. */
+export const acquireBox = async (request: AcquireRequest) => {
+  const { limits } = await getSandboxSettings();
+  return callJson<AcquireResponse>("POST", "/boxes", {
+    json: limits ? { ...request, limits } : request,
     timeoutMs: 330_000,
   });
+};
 
-export const runInBox = (boxId: string, code: string, timeoutSeconds = 60) =>
+/** No time given — the admin's limit for a run (the service's own without one). */
+export const runInBox = (
+  boxId: string,
+  code: string,
+  timeoutSeconds?: number
+) =>
   callJson<ExecResponse>("POST", `/boxes/${boxId}/exec`, {
-    json: { code, timeoutSeconds },
-    timeoutMs: (timeoutSeconds + 30) * 1000,
+    json: timeoutSeconds === undefined ? { code } : { code, timeoutSeconds },
+    timeoutMs: ((timeoutSeconds ?? 600) + 30) * 1000,
   });
+
+/** The admin's new limits, now: boxes made from here on and the next runs take them. */
+export const pushSandboxLimits = async (limits: SandboxLimits) => {
+  await call("PUT", "/limits", { json: limits, timeoutMs: 10_000 });
+};
+
+/** The admin dropped a box (P35): whatever runs in it stops, its files go; the next answer gets a new one. */
+export const dropSandboxBox = async (key: string) => {
+  await call("DELETE", `/chats/${encodeURIComponent(key)}`, {
+    timeoutMs: 10_000,
+  });
+};
 
 export const putInBox = async (
   boxId: string,

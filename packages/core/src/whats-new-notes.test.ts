@@ -51,6 +51,30 @@ describe("which «Что нового» opens by itself", () => {
   });
 });
 
+describe("a version with only an admin block (0.11.1)", () => {
+  const adminOnly: ReleaseNote = {
+    ...note("0.9.1"),
+    admin: ["x"],
+    featured: [],
+  };
+  const notes = [adminOnly, ...NOTES];
+
+  it("opens for an admin, and for the rest goes by as if it were not there", () => {
+    expect(
+      noteToShow({ off: false, seen: "0.8.0" }, "0.9.1", notes, true)?.version
+    ).toBe("0.9.1");
+    expect(
+      noteToShow({ off: false, seen: "0.8.0" }, "0.9.1", notes, false)
+    ).toBe(null);
+    expect(latestNote("0.9.1", notes, false)?.version).toBe("0.8.0");
+    expect(notesUpTo("0.9.1", notes, false).map((n) => n.version)).toEqual([
+      "0.8.0",
+      "0.7.0",
+      "0.6.0",
+    ]);
+  });
+});
+
 describe("the history page", () => {
   it("lists every version up to the one running, newest first", () => {
     expect(notesUpTo("0.7.5", NOTES).map((n) => n.version)).toEqual([
