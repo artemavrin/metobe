@@ -11,6 +11,7 @@ import { useEffect, useState, useTransition } from "react";
 
 import { forkChatAction } from "@/app/(app)/(chat)/actions";
 import { CompactionCard } from "@/components/chat/compaction";
+import { FilePanelHost } from "@/components/chat/file-panel";
 import {
   AssistantMessage,
   ModelSwitch,
@@ -77,68 +78,74 @@ export const SharedChat = ({
     });
   return (
     <ModelPayloadsContext value={payloads}>
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 text-sm md:px-6">
-            <header className="flex flex-col gap-1">
-              <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-              <p className="text-muted-foreground text-xs">
-                {t("author", { name: owner })}
-              </p>
-            </header>
-            {threadRows(messages, "ready").map((row) => {
-              if (row.role === "switch") {
+      <FilePanelHost>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 text-sm md:px-6">
+              <header className="flex flex-col gap-1">
+                <h1 className="text-lg font-semibold tracking-tight">
+                  {title}
+                </h1>
+                <p className="text-muted-foreground text-xs">
+                  {t("author", { name: owner })}
+                </p>
+              </header>
+              {threadRows(messages, "ready").map((row) => {
+                if (row.role === "switch") {
+                  return (
+                    <ModelSwitch key={row.key} label={labelOf(row.modelId)} />
+                  );
+                }
+                if (row.role === "compaction") {
+                  const data = compactionOf(row.message);
+                  return data ? (
+                    <CompactionCard data={data} key={row.key} />
+                  ) : null;
+                }
+                if (row.role === "user") {
+                  return (
+                    <UserMessage
+                      key={row.key}
+                      mentions={servers}
+                      message={row.message}
+                    />
+                  );
+                }
                 return (
-                  <ModelSwitch key={row.key} label={labelOf(row.modelId)} />
-                );
-              }
-              if (row.role === "compaction") {
-                const data = compactionOf(row.message);
-                return data ? (
-                  <CompactionCard data={data} key={row.key} />
-                ) : null;
-              }
-              if (row.role === "user") {
-                return (
-                  <UserMessage
+                  <AssistantMessage
                     key={row.key}
-                    mentions={servers}
+                    label={labelOf(row.message?.metadata?.modelId)}
+                    live={false}
                     message={row.message}
+                    servers={servers}
                   />
                 );
-              }
-              return (
-                <AssistantMessage
-                  key={row.key}
-                  label={labelOf(row.message?.metadata?.modelId)}
-                  live={false}
-                  message={row.message}
-                  servers={servers}
-                />
-              );
-            })}
+              })}
+            </div>
+          </div>
+          <div className="w-full px-4 pb-4 md:px-6">
+            <div className="bg-muted/50 mx-auto flex max-w-4xl flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center">
+              <p className="text-muted-foreground flex-1 text-sm text-pretty">
+                {failed ? (
+                  <span className="text-destructive">
+                    {t("continueFailed")}
+                  </span>
+                ) : (
+                  t("readOnly")
+                )}
+              </p>
+              <Button
+                className="shrink-0 transition-transform duration-150 active:scale-[0.97]"
+                disabled={pending}
+                onClick={fork}
+              >
+                {pending && <Spinner />}
+                {pending ? t("continuing") : t("continue")}
+              </Button>
+            </div>
           </div>
         </div>
-        <div className="w-full px-4 pb-4 md:px-6">
-          <div className="bg-muted/50 mx-auto flex max-w-4xl flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center">
-            <p className="text-muted-foreground flex-1 text-sm text-pretty">
-              {failed ? (
-                <span className="text-destructive">{t("continueFailed")}</span>
-              ) : (
-                t("readOnly")
-              )}
-            </p>
-            <Button
-              className="shrink-0 transition-transform duration-150 active:scale-[0.97]"
-              disabled={pending}
-              onClick={fork}
-            >
-              {pending && <Spinner />}
-              {pending ? t("continuing") : t("continue")}
-            </Button>
-          </div>
-        </div>
-      </div>
+      </FilePanelHost>
     </ModelPayloadsContext>
   );
 };

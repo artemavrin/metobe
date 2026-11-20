@@ -77,6 +77,7 @@ import {
 } from "@/components/chat/attachments";
 import { CardPeek } from "@/components/chat/card-peek";
 import { ConnectRequest } from "@/components/chat/connect-request";
+import { useFilePanel, useRegisterFile } from "@/components/chat/file-panel";
 import {
   FileViewer,
   MadeFileCard,
@@ -416,17 +417,31 @@ const Mentioned = ({
     });
   });
 
-/** A file the sandbox handed over (D47): its card in the answer; it opens in the file window (P33, P34). */
+/**
+ * A file the sandbox handed over (D47): its card in the answer. It opens in the chat's file panel, or in the file
+ * window where there is no panel (P33, P34).
+ */
 const MadeFile = ({ part }: { part: MadePart }) => {
   const [open, setOpen] = useState(false);
-  if (part.state !== "output-available" || !("id" in part.output)) {
+  const panel = useFilePanel();
+  const file =
+    part.state === "output-available" && "id" in part.output
+      ? part.output
+      : null;
+  useRegisterFile(file && viewable(file) ? file : null);
+  if (!file) {
     return null;
   }
-  const file = part.output;
   return (
     <>
-      <MadeFileCard file={file} onOpen={() => setOpen(true)} />
-      <FileViewer file={open ? file : null} onClose={() => setOpen(false)} />
+      <MadeFileCard
+        active={panel?.current === file.id}
+        file={file}
+        onOpen={() => (panel ? panel.open(file) : setOpen(true))}
+      />
+      {!panel && (
+        <FileViewer file={open ? file : null} onClose={() => setOpen(false)} />
+      )}
     </>
   );
 };
@@ -442,6 +457,7 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
     null
   );
   const [shown, setShown] = useState<ViewedFile | null>(null);
+  const panel = useFilePanel();
   const list = message.parts.filter((p) => p.type === "file");
   if (list.length === 0) {
     return null;
@@ -473,7 +489,9 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
                       name,
                     }
                   : null;
-                if (image) {
+                if (file && viewable(file) && panel) {
+                  panel.open(file);
+                } else if (image) {
                   setViewing({ name, url: p.url });
                 } else if (file && viewable(file)) {
                   setShown(file);

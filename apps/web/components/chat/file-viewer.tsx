@@ -22,6 +22,11 @@ import {
   TabsList,
   TabsTrigger,
 } from "@metobe/ui/components/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@metobe/ui/components/tooltip";
 import { cn } from "@metobe/ui/lib/utils";
 import {
   ChartNoAxesColumn,
@@ -354,22 +359,106 @@ export const FileViewer = ({
   );
 };
 
-/** A file the sandbox handed over, in the answer: what it is, «Open» when it can be shown, «Download». */
+const meta = (file: ViewedFile, size: (bytes: number) => string) =>
+  [extOf(file.name), file.size === undefined ? "" : size(file.size)]
+    .filter(Boolean)
+    .join(" · ");
+
+const DownloadIcon = ({
+  file,
+  className,
+}: {
+  file: ViewedFile;
+  className?: string;
+}) => {
+  const t = useTranslations("chat.viewer");
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        delay={500}
+        render={
+          <Button
+            aria-label={t("download")}
+            className={cn("text-muted-foreground", className)}
+            nativeButton={false}
+            render={
+              <a
+                aria-label={t("download")}
+                download={file.name}
+                href={fileUrl(file.id)}
+              />
+            }
+            size="icon-sm"
+            variant="ghost"
+          />
+        }
+      >
+        <Download />
+      </TooltipTrigger>
+      <TooltipContent
+        arrow={false}
+        className="bg-sidebar text-foreground ring-foreground/10 shadow-md ring-1"
+        sideOffset={6}
+      >
+        {t("download")}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
+/**
+ * A file the sandbox handed over, in the answer (P33 round 2): a card across the column, so several stand as an even
+ * list. The card opens the file (when it can be shown); «Download» at its end. A picture is shown as itself.
+ */
 export const MadeFileCard = ({
   file,
   onOpen,
+  active = false,
 }: {
   file: ViewedFile;
   onOpen: () => void;
+  /** The file is open in the panel now. */
+  active?: boolean;
 }) => {
   const t = useTranslations("chat.viewer");
   const size = useSize();
+  if (file.kind === "image") {
+    return (
+      <figure className="bg-card flex w-fit max-w-full min-w-0 flex-col overflow-hidden rounded-xl border">
+        <button
+          aria-label={t("open", { name: file.name })}
+          className="focus-visible:ring-ring/50 block cursor-zoom-in outline-none focus-visible:ring-3"
+          onClick={onOpen}
+          type="button"
+        >
+          {/* oxlint-disable-next-line nextjs/no-img-element -- the file as it is, from our own origin */}
+          <img
+            alt={file.name}
+            className="block max-h-80 max-w-full object-contain"
+            src={fileUrl(file.id)}
+          />
+        </button>
+        <figcaption className="text-muted-foreground flex min-w-0 items-center gap-2 border-t py-1 pr-1 pl-3 text-xs">
+          <span className="min-w-0 flex-1 truncate">{file.name}</span>
+          <span className="shrink-0 tabular-nums">{meta(file, size)}</span>
+          <DownloadIcon className="size-7" file={file} />
+        </figcaption>
+      </figure>
+    );
+  }
   const canView = viewable(file);
   return (
-    <div className="bg-background flex w-full max-w-md items-center gap-3 rounded-xl border p-2.5 pr-3">
+    <div
+      className={cn(
+        "bg-card flex w-full min-w-0 items-center gap-3 rounded-xl border p-2 transition-colors",
+        active
+          ? "border-foreground/30"
+          : canView && "hover:border-foreground/20"
+      )}
+    >
       <button
         aria-label={t("open", { name: file.name })}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left disabled:cursor-default"
+        className="focus-visible:ring-ring/50 flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-3 disabled:cursor-default"
         disabled={!canView}
         onClick={onOpen}
         type="button"
@@ -377,35 +466,14 @@ export const MadeFileCard = ({
         <IconTile size="default">
           <FileGlyph file={file} />
         </IconTile>
-        <span className="flex min-w-0 flex-col">
+        <span className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-sm font-medium">{file.name}</span>
-          <span className="text-muted-foreground text-xs">
-            {[extOf(file.name), file.size === undefined ? "" : size(file.size)]
-              .filter(Boolean)
-              .join(" · ")}
+          <span className="text-muted-foreground truncate text-xs">
+            {meta(file, size)}
           </span>
         </span>
       </button>
-      {canView && (
-        <Button onClick={onOpen} size="sm" variant="ghost">
-          {t("openShort")}
-        </Button>
-      )}
-      <Button
-        aria-label={t("download")}
-        nativeButton={false}
-        render={
-          <a
-            aria-label={t("download")}
-            download={file.name}
-            href={fileUrl(file.id)}
-          />
-        }
-        size="icon-sm"
-        variant="outline"
-      >
-        <Download />
-      </Button>
+      <DownloadIcon file={file} />
     </div>
   );
 };
