@@ -6,7 +6,7 @@ import { Input } from "@metobe/ui/components/input";
 import { Alert, AlertDescription } from "@metobe/ui/components/reui/alert";
 import { Switch } from "@metobe/ui/components/switch";
 import { cn } from "@metobe/ui/lib/utils";
-import { CircleAlert, Pencil, Power, RefreshCw, TriangleAlert, X } from "lucide-react";
+import { Check as CheckIcon, CircleAlert, Pencil, Power, RefreshCw, TriangleAlert, X } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 
@@ -134,8 +134,8 @@ const Head = ({ s }: { s: State }) => (
   <>
     <SettingsHeader description="Здесь модель выполняет код на Python: считает данные из файлов и делает таблицы, документы, презентации и графики." title="Песочница" />
     <Rows>
-      <Row hint={s.enabled ? "Модель в чатах и задачах считает данные и делает файлы" : "Модель отвечает без кода и файлов, песочницы погашены"} label="Включить песочницу">
-        <Switch aria-label="Включить песочницу" checked={s.enabled} onCheckedChange={s.setEnabled} />
+      <Row hint="Выключенная песочница: модель отвечает без кода и файлов" label="Включена">
+        <Switch aria-label="Песочница включена" checked={s.enabled} onCheckedChange={s.setEnabled} />
       </Row>
     </Rows>
   </>
@@ -333,6 +333,66 @@ const MemoryNote = ({ l }: { l: Limits }) => {
   );
 };
 
+/** Поле, которое сохраняется само: при уходе фокуса или Enter, если значение подходит; Esc возвращает сохранённое. */
+const LiveLimit = ({ s, k, unit, label }: { s: State; k: keyof Limits; unit: string; label: string }) => {
+  const [text, setText] = useState(String(s.limits[k]));
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const field = FIELDS.find((f) => f.key === k);
+  const save = () => {
+    if (!field || text === String(s.limits[k])) {
+      setError(null);
+      return;
+    }
+    const next = { ...s.limits, [k]: text.trim() === "" ? Number.NaN : Number(text) };
+    const problem = fieldError(field, next);
+    setError(problem);
+    if (problem) return;
+    s.setLimits(next);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <span className="flex items-center gap-2">
+        <CheckIcon className={cn("text-success size-4 transition-opacity duration-300", saved ? "opacity-100" : "opacity-0")} />
+        <Input
+          aria-invalid={error !== null}
+          aria-label={label}
+          className="w-24 text-right tabular-nums"
+          inputMode="numeric"
+          onBlur={save}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              setText(String(s.limits[k]));
+              setError(null);
+            }
+          }}
+          value={text}
+        />
+        <span className="text-muted-foreground w-8 text-sm">{unit}</span>
+      </span>
+      {error && <span className="text-destructive text-xs">{error}</span>}
+    </span>
+  );
+};
+
+/** Пределы без «Изменить»: поля всегда открыты и сохраняются сами. */
+const LimitsLive = ({ s }: { s: State }) => (
+  <Section title="Пределы">
+    <Rows>
+      {FIELDS.map((f) => (
+        <Row hint={f.hint} key={f.key} label={f.label}>
+          <LiveLimit k={f.key} label={f.label} s={s} unit={f.unit} />
+        </Row>
+      ))}
+    </Rows>
+    <MemoryNote l={s.limits} />
+  </Section>
+);
+
 /** Правка на месте: «Изменить» → поля в строках → «Готово» / крестик. */
 const LimitsInline = ({ s }: { s: State }) => {
   const [draft, setDraft] = useState<Limits | null>(null);
@@ -518,7 +578,7 @@ export const Summary = () => {
             {s.enabled && <BoxList onKill={kill.ask} s={s} />}
           </Section>
         )}
-        <LimitsInline s={s} />
+        <LimitsLive s={s} />
         <Network s={s} />
         {kill.dialog}
       </SettingsPageFrame>
