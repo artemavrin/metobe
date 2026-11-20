@@ -19,7 +19,10 @@ import {
   runInBox,
   takeFromBox,
 } from "../sandbox";
+import { loadSkill, readSkillFile } from "../skills";
 import { getStorage, putObject } from "../storage";
+import type { Sources } from "./tool-sources";
+import { summaryOf, tableOf } from "./tool-table";
 
 // The model's code tools (D47). A box per chat: taken at the first call of an answer, all calls of the answer share
 // it, and after the answer it waits five minutes for the next one in the same chat. The chat's attachments are in
@@ -28,6 +31,11 @@ import { getStorage, putObject } from "../storage";
 export const RUN_CODE = "run_code";
 export const SHARE_FILE = "share_file";
 export const USE_FILE = "use_file";
+export const LOAD_DATA = "load_data";
+export const RUN_SKILL_FILES = "run_skill_files";
+
+/** A data file the widgets may take, at most: the table's and the chart's own limits cut it further. */
+const DATA_MAX_BYTES = 5 * 1024 * 1024;
 
 const INPUT_DIR = "/workspace/in";
 const FILES_DIR = "/workspace/files";
@@ -36,7 +44,8 @@ const HEARTBEAT_MS = 60_000;
 /** Told to the model with the tools. Kept in step with docker/sandbox/requirements.txt by a test. */
 export const SANDBOX_NOTE = `You can run Python 3.13 with ${RUN_CODE}: pandas, numpy, openpyxl, xlsxwriter, python-docx, python-pptx, matplotlib, reportlab, pypdf and the standard library. There is no network and nothing can be installed. Work in /workspace; the chat's attached files are in ${INPUT_DIR} (read-only copies). Use it to analyse data, compute, and make files (tables, documents, slides, charts, PDF).
 A file the user should get must be handed over with ${SHARE_FILE}: it then appears in the chat. Never write a /workspace path or a link to one in your answer — the user cannot open it. Hand over only the final files, not intermediate ones.
-The box may be the same as in your last answer in this chat (its files still there) or a new one: the first ${RUN_CODE} says which. A file you handed over earlier comes back with ${USE_FILE}. Each ${RUN_CODE} call is a new Python process: variables and imports do not carry over to the next call, files in /workspace do — load what you need again, or save it to a file. Each run has 60 seconds and about 1 GB of memory; print what you need to see, keep the output short.`;
+To show numbers you computed as a table or a chart, write them to a JSON file (a list of objects, one per row) and call ${LOAD_DATA} with its path; then call the table or chart tool with \`from\` set to the ref it answers — never retype computed numbers into the call, and do not draw a matplotlib picture for what the chart tool can show.
+The box may be the same as in your last answer in this chat (its files still there) or a new one: the first ${RUN_CODE} says which. A file you handed over earlier comes back with ${USE_FILE}. A skill with scripts runs here: ${RUN_SKILL_FILES} puts its folder in /workspace/skills/<name>, then run its scripts from there instead of reading them. Each ${RUN_CODE} call is a new Python process: variables and imports do not carry over to the next call, files in /workspace do — load what you need again, or save it to a file. Each run has 60 seconds and about 1 GB of memory; print what you need to see, keep the output short.`;
 
 type Output = Record<string, unknown>;
 
@@ -71,6 +80,51 @@ const refusal = (error: unknown): Output => {
   console.error("sandbox tool:", error);
   return { error: "The sandbox failed." };
 };
+
+/** Reads a JSON table the code wrote and gives it to the widgets by the call's ref; the model gets its summary. */
+const loadDataTool = (take: () => Promise<{ id: string }>, sources: Sources) =>
+  tool({
+    description:
+      "Loads a JSON file from the sandbox (a list of objects, one per row) as data for the table and chart tools; answers its ref and a summary.",
+    execute: async ({ path }, { toolCallId }): Promise<Output> => {
+      let bytes: Uint8Array;
+      try {
+        const current = await take();
+        bytes = await takeFromBox(current.id, path);
+      } catch (error) {
+        return refusal(error);
+      }
+      if (bytes.length > DATA_MAX_BYTES) {
+        return { error: "The file is larger than 5 MB: aggregate it first." };
+      }
+      let json: unknown;
+      try {
+        json = JSON.parse(new TextDecoder().decode(bytes));
+      } catch {
+        return { error: "The file is not JSON." };
+      }
+      const table = tableOf(json as Parameters<typeof tableOf>[0]);
+      if (!table) {
+        return {
+          error:
+            "The file is not a table: write a list of objects with the same keys, one per row.",
+        };
+      }
+      sources.note(toolCallId, json);
+      return {
+        columns: table.columns.map((c) => c.name),
+        ref: toolCallId,
+        rows: table.rows.length,
+        ...(summaryOf(table, toolCallId) ? {} : { data: table.rows }),
+      };
+    },
+    inputSchema: z.object({
+      path: z
+        .string()
+        .min(1)
+        .describe("The JSON file's path, e.g. /workspace/by_month.json."),
+    }),
+  });
 
 /** Why a run stopped short, for the model. */
 const noteOf = (result: { timedOut: boolean; outOfMemory: boolean }) => {
@@ -112,6 +166,8 @@ export const sandboxSession = (options: {
   class: SandboxClass;
   /** A task's run has no chat for files to join; its files go nowhere but the run's answer. */
   shareTo?: { chatId: string | null; taskId?: string };
+  /** The widgets' data (tool-sources): load_data puts a computed table there for show_table and show_chart. */
+  sources?: Sources;
 }) => {
   let box: { id: string; fresh: boolean; told: boolean } | null = null;
   let taking: Promise<{ id: string; fresh: boolean; told: boolean }> | null =
@@ -307,6 +363,62 @@ export const sandboxSession = (options: {
           .describe(
             "The file's path in the sandbox, e.g. /workspace/report.xlsx."
           ),
+      }),
+    }),
+
+    ...(options.sources
+      ? { [LOAD_DATA]: loadDataTool(take, options.sources) }
+      : {}),
+
+    [RUN_SKILL_FILES]: tool({
+      description:
+        "Puts a skill's whole folder (SKILL.md, scripts, templates, assets) into the sandbox at /workspace/skills/<name>, to run its scripts there.",
+      execute: async ({ name }): Promise<Output> => {
+        const skill = await loadSkill(options.userId, name);
+        if (!skill) {
+          return { error: `No skill named «${name}».` };
+        }
+        let current;
+        try {
+          current = await take();
+        } catch (error) {
+          return refusal(error);
+        }
+        const folder = `/workspace/skills/${skill.name}`;
+        try {
+          await putInBox(
+            current.id,
+            `${folder}/SKILL.md`,
+            new TextEncoder().encode(skill.instructions)
+          );
+          const read = await Promise.all(
+            skill.files.map(async (f) => ({
+              file: await readSkillFile(options.userId, skill.name, f.path),
+              path: f.path,
+            }))
+          );
+          await Promise.all(
+            read.flatMap(({ file, path }) => {
+              if (!file) {
+                return [];
+              }
+              const bytes =
+                file.kind === "text"
+                  ? new TextEncoder().encode(file.content)
+                  : file.bytes;
+              return [putInBox(current.id, `${folder}/${path}`, bytes)];
+            })
+          );
+        } catch (error) {
+          return refusal(error);
+        }
+        return {
+          files: skill.files.map((f) => f.path),
+          folder,
+        };
+      },
+      inputSchema: z.object({
+        name: z.string().min(1).describe("The skill's name."),
       }),
     }),
 

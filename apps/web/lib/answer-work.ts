@@ -17,6 +17,8 @@ export type CodePart = Extract<
   | { type: "tool-run_code" }
   | { type: "tool-use_file" }
   | { type: "tool-share_file" }
+  | { type: "tool-load_data" }
+  | { type: "tool-run_skill_files" }
 >;
 export type MadePart = Extract<Part, { type: "tool-share_file" }>;
 export type SkillPart = Extract<
@@ -109,7 +111,9 @@ const lastToolAt = (parts: Part[]) => {
       p.type === "tool-load_skill" ||
       p.type === "tool-read_skill_file" ||
       p.type === "tool-run_code" ||
-      p.type === "tool-use_file"
+      p.type === "tool-use_file" ||
+      p.type === "tool-load_data" ||
+      p.type === "tool-run_skill_files"
     ) {
       at = i;
     }
@@ -136,6 +140,8 @@ const singleStep = (part: Part): WorkStep | null => {
     }
     case "tool-run_code":
     case "tool-use_file":
+    case "tool-load_data":
+    case "tool-run_skill_files":
     case "tool-share_file": {
       return { key: part.toolCallId, kind: "code", part };
     }

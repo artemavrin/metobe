@@ -155,6 +155,18 @@ export type ChatTools = {
         }
       | { error: string };
   };
+  /** A JSON table the code wrote, loaded for the table and chart tools (their `from.ref`). */
+  load_data: {
+    input: { path: string };
+    output:
+      | { ref: string; columns: string[]; rows: number; data?: unknown[] }
+      | { error: string };
+  };
+  /** A skill's folder put into the box, to run its scripts. */
+  run_skill_files: {
+    input: { name: string };
+    output: { folder: string; files: string[] } | { error: string };
+  };
   /** A file handed over earlier, put back in the box. */
   use_file: {
     input: { id: string };

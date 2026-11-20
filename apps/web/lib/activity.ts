@@ -101,7 +101,9 @@ const partState = (
   if (
     (part.type === "tool-run_code" ||
       part.type === "tool-use_file" ||
-      part.type === "tool-share_file") &&
+      part.type === "tool-share_file" ||
+      part.type === "tool-load_data" ||
+      part.type === "tool-run_skill_files") &&
     codeFailed(part)
   ) {
     return "failed";

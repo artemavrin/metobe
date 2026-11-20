@@ -266,6 +266,12 @@
       "put": "Put a file back into the sandbox",
       "sharing": "Handing over a file",
       "notShared": "The file was not handed over",
+      "loading": "Loading data for a table",
+      "loaded": "Loaded data for a table",
+      "notLoaded": "The data was not loaded",
+      "skilling": "Putting a skill into the sandbox",
+      "skilled": "Put a skill into the sandbox",
+      "notSkilled": "The skill was not put in",
       "code": "Code",
       "output": "Output"
     },

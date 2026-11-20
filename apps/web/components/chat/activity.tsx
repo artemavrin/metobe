@@ -351,6 +351,18 @@ const codeTitle = (
     }
     return say.code(failed ? "refused" : "put");
   }
+  if (part.type === "tool-run_skill_files") {
+    if (running) {
+      return say.code("skilling");
+    }
+    return say.code(failed ? "notSkilled" : "skilled");
+  }
+  if (part.type === "tool-load_data") {
+    if (running) {
+      return say.code("loading");
+    }
+    return say.code(failed ? "notLoaded" : "loaded");
+  }
   if (part.type === "tool-share_file") {
     return say.code(running ? "sharing" : "notShared");
   }
@@ -377,6 +389,7 @@ const CodeBlocks = ({ part }: { part: CodePart }) => {
           "stderr" in part.output ? part.output.stderr : undefined,
           "note" in part.output ? part.output.note : undefined,
           "path" in part.output ? part.output.path : undefined,
+          "folder" in part.output ? part.output.folder : undefined,
         ]
           .filter(Boolean)
           .join("\n")

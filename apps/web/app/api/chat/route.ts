@@ -62,6 +62,7 @@ import {
   createSources,
   shareResults,
 } from "@metobe/core/chat-tools/tool-sources";
+import type { Sources } from "@metobe/core/chat-tools/tool-sources";
 import {
   WEB_FETCH,
   WEB_SEARCH,
@@ -398,6 +399,7 @@ const NO_BOX = {
 /** Code and files (D47): only with the sandbox up and somewhere to put the files it hands over. */
 const codeBox = async (options: {
   chatId: string;
+  sources: Sources;
   thread: ChatMessage[];
   tools: boolean;
   userId: string;
@@ -407,6 +409,7 @@ const codeBox = async (options: {
         chatId: options.chatId,
         class: "chat",
         fileIds: [...new Set(options.thread.flatMap(fileIdsOf))],
+        sources: options.sources,
         userId: options.userId,
       })
     : NO_BOX;
@@ -688,6 +691,7 @@ export const POST = async (request: Request) => {
       const memory = await chatMemoryOf(session.user.id, id, message, timeZone);
       const box = await codeBox({
         chatId: id,
+        sources,
         thread: uiMessages,
         tools: model.capabilities.tools !== false,
         userId: session.user.id,

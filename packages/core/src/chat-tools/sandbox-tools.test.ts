@@ -4,7 +4,27 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { SANDBOX_NOTE, madeFileIdsOf } = await import("./sandbox-tools");
+const box = vi.hoisted(() => ({ files: new Map<string, string>() }));
+
+vi.mock("../sandbox", () => ({
+  SandboxError: class extends Error {},
+  acquireBox: () => Promise.resolve({ boxId: "b1", fresh: true }),
+  heartbeatBox: () => Promise.resolve(),
+  listBox: () => Promise.resolve([]),
+  putInBox: () => Promise.resolve(),
+  releaseBox: () => Promise.resolve(),
+  runInBox: () => Promise.resolve({}),
+  takeFromBox: (_id: string, path: string) =>
+    Promise.resolve(new TextEncoder().encode(box.files.get(path) ?? "")),
+}));
+vi.mock("../files", () => ({
+  filesOf: () => Promise.resolve([]),
+  getFile: () => Promise.resolve(null),
+}));
+
+const { LOAD_DATA, SANDBOX_NOTE, madeFileIdsOf, sandboxSession } =
+  await import("./sandbox-tools");
+const { createSources } = await import("./tool-sources");
 
 // The prompt names what the image has (D3: the description of the box once parted from the image in PlusPortal).
 describe("sandbox note", () => {
@@ -36,5 +56,51 @@ describe("sandbox note", () => {
         ],
       })
     ).toEqual([id]);
+  });
+});
+
+const load = async (path: string) => {
+  const sources = createSources([]);
+  const session = sandboxSession({
+    chatId: "c1",
+    class: "chat",
+    fileIds: [],
+    sources,
+    userId: "u1",
+  });
+  const run = session.tools[LOAD_DATA]?.execute as unknown as (
+    input: { path: string },
+    options: { toolCallId: string; messages: [] }
+  ) => Promise<Record<string, unknown>>;
+  const output = await run({ path }, { messages: [], toolCallId: "call-1" });
+  await session.release(true);
+  return { output, sources };
+};
+
+describe("load_data", () => {
+  it("gives the widgets a table the code wrote, by the call's ref", async () => {
+    box.files.set(
+      "/workspace/m.json",
+      JSON.stringify([
+        { month: "2026-01", revenue: 150 },
+        { month: "2026-02", revenue: 70 },
+      ])
+    );
+    const { output, sources } = await load("/workspace/m.json");
+    expect(output).toMatchObject({
+      columns: ["month", "revenue"],
+      ref: "call-1",
+      rows: 2,
+    });
+    expect(sources.resolve("call-1").table.rows).toEqual([
+      ["2026-01", 150],
+      ["2026-02", 70],
+    ]);
+  });
+
+  it("says what is wrong with a file that is not a table", async () => {
+    box.files.set("/workspace/bad.json", "{oops");
+    const { output } = await load("/workspace/bad.json");
+    expect(output).toEqual({ error: "The file is not JSON." });
   });
 });
