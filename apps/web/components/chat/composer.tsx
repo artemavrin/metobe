@@ -1,6 +1,5 @@
 "use client";
 
-import { ACCEPT_ATTRIBUTE } from "@metobe/contracts/files";
 import type { MemoryCardItem } from "@metobe/contracts/memory";
 import type { ChatServer } from "@metobe/core/mcp";
 import { Button } from "@metobe/ui/components/button";
@@ -661,7 +660,6 @@ export const Composer = ({
         }}
       >
         <input
-          accept={ACCEPT_ATTRIBUTE}
           className="hidden"
           multiple
           onChange={(e) => {

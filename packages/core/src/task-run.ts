@@ -223,7 +223,13 @@ const toolsFor = async (
     ...skillTools,
     ...code?.tools,
     ...(hasFiles
-      ? { [READ_ATTACHMENT]: readAttachmentTool(task.ownerId, chatId) }
+      ? {
+          [READ_ATTACHMENT]: readAttachmentTool(
+            task.ownerId,
+            chatId,
+            code?.ocrPage
+          ),
+        }
       : {}),
     ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
     ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),

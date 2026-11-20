@@ -151,6 +151,17 @@ describe("forModel", () => {
     expect(JSON.stringify(m.parts)).toContain(`id ${sheet.id}`);
   });
 
+  it("points the model at the sandbox for a file of a type we do not read", async () => {
+    const deck = row({ kind: "other", name: "отчёт.pptx" });
+    const [m = message([])] = await forModel(
+      ME,
+      [message([filePart(deck)])],
+      SEES
+    );
+    expect(JSON.stringify(m.parts)).toContain("/workspace/in/отчёт.pptx");
+    expect(JSON.stringify(m.parts)).toContain(`id ${deck.id}`);
+  });
+
   it("gives a picture to a model whose sight is unknown", async () => {
     const r = row({ kind: "image", mediaType: "image/png", name: "скрин.png" });
     store.bytes.set(r.storageKey, new Uint8Array([1]));

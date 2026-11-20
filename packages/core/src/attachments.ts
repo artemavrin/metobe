@@ -113,6 +113,12 @@ const asModelPart = async (
       `[Attached file «${part.filename ?? "file"}» is no longer available.]`
     );
   }
+  // A file of a type we do not read (D47): only code in the sandbox opens it, where it lies under /workspace/in.
+  if (row.kind === "other") {
+    return note(
+      `[Attached file «${row.name}» (id ${row.id}): not readable as text — if you can run code, it is at /workspace/in/${row.name.replaceAll("/", "_")}.]`
+    );
+  }
   const seen =
     (row.kind === "image" && reader.vision !== false) ||
     (row.kind === "pdf" && reader.pdf);

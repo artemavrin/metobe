@@ -1,5 +1,9 @@
 import "server-only";
-import { FILE_MAX_BYTES, acceptedFile } from "@metobe/contracts/files";
+import {
+  FILE_MAX_BYTES,
+  acceptedFile,
+  madeFile,
+} from "@metobe/contracts/files";
 import type { UploadError, UploadedFile } from "@metobe/contracts/files";
 import { chats } from "@metobe/db/schema/chat";
 import { files } from "@metobe/db/schema/files";
@@ -17,6 +21,7 @@ import {
 } from "drizzle-orm";
 
 import { getDb } from "./db";
+import { sandboxConfigured } from "./sandbox";
 import {
   copyObject,
   deleteObject,
@@ -81,7 +86,10 @@ export const createFile = async (
   if (file.size > FILE_MAX_BYTES) {
     return { error: "too-big" };
   }
-  const accepted = acceptedFile(file.name);
+  // With the sandbox any file goes (D47): code opens what we do not read; without it, only the types we read.
+  const accepted =
+    acceptedFile(file.name) ??
+    (sandboxConfigured() ? madeFile(file.name) : null);
   if (!accepted) {
     return { error: "type" };
   }

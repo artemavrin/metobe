@@ -392,6 +392,7 @@ const settleFiles = async (
 /** No sandbox: no code tools, nothing to release. */
 const NO_BOX = {
   note: "",
+  ocrPage: undefined,
   release: (_keep: boolean) => Promise.resolve(),
   tools: {},
 };
@@ -724,7 +725,13 @@ export const POST = async (request: Request) => {
               ...box.tools,
               // The files of the thread, for a model that cannot see them itself.
               ...(hasFiles
-                ? { [READ_ATTACHMENT]: readAttachmentTool(session.user.id, id) }
+                ? {
+                    [READ_ATTACHMENT]: readAttachmentTool(
+                      session.user.id,
+                      id,
+                      box.ocrPage
+                    ),
+                  }
                 : {}),
               ...(web.fetch ? { [WEB_FETCH]: webFetchTool } : {}),
               ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),

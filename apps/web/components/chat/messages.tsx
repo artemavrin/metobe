@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage, ModelPayload } from "@metobe/contracts/chat";
-import { ACCEPT_ATTRIBUTE, fileUrl } from "@metobe/contracts/files";
+import { fileUrl } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
 import { splitSkills } from "@metobe/core/skill-mentions";
@@ -290,7 +290,6 @@ const EditMessage = ({
           <Plus className="size-[18px]" />
         </button>
         <input
-          accept={ACCEPT_ATTRIBUTE}
           className="hidden"
           multiple
           onChange={(e) => {

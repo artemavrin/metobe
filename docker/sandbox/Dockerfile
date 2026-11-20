@@ -2,9 +2,10 @@
 # Built by the release CI as ghcr.io/artemavrin/metobe-sandbox; the sandbox service runs it read-only under gVisor.
 FROM python:3.13-slim
 
-# Fonts with Cyrillic for charts, documents and PDF.
+# Fonts with Cyrillic for charts, documents and PDF; poppler and tesseract (Russian, English) to read scanned PDFs.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends fonts-dejavu-core fonts-liberation \
+    poppler-utils tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng \
   && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /tmp/requirements.txt

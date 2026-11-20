@@ -270,6 +270,23 @@ describe.runIf(socket)("pool on Docker", () => {
         );
         expect(made.stderr).not.toMatch(/Error/u);
         expect(made.stdout).toBe("22\n");
+        // A scanned page: a picture of text in a PDF, drawn by poppler and read by tesseract (read_attachment's OCR).
+        const scan = await pool.exec(
+          boxId,
+          [
+            "from PIL import Image, ImageDraw, ImageFont",
+            "import subprocess",
+            "img = Image.new('RGB', (1400, 400), 'white')",
+            "font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 64)",
+            "ImageDraw.Draw(img).text((40, 150), 'Счёт на оплату 4512', fill='black', font=font)",
+            "img.save('scan.pdf')",
+            "subprocess.run(['pdftoppm', '-f', '1', '-l', '1', '-r', '200', '-png', 'scan.pdf', '/tmp/p'], check=True)",
+            "r = subprocess.run(['tesseract', '/tmp/p-1.png', '-', '-l', 'rus+eng'], capture_output=True, text=True)",
+            "print(r.stdout)",
+          ].join("\n")
+        );
+        expect(scan.stdout).toContain("4512");
+        expect(scan.stdout.toLowerCase()).toContain("оплату");
         const listed = await pool.list(boxId);
         const names = listed.map((f) => f.path);
         expect(names).toEqual(

@@ -76,11 +76,6 @@ export const acceptedFile = (name: string) => {
   return dot > 0 ? (ACCEPTED[name.slice(dot + 1).toLowerCase()] ?? null) : null;
 };
 
-/** The `accept` attribute of the file input. */
-export const ACCEPT_ATTRIBUTE = Object.keys(ACCEPTED)
-  .map((e) => `.${e}`)
-  .join(",");
-
 /** What POST /api/files answers: the file as the composer keeps it until the message goes. */
 export const uploadedFileSchema = z.object({
   id: z.uuid(),

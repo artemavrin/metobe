@@ -126,6 +126,17 @@ const loadDataTool = (take: () => Promise<{ id: string }>, sources: Sources) =>
     }),
   });
 
+/** Draws one page of a PDF and reads its text: poppler's pdftoppm, then tesseract, both in the sandbox image. */
+const ocrScript = (path: string, page: number) =>
+  [
+    "import subprocess, tempfile, os",
+    "out = tempfile.mkdtemp()",
+    `subprocess.run(["pdftoppm", "-f", "${page}", "-l", "${page}", "-r", "200", "-png", ${JSON.stringify(path)}, os.path.join(out, "p")], check=True, timeout=40)`,
+    "png = sorted(os.listdir(out))[0]",
+    'r = subprocess.run(["tesseract", os.path.join(out, png), "-", "-l", "rus+eng"], capture_output=True, text=True, timeout=45)',
+    "print(r.stdout)",
+  ].join("\n");
+
 /** Why a run stopped short, for the model. */
 const noteOf = (result: { timedOut: boolean; outOfMemory: boolean }) => {
   if (result.timedOut) {
@@ -455,8 +466,27 @@ export const sandboxSession = (options: {
     }),
   };
 
+  /**
+   * The text of a scanned PDF's page, read in this answer's box: the page drawn by poppler, read by tesseract
+   * (Russian and English). Null when the box is not there or nothing was read.
+   */
+  const ocrPage = async (fileId: string, bytes: Uint8Array, page: number) => {
+    try {
+      const current = await take();
+      const path = `/workspace/.ocr/${fileId}.pdf`;
+      await putInBox(current.id, path, bytes);
+      const result = await runInBox(current.id, ocrScript(path, page), 90);
+      const text = result.exitCode === 0 ? result.stdout.trim() : "";
+      return text || null;
+    } catch (error) {
+      console.error("sandbox: could not read a scanned page", fileId, error);
+      return null;
+    }
+  };
+
   return {
     note: SANDBOX_NOTE,
+    ocrPage,
     /** The answer ended. Never throws. */
     release: async (keep: boolean) => {
       clearInterval(beat);
