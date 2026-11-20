@@ -381,38 +381,47 @@ const codeTitle = (
 /** The code and what it printed; a refusal in its words. */
 const CodeBlocks = ({ part }: { part: CodePart }) => {
   const t = useTranslations("chat.code");
-  const output =
-    part.state === "output-available"
-      ? [
-          "error" in part.output ? part.output.error : undefined,
-          "stdout" in part.output ? part.output.stdout : undefined,
-          "stderr" in part.output ? part.output.stderr : undefined,
-          "note" in part.output ? part.output.note : undefined,
-          "path" in part.output ? part.output.path : undefined,
-          "folder" in part.output ? part.output.folder : undefined,
-        ]
-          .filter(Boolean)
-          .join("\n")
-          .trim()
-      : "";
+  const out = part.state === "output-available" ? part.output : null;
+  const field = (key: string) => {
+    const value =
+      out && key in out ? (out as Record<string, unknown>)[key] : undefined;
+    return typeof value === "string" && value.trim() ? value.trim() : "";
+  };
+  // What the run printed; where a file went; a traceback and a refusal stand apart, in the error's color.
+  const printed = [field("stdout"), field("path"), field("folder")]
+    .filter(Boolean)
+    .join("\n");
+  const failed = [field("stderr"), field("error")].filter(Boolean).join("\n");
+  const limit = out && "limit" in out ? out.limit : undefined;
+  const said = [
+    limit ? t(`limit.${limit}`) : "",
+    field("truncated") ? t("truncated") : "",
+  ].filter(Boolean);
   return (
     <div className="text-muted-foreground flex flex-col gap-2 text-xs">
       {part.type === "tool-run_code" && part.input?.code && (
         <div className="flex flex-col gap-1">
           <span className="font-medium">{t("code")}</span>
           <pre className="bg-muted overflow-auto rounded-md p-2 font-mono whitespace-pre-wrap">
-            {part.input.code}
+            {part.input.code.trim()}
           </pre>
         </div>
       )}
-      {output && (
+      {(printed || failed) && (
         <div className="flex flex-col gap-1">
           <span className="font-medium">{t("output")}</span>
           <pre className="bg-muted overflow-auto rounded-md p-2 font-mono whitespace-pre-wrap">
-            {output}
+            {printed}
+            {printed && failed ? "\n" : ""}
+            {failed && <span className="text-destructive">{failed}</span>}
           </pre>
         </div>
       )}
+      {said.map((line) => (
+        <span className="text-amber-600 dark:text-amber-400" key={line}>
+          {line}
+        </span>
+      ))}
     </div>
   );
 };

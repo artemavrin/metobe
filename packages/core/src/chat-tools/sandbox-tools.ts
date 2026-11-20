@@ -140,10 +140,10 @@ const ocrScript = (path: string, page: number) =>
 /** Why a run stopped short, for the model. */
 const noteOf = (result: { timedOut: boolean; outOfMemory: boolean }) => {
   if (result.timedOut) {
-    return { note: "Stopped at the 60-second limit." };
+    return { limit: "time", note: "Stopped at the 60-second limit." };
   }
   if (result.outOfMemory) {
-    return { note: "Ran out of memory (about 1 GB)." };
+    return { limit: "memory", note: "Ran out of memory (about 1 GB)." };
   }
   return {};
 };

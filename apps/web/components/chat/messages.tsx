@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage, ModelPayload } from "@metobe/contracts/chat";
-import { fileUrl } from "@metobe/contracts/files";
+import { fileIdOf } from "@metobe/contracts/files";
 import type { ModelLabel } from "@metobe/core/chat";
 import type { ChatServer } from "@metobe/core/mcp";
 import { splitSkills } from "@metobe/core/skill-mentions";
@@ -77,6 +77,12 @@ import {
 } from "@/components/chat/attachments";
 import { CardPeek } from "@/components/chat/card-peek";
 import { ConnectRequest } from "@/components/chat/connect-request";
+import {
+  FileViewer,
+  MadeFileCard,
+  viewable,
+} from "@/components/chat/file-viewer";
+import type { ViewedFile } from "@/components/chat/file-viewer";
 import {
   LensMark,
   ModelPayloadsContext,
@@ -410,31 +416,18 @@ const Mentioned = ({
     });
   });
 
-/**
- * A file the sandbox handed over (D47): a chip like an attachment's — it opens in a new tab (a picture, a PDF) or
- * downloads. The card's own look is prototype P33.
- */
+/** A file the sandbox handed over (D47): its card in the answer; it opens in the file window (P33, P34). */
 const MadeFile = ({ part }: { part: MadePart }) => {
+  const [open, setOpen] = useState(false);
   if (part.state !== "output-available" || !("id" in part.output)) {
     return null;
   }
-  const { id, kind, name, size } = part.output;
-  const url = fileUrl(id);
+  const file = part.output;
   return (
-    <Shelf scroll={false}>
-      <FileChip
-        file={{
-          key: id,
-          kind,
-          name,
-          preview: kind === "image" ? url : undefined,
-          progress: 1,
-          size,
-          status: "done",
-        }}
-        onOpen={() => window.open(url, "_blank", "noopener")}
-      />
-    </Shelf>
+    <>
+      <MadeFileCard file={file} onOpen={() => setOpen(true)} />
+      <FileViewer file={open ? file : null} onClose={() => setOpen(false)} />
+    </>
   );
 };
 
@@ -448,6 +441,7 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
   const [viewing, setViewing] = useState<{ url: string; name: string } | null>(
     null
   );
+  const [shown, setShown] = useState<ViewedFile | null>(null);
   const list = message.parts.filter((p) => p.type === "file");
   if (list.length === 0) {
     return null;
@@ -469,11 +463,24 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
                 status: "done",
               }}
               key={p.url}
-              onOpen={() =>
-                image
-                  ? setViewing({ name, url: p.url })
-                  : window.open(p.url, "_blank", "noopener")
-              }
+              onOpen={() => {
+                const id = fileIdOf(p.url);
+                const file: ViewedFile | null = id
+                  ? {
+                      id,
+                      kind: kindOfMedia(p.mediaType),
+                      mediaType: p.mediaType,
+                      name,
+                    }
+                  : null;
+                if (image) {
+                  setViewing({ name, url: p.url });
+                } else if (file && viewable(file)) {
+                  setShown(file);
+                } else {
+                  window.open(p.url, "_blank", "noopener");
+                }
+              }}
             />
           );
         })}
@@ -494,6 +501,7 @@ const SentFiles = ({ message }: { message: ChatMessage }) => {
           )}
         </DialogContent>
       </Dialog>
+      <FileViewer file={shown} onClose={() => setShown(null)} />
     </>
   );
 };

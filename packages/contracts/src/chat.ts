@@ -188,6 +188,8 @@ export interface RunCodeOutput {
   stdout?: string;
   stderr?: string;
   note?: string;
+  /** Which limit stopped the run: the person is told it in their language. */
+  limit?: "time" | "memory";
   truncated?: string;
   error?: string;
 }

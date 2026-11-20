@@ -99,3 +99,20 @@ export const uploadErrors = [
   "failed",
 ] as const;
 export type UploadError = (typeof uploadErrors)[number];
+
+/** What GET /api/files/[id]/preview answers: a file drawn in the viewer (D47). A PDF and a picture open as they are. */
+export type FilePreview =
+  | {
+      type: "sheet";
+      sheets: { name: string; rows: string[][] }[];
+      /** Rows or columns were cut to fit the viewer. */
+      cut: boolean;
+    }
+  | { type: "html"; html: string }
+  | { type: "text"; text: string; markdown: boolean; cut: boolean }
+  | { type: "none" };
+
+/** What the viewer shows at most. */
+export const PREVIEW_MAX_ROWS = 1000;
+export const PREVIEW_MAX_COLUMNS = 50;
+export const PREVIEW_MAX_TEXT = 200_000;
