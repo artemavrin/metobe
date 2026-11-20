@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/artemavrin/metobe/compare/v0.10.2...v0.11.0) (2026-11-20)
+
+
+### Features
+
+* **sandbox:** the model runs code and makes files, a file opens beside the chat ([#128](https://github.com/artemavrin/metobe/issues/128)) ([544715c](https://github.com/artemavrin/metobe/commit/544715cfdad80ed4b800350e46dea37583208409))
+
 ## [0.10.2](https://github.com/artemavrin/metobe/compare/v0.10.1...v0.10.2) (2026-11-18)
 
 
