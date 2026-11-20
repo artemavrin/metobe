@@ -36,7 +36,7 @@ const HEARTBEAT_MS = 60_000;
 /** Told to the model with the tools. Kept in step with docker/sandbox/requirements.txt by a test. */
 export const SANDBOX_NOTE = `You can run Python 3.13 with ${RUN_CODE}: pandas, numpy, openpyxl, xlsxwriter, python-docx, python-pptx, matplotlib, reportlab, pypdf and the standard library. There is no network and nothing can be installed. Work in /workspace; the chat's attached files are in ${INPUT_DIR} (read-only copies). Use it to analyse data, compute, and make files (tables, documents, slides, charts, PDF).
 A file the user should get must be handed over with ${SHARE_FILE}: it then appears in the chat. Never write a /workspace path or a link to one in your answer — the user cannot open it. Hand over only the final files, not intermediate ones.
-The box may be the same as in your last answer in this chat (its files still there) or a new one: the first ${RUN_CODE} says which. A file you handed over earlier comes back with ${USE_FILE}. Each run has 60 seconds and about 1 GB of memory; print what you need to see, keep the output short.`;
+The box may be the same as in your last answer in this chat (its files still there) or a new one: the first ${RUN_CODE} says which. A file you handed over earlier comes back with ${USE_FILE}. Each ${RUN_CODE} call is a new Python process: variables and imports do not carry over to the next call, files in /workspace do — load what you need again, or save it to a file. Each run has 60 seconds and about 1 GB of memory; print what you need to see, keep the output short.`;
 
 type Output = Record<string, unknown>;
 
