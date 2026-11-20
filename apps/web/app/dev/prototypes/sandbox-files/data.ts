@@ -38,6 +38,17 @@ export const FILES: ViewedFile[] = [
   },
 ];
 
+/** A picture the model drew (round 2): shown as itself in the answer. Drawn by the sandbox image with matplotlib. */
+export const PICTURE: ViewedFile = {
+  id: "00000000-0000-4000-8000-000000000005",
+  kind: "image",
+  mediaType: "image/png",
+  name: "выручка-график.png",
+  size: 31_440,
+};
+
+export const PICTURE_URL = "/dev/sandbox-files/revenue.png";
+
 const months = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь"];
 
 const PREVIEWS: Record<string, FilePreview> = {

@@ -48,7 +48,7 @@ export interface ViewedFile {
   size?: number;
 }
 
-const extOf = (name: string) => {
+export const extOf = (name: string) => {
   const dot = name.lastIndexOf(".");
   return dot > 0 ? name.slice(dot + 1).toUpperCase() : "";
 };
@@ -63,7 +63,7 @@ const ICONS: Record<FileKind, typeof File> = {
 };
 
 /** The file's glyph: slides by their name, the rest by their kind. */
-const FileGlyph = ({ file }: { file: ViewedFile }) => {
+export const FileGlyph = ({ file }: { file: ViewedFile }) => {
   if (file.name.toLowerCase().endsWith(".pptx")) {
     return <Presentation />;
   }
