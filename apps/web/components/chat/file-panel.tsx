@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { usePathname } from "next/navigation";
 import {
   createContext,
   use,
@@ -184,9 +185,9 @@ const Resizer = ({
       aria-valuemin={MIN}
       aria-valuenow={width}
       // Laid over the panel's own left edge, as the sidebar's handle over its right one: the panel's border is 4 px in (pl-1),
-      // the handle 1 px before it, with the same radius, so the border it shows follows the corners instead of standing
+      // the handle 1 px before it, with the same radius (8 px, the handle's own width, as the sidebar's), so the border it shows follows the corners instead of standing
       // apart as a second line. The `after:` strip carries the hit area on into the gutter.
-      className="hover:border-foreground/20 focus-visible:border-ring active:border-foreground/35 absolute top-2 bottom-2 left-[3px] z-20 w-2 cursor-col-resize touch-none rounded-l-xl border-l-2 border-transparent transition-colors duration-150 outline-none after:absolute after:inset-y-0 after:right-full after:w-2.5 max-md:hidden"
+      className="hover:border-foreground/20 focus-visible:border-ring active:border-foreground/35 absolute top-2 bottom-2 left-[3px] z-20 w-2 cursor-col-resize touch-none rounded-l-lg border-l-2 border-transparent transition-colors duration-150 outline-none after:absolute after:inset-y-0 after:right-full after:w-2.5 max-md:hidden"
       onDoubleClick={() => {
         apply(DEFAULT);
         onCommit(null);
@@ -326,6 +327,15 @@ export const FilePanelHost = ({ children }: { children: React.ReactNode }) => {
     return () => setFiles((list) => list.filter((f) => f.id !== added.id));
   }, []);
 
+  // The panel stands in the shell, across pages: another chat closes it.
+  const pathname = usePathname();
+  const [shownOn, setShownOn] = useState(pathname);
+  if (shownOn !== pathname) {
+    setShownOn(pathname);
+    setFile(null);
+    setWide(null);
+  }
+
   const open = useCallback((next: ViewedFile) => {
     setFile(next);
     setCollapsed(false);
@@ -356,7 +366,7 @@ export const FilePanelHost = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <FilePanelContext value={value}>
-      <div className="relative flex min-h-0 min-w-0 flex-1">
+      <div className="relative flex h-dvh min-h-0 min-w-0 flex-1">
         {children}
         {file && !collapsed && (
           <div
@@ -374,7 +384,7 @@ export const FilePanelHost = ({ children }: { children: React.ReactNode }) => {
             />
             <aside
               aria-label={t("panel")}
-              className="bg-background animate-in fade-in slide-in-from-right-4 flex h-full flex-col overflow-hidden rounded-xl border duration-200 motion-reduce:animate-none max-md:rounded-none max-md:border-0"
+              className="bg-background animate-in fade-in slide-in-from-right-4 flex h-full flex-col overflow-hidden rounded-lg border duration-200 motion-reduce:animate-none max-md:rounded-none max-md:border-0"
             >
               <Head
                 file={file}
@@ -393,7 +403,7 @@ export const FilePanelHost = ({ children }: { children: React.ReactNode }) => {
         {file && collapsed && (
           <button
             aria-label={t("show", { name: file.name })}
-            className="bg-background group hover:bg-muted absolute top-2 right-3 z-20 flex h-11 w-11 items-center overflow-hidden rounded-3xl border shadow-sm transition-[width,background-color] duration-300 hover:w-56 focus-visible:w-56 motion-reduce:transition-none"
+            className="bg-background group hover:bg-muted absolute top-14 right-3 z-20 flex h-11 w-11 items-center overflow-hidden rounded-3xl border shadow-sm transition-[width,background-color] duration-300 hover:w-56 focus-visible:w-56 motion-reduce:transition-none"
             onClick={() => setCollapsed(false)}
             type="button"
           >

@@ -59,6 +59,7 @@ import {
   CompactBridgeProvider,
   useCompactBridgeValue,
 } from "@/components/chat/compact-bridge";
+import { FilePanelHost } from "@/components/chat/file-panel";
 import { ShareDialog } from "@/components/chat/share-dialog";
 import { SidebarResizer } from "@/components/chat/sidebar-resizer";
 import { SidebarSearch } from "@/components/chat/sidebar-search";
@@ -516,24 +517,29 @@ export const ChatShell = ({
                 <SidebarResizer onCommit={setBarWidth} width={barWidth} />
               </Sidebar>
               {/* One screen tall: the thread scrolls inside, the composer stays at the bottom */}
-              <SidebarInset className="h-dvh min-h-0 overflow-hidden">
-                <header className="flex h-12 shrink-0 items-center gap-2 px-3">
-                  <SidebarTrigger aria-label={t("openSidebar")} />
-                  {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share.
+              {/* The file panel (P33/P34) stands beside the inset, the full height, as the sidebar does on the left. */}
+              <FilePanelHost>
+                <SidebarInset className="h-dvh min-h-0 min-w-0 overflow-hidden">
+                  <header className="flex h-12 shrink-0 items-center gap-2 px-3">
+                    <SidebarTrigger aria-label={t("openSidebar")} />
+                    {/* Only on the user's own chat: a chat shared with them is theirs to read, not to rename or share.
                     Any other page fills the bar itself, through <TopBar>. */}
-                  {current ? (
-                    <ChatHeader chat={current} key={current.id} ops={ops} />
-                  ) : (
-                    <div
-                      className="flex min-w-0 flex-1 items-center gap-2"
-                      ref={setTopBar}
-                    />
-                  )}
-                </header>
-                <TopBarSlot value={current ? null : topBar}>
-                  <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-                </TopBarSlot>
-              </SidebarInset>
+                    {current ? (
+                      <ChatHeader chat={current} key={current.id} ops={ops} />
+                    ) : (
+                      <div
+                        className="flex min-w-0 flex-1 items-center gap-2"
+                        ref={setTopBar}
+                      />
+                    )}
+                  </header>
+                  <TopBarSlot value={current ? null : topBar}>
+                    <div className="flex min-h-0 flex-1 flex-col">
+                      {children}
+                    </div>
+                  </TopBarSlot>
+                </SidebarInset>
+              </FilePanelHost>
               {notes && whatsNewOpen && (
                 <WhatsNewDialog
                   admin={admin}
