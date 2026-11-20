@@ -26,7 +26,7 @@ const config: PoolConfig = {
   agingSeconds: 60,
   fileBytes: num("SANDBOX_FILE_MB", 25) * 1024 * 1024,
   idleSeconds: num("SANDBOX_IDLE_SECONDS", 300),
-  image: env("SANDBOX_IMAGE", "ghcr.io/artemavrin/metobe-sandbox:latest"),
+  image: env("SANDBOX_IMAGE", "ghcr.io/artemavrin/metobe-sandbox:1"),
   leaseSeconds: 180,
   // Not less: the address-space cap of a run is 3/4 of it, and the image's libraries reserve ~535 MB (pool.ts).
   memoryMb: Math.max(num("SANDBOX_MEMORY_MB", 1024), 1024),

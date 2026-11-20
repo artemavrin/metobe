@@ -93,7 +93,8 @@ services:
     restart: unless-stopped
     environment:
       SANDBOX_TOKEN: ${SANDBOX_TOKEN:-}
-      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-ghcr.io/artemavrin/metobe-sandbox:latest}
+      # Pinned (docker/sandbox/VERSION): a server takes a new box image only under a new number.
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-ghcr.io/artemavrin/metobe-sandbox:1}
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runsc}
       SANDBOX_TOTAL: ${SANDBOX_TOTAL:-4}
       SANDBOX_IDLE_SECONDS: ${SANDBOX_IDLE_SECONDS:-300}

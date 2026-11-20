@@ -854,6 +854,10 @@
         "label": "Search",
         "hint": "Web search for models and agents"
       },
+      "sandbox": {
+        "label": "Sandbox",
+        "hint": "The model's code and the files it makes"
+      },
       "privacy": {
         "label": "Data protection",
         "hint": "What is hidden from external models"
@@ -2077,6 +2081,51 @@
       "kb": "KB",
       "mb": "MB",
       "gb": "GB"
+    }
+  },
+  "sandbox": {
+    "title": "Sandbox",
+    "description": "The model runs Python code here: it works with data from files and makes tables, documents, slides and charts.",
+    "off": {
+      "title": "The sandbox is not installed",
+      "text": "Models in chat work without code. To turn it on, run the installer again: it needs Docker with gVisor (runsc)."
+    },
+    "state": {
+      "title": "State",
+      "label": "Running",
+      "ready": "Ready",
+      "down": "Not answering",
+      "problems": {
+        "docker": "No connection to Docker",
+        "runtime": "Docker has no gVisor (runsc)",
+        "image": "Pulling the sandbox image"
+      }
+    },
+    "runtime": {
+      "label": "Isolation",
+      "gvisor": "gVisor",
+      "runc": "Without gVisor, for development only",
+      "runcHint": "The model's code runs in a plain container. Not for a server."
+    },
+    "image": "Image",
+    "limits": {
+      "title": "Limits",
+      "total": "Sandboxes at once",
+      "perUser": "Per person",
+      "idle": "Waits for the next answer",
+      "idleValue": "{minutes, plural, one {# minute} other {# minutes}}",
+      "memory": "Sandbox memory",
+      "memoryValue": "{mb} MB",
+      "note": "Limits are set in .env: SANDBOX_TOTAL, SANDBOX_PER_USER, SANDBOX_IDLE_SECONDS, SANDBOX_MEMORY_MB."
+    },
+    "boxes": {
+      "title": "Now",
+      "empty": "No sandboxes",
+      "busy": "Running code",
+      "idle": "Waits until {time}",
+      "task": "Task",
+      "waiting": "{count, plural, one {# waits for room} other {# wait for room}}",
+      "unknown": "Unknown user"
     }
   },
   "profile": {
