@@ -11,7 +11,7 @@ DOCKER_SOCKET=$HOME/.colima/s11/docker.sock RUNTIME=runsc node spike.mjs       #
 ULIMIT_KB=400000 …                                                             # потолок памяти на процесс
 ```
 
-gVisor в Colima: `colima start s11 --runtime docker --vm-type vz`, затем в VM `runsc` из apt-репозитория gVisor и `runsc install` (прямые ссылки `releases/release/latest/<arch>/runsc` отдают 404). **`colima start` делает свой контекст текущим** — сразу вернуть `docker context use desktop-linux`, иначе дев пойдёт не в тот Docker.
+gVisor в Colima: `colima start s11 --runtime docker --vm-type vz`, затем в VM `runsc` из apt-репозитория gVisor и `runsc install` (прямые ссылки `releases/release/latest/<arch>/runsc` отдают 404). **`colima start` делает свой контекст текущим** — сразу вернуть `docker context use desktop-linux`, иначе дев пойдёт не в тот Docker. **Перезапуск Colima переписывает `daemon.json`** — runsc пропадает из runtimes: снова `colima ssh -p s11 -- sudo runsc install && sudo systemctl restart docker`.
 
 Контейнер: `--read-only`, `--cap-drop ALL`, `no-new-privileges`, `--network none`, `--user 1000:1000`, память 512 МБ без swap, 1 ядро, 128 процессов, tmpfs `/workspace` 256 МБ и `/tmp` 64 МБ, `--init`, `sleep infinity`; код — `exec`.
 
