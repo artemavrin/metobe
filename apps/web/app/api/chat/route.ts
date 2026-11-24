@@ -764,8 +764,10 @@ export const POST = async (request: Request) => {
                 tools: model.capabilities.tools !== false,
                 vision: model.capabilities.vision,
               }),
-              // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources).
-              { tools }
+              // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources). A call
+              // that never got its result (the answer was cut off while the tool ran) is left out: with it in the
+              // history every later question of the chat fails with «Tool result is missing».
+              { ignoreIncompleteToolCalls: true, tools }
             ),
             { keep: [FIND_TOOLS, ASK_USER] }
           ),
