@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.3](https://github.com/artemavrin/metobe/compare/v0.11.2...v0.11.3) (2026-11-24)
+
+
+### Bug Fixes
+
+* a tool call that never got its result no longer breaks every later question of the chat ([bbcd173](https://github.com/artemavrin/metobe/commit/bbcd173ff318e69a786aaf547ff8028735a94afe))
+
 ## [0.11.2](https://github.com/artemavrin/metobe/compare/v0.11.1...v0.11.2) (2026-11-24)
 
 
