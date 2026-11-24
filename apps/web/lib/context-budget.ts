@@ -91,8 +91,57 @@ const withText = (result: ToolResult, value: string): ToolResult => ({
 const cutNote = (shown: number, all: number) =>
   `\n\n[Truncated: the first ${shown} of ${all} characters. Narrow the request — a filter, a shorter period, fewer fields, a page at a time — to get the rest.]`;
 
-const clearedNote = (name: string, tokens: number) =>
-  `[The result of ${name} (about ${tokens} tokens) was removed from this conversation to keep the context small. Call ${name} again if the data is needed.]`;
+/** The longest a removed result's call arguments are quoted in its note. */
+const NOTE_ARGS_CHARS = 200;
+
+/** A removed result: which call it was, how big, and how to get it again. */
+interface Cleared {
+  name: string;
+  chars: number;
+  /** The arguments of its call, when the history has it. */
+  input?: unknown;
+  /** A table result's ref: the widgets take its data from the server, so they still draw it. */
+  ref?: string;
+}
+
+const argsOf = (input: unknown) => {
+  const text = JSON.stringify(input ?? {}) ?? "";
+  return text.length > NOTE_ARGS_CHARS
+    ? `${text.slice(0, NOTE_ARGS_CHARS)}…`
+    : text;
+};
+
+const clearedNote = ({ name, chars, input, ref }: Cleared) =>
+  `[The result of ${name}(${argsOf(input)}), ${chars} characters, was removed from this conversation to keep the context small. Call ${name} again if the data is needed.${ref ? ` Its full data is kept on the server: show_table or show_chart with from.ref "${ref}" still draw it.` : ""}]`;
+
+/** The arguments of every call in the history, by its id: a removed result's note quotes them. */
+const inputsOf = (messages: ModelMessage[]) => {
+  const inputs = new Map<string, unknown>();
+  for (const message of messages) {
+    if (Array.isArray(message.content)) {
+      for (const part of message.content) {
+        if (part.type === "tool-call") {
+          inputs.set(part.toolCallId, part.input);
+        }
+      }
+    }
+  }
+  return inputs;
+};
+
+/** What the note says of a result: a table told by its summary names its ref (lib/tool-sources). */
+const clearedOf = (
+  result: ToolResult,
+  text: string,
+  inputs: Map<string, unknown>
+): Cleared => ({
+  chars: text.length,
+  input: inputs.get(result.toolCallId),
+  name: result.toolName,
+  ...(text.includes(`ref ${result.toolCallId}`)
+    ? { ref: result.toolCallId }
+    : {}),
+});
 
 /** Every part of every message, mapped; the same array back when nothing changed. */
 const mapParts = (
@@ -160,10 +209,13 @@ export const estimateTokens = (messages: ModelMessage[]) => {
   return tokensOf(chars);
 };
 
-const isReasoning = (part: unknown) =>
-  typeof part === "object" &&
-  part !== null &&
-  (part as { type?: string }).type === "reasoning";
+const isReasoning = (part: unknown) => {
+  const type =
+    typeof part === "object" && part !== null
+      ? (part as { type?: string }).type
+      : undefined;
+  return type === "reasoning" || type === "reasoning-file";
+};
 
 /**
  * The reasoning of answers to earlier questions is not sent again (an OpenAI-compatible provider puts it in every past
@@ -199,6 +251,10 @@ const PAST_MIN_TOKENS = 200;
  * data of a question long answered (a chat of 0.6.0 sent 170k tokens a step, almost all of it old 1С results). The
  * model is told a result was there and how to get it again. The question asked now keeps its own results whole.
  *
+ * Only the question asked now keeps its results (K = 1), not the last two: a follow-up that needs an earlier result
+ * calls the tool again once, where keeping it would send it again with every step of the next answer; and a table
+ * result's note keeps its ref, so the widgets still draw it from the server without the model seeing its rows.
+ *
  * Kept whatever they weigh: `keep` — the tools found by the tool search (a lent tool comes from its result) and the
  * user's own answers — and anything too small to matter. Pure, and fixed per question: every step of an answer gets
  * the same history before it, and a cleared answer stays cleared, so the cached prefix holds — it breaks once per
@@ -218,6 +274,7 @@ export const clearPastTurns = (
   if (asked <= 0) {
     return messages;
   }
+  const inputs = inputsOf(messages);
   const cleared = mapParts(messages, (part, at) => {
     if (
       at.message >= asked ||
@@ -230,10 +287,9 @@ export const clearPastTurns = (
     if (text === null) {
       return part;
     }
-    const tokens = tokensOf(text.length);
-    return tokens < PAST_MIN_TOKENS
+    return tokensOf(text.length) < PAST_MIN_TOKENS
       ? part
-      : withText(part, clearedNote(part.toolName, tokens));
+      : withText(part, clearedNote(clearedOf(part, text, inputs)));
   });
   return withoutPastReasoning(cleared, asked);
 };
@@ -253,9 +309,10 @@ export const budgetMessages = (
     return capped;
   }
   // The results, newest first.
+  const inputs = inputsOf(capped);
   const results: {
     at: { message: number; part: number };
-    name: string;
+    note: Cleared;
     tokens: number;
   }[] = [];
   mapParts(capped, (part, at) => {
@@ -264,7 +321,7 @@ export const budgetMessages = (
       if (text !== null) {
         results.unshift({
           at,
-          name: part.toolName,
+          note: clearedOf(part, text, inputs),
           tokens: tokensOf(text.length),
         });
       }
@@ -272,7 +329,7 @@ export const budgetMessages = (
     return part;
   });
   const keepBudget = Math.floor(trigger * KEEP_SHARE);
-  const cleared = new Map<string, { name: string; tokens: number }>();
+  const cleared = new Map<string, { note: Cleared; tokens: number }>();
   let kept = 0;
   let cut = false;
   for (const [i, r] of results.entries()) {
@@ -285,7 +342,7 @@ export const budgetMessages = (
       // From here back in time everything goes: a contiguous cut, oldest first — as the API does.
       cut = true;
       if (r.tokens >= MIN_CLEARABLE_TOKENS) {
-        cleared.set(key, { name: r.name, tokens: r.tokens });
+        cleared.set(key, { note: r.note, tokens: r.tokens });
       }
     }
   }
@@ -299,9 +356,7 @@ export const budgetMessages = (
   }
   return mapParts(capped, (part, at) => {
     const hit = cleared.get(`${at.message}:${at.part}`);
-    return hit && isResult(part)
-      ? withText(part, clearedNote(hit.name, hit.tokens))
-      : part;
+    return hit && isResult(part) ? withText(part, clearedNote(hit.note)) : part;
   });
 };
 
