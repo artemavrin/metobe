@@ -61,7 +61,7 @@ export type CompactionData = {
  * Data the stream sends besides the answer; `title` — a new chat's name from the titles model, `naming` — that the
  * request for it has begun, so the sidebar shows the chat being named, `clock` — the server's time now, so the page can
  * count a running step from the server's clock (none of them is stored); `compaction` — a stored compaction message's
- * own part (above).
+ * own part (above); `compacting` — the chat is compacting itself before the answer (true), or has stopped (false).
  */
 // A type alias, not an interface: AI SDK wants a Record, and an interface is not assignable to one.
 // oxlint-disable-next-line typescript/consistent-type-definitions -- see above
@@ -70,6 +70,7 @@ export type ChatDataParts = {
   naming: boolean;
   clock: number;
   compaction: CompactionData;
+  compacting: boolean;
 };
 
 /**

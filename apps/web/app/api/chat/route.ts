@@ -497,12 +497,18 @@ const compactFirst = async ({
   }
   const compacted = await compactBeforeAnswer({
     compact: async (before) => {
-      const done = await compactChat({
-        ...run,
-        at: askedAt - 1,
-        history: before,
-      });
-      return done.ok ? done.message : null;
+      // The service model may take tens of seconds: the thread says so at once, not a bare wait for the answer.
+      writer.write({ data: true, transient: true, type: "data-compacting" });
+      try {
+        const done = await compactChat({
+          ...run,
+          at: askedAt - 1,
+          history: before,
+        });
+        return done.ok ? done.message : null;
+      } finally {
+        writer.write({ data: false, transient: true, type: "data-compacting" });
+      }
     },
     thread,
     tokens: estimateTokens(history),

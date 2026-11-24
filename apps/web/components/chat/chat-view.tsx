@@ -412,6 +412,24 @@ const Cover = ({
  */
 const NO_SKILLS: ChatSkill[] = [];
 
+/** The card of a compaction the chat started itself: nothing to press, only the work going on. */
+const noop = () => {
+  // nothing
+};
+
+const AutoCompactSlot = ({
+  busy,
+  compacting,
+}: {
+  busy: boolean;
+  compacting: boolean;
+}) =>
+  busy && compacting ? (
+    <MessageScrollerItem messageId="auto-compact">
+      <CompactOffer onCompact={noop} onLater={noop} writing />
+    </MessageScrollerItem>
+  ) : null;
+
 /** The offer to compact (or the service model at work) at the thread's end, when there is one. */
 const CompactSlot = ({
   compaction,
@@ -612,6 +630,8 @@ export const ChatView = ({
     []
   );
   // A compaction the server made before the answer joins the thread from the stream (set once useChat is there).
+  // The chat compacting itself before this answer (D37): the service model at work, shown as when asked for.
+  const [autoCompacting, setAutoCompacting] = useState(false);
   const joinCompaction = useRef<((compaction: ChatMessage) => void) | null>(
     null
   );
@@ -641,7 +661,10 @@ export const ChatView = ({
         titled.current = part.data;
         naming.current = false;
         touch({ id, naming: false, title: part.data });
+      } else if (part.type === "data-compacting") {
+        setAutoCompacting(part.data);
       } else if (part.type === "data-compaction" && part.id) {
+        setAutoCompacting(false);
         // The chat compacted itself before this answer (D37): the summary stands before the question, as stored.
         const compaction: ChatMessage = {
           id: part.id,
@@ -1022,6 +1045,10 @@ export const ChatView = ({
                             ))}
                             {/* «Сжать чат» (D37): offered under a heavy answer, or asked for from the menu */}
                             <CompactSlot compaction={compaction} />
+                            <AutoCompactSlot
+                              busy={busy}
+                              compacting={autoCompacting}
+                            />
                             {error &&
                               !busy &&
                               chatProblem(error) !== "updating" && (
