@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "ai": "7.0.173",
+    "ai": "7.0.181",
     "zod": "^4.6.5"
   },
   "devDependencies": {
