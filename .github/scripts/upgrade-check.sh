@@ -63,3 +63,12 @@ echo "migrations: $before on $FROM → $applied (expected $expected); row: $row;
 [ "$row" = "1" ] || { echo "the data written on $FROM is gone" >&2; exit 1; }
 echo "$health" | grep -q '"status":"ok"' || { echo "/api/health is not ok" >&2; exit 1; }
 echo "== $FROM → this checkout: ok"
+
+echo "== rollback from a copy"
+compose exec -T postgres pg_dump -U metobe -d metobe -Fc > "$WORK/rollback.dump"
+compose exec -T postgres psql -U metobe -d metobe -v ON_ERROR_STOP=1 -c \
+  'drop schema if exists drizzle cascade; drop schema if exists public cascade; create schema public authorization pg_database_owner; grant usage on schema public to public; grant create on schema public to pg_database_owner'
+compose exec -T postgres pg_restore --no-owner --exit-on-error --dbname=metobe < "$WORK/rollback.dump"
+row="$(sql "select count(*) from \"user\" where id = 'upgrade-check'")"
+[ "$row" = "1" ] || { echo "the data was not restored from the copy" >&2; exit 1; }
+echo "== rollback from a copy: ok"

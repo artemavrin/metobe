@@ -196,6 +196,12 @@ const pruneBackups = async (protect?: string) => {
 const restoreBase = async (file: string) => {
   await getDb().sql.unsafe("drop schema if exists drizzle cascade");
   await getDb().sql.unsafe("drop schema if exists public cascade");
+  await getDb().sql.unsafe(
+    "create schema public authorization pg_database_owner"
+  );
+  await getDb().sql.unsafe(
+    "grant usage on schema public to public; grant create on schema public to pg_database_owner"
+  );
   await sh(
     "pg_restore",
     [
