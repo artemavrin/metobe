@@ -89,8 +89,10 @@ const unique = (ids: string[]) => [...new Set(ids)];
  * Several missed versions as one: the cover is the newest one's, the big changes of all of them (newest first)
  * up to `MAX_FEATURED` — the rest go to «И ещё» — and every «И ещё» and admin line once.
  */
-const mergeNotes = (missed: ReleaseNote[]): ReleaseNote => {
-  const [newest] = missed;
+const mergeNotes = (
+  newest: ReleaseNote,
+  missed: ReleaseNote[]
+): ReleaseNote => {
   const all = unique(missed.flatMap((n) => n.featured));
   const featured = all.slice(0, MAX_FEATURED);
   return {
@@ -125,7 +127,11 @@ export const noteToShow = (
       compareVersions(n.version, running) <= 0 &&
       hasFor(n, admin)
   );
-  return missed.length > 1 ? mergeNotes(missed) : (missed[0] ?? null);
+  const [newest] = missed;
+  if (!newest) {
+    return null;
+  }
+  return missed.length > 1 ? mergeNotes(newest, missed) : newest;
 };
 
 /** «История изменений»: every version of this build, newest first — what it brought, as the window said it. */
