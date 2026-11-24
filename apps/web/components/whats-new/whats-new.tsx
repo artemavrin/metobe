@@ -242,10 +242,10 @@ const Words = ({
   const t = useTranslations("whatsNew");
   const id = page >= 1 && page < last ? featured[page - 1] : undefined;
   let title = t("introTitle");
-  let text = t("intro", {
-    count: featured.length,
-    rest: hasRest ? "yes" : "no",
-  });
+  let text =
+    featured.length === 0
+      ? t("introMinor")
+      : t("intro", { count: featured.length, rest: hasRest ? "yes" : "no" });
   if (id) {
     title = t(`changes.${id}.title`);
     text = t(`changes.${id}.text`);
@@ -264,7 +264,7 @@ const Words = ({
     >
       <h2 className="text-lg font-semibold">{title}</h2>
       <p className="text-muted-foreground text-sm leading-relaxed">{text}</p>
-      {/* Only the newest version is in the window; every one before it, in full, is a click away. */}
+      {/* The window merges the versions missed; each one, in full, is a click away. */}
       {page === last && (
         <Button
           className="mt-2 self-start"

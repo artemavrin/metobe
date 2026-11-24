@@ -79,15 +79,37 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
 ];
 
-/**
- * The window to show: the newest version past the one seen and not past the one running — only that one; versions
- * missed before it are on the history page, a button away. None when the person turned it off, or when nothing was
- * seen yet — a new account starts at the version it came in on.
- */
 /** Whether a version has anything for this person: a version with only an admin block is nothing to the rest. */
 const hasFor = (n: ReleaseNote, admin: boolean) =>
   n.featured.length + n.more.length > 0 || (admin && n.admin.length > 0);
 
+const unique = (ids: string[]) => [...new Set(ids)];
+
+/**
+ * Several missed versions as one: the cover is the newest one's, the big changes of all of them (newest first)
+ * up to `MAX_FEATURED` — the rest go to «И ещё» — and every «И ещё» and admin line once.
+ */
+const mergeNotes = (missed: ReleaseNote[]): ReleaseNote => {
+  const [newest] = missed;
+  const all = unique(missed.flatMap((n) => n.featured));
+  const featured = all.slice(0, MAX_FEATURED);
+  return {
+    admin: unique(missed.flatMap((n) => n.admin)),
+    date: newest.date,
+    featured,
+    more: unique([
+      ...all.slice(MAX_FEATURED),
+      ...missed.flatMap((n) => n.more),
+    ]).filter((id) => !featured.includes(id)),
+    version: newest.version,
+  };
+};
+
+/**
+ * The window to show: every version past the one seen and not past the one running that has something for this
+ * person, as one — a patch without news must not hide the minor before it. The cover carries the newest version.
+ * None when the person turned it off, or when nothing was seen yet — a new account starts at the version it came in on.
+ */
 export const noteToShow = (
   { seen, off }: { seen: string | null; off: boolean },
   running: string,
@@ -97,14 +119,13 @@ export const noteToShow = (
   if (off || seen === null) {
     return null;
   }
-  return (
-    notes.find(
-      (n) =>
-        compareVersions(n.version, seen) > 0 &&
-        compareVersions(n.version, running) <= 0 &&
-        hasFor(n, admin)
-    ) ?? null
+  const missed = notes.filter(
+    (n) =>
+      compareVersions(n.version, seen) > 0 &&
+      compareVersions(n.version, running) <= 0 &&
+      hasFor(n, admin)
   );
+  return missed.length > 1 ? mergeNotes(missed) : (missed[0] ?? null);
 };
 
 /** «История изменений»: every version of this build, newest first — what it brought, as the window said it. */

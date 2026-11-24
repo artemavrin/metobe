@@ -30,10 +30,29 @@ describe("which «Что нового» opens by itself", () => {
     ).toBe("0.8.0");
   });
 
-  it("shows only the newest of several missed versions: the rest are on the history page", () => {
-    expect(
-      noteToShow({ off: false, seen: "0.5.0" }, "0.8.0", NOTES)
-    ).toMatchObject({ version: "0.8.0" });
+  it("merges several missed versions into one under the newest cover", () => {
+    const notes = [
+      { ...note("0.8.0"), featured: ["c"], more: ["m1"] },
+      { ...note("0.7.0"), featured: ["b"], more: ["m2"] },
+      { ...note("0.6.0"), featured: ["a"] },
+    ];
+    expect(noteToShow({ off: false, seen: "0.5.0" }, "0.8.0", notes)).toEqual({
+      admin: [],
+      date: "2026-01-01",
+      featured: ["c", "b", "a"],
+      more: ["m1", "m2"],
+      version: "0.8.0",
+    });
+  });
+
+  it("keeps at most six big changes in a merge: the rest go to «И ещё», none twice", () => {
+    const notes = [
+      { ...note("0.8.0"), featured: ["a", "b", "c", "d"], more: ["h"] },
+      { ...note("0.7.0"), featured: ["e", "f", "g", "h"] },
+    ];
+    const merged = noteToShow({ off: false, seen: "0.6.0" }, "0.8.0", notes);
+    expect(merged?.featured).toEqual(["a", "b", "c", "d", "e", "f"]);
+    expect(merged?.more).toEqual(["g", "h"]);
   });
 
   it("opens nothing once seen, or before the version is running", () => {
@@ -58,6 +77,20 @@ describe("a version with only an admin block (0.11.1)", () => {
     featured: [],
   };
   const notes = [adminOnly, ...NOTES];
+
+  it("does not hide the minor before it: an admin gets both in one window", () => {
+    const merged = noteToShow(
+      { off: false, seen: "0.7.0" },
+      "0.9.1",
+      notes,
+      true
+    );
+    expect(merged).toMatchObject({
+      admin: ["x"],
+      featured: ["a"],
+      version: "0.9.1",
+    });
+  });
 
   it("opens for an admin, and for the rest goes by as if it were not there", () => {
     expect(

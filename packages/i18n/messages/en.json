@@ -2605,6 +2605,7 @@
     "brand": "Metobe {version}",
     "description": "What came with the update",
     "introTitle": "Metobe has been updated",
+    "introMinor": "No notable changes, a few small ones at the end.",
     "intro": "{count, plural, =1 {One notable change} =2 {Two notable changes} =3 {Three notable changes} =4 {Four notable changes} =5 {Five notable changes} =6 {Six notable changes} other {# notable changes}}{rest, select, yes { and a few small ones at the end} other {}}.",
     "doneTitle": "That's all",
     "doneText": "You can read it again any time: account menu → “What's new”.",
