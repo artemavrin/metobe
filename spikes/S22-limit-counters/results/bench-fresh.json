@@ -1,0 +1,26 @@
+{
+ "fresh rows, before vacuum": {
+  "plan": [
+   "->  Index Only Scan using runs_user_time on runs (actual rows=100000.00 loops=1)",
+   "Heap Fetches: 100000",
+   "Execution Time: 132.659 ms"
+  ],
+  "n": 200,
+  "p50": 39.16,
+  "p95": 70.23,
+  "p99": 87.91,
+  "max": 147.79
+ },
+ "after vacuum": {
+  "plan": [
+   "->  Index Only Scan using runs_user_time on runs (actual rows=100000.00 loops=1)",
+   "Heap Fetches: 0",
+   "Execution Time: 8.004 ms"
+  ],
+  "n": 200,
+  "p50": 8.79,
+  "p95": 15.49,
+  "p99": 20.36,
+  "max": 57.77
+ }
+}

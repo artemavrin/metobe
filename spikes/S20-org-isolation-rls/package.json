@@ -1,0 +1,16 @@
+{
+  "name": "@metobe/spike-s20",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark": "node benchmark.mjs",
+    "lint-demo": "oxlint --disable-nested-config -c oxlint.config.json fixtures/core"
+  },
+  "dependencies": {
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0"
+  }
+}

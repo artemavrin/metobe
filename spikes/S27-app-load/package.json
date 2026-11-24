@@ -1,0 +1,24 @@
+{
+  "name": "spike-s27-app-load",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "node --env-file=.env --import tsx migrate.ts",
+    "seed": "node --env-file=.env --import tsx seed.ts",
+    "mock": "node --env-file=.env --import tsx mock-openai.ts",
+    "load": "node --env-file=.env --import tsx load.ts",
+    "standalone": "node --env-file=.env --import tsx standalone.ts",
+    "mcp-mock": "node --import tsx mock-mcp.ts",
+    "seed-mcp": "node --env-file=.env --import tsx seed-mcp.ts",
+    "mcp-clients": "node --expose-gc --import tsx mcp-clients.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "4.0.38",
+    "ai": "7.0.173",
+    "postgres": "^3.4.9",
+    "redis": "6.2.1",
+    "tsx": "^4.23.15",
+    "zod": "4.6.5",
+    "@ai-sdk/mcp": "2.0.99"
+  }
+}

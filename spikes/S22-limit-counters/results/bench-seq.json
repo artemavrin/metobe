@@ -1,0 +1,225 @@
+{
+ "no-index (seq scan), h_burst, 5 runs": {
+  "n": 5,
+  "p50": 101.18,
+  "p95": 169.49,
+  "p99": 169.49,
+  "max": 169.49
+ },
+ "I0+charge": {
+  "build": "2957 ms (with vacuum)",
+  "size": "55 MB",
+  "h_spread": {
+   "n": 300,
+   "p50": 3.04,
+   "p95": 9.84,
+   "p99": 14.61,
+   "max": 25.68
+  },
+  "h_burst": {
+   "n": 300,
+   "p50": 22.23,
+   "p95": 35.86,
+   "p99": 68.74,
+   "max": 83.37
+  },
+  "h_hot": {
+   "n": 300,
+   "p50": 22.97,
+   "p95": 37.75,
+   "p99": 57.84,
+   "max": 142.41
+  },
+  "bg (300 other people)": {
+   "n": 900,
+   "p50": 1.21,
+   "p95": 5.95,
+   "p99": 18.5,
+   "max": 61.45
+  },
+  "h_burst, one round trip (CTE)": {
+   "n": 300,
+   "p50": 30.09,
+   "p95": 80.39,
+   "p99": 144.22,
+   "max": 227.84
+  },
+  "plan h_burst": [
+   "Buffers: shared hit=6496",
+   "->  Bitmap Heap Scan on runs (actual rows=100000.00 loops=1)",
+   "Buffers: shared hit=6496",
+   "->  Bitmap Index Scan on runs_user_time (actual rows=100000.00 loops=1)",
+   "Buffers: shared hit=386",
+   "Execution Time: 52.893 ms"
+  ],
+  "plan h_hot": [
+   "Buffers: shared hit=6112 read=449 written=381",
+   "->  Bitmap Heap Scan on runs (actual rows=100000.00 loops=1)",
+   "Buffers: shared hit=6112 read=449 written=381",
+   "->  Bitmap Index Scan on runs_user_time (actual rows=100000.00 loops=1)",
+   "Buffers: shared hit=2 read=384 written=329",
+   "Execution Time: 113.858 ms"
+  ]
+ },
+ "I1+charge": {
+  "build": "3375 ms (with vacuum)",
+  "size": "72 MB",
+  "h_spread": {
+   "n": 300,
+   "p50": 0.66,
+   "p95": 1.26,
+   "p99": 2.38,
+   "max": 3.03
+  },
+  "h_burst": {
+   "n": 300,
+   "p50": 8.05,
+   "p95": 14.13,
+   "p99": 26.85,
+   "max": 59.43
+  },
+  "h_hot": {
+   "n": 300,
+   "p50": 7.95,
+   "p95": 9.49,
+   "p99": 10.1,
+   "max": 29.44
+  },
+  "bg (300 other people)": {
+   "n": 900,
+   "p50": 0.57,
+   "p95": 0.99,
+   "p99": 1.73,
+   "max": 5.1
+  },
+  "h_burst, one round trip (CTE)": {
+   "n": 300,
+   "p50": 11.64,
+   "p95": 17.13,
+   "p99": 19.32,
+   "max": 46.07
+  },
+  "plan h_burst": [
+   "Buffers: shared hit=506",
+   "->  Index Only Scan using runs_user_time on runs (actual rows=100000.00 loops=1)",
+   "Heap Fetches: 0",
+   "Buffers: shared hit=506",
+   "Execution Time: 7.752 ms"
+  ],
+  "plan h_hot": [
+   "Buffers: shared hit=4 read=502",
+   "->  Index Only Scan using runs_user_time on runs (actual rows=100000.00 loops=1)",
+   "Heap Fetches: 0",
+   "Buffers: shared hit=4 read=502",
+   "Execution Time: 11.477 ms"
+  ]
+ },
+ "I0+charge_u": {
+  "build": "2558 ms (with vacuum)",
+  "size": "55 MB",
+  "h_spread": {
+   "n": 300,
+   "p50": 2.04,
+   "p95": 4.7,
+   "p99": 7.13,
+   "max": 8.72
+  },
+  "h_burst": {
+   "n": 300,
+   "p50": 24.64,
+   "p95": 69.45,
+   "p99": 118.84,
+   "max": 211.9
+  },
+  "h_hot": {
+   "n": 300,
+   "p50": 23.96,
+   "p95": 58.88,
+   "p99": 136.12,
+   "max": 258.6
+  },
+  "bg (300 other people)": {
+   "n": 900,
+   "p50": 0.7,
+   "p95": 1.78,
+   "p99": 3.41,
+   "max": 9.85
+  },
+  "h_burst, one round trip (CTE)": {
+   "n": 300,
+   "p50": 27.52,
+   "p95": 53.56,
+   "p99": 71.04,
+   "max": 132.85
+  },
+  "plan h_burst": [
+   "Buffers: shared hit=6496",
+   "->  Bitmap Heap Scan on runs (actual rows=100000.00 loops=1)",
+   "Buffers: shared hit=6496",
+   "->  Bitmap Index Scan on runs_user_time (actual rows=100000.00 loops=1)",
+   "Buffers: shared hit=386",
+   "Execution Time: 18.072 ms"
+  ],
+  "plan h_hot": [
+   "Buffers: shared hit=6112 read=449",
+   "->  Bitmap Heap Scan on runs (actual rows=100000.00 loops=1)",
+   "Buffers: shared hit=6112 read=449",
+   "->  Bitmap Index Scan on runs_user_time (actual rows=100000.00 loops=1)",
+   "Buffers: shared hit=2 read=384",
+   "Execution Time: 28.652 ms"
+  ]
+ },
+ "I2+charge_u": {
+  "build": "1797 ms (with vacuum)",
+  "size": "71 MB",
+  "h_spread": {
+   "n": 300,
+   "p50": 0.63,
+   "p95": 1.2,
+   "p99": 6.36,
+   "max": 9.44
+  },
+  "h_burst": {
+   "n": 300,
+   "p50": 6.35,
+   "p95": 12.57,
+   "p99": 18.06,
+   "max": 25.47
+  },
+  "h_hot": {
+   "n": 300,
+   "p50": 6.51,
+   "p95": 11.55,
+   "p99": 15.67,
+   "max": 57.98
+  },
+  "bg (300 other people)": {
+   "n": 900,
+   "p50": 0.61,
+   "p95": 1.42,
+   "p99": 2.31,
+   "max": 7.22
+  },
+  "h_burst, one round trip (CTE)": {
+   "n": 300,
+   "p50": 10.21,
+   "p95": 16.28,
+   "p99": 26.34,
+   "max": 36.11
+  },
+  "plan h_burst": [
+   "Buffers: shared hit=497",
+   "->  Index Only Scan using runs_user_time on runs (actual rows=100000.00 loops=1)",
+   "Heap Fetches: 0",
+   "Buffers: shared hit=497",
+   "Execution Time: 7.050 ms"
+  ],
+  "plan h_hot": [
+   "Buffers: shared hit=498",
+   "->  Index Only Scan using runs_user_time on runs (actual rows=100000.00 loops=1)",
+   "Heap Fetches: 0",
+   "Buffers: shared hit=498",
+   "Execution Time: 14.009 ms"
+  ]
+ }
+}

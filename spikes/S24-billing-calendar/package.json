@@ -1,0 +1,22 @@
+{
+  "name": "spike-s24-billing-calendar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "check-types": "tsc --noEmit",
+    "db-check": "tsx src/db-check.ts",
+    "bullmq-check": "tsx src/bullmq-check.ts"
+  },
+  "dependencies": {
+    "bullmq": "6.3.19",
+    "postgres": "3.4.9",
+    "redis": "6.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.1"
+  }
+}
