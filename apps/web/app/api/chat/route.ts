@@ -26,7 +26,7 @@ import {
   saveMessages,
 } from "@metobe/core/chat";
 import { checkChatLimit } from "@metobe/core/chat-limits";
-import { recordRun, sumUsage, withPromptCache } from "@metobe/core/chat-run";
+import { passRun, recordRun, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
 import { STYLE_NOTE } from "@metobe/core/chat-tools/answer-style";
 import {
@@ -788,24 +788,18 @@ export const POST = async (request: Request) => {
       ]
         .filter(Boolean)
         .join("\n\n");
+      // One row a pass, written after it whatever way it ended, with what its finished steps cost (core/chat-run).
+      const answerRun = passRun();
       const result = streamText({
         abortSignal: generation.signal,
         instructions,
         messages: prompt.messages,
         model: languageModel,
+        ...answerRun.callbacks,
         // The model's own end frees the chat for «stop» — not the client's: it may leave, the model writes on.
-        onAbort: ({ steps }) => {
+        onAbort: () => {
+          answerRun.callbacks.onAbort();
           endGeneration(id, generation);
-          // What the steps finished before «stop» used and cost — it was billed, so it is counted.
-          return record({
-            latencyMs: firstChunk,
-            status: "aborted",
-            stepsMetadata: steps.map((step) => step.providerMetadata),
-            usage:
-              steps.length > 0
-                ? sumUsage(steps.map((s) => s.usage))
-                : undefined,
-          });
         },
         onChunk: ({ chunk }) => {
           // Time to the first thing the user sees, not to the stream's own bookkeeping.
@@ -828,25 +822,17 @@ export const POST = async (request: Request) => {
             reasoningTo ??= Date.now();
           }
         },
-        onEnd: ({ providerMetadata, steps, totalUsage }) => {
+        onEnd: ({ steps }) => {
           // An answer that said nothing goes on in the sum-up pass, which frees the chat when it ends.
           if (!saidNothing(steps)) {
             endGeneration(id, generation);
           }
-          return record({
-            latencyMs: firstChunk,
-            providerMetadata,
-            status: "ok",
-            // The cost of every step — the answer's tokens are the total of them, so its cost must be too.
-            stepsMetadata: steps.map((step) => step.providerMetadata),
-            usage: totalUsage,
-          });
         },
         // The provider's own error: the stream passes on only «An error occurred».
         onError: ({ error }) => {
+          answerRun.callbacks.onError();
           endGeneration(id, generation);
           console.error("chat: the model failed", model.id, causes(error));
-          return record({ latencyMs: firstChunk, status: "error" });
         },
         // A tool's result goes back to the model until it answers in words — within reason; the last step answers.
         // Inside an answer the history grows with every tool result: the same budget, step by step (a returned
@@ -926,7 +912,9 @@ export const POST = async (request: Request) => {
           ...options,
         });
       // Runs the generation to its end on the server, so the answer is saved even when the client has left.
-      void result.consumeStream();
+      void answerRun.settle(result, (r) =>
+        record({ latencyMs: firstChunk, ...r })
+      );
       // The work, then — if it ended without a word — the sum-up pass in the same answer (lib/sum-up).
       await streamAnswer({
         finish: () => ({
@@ -936,6 +924,7 @@ export const POST = async (request: Request) => {
         first: result,
         stopped: () => generation.signal.aborted,
         sumUp: (work) => {
+          const sumUpRun = passRun();
           const pass = streamText({
             abortSignal: generation.signal,
             ...sumUpPrompt(
@@ -943,36 +932,24 @@ export const POST = async (request: Request) => {
               budgetMessages([...prompt.messages, ...work], budget)
             ),
             model: languageModel,
-            onAbort: ({ steps }) => {
+            ...sumUpRun.callbacks,
+            onAbort: () => {
+              sumUpRun.callbacks.onAbort();
               endGeneration(id, generation);
-              return record({
-                latencyMs: firstChunk,
-                status: "aborted",
-                stepsMetadata: steps.map((step) => step.providerMetadata),
-                usage:
-                  steps.length > 0
-                    ? sumUsage(steps.map((st) => st.usage))
-                    : undefined,
-              });
             },
-            onEnd: ({ providerMetadata, steps, totalUsage }) => {
+            onEnd: () => {
               endGeneration(id, generation);
-              return record({
-                latencyMs: firstChunk,
-                providerMetadata,
-                status: "ok",
-                stepsMetadata: steps.map((step) => step.providerMetadata),
-                usage: totalUsage,
-              });
             },
             onError: ({ error }) => {
+              sumUpRun.callbacks.onError();
               endGeneration(id, generation);
               console.error("chat: the sum-up failed", model.id, causes(error));
-              return record({ latencyMs: firstChunk, status: "error" });
             },
             providerOptions: prompt.providerOptions,
           });
-          void pass.consumeStream();
+          void sumUpRun.settle(pass, (r) =>
+            record({ latencyMs: firstChunk, ...r })
+          );
           return pass;
         },
         toUI,

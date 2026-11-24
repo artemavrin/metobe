@@ -20,7 +20,7 @@ import { getLanguageModel } from "./ai";
 import { filePartsFor, readsPdf } from "./attachments";
 import { createChat, getChatModel, listMessages, saveMessages } from "./chat";
 import type { ChatModel } from "./chat";
-import { recordRun, sumUsage } from "./chat-run";
+import { passRun, recordRun } from "./chat-run";
 import { STYLE_NOTE } from "./chat-tools/answer-style";
 import {
   ATTACHMENT_NOTE,
@@ -268,6 +268,8 @@ interface Pass {
   modelId: string;
   instructions: string;
   signal: AbortSignal;
+  /** Each finished step, kept for the run's row: a stream that breaks off loses `result.steps`, not these. */
+  onStepEnd: ReturnType<typeof passRun>["callbacks"]["onStepEnd"];
 }
 
 /** The work: the model with the tools until `report` or the step limit; the answer as the chat stores it. */
@@ -323,6 +325,7 @@ const work = async (
     onError: ({ error }) => {
       failure ??= error;
     },
+    onStepEnd: p.onStepEnd,
     stopWhen: [stepCountIs(maxSteps), hasToolCall(REPORT)],
     tools,
   });
@@ -350,8 +353,9 @@ const work = async (
     }
     await progress.done();
     const steps: Steps = [...(await result.steps)];
-    const response = await result.response;
-    return { answer, response, steps };
+    // Every step's messages: `response.messages` is the last step's only.
+    const responseMessages = await result.responseMessages;
+    return { answer, responseMessages, steps };
   } catch (error) {
     throw failure ?? error;
   }
@@ -363,7 +367,7 @@ const work = async (
  */
 const writeUp = async (
   p: Pass,
-  history: Awaited<ReturnType<typeof work>>["response"]["messages"],
+  history: Awaited<ReturnType<typeof work>>["responseMessages"],
   summary: string
 ) => {
   const pass = streamText({
@@ -377,10 +381,10 @@ const writeUp = async (
       },
     ],
     model: p.languageModel,
+    onStepEnd: p.onStepEnd,
   });
   const text = await pass.text;
-  const steps = await pass.steps;
-  return { steps, text: text.trim() };
+  return { text: text.trim() };
 };
 
 /**
@@ -548,17 +552,21 @@ const carry = async (c: {
   const started = Date.now();
   const timeout = AbortSignal.timeout(task.timeoutS * 1000);
   let releaseBox: () => Promise<void> = noBox;
-  const record = (status: "ok" | "error" | "aborted", steps: Steps = []) =>
-    recordRun({
+  // What the finished steps of the work and its write-up used, also when the run fails halfway.
+  const finished = passRun();
+  const record = (status: "ok" | "error" | "aborted") => {
+    const { stepsMetadata, usage } = finished.run();
+    return recordRun({
       chatId,
       latencyMs: Date.now() - started,
       model,
       purpose: "task",
       status,
-      stepsMetadata: steps.map((s) => s.providerMetadata),
-      usage: steps.length > 0 ? sumUsage(steps.map((s) => s.usage)) : undefined,
+      stepsMetadata,
+      usage,
       userId: task.ownerId,
     });
+  };
   try {
     const last = await lastResultChat(task.id, runId);
     const previous = await lastAnswer(last?.chatId ?? null);
@@ -583,6 +591,7 @@ const carry = async (c: {
         session: `task-${task.id}`,
       }),
       modelId: model.id,
+      onStepEnd: finished.callbacks.onStepEnd,
       signal: c.signal ? AbortSignal.any([c.signal, timeout]) : timeout,
     };
     const done = await work(
@@ -597,15 +606,13 @@ const carry = async (c: {
       c.from
     );
     let { answer } = done;
-    const steps = [...done.steps];
     const report = reported.value;
     if (answer && report && report.outcome !== "quiet" && !textOf(answer)) {
       const written = await writeUp(
         pass,
-        done.response.messages,
+        done.responseMessages,
         report.summary
       );
-      steps.push(...written.steps);
       if (written.text) {
         answer = {
           ...answer,
@@ -614,7 +621,7 @@ const carry = async (c: {
       }
     }
     await saveMessages(chatId, answer ? [question, answer] : [question]);
-    await record("ok", steps);
+    await record("ok");
     const waiting = waitingSummary(answer);
     const gap = waiting ? null : await mailGap(task.ownerId, answer);
     if (waiting) {

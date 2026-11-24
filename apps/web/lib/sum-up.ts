@@ -43,7 +43,8 @@ export const sumUpPrompt = (
 interface Pass {
   stream: ReadableStream<TextStreamPart<ToolSet>>;
   steps: PromiseLike<readonly StepLike[]>;
-  response: PromiseLike<{ messages: ModelMessage[] }>;
+  /** Every step's messages; `response.messages` is the last step's only. */
+  responseMessages: PromiseLike<ModelMessage[]>;
 }
 
 /** Every chunk of a stream, in order, to the end. */
@@ -96,6 +97,6 @@ export const streamAnswer = async <C>({
     write(finish());
     return;
   }
-  const { messages } = await first.response;
+  const messages = await first.responseMessages;
   await drain(toUI(sumUp(messages).stream, { sendStart: false }), write);
 };

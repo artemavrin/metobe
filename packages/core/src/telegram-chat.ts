@@ -9,7 +9,7 @@ import {
   streamText,
   toUIMessageStream,
 } from "ai";
-import type { ModelMessage, StepResult, ToolSet } from "ai";
+import type { ModelMessage, ToolSet } from "ai";
 
 import { getLanguageModel } from "./ai";
 import { setTelegramAppChat, telegramAppChat } from "./channels";
@@ -22,7 +22,7 @@ import {
   saveMessages,
 } from "./chat";
 import type { ChatModel } from "./chat";
-import { recordRun, sumUsage } from "./chat-run";
+import { passRun, recordRun } from "./chat-run";
 import { STYLE_NOTE } from "./chat-tools/answer-style";
 import { CHART_TOOL, chartTool } from "./chat-tools/chart-tool";
 import { METRICS_TOOL, metricsTool } from "./chat-tools/metrics-tool";
@@ -216,7 +216,8 @@ export const answerTelegram = async ({
   );
   const started = Date.now();
   let failure: unknown;
-  let steps: StepResult<ToolSet>[] = [];
+  // What the finished steps used, also when the answer fails halfway: a stream that breaks off loses `result.steps`.
+  const finished = passRun();
   let answer: ChatMessage | undefined;
   try {
     const result = streamText({
@@ -227,6 +228,7 @@ export const answerTelegram = async ({
       onError: ({ error }) => {
         failure ??= error;
       },
+      onStepEnd: finished.callbacks.onStepEnd,
       providerOptions:
         model.kind === "gateway"
           ? { gateway: { zeroDataRetention: true } }
@@ -247,13 +249,16 @@ export const answerTelegram = async ({
     })) {
       answer = message;
     }
-    steps = [...(await result.steps)];
+    await result.steps;
   } catch (error) {
+    const { stepsMetadata, usage } = finished.run();
     await recordRun({
       chatId,
       latencyMs: null,
       model,
       status: "error",
+      stepsMetadata,
+      usage,
       userId,
     }).catch(() => null);
     throw failure ?? error;
@@ -261,13 +266,14 @@ export const answerTelegram = async ({
   if (answer) {
     await saveMessages(chatId, [answer]);
   }
+  const { stepsMetadata, usage } = finished.run();
   await recordRun({
     chatId,
     latencyMs: Date.now() - started,
     model,
     status: "ok",
-    stepsMetadata: steps.map((s) => s.providerMetadata),
-    usage: steps.length > 0 ? sumUsage(steps.map((s) => s.usage)) : undefined,
+    stepsMetadata,
+    usage,
     userId,
   });
   void queueMemoryWrite({
