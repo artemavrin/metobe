@@ -151,3 +151,72 @@ export const recordRun = async (run: {
     userId: run.userId,
   });
 };
+
+/** A finished step as the record reads it: the `onStepEnd` event and `StepResult` both have these. */
+interface CostedStep {
+  usage: LanguageModelUsage;
+  providerMetadata?: ProviderMetadata;
+}
+
+/** How a pass ended and what its finished steps used: its row, but for who and which model. */
+interface PassRecord {
+  status: RunStatus;
+  stepsMetadata: (ProviderMetadata | undefined)[];
+  usage: LanguageModelUsage | undefined;
+}
+
+/**
+ * The row of one `streamText` pass, written once after the pass whatever way it ended (S21). `onEnd` / `onError` /
+ * `onAbort` are not enough in ai@7: a stream that breaks off in the middle of a step fires only `onStepError`, and a
+ * rejected provider call fires `onError` and then `onEnd` with an empty `totalUsage`. So the steps are kept as they
+ * end, the callbacks only say how the pass ended, and `settle` writes the row after the stream is consumed — with
+ * what the finished steps used. Spread `callbacks` into `streamText`; a callback of the caller's own calls these too.
+ */
+export const passRun = () => {
+  const steps: CostedStep[] = [];
+  const ended = { aborted: false, failed: false };
+  const failed = () => {
+    ended.failed = true;
+  };
+  const statusOf = (): RunStatus => {
+    if (ended.aborted) {
+      return "aborted";
+    }
+    return ended.failed ? "error" : "ok";
+  };
+  const run = (): PassRecord => ({
+    status: statusOf(),
+    stepsMetadata: steps.map((step) => step.providerMetadata),
+    usage:
+      steps.length > 0 ? sumUsage(steps.map((step) => step.usage)) : undefined,
+  });
+  return {
+    callbacks: {
+      onAbort: () => {
+        ended.aborted = true;
+      },
+      onError: failed,
+      onStepEnd: (step: CostedStep) => {
+        steps.push({
+          providerMetadata: step.providerMetadata,
+          usage: step.usage,
+        });
+      },
+      onStepError: failed,
+    },
+    /** How the pass ended and what its finished steps used, for a caller that writes the row itself. */
+    run,
+    /** Runs the pass to its end, then writes its one row. */
+    settle: async (
+      result: {
+        consumeStream: (options?: {
+          onError?: (error: unknown) => void;
+        }) => PromiseLike<void>;
+      },
+      write: (r: PassRecord) => PromiseLike<unknown>
+    ) => {
+      await result.consumeStream({ onError: failed });
+      await write(run());
+    },
+  };
+};

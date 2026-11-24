@@ -1,7 +1,8 @@
-import { streamText, toUIMessageStream } from "ai";
+import { stepCountIs, streamText, tool, toUIMessageStream } from "ai";
 import type { UIMessageChunk } from "ai";
 import { MockLanguageModelV4, convertArrayToReadableStream } from "ai/test";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { saidNothing, streamAnswer, sumUpPrompt } from "./sum-up";
 
@@ -102,5 +103,71 @@ describe("an answer that said nothing", () => {
         },
       ])
     ).toBe(true);
+  });
+});
+
+describe("the sum-up pass after work with tools", () => {
+  it("sees every step of the work, not only the last", async () => {
+    // Two steps call a tool, the third says nothing: the sum-up answers from both results.
+    let n = 0;
+    const working = new MockLanguageModelV4({
+      doStream: () => {
+        const call = n;
+        n += 1;
+        const chunks: unknown[] =
+          call < 2
+            ? [
+                { type: "stream-start", warnings: [] },
+                {
+                  input: JSON.stringify({ q: `step ${call}` }),
+                  toolCallId: `call-${call}`,
+                  toolName: "look",
+                  type: "tool-call",
+                },
+                {
+                  finishReason: { raw: undefined, unified: "tool-calls" },
+                  type: "finish",
+                  usage,
+                },
+              ]
+            : [
+                { type: "stream-start", warnings: [] },
+                { id: "t", type: "text-start" },
+                { delta: "\n\n", id: "t", type: "text-delta" },
+                { id: "t", type: "text-end" },
+                {
+                  finishReason: { raw: undefined, unified: "stop" },
+                  type: "finish",
+                  usage,
+                },
+              ];
+        return Promise.resolve({
+          stream: convertArrayToReadableStream(chunks as never[]),
+        });
+      },
+    });
+    const answering = saying("Итог.");
+    await streamAnswer({
+      finish: () => ({ type: "finish" }) as UIMessageChunk,
+      first: streamText({
+        model: working,
+        prompt: "прибыль Тверской за сентябрь",
+        stopWhen: stepCountIs(5),
+        tools: {
+          look: tool({
+            execute: ({ q }) => ({ found: q }),
+            inputSchema: z.object({ q: z.string() }),
+          }),
+        },
+      }),
+      stopped: () => false,
+      sumUp: (work) =>
+        streamText({ model: answering, ...sumUpPrompt("", work) }),
+      toUI: (stream, options) => toUIMessageStream({ stream, ...options }),
+      write: () => {},
+    });
+    const prompt = JSON.stringify(answering.doStreamCalls[0]?.prompt);
+    expect(prompt).toContain("call-0");
+    expect(prompt).toContain("call-1");
   });
 });
