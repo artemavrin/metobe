@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.4](https://github.com/artemavrin/metobe/compare/v0.11.3...v0.11.4) (2026-11-24)
+
+
+### Bug Fixes
+
+* **whats-new:** the type check passes again, so a release is not held back ([b89eace](https://github.com/artemavrin/metobe/commit/b89eace885c26af96d4ae9c08c6c5766bf1fcb39))
+
 ## [0.11.3](https://github.com/artemavrin/metobe/compare/v0.11.2...v0.11.3) (2026-11-24)
 
 
