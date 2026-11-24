@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.5](https://github.com/artemavrin/metobe/compare/v0.11.4...v0.11.5) (2026-11-24)
+
+
+### Bug Fixes
+
+* **chat:** record each model pass once, with what its finished steps cost ([425a024](https://github.com/artemavrin/metobe/commit/425a024b410378be51cbaa5a850e59a82fa726d0))
+* **chat:** record each model pass once, with what its finished steps cost ([685ba3e](https://github.com/artemavrin/metobe/commit/685ba3ed506575f30ffb75859302aa3d58d93efd))
+
 ## [0.11.4](https://github.com/artemavrin/metobe/compare/v0.11.3...v0.11.4) (2026-11-24)
 
 
