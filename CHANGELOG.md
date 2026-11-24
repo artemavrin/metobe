@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/artemavrin/metobe/compare/v0.11.1...v0.11.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* **whats-new:** merge the versions a person missed into one window, say so when nothing notable ([00db2ed](https://github.com/artemavrin/metobe/commit/00db2ed4f69110e549346576f7b4d018af1d2b79))
+
 ## [0.11.1](https://github.com/artemavrin/metobe/compare/v0.11.0...v0.11.1) (2026-11-20)
 
 
