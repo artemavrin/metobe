@@ -207,7 +207,11 @@ export const answerTelegram = async ({
     getLanguageModel(model.sourceId, model.modelId, { session: chatId }),
   ]);
   const messages = withBrief(
-    await convertToModelMessages(history.slice(-CONTEXT), { tools }),
+    await convertToModelMessages(history.slice(-CONTEXT), {
+      // A call that never got its result must not break every later message of the chat.
+      ignoreIncompleteToolCalls: true,
+      tools,
+    }),
     brief
   );
   const started = Date.now();
