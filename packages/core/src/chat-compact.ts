@@ -18,7 +18,8 @@ import { getSlotModel } from "./model-slots";
 
 // «Сжать чат» (D37): a service model writes the summary of the conversation so far; the summary goes into the history
 // as a message of its own, and from then on the chat's model gets the summary and what follows it — the user keeps
-// every message. Asked for by the user only, never by itself.
+// every message. Asked for by the user, or by the chat itself before an answer once the history it sends the model
+// passes a line (the web app's lib/auto-compact; the owner's decision of 2026-11-24).
 
 /** Fewer questions than this since the last compaction: nothing worth compacting. */
 export const MIN_QUESTIONS = 3;
@@ -146,13 +147,21 @@ const summarizeAll = async (run: {
  * new message at the end of the history. The caller checks the chat is the user's and that no answer is being
  * written; here — that there is enough to compact and that the chat does not wait on the user.
  */
-export const compactChat = async (run: {
+export const compactChat = async ({
+  history,
+  at,
+  ...run
+}: {
   chatId: string;
   userId: string;
   /** The user's interface language: the summary is written in it. */
   locale: string;
+  /** The history to compact, when the caller has it (before an answer: the one before the question); else the stored. */
+  history?: ChatMessage[];
+  /** When the compaction is stored: before an answer, just before its question; now by default. */
+  at?: number;
 }): Promise<CompactResult> => {
-  const messages = await listMessages(run.chatId);
+  const messages = history ?? (await listMessages(run.chatId));
   if (questionsSince(messages) < MIN_QUESTIONS) {
     return { ok: false, reason: "short" };
   }
@@ -187,10 +196,10 @@ export const compactChat = async (run: {
   };
   const message: ChatMessage = {
     id: crypto.randomUUID(),
-    metadata: { createdAt: new Date().toISOString() },
+    metadata: { createdAt: new Date(at ?? Date.now()).toISOString() },
     parts: [{ data, type: "data-compaction" }],
     role: "system",
   };
-  await saveMessages(run.chatId, [message]);
+  await saveMessages(run.chatId, [message], at);
   return { message, ok: true };
 };

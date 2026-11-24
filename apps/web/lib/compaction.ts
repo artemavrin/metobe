@@ -67,3 +67,23 @@ export const heavyAnswer = (messages: ChatMessage[]): string | null => {
     .filter((m) => m.role === "user").length;
   return asked >= MIN_QUESTIONS ? last.id : null;
 };
+
+/**
+ * A compaction the chat made by itself before an answer (D37): it covers the history before the question it was made
+ * for, so it joins the thread right before that question — where the server stored it. Once only.
+ */
+export const beforeQuestion = (
+  messages: ChatMessage[],
+  compaction: ChatMessage
+): ChatMessage[] => {
+  if (messages.some((m) => m.id === compaction.id)) {
+    return messages;
+  }
+  let at = messages.length;
+  for (const [i, m] of messages.entries()) {
+    if (m.role === "user") {
+      at = i;
+    }
+  }
+  return [...messages.slice(0, at), compaction, ...messages.slice(at)];
+};

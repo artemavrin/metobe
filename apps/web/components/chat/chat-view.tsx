@@ -84,7 +84,7 @@ import type { TaskChat } from "@/components/tasks/task-draft-card";
 import { TaskIntro } from "@/components/tasks/task-intro";
 import { openQuestion, questionsOf } from "@/lib/ask-user";
 import { chatProblem, retryAtOf } from "@/lib/chat-errors";
-import { compactionOf } from "@/lib/compaction";
+import { beforeQuestion, compactionOf } from "@/lib/compaction";
 import { answeredAsk, connectionsOf } from "@/lib/connection-asks";
 import { threadMapItems } from "@/lib/thread-map";
 import { threadRows } from "@/lib/thread-rows";
@@ -611,6 +611,10 @@ export const ChatView = ({
       }),
     []
   );
+  // A compaction the server made before the answer joins the thread from the stream (set once useChat is there).
+  const joinCompaction = useRef<((compaction: ChatMessage) => void) | null>(
+    null
+  );
   const {
     addToolApprovalResponse,
     addToolOutput,
@@ -637,6 +641,14 @@ export const ChatView = ({
         titled.current = part.data;
         naming.current = false;
         touch({ id, naming: false, title: part.data });
+      } else if (part.type === "data-compaction" && part.id) {
+        // The chat compacted itself before this answer (D37): the summary stands before the question, as stored.
+        const compaction: ChatMessage = {
+          id: part.id,
+          parts: [{ data: part.data, type: "data-compaction" }],
+          role: "system",
+        };
+        joinCompaction.current?.(compaction);
       }
     },
     onFinish: () => {
@@ -659,6 +671,10 @@ export const ChatView = ({
       answeredAsk(options.messages),
     transport,
   });
+  useEffect(() => {
+    joinCompaction.current = (compaction) =>
+      setMessages((all) => beforeQuestion(all, compaction));
+  }, [setMessages]);
   useEffect(() => {
     if (!error || chatProblem(error) !== "updating") {
       return;
