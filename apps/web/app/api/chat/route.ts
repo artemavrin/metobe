@@ -25,6 +25,7 @@ import {
   listMessages,
   saveMessages,
 } from "@metobe/core/chat";
+import { compactChat } from "@metobe/core/chat-compact";
 import { checkChatLimit } from "@metobe/core/chat-limits";
 import { passRun, recordRun, withPromptCache } from "@metobe/core/chat-run";
 import { generateChatTitle } from "@metobe/core/chat-title";
@@ -101,7 +102,13 @@ import {
   toUIMessageStream,
   validateUIMessages,
 } from "ai";
-import type { ModelMessage, TextStreamPart, ToolSet, UIMessageChunk } from "ai";
+import type {
+  ModelMessage,
+  TextStreamPart,
+  ToolSet,
+  UIMessageChunk,
+  UIMessageStreamWriter,
+} from "ai";
 import { headers } from "next/headers";
 
 import {
@@ -112,7 +119,8 @@ import {
 } from "@/lib/approvals";
 import { ASK_USER, askUserTool } from "@/lib/ask-user";
 import { getAuth } from "@/lib/auth";
-import { fromCompaction } from "@/lib/compaction";
+import { compactBeforeAnswer } from "@/lib/auto-compact";
+import { beforeQuestion, compactionOf, fromCompaction } from "@/lib/compaction";
 import {
   MAIL_KEY,
   REQUEST_CONNECTION,
@@ -121,6 +129,7 @@ import {
 import {
   budgetMessages,
   clearPastTurns,
+  estimateTokens,
   isContextOverflow,
 } from "@/lib/context-budget";
 import { endGeneration, startGeneration } from "@/lib/generations";
@@ -456,6 +465,68 @@ const uiError = (error: unknown) => {
   return error instanceof SourceError ? error.message : "An error occurred.";
 };
 
+/**
+ * Before a new question's answer, a chat whose history the model would be sent is over the line is compacted first, as
+ * «Сжать чат» does (lib/auto-compact): the summary is stored just before the question, the page is sent it to show
+ * before the question, and the answer goes from it. Not when an answer carries on after the user's approvals — the
+ * history changes only between questions, so the cached prefix holds through an answer. The history to send back.
+ */
+const compactFirst = async ({
+  askedAt,
+  history,
+  historyOf,
+  question,
+  thread,
+  window,
+  writer,
+  ...run
+}: {
+  askedAt: number;
+  chatId: string;
+  history: ModelMessage[];
+  historyOf: (thread: ChatMessage[]) => Promise<ModelMessage[]>;
+  locale: string;
+  question: boolean;
+  thread: ChatMessage[];
+  userId: string;
+  window: number | null;
+  writer: UIMessageStreamWriter<ChatMessage>;
+}) => {
+  if (!question) {
+    return history;
+  }
+  const compacted = await compactBeforeAnswer({
+    compact: async (before) => {
+      // The service model may take tens of seconds: the thread says so at once, not a bare wait for the answer.
+      writer.write({ data: true, transient: true, type: "data-compacting" });
+      try {
+        const done = await compactChat({
+          ...run,
+          at: askedAt - 1,
+          history: before,
+        });
+        return done.ok ? done.message : null;
+      } finally {
+        writer.write({ data: false, transient: true, type: "data-compacting" });
+      }
+    },
+    thread,
+    tokens: estimateTokens(history),
+    window,
+  });
+  const data = compacted ? compactionOf(compacted) : null;
+  if (!(compacted && data)) {
+    return history;
+  }
+  writer.write({
+    data,
+    id: compacted.id,
+    transient: true,
+    type: "data-compaction",
+  });
+  return historyOf(beforeQuestion(thread, compacted));
+};
+
 export const POST = async (request: Request) => {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) {
@@ -547,7 +618,9 @@ export const POST = async (request: Request) => {
   if (prepared.dropFrom) {
     await dropMessages(session.user.id, id, prepared.dropFrom);
   }
-  await saveMessages(id, prepared.save);
+  // When the question is stored: a compaction made before its answer is stored just before it (lib/auto-compact).
+  const askedAt = Date.now();
+  await saveMessages(id, prepared.save, askedAt);
   // The question's files join the chat (approvals carry no message — nothing to join).
   await settleFiles(
     session.user.id,
@@ -751,28 +824,41 @@ export const POST = async (request: Request) => {
                   }
                 : {}),
             };
+      /** What the model is sent of a thread, before the budget. */
+      const historyOf = async (thread: ChatMessage[]) =>
+        // Earlier questions' tool results and reasoning go: their data was answered; the found tools and the user's
+        // answers stay (lib/context-budget).
+        clearPastTurns(
+          await convertToModelMessages(
+            // After a compaction (D37) the model gets its summary and what follows it, not the messages before.
+            await forModel(session.user.id, fromCompaction(thread), {
+              pdf: readsPdf(model.kind, model.modelId),
+              tools: model.capabilities.tools !== false,
+              vision: model.capabilities.vision,
+            }),
+            // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources). A call
+            // that never got its result (the answer was cut off while the tool ran) is left out: with it in the
+            // history every later question of the chat fails with «Tool result is missing».
+            { ignoreIncompleteToolCalls: true, tools }
+          ),
+          { keep: [FIND_TOOLS, ASK_USER] }
+        );
+      // A new question in a chat whose history is still too heavy is answered from a summary (lib/auto-compact).
+      const history = await compactFirst({
+        askedAt,
+        chatId: id,
+        history: await historyOf(uiMessages),
+        historyOf,
+        locale,
+        question: Boolean(message),
+        thread: uiMessages,
+        userId: session.user.id,
+        window: model.contextWindow,
+        writer,
+      });
       const prompt = withPromptCache(
         model.kind,
-        budgetMessages(
-          // Earlier questions' tool results go first: their data was answered; the found tools and the user's
-          // answers stay (lib/context-budget).
-          clearPastTurns(
-            await convertToModelMessages(
-              // After a compaction (D37) the model gets its summary and what follows it, not the messages before.
-              await forModel(session.user.id, fromCompaction(uiMessages), {
-                pdf: readsPdf(model.kind, model.modelId),
-                tools: model.capabilities.tools !== false,
-                vision: model.capabilities.vision,
-              }),
-              // The same tools the model gets: a table result is told to it as a summary (lib/tool-sources). A call
-              // that never got its result (the answer was cut off while the tool ran) is left out: with it in the
-              // history every later question of the chat fails with «Tool result is missing».
-              { ignoreIncompleteToolCalls: true, tools }
-            ),
-            { keep: [FIND_TOOLS, ASK_USER] }
-          ),
-          budget
-        )
+        budgetMessages(history, budget)
       );
       prompt.messages = withBrief(prompt.messages, memory.brief);
       const instructions = [

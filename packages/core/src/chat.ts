@@ -368,12 +368,16 @@ export const withoutNul = <T>(value: T): T => {
  * Stores messages of a chat and moves the chat up. A message saved again (the same id) keeps its place and
  * takes the new parts — a response that went on after a reconnect, or an edited one later (M3.2).
  */
-export const saveMessages = async (chatId: string, list: ChatMessage[]) => {
+export const saveMessages = async (
+  chatId: string,
+  list: ChatMessage[],
+  /** When the first new message is stored (the order is by time); now by default. */
+  now = Date.now()
+) => {
   if (list.length === 0) {
     return;
   }
   const { db } = getDb();
-  const now = Date.now();
   await db.transaction(async (tx) => {
     await tx
       .insert(messages)

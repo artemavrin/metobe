@@ -1,7 +1,12 @@
 import type { ChatMessage } from "@metobe/contracts/chat";
 import { describe, expect, it } from "vitest";
 
-import { fromCompaction, HEAVY_STEP_TOKENS, heavyAnswer } from "./compaction";
+import {
+  beforeQuestion,
+  fromCompaction,
+  HEAVY_STEP_TOKENS,
+  heavyAnswer,
+} from "./compaction";
 
 const user = (id: string): ChatMessage => ({
   id,
@@ -73,5 +78,25 @@ describe("when the chat offers to compact", () => {
         answer("a4", heavy),
       ])
     ).toBe(null);
+  });
+});
+
+describe("a compaction the chat made by itself", () => {
+  it("joins the thread before the question it was made for", () => {
+    const s = compaction("s1", "итог");
+    const thread = [user("q1"), answer("a1"), user("q2"), answer("a2")];
+    expect(beforeQuestion(thread, s).map((m) => m.id)).toEqual([
+      "q1",
+      "a1",
+      "s1",
+      "q2",
+      "a2",
+    ]);
+  });
+
+  it("joins once", () => {
+    const s = compaction("s1", "итог");
+    const once = beforeQuestion([user("q1"), answer("a1"), user("q2")], s);
+    expect(beforeQuestion(once, s)).toBe(once);
   });
 });

@@ -1,4 +1,5 @@
-import type { ModelMessage } from "ai";
+import { convertToModelMessages } from "ai";
+import type { ModelMessage, UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -330,5 +331,145 @@ describe("the reasoning of earlier answers", () => {
       user("вопрос 0"),
       user("вопрос 1"),
     ]);
+  });
+});
+
+const query = (i: number, s: number) =>
+  `SELECT Номенклатура, СУММА(Количество) ИЗ РегистрНакопления.Продажи ГДЕ Период МЕЖДУ &Начало И &Конец -- ${i}.${s} ${"x".repeat(400)}`;
+const question = (i: number): UIMessage => ({
+  id: `u${i}`,
+  parts: [{ text: `вопрос ${i}`, type: "text" }],
+  role: "user",
+});
+/** Where the question asked now starts (findLastIndex is past the ES2022 target). */
+const asked = (messages: ModelMessage[]) => {
+  let at = -1;
+  for (const [i, m] of messages.entries()) {
+    if (m.role === "user") {
+      at = i;
+    }
+  }
+  return at;
+};
+
+const steps = (i: number, n: number): UIMessage["parts"] =>
+  Array.from({ length: n }, (_, s) => [
+    { type: "step-start" as const },
+    {
+      state: "done" as const,
+      text: "р".repeat(5000),
+      type: "reasoning" as const,
+    },
+    {
+      input: { query: query(i, s) },
+      output: { content: [{ text: "д".repeat(50_000), type: "text" }] },
+      state: "output-available" as const,
+      toolCallId: `q${i}-${s}`,
+      toolName: "run_query",
+      type: "dynamic-tool" as const,
+    },
+  ]).flat();
+
+describe("a long chat as on the live install", () => {
+  // As the heaviest chat of 2026-11-24: many questions, each answered in steps of reasoning and 1С queries whose
+  // results run to tens of thousands of characters, then words. Built as the chat stores it and converted as the
+  // route does.
+  const QUESTIONS = 30;
+  const past = Array.from({ length: QUESTIONS }, (_, i): UIMessage[] => [
+    question(i),
+    {
+      id: `a${i}`,
+      parts: [
+        ...steps(i, 3),
+        { type: "step-start" },
+        { text: "о".repeat(3000), type: "text" },
+      ],
+      role: "assistant",
+    },
+  ]).flat();
+  /** The history as the model gets it while the question asked now has made `n` steps. */
+  const sentAt = async (n: number) => {
+    const ui: UIMessage[] = [
+      ...past,
+      question(QUESTIONS),
+      ...(n > 0
+        ? [
+            {
+              id: "now",
+              parts: steps(QUESTIONS, n),
+              role: "assistant" as const,
+            },
+          ]
+        : []),
+    ];
+    const converted = await convertToModelMessages(ui);
+    return {
+      converted,
+      sent: clearPastTurns(converted, { keep: ["find_tools", "ask_user"] }),
+    };
+  };
+
+  it("sends the model a fraction of the history", async () => {
+    const { converted, sent } = await sentAt(2);
+    // 30 × (150k of results + 15k of reasoning) against the words and calls that stay.
+    expect(estimateTokens(sent)).toBeLessThan(estimateTokens(converted) / 10);
+  });
+
+  it("leaves the question asked now as it was: its results and reasoning", async () => {
+    const { converted, sent } = await sentAt(2);
+    expect(sent.slice(asked(sent))).toEqual(converted.slice(asked(converted)));
+  });
+
+  it("gives every step of the answer the same history before it", async () => {
+    const { sent: one } = await sentAt(1);
+    const { sent: three } = await sentAt(3);
+    const before = asked(one) + 1;
+    expect(three.slice(0, before)).toEqual(one.slice(0, before));
+  });
+
+  it("tells the model which call it was, how big, and how to get it again", async () => {
+    const { sent } = await sentAt(0);
+    const [first] = cleared(sent);
+    expect(first).toContain("run_query(");
+    expect(first).toContain("РегистрНакопления.Продажи");
+    expect(first).toMatch(/ 5\d{4} characters/u);
+    expect(first).toContain("Call run_query again");
+    // The arguments are quoted, not copied whole.
+    expect(first?.length).toBeLessThan(600);
+  });
+});
+
+describe("a cleared result the widgets can still draw", () => {
+  it("keeps its ref in the note", () => {
+    const summary = `A table of 900 rows, ref t0. ${big(1000)}`;
+    const history: ModelMessage[] = [
+      user("вопрос 0"),
+      call("t0"),
+      {
+        content: [
+          {
+            output: { type: "text", value: summary },
+            toolCallId: "t0",
+            toolName: "run_query",
+            type: "tool-result",
+          },
+        ],
+        role: "tool",
+      },
+      user("вопрос 1"),
+    ];
+    const [note] = cleared(clearPastTurns(history, { keep: [] }));
+    expect(note).toContain('from.ref "t0"');
+  });
+
+  it("says nothing of a ref for a result that is not a table", () => {
+    const history = [
+      user("вопрос 0"),
+      call("c0"),
+      result("c0", 1000),
+      user("вопрос 1"),
+    ];
+    const [note] = cleared(clearPastTurns(history, { keep: [] }));
+    expect(note).not.toContain("from.ref");
   });
 });
