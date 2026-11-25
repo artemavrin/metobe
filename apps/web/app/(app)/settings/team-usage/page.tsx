@@ -1,4 +1,4 @@
-import { canSeeTeamUsage } from "@metobe/contracts/members";
+import { canManagePlatform } from "@metobe/contracts/members";
 import { actorOf } from "@metobe/core/context";
 import { notFound } from "next/navigation";
 
@@ -6,7 +6,7 @@ import { UsageScreen } from "@/components/usage/usage-screen";
 import type { UsageSearch } from "@/components/usage/usage-screen";
 import { getSettingsViewer } from "@/lib/settings-access";
 
-// «Расходы команды»: everyone's runs — models, people, days. The layout turns a non-admin away; the page checks again,
+// «Расходы команды»: everyone's runs — models, people, days, with money: the platform's until the screen shows percent (О9). The layout turns a non-admin away; the page checks again,
 // since a layout and its page render side by side.
 const TeamUsagePage = async ({
   searchParams,
@@ -14,7 +14,7 @@ const TeamUsagePage = async ({
   searchParams: UsageSearch;
 }) => {
   const { ctx } = await getSettingsViewer();
-  if (!(ctx && canSeeTeamUsage(actorOf(ctx), true))) {
+  if (!(ctx && canManagePlatform(actorOf(ctx)))) {
     notFound();
   }
   return <UsageScreen scope="team" searchParams={searchParams} />;
