@@ -16,6 +16,7 @@ import {
 } from "vitest";
 
 import type * as DigestModule from "./memory-digest";
+import { testMember } from "./test-organization";
 
 const notify = vi.fn();
 const suggestions = vi.fn();
@@ -160,8 +161,10 @@ describe.skipIf(!URL)("sendDueDigests (D43)", () => {
     const dbModule = await import("./db");
     ({ db } = dbModule.getDb());
     digest = await import("./memory-digest");
+    const member = await testMember(db);
     await db.insert(user).values(
       [ana, bob].map((id) => ({
+        ...member,
         email: `${id}@example.test`,
         id,
         locale: "ru",

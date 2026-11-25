@@ -21,6 +21,7 @@ import {
   memoryTools,
 } from "@metobe/core/memory-read";
 import { MEMORY_NOTE } from "@metobe/core/memory-write";
+import { testMember } from "@metobe/core/test-organization";
 import { user } from "@metobe/db/schema/auth";
 import { generateText, stepCountIs } from "ai";
 
@@ -65,7 +66,9 @@ const model = await getLanguageModel(row.source_id, MODEL);
 const ownerId = `show-check-${crypto.randomUUID().slice(0, 8)}`;
 let misses = 0;
 try {
+  const member = await testMember(db);
   await db.insert(user).values({
+    ...member,
     email: `${ownerId}@example.test`,
     id: ownerId,
     name: "Проверка виджетов",

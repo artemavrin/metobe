@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type * as MemoryModule from "./memory";
 import type * as TodayModule from "./memory-today";
+import { testMember } from "./test-organization";
 
 vi.mock("server-only", () => ({}));
 
@@ -36,7 +37,9 @@ describe.skipIf(!URL)("letters with no answer in «Не упустить» (Г3.
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     today = await import("./memory-today");
+    const member = await testMember(db);
     await db.insert(user).values({
+      ...member,
       email: `${ana}@example.test`,
       id: ana,
       name: ana,

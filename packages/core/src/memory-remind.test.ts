@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type * as MemoryModule from "./memory";
 import type * as RemindModule from "./memory-remind";
 import type * as TodayModule from "./memory-today";
+import { testMember } from "./test-organization";
 
 // «Напомнить» (Г2.4) on a database of its own: MEMORY_TEST_DATABASE_URL=postgres://… pnpm --filter @metobe/core test
 // memory-remind. The mail is not sent — `sendEmail` is a spy, the boxes and the admin's policy are given here — and the
@@ -53,9 +54,13 @@ describe.skipIf(!URL)("a reminder letter (Г2.4)", () => {
     memory = await import("./memory");
     remind = await import("./memory-remind");
     today = await import("./memory-today");
-    await db
-      .insert(user)
-      .values({ email: `${owner}@example.test`, id: owner, name: owner });
+    const member = await testMember(db);
+    await db.insert(user).values({
+      ...member,
+      email: `${owner}@example.test`,
+      id: owner,
+      name: owner,
+    });
   });
 
   afterAll(async () => {

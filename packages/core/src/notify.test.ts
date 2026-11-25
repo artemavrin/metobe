@@ -16,6 +16,7 @@ import {
 } from "vitest";
 
 import type * as NotifyModule from "./notify";
+import { testMember } from "./test-organization";
 
 const sendMail = vi.fn();
 const sendTelegram = vi.fn();
@@ -86,9 +87,10 @@ describe.skipIf(!URL)("notify (D43)", () => {
     const dbModule = await import("./db");
     ({ db } = dbModule.getDb());
     notifyModule = await import("./notify");
+    const member = await testMember(db);
     await db
       .insert(user)
-      .values({ email: `${ana}@example.test`, id: ana, name: ana });
+      .values({ ...member, email: `${ana}@example.test`, id: ana, name: ana });
   });
 
   afterAll(async () => {

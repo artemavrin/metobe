@@ -29,6 +29,7 @@ import {
   memoryTools,
 } from "@metobe/core/memory-read";
 import { MEMORY_NOTE } from "@metobe/core/memory-write";
+import { testMember } from "@metobe/core/test-organization";
 import { user } from "@metobe/db/schema/auth";
 import { generateText, stepCountIs } from "ai";
 
@@ -308,7 +309,9 @@ interface Outcome {
 const outcomes: Outcome[] = [];
 
 try {
+  const member = await testMember(db);
   await db.insert(user).values({
+    ...member,
     email: `${owner}@example.test`,
     id: owner,
     name: "Проверка чтения",

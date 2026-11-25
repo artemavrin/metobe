@@ -1,5 +1,4 @@
 import "server-only";
-import { isOrgRole, isRole, orgRoleFor } from "@metobe/contracts/members";
 import type { OrgRole } from "@metobe/contracts/members";
 import type { Db } from "@metobe/db/client";
 import { user } from "@metobe/db/schema/auth";
@@ -31,11 +30,7 @@ export const installOrganizationId = async (db: Db | Tx = getDb().db) => {
   return row?.id ?? null;
 };
 
-/**
- * Whom the person belongs to and as what; null when there is no such account. Between expand and contract (ARCH §20.4)
- * a row the previous release wrote has no role yet — it is read as the role its install role gives, the way contract
- * will fill it in; its organization comes from the column's default.
- */
+/** Whom the person belongs to and as what; null when there is no such account. */
 export const getMembership = async (
   userId: string
 ): Promise<Membership | null> => {
@@ -44,7 +39,6 @@ export const getMembership = async (
       id: organizations.id,
       name: organizations.name,
       orgRole: user.orgRole,
-      role: user.role,
       status: organizations.status,
       timeZone: organizations.timeZone,
     })
@@ -54,13 +48,8 @@ export const getMembership = async (
   if (!row) {
     return null;
   }
-  const { orgRole, role, ...organization } = row;
-  return {
-    orgRole: isOrgRole(orgRole)
-      ? orgRole
-      : orgRoleFor(isRole(role) ? role : "user"),
-    organization,
-  };
+  const { orgRole, ...organization } = row;
+  return { orgRole, organization };
 };
 
 /** The mail domain an organization is named by until its owner renames it (ORGS-PLAN §13). */

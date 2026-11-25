@@ -13,6 +13,7 @@ import { getDb } from "@metobe/core/db";
 import { addRecord, createEntity, ensureSelf } from "@metobe/core/memory";
 import { memoryBrief, memoryTools } from "@metobe/core/memory-read";
 import { MEMORY_NOTE } from "@metobe/core/memory-write";
+import { testMember } from "@metobe/core/test-organization";
 import { user } from "@metobe/db/schema/auth";
 import { generateText, stepCountIs } from "ai";
 import type { ModelMessage } from "ai";
@@ -93,6 +94,7 @@ const model = await getLanguageModel(row.source_id, MODEL);
 
 let misses = 0;
 const owners: string[] = [];
+const member = await testMember(db);
 try {
   for (let run = 0; run < RUNS; run += 1) {
     // A talk starts with a memory of its own: a new person each run.
@@ -100,6 +102,7 @@ try {
     owners.push(ownerId);
     // oxlint-disable-next-line eslint/no-await-in-loop -- one talk after another
     await db.insert(user).values({
+      ...member,
       email: `${ownerId}@example.test`,
       id: ownerId,
       name: "Проверка речи",

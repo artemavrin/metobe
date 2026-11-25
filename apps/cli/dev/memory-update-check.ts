@@ -15,6 +15,7 @@ import {
   listRecords,
 } from "@metobe/core/memory";
 import { queueMemoryWrite } from "@metobe/core/memory-queue";
+import { testMember } from "@metobe/core/test-organization";
 import { user } from "@metobe/db/schema/auth";
 import { chats, messages } from "@metobe/db/schema/chat";
 
@@ -29,7 +30,9 @@ const SAID = [
 
 const { db, sql } = getDb();
 const ownerId = `update-check-${crypto.randomUUID().slice(0, 8)}`;
+const member = await testMember(db);
 await db.insert(user).values({
+  ...member,
   email: `${ownerId}@example.test`,
   id: ownerId,
   name: "Проверка замены",

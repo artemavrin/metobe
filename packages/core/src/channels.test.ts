@@ -8,6 +8,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type * as ChannelsModule from "./channels";
+import { testMember } from "./test-organization";
 
 vi.mock("server-only", () => ({}));
 vi.mock("./telegram", () => ({
@@ -35,8 +36,10 @@ describe.skipIf(!URL)("Telegram channel (D43)", () => {
     const dbModule = await import("./db");
     ({ db } = dbModule.getDb());
     channels = await import("./channels");
+    const member = await testMember(db);
     await db.insert(user).values(
       [ana, bob].map((id) => ({
+        ...member,
         email: `${id}@example.test`,
         id,
         locale: "ru",

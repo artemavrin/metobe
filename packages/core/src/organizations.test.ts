@@ -21,8 +21,9 @@ vi.mock("server-only", () => ({}));
 // nobody has claimed. MEMORY_TEST_DATABASE_URL=postgres://… pnpm --filter @metobe/core test organizations
 const URL = process.env.MEMORY_TEST_DATABASE_URL;
 
-/** The migration that brings organizations: an install before it is one at the migration before. */
+/** The migrations that bring organizations: an install before one of them is one at the release before it. */
 const EXPAND = "0071_orgs_expand";
+const CONTRACT = "0073_orgs_contract";
 
 type Sql = ReturnType<typeof createDb>["sql"];
 
@@ -52,8 +53,8 @@ const dropDatabase = async (name: string) => {
   }
 };
 
-/** The migrations folder as the release before organizations shipped it: every migration before expand. */
-const folderBeforeOrganizations = async () => {
+/** The migrations folder as a release before this one shipped it: every migration before `tag`. */
+const folderBefore = async (tag: string) => {
   const dir = await mkdtemp(path.join(tmpdir(), "metobe-orgs-"));
   await mkdir(path.join(dir, "meta"));
   const journal = JSON.parse(
@@ -62,7 +63,7 @@ const folderBeforeOrganizations = async () => {
       "utf-8"
     )
   ) as { entries: { tag: string }[] };
-  const cut = journal.entries.findIndex((entry) => entry.tag === EXPAND);
+  const cut = journal.entries.findIndex((entry) => entry.tag === tag);
   journal.entries = journal.entries.slice(0, cut);
   const kept = new Set(journal.entries.map((entry) => `${entry.tag}.sql`));
   for (const name of await readdir(defaultMigrationsFolder)) {
@@ -126,7 +127,7 @@ describe.skipIf(!URL)(
       const url = serverUrl(name);
       const { sql } = createDb(url);
       try {
-        await runMigrations(url, await folderBeforeOrganizations());
+        await runMigrations(url, await folderBefore(EXPAND));
         await sql`insert into "user" (id, name, email, role, created_at, updated_at) values
         ('a-owner', 'Owner', 'owner@acme.example', 'superuser', now() - interval '3 days', now()),
         ('b-admin', 'Admin', 'admin@acme.example', 'admin', now() - interval '2 days', now()),
@@ -135,7 +136,8 @@ describe.skipIf(!URL)(
         await sql`insert into system_settings (id, policies) values (1, ${JSON.stringify({ access: { domains: ["acme.example"] }, chat: { x: 1 } })}::jsonb)
         on conflict (id) do update set policies = excluded.policies`;
 
-        await runMigrations(url);
+        // The release of expand and backfill.
+        await runMigrations(url, await folderBefore(CONTRACT));
 
         const orgs = await sql<
           { id: string; name: string; settings: unknown }[]
@@ -160,9 +162,18 @@ describe.skipIf(!URL)(
           organization_id: org?.id,
         });
 
-        // The previous release, still running after the update, writes an account without either: the organization comes
-        // from the default, the role is read from the install's role until contract fills it in.
+        // The release before, still running after that update, writes an account and an invitation without either: the
+        // organization comes from the default, the role is filled in by contract.
         await sql`insert into "user" (id, name, email, role) values ('d-old', 'Old', 'old@acme.example', 'admin')`;
+        await sql`insert into invitations (role, token_hash, expires_at) values ('user', 'h2', now() + interval '1 day')`;
+        await runMigrations(url);
+        expect(
+          await sql`select org_role, organization_id from invitations where token_hash = 'h2'`
+        ).toEqual([{ org_role: "member", organization_id: org?.id }]);
+        // After contract the release before cannot write an account any more — the reason it ships a release later.
+        await expect(
+          sql`insert into "user" (id, name, email) values ('e-old', 'Old', 'old2@acme.example')`
+        ).rejects.toThrow(/organization_id/u);
         const core = await coreOn(url);
         expect(await core.organizations.getMembership("d-old")).toEqual({
           orgRole: "admin",
@@ -194,7 +205,7 @@ describe.skipIf(!URL)(
       const url = serverUrl(name);
       const { sql } = createDb(url);
       try {
-        await runMigrations(url, await folderBeforeOrganizations());
+        await runMigrations(url, await folderBefore(EXPAND));
         // The upgrade check's base: one person with the role `user`, no superuser.
         await sql`insert into "user" (id, name, email, email_verified, created_at, updated_at)
         values ('upgrade-check', 'Upgrade check', 'upgrade-check@example.com', true, now(), now())`;
@@ -236,6 +247,31 @@ describe.skipIf(!URL)(
         expect(await sql`select 1 from organizations`).toHaveLength(1);
       } finally {
         await endCorePool();
+        await sql.end();
+      }
+    });
+
+    it("has contract make the organization of an install the release before filled after expand", async () => {
+      const name = await createDatabase();
+      made.push(name);
+      const url = serverUrl(name);
+      const { sql } = createDb(url);
+      try {
+        // Expand on an empty install makes no organization; the release before then writes the first people.
+        await runMigrations(url, await folderBefore(CONTRACT));
+        expect(await sql`select 1 from organizations`).toHaveLength(0);
+        await sql`insert into "user" (id, name, email, role) values
+          ('a-first', 'First', 'first@late.example', 'superuser'), ('b-next', 'Next', 'next@late.example', 'user')`;
+        await runMigrations(url);
+        const [org] = await sql<
+          { id: string; name: string }[]
+        >`select id, name from organizations`;
+        expect(org?.name).toBe("late.example");
+        expect(await roles(sql)).toEqual([
+          { id: "a-first", org_role: "owner", organization_id: org?.id },
+          { id: "b-next", org_role: "member", organization_id: org?.id },
+        ]);
+      } finally {
         await sql.end();
       }
     });

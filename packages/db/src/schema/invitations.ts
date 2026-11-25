@@ -32,15 +32,16 @@ export const invitations = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     id: uuid("id").primaryKey().defaultRandom(),
     /** The role in the organization the link joins (D48); `role` stays the role in the install. */
-    orgRole: text("org_role").$type<"admin" | "member">(),
-    organizationId: uuid("organization_id").references(() => organizations.id, {
-      onDelete: "cascade",
-    }),
+    orgRole: text("org_role").$type<"admin" | "member">().notNull(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
     tokenHash: text("token_hash").notNull().unique(),
   },
   (table) => [
     index("invitations_open").on(table.expiresAt),
+    index("invitations_org_open").on(table.organizationId, table.expiresAt),
     check("invitations_role", sql`${table.role} in ('admin', 'user')`),
     check("invitations_org_role", sql`${table.orgRole} in ('admin', 'member')`),
   ]
