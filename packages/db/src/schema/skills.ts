@@ -45,7 +45,7 @@ export const skills = pgTable(
     instructions: text("instructions").notNull(),
     /** The skill's `name`: lowercase letters, digits and hyphens, up to 64 — what «/» and the model call it by. */
     name: text("name").notNull(),
-    /** The organization's (D48). Nullable until contract and filled by the column's default (ARCH §20.4); O4 writes it. */
+    /** The organization's (D48): the column's default fills it while there is one (ARCH §20.4); O4 writes it. */
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "cascade",
     }),

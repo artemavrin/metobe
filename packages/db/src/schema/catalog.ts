@@ -61,7 +61,7 @@ export const catalogItems = pgTable(
     key: text("key").notNull().unique(),
     /** An optional picture (a small data URL). */
     logo: text("logo"),
-    /** The organization's (D48). Nullable until contract and filled by the column's default (ARCH §20.4); O4 writes it. */
+    /** The organization's (D48): the column's default fills it while there is one (ARCH §20.4); O4 writes it. */
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "cascade",
     }),

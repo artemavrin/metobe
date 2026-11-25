@@ -31,8 +31,8 @@ export const invitations = pgTable(
     email: text("email"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     id: uuid("id").primaryKey().defaultRandom(),
+    /** The role in the organization the link joins (D48); `role` stays the role in the install. */
     orgRole: text("org_role").$type<"admin" | "member">(),
-    /** The organization the link joins and the role in it (D48); `role` stays the role in the install. */
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "cascade",
     }),
