@@ -10,8 +10,8 @@ import {
 
 // Organizations (D48, ARCH §20.4): a company inside the install. There is always one — the claim makes it, and an
 // install that predates them gets it from the migration; self-hosted is an install with one. Its owner is the user with
-// `org_role = 'owner'`. Status, trial and billing are read by later steps (ORGS-PLAN §12); `settings` takes the
-// organization's parts of `system_settings.policies` (O3 moves them here — till then they are a copy).
+// `org_role = 'owner'`. Status, trial and billing are read by later steps (ORGS-PLAN §12); `settings` holds the
+// organization's parts of what used to be `system_settings.policies` (O3): access, personal connections, data protection.
 export const organizations = pgTable(
   "organizations",
   {

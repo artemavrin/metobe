@@ -21,7 +21,7 @@ import { Marked } from "marked";
 
 import { getDb } from "./db";
 import { mailEndpoint } from "./net";
-import { getPersonalPolicy } from "./personal";
+import { getInstallPersonalPolicy, getPersonalPolicyOf } from "./personal";
 import { removeSecrets, setSecret, withSecret } from "./secrets";
 import { TIMEOUT_MS, problemOf, smtpTransport } from "./smtp";
 import type { Credentials, MailProblem } from "./smtp";
@@ -59,7 +59,7 @@ const fail = (server: "smtp" | "imap", error: unknown): never => {
 
 /** Where a server of a box is, as the admin's «Доступ» allows; none at all while own connections are off. */
 const endpointOf = async (host: string) => {
-  const { mode } = await getPersonalPolicy();
+  const { mode } = await getInstallPersonalPolicy();
   // Turned off: the boxes stay, and nothing goes to their servers.
   if (mode === "off") {
     throw new Error(
@@ -146,7 +146,7 @@ export const saveMailbox = async (
   userId: string,
   input: MailboxInput
 ): Promise<SaveResult> => {
-  const { mode } = await getPersonalPolicy();
+  const { mode } = await getPersonalPolicyOf(userId);
   if (mode === "off") {
     return { ok: false, problem: "off" };
   }

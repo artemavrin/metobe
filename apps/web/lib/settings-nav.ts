@@ -33,8 +33,11 @@ interface NavItem {
 }
 interface NavGroup {
   key: string;
-  /** `user` — every user's own settings; `admin` — the service, shown to admins only. */
-  scope: "user" | "admin";
+  /**
+   * `user` — every user's own settings; `org` — the organization's, for its owner and admins; `platform` — the
+   * install's, for the superuser and the install's admins (ORGS-PLAN §9).
+   */
+  scope: "user" | "org" | "platform";
   items: readonly NavItem[];
 }
 
@@ -52,33 +55,45 @@ export const SETTINGS_NAV = [
   },
   {
     items: [
-      { icon: Server, id: "sources", kind: "list" },
-      { icon: Factory, id: "providers", kind: "list" },
-      { icon: Cog, id: "service", kind: "screen" },
+      { icon: Users, id: "users", kind: "list" },
+      { icon: Shield, id: "access", kind: "screen" },
       { icon: ShieldCheck, id: "privacy", kind: "screen" },
     ],
-    key: "models",
-    scope: "admin",
+    key: "team",
+    scope: "org",
   },
   {
     items: [
       { icon: Blocks, id: "mcp", kind: "list" },
       { icon: Sparkles, id: "skills", kind: "screen" },
+    ],
+    key: "orgTools",
+    scope: "org",
+  },
+  {
+    items: [
+      { icon: Server, id: "sources", kind: "list" },
+      { icon: Factory, id: "providers", kind: "list" },
+      { icon: Cog, id: "service", kind: "screen" },
+    ],
+    key: "models",
+    scope: "platform",
+  },
+  {
+    items: [
       { icon: Search, id: "search", kind: "screen" },
       { icon: SquareTerminal, id: "sandbox", kind: "screen" },
     ],
     key: "tools",
-    scope: "admin",
+    scope: "platform",
   },
   {
     items: [
-      { icon: Users, id: "users", kind: "list" },
-      { icon: Shield, id: "access", kind: "screen" },
       { icon: Gauge, id: "limits", kind: "screen" },
       { icon: ChartColumnStacked, id: "team-usage", kind: "screen" },
     ],
-    key: "team",
-    scope: "admin",
+    key: "spend",
+    scope: "platform",
   },
   {
     items: [
@@ -88,7 +103,7 @@ export const SETTINGS_NAV = [
       { icon: Info, id: "about", kind: "screen" },
     ],
     key: "system",
-    scope: "admin",
+    scope: "platform",
   },
 ] as const satisfies readonly NavGroup[];
 
@@ -102,11 +117,24 @@ const ALL = SETTINGS_NAV.flatMap((g) =>
 
 export const findSection = (id: string) => ALL.find((s) => s.id === id);
 
-/** Admins see the service's settings; everyone sees their own. */
+export type SettingsScope = (typeof SETTINGS_NAV)[number]["scope"];
+
+/** Which groups of the menu a viewer has: their own always, the organization's and the platform's by role. */
+export interface SettingsAccess {
+  /** Owner or admin of the organization. */
+  orgManager: boolean;
+  /** Superuser or admin of the install. */
+  platform: boolean;
+}
+
+/** The superuser and the install's admins run the platform. */
 export const isAdminRole = (role: string | null | undefined) =>
   role === "superuser" || role === "admin";
 
-export const canOpen = (id: string, admin: boolean) => {
+export const canSee = (scope: SettingsScope, access: SettingsAccess) =>
+  scope === "user" || (scope === "org" ? access.orgManager : access.platform);
+
+export const canOpen = (id: string, access: SettingsAccess) => {
   const section = findSection(id);
-  return Boolean(section && (section.scope === "user" || admin));
+  return Boolean(section && canSee(section.scope, access));
 };

@@ -46,7 +46,7 @@ import { filesOf } from "./files";
 import { listMailboxes } from "./mailboxes";
 import { listChatServers, toolsForUser } from "./mcp";
 import { taskMemory } from "./memory-task";
-import { getPersonalPolicy } from "./personal";
+import { getPersonalPolicyOf } from "./personal";
 import { sandboxOn } from "./sandbox";
 import { skillsByIds, skillsForChat } from "./skills";
 import { getStorage } from "./storage";
@@ -164,7 +164,7 @@ const toolsFor = async (
     await Promise.all([
       listChatServers(task.ownerId),
       listMailboxes(task.ownerId),
-      getPersonalPolicy(),
+      getPersonalPolicyOf(task.ownerId),
       webToolsOn(),
       skillsForChat(task.ownerId),
       skillsByIds(task.ownerId, snapshot.skillIds ?? []),

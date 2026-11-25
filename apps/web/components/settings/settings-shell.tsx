@@ -43,8 +43,8 @@ import { SettingsListLevel } from "@/components/settings/settings-list";
 import { lastPage, settingsSteps } from "@/lib/last-page";
 import { levelMotion } from "@/lib/level-motion";
 import type { SettingsLists } from "@/lib/settings-lists";
-import { findSection, SETTINGS_NAV } from "@/lib/settings-nav";
-import type { SettingsSectionId } from "@/lib/settings-nav";
+import { canSee, findSection, SETTINGS_NAV } from "@/lib/settings-nav";
+import type { SettingsAccess, SettingsSectionId } from "@/lib/settings-nav";
 import {
   mountSettingsWindow,
   settingsWindowInPage,
@@ -66,12 +66,12 @@ const currentId = (pathname: string) => pathname.split("/")[2] ?? "";
 const currentEntry = (pathname: string) => pathname.split("/")[3];
 
 const Menu = ({
-  admin,
+  access,
   query,
   onDrill,
   marked,
 }: {
-  admin: boolean;
+  access: SettingsAccess;
   query: string;
   onDrill: (id: SettingsSectionId) => void;
   /** Sections with news for the viewer: a dot after the name («О системе» — a new version). */
@@ -82,7 +82,7 @@ const Menu = ({
   const active = currentId(pathname);
   const { isMobile, setOpenMobile } = useSidebar();
   const q = query.trim().toLowerCase();
-  const groups = SETTINGS_NAV.filter((g) => g.scope === "user" || admin)
+  const groups = SETTINGS_NAV.filter((g) => canSee(g.scope, access))
     .map((g) => ({
       ...g,
       items: g.items.filter((item) => {
@@ -102,13 +102,20 @@ const Menu = ({
       <p className="text-muted-foreground px-4 py-2 text-sm">{t("nothing")}</p>
     );
   }
+  // Mine, the organization's, the platform's: each starts under its own heading — when there is more than one, so the
+  // menu of a person with only their own settings stays as it was.
+  const headed = new Set(groups.map((g) => g.scope)).size > 1;
   return groups.map((g, i) => (
     <Fragment key={g.key}>
-      {/* The user's own settings come first; the service's settings start under a divider (admins only). */}
-      {g.scope === "admin" && groups[i - 1]?.scope !== "admin" && (
+      {headed && groups[i - 1]?.scope !== g.scope && (
         <div className="px-4 pt-3 pb-1">
-          <div className="border-sidebar-border text-muted-foreground border-t pt-3 text-[11px] font-medium tracking-wide uppercase">
-            {t("admin")}
+          <div
+            className={cn(
+              "border-sidebar-border text-muted-foreground pt-3 text-[11px] font-medium tracking-wide uppercase",
+              i > 0 && "border-t"
+            )}
+          >
+            {t(`scopes.${g.scope}`)}
           </div>
         </div>
       )}
@@ -208,14 +215,15 @@ const Nav = ({
 const NONE: readonly SettingsSectionId[] = [];
 
 export const SettingsShell = ({
-  admin,
+  access,
   account,
   lists,
   marked = NONE,
   intercepted = false,
   children,
 }: {
-  admin: boolean;
+  /** Which groups of the menu this viewer has. */
+  access: SettingsAccess;
   account: ReactNode;
   /** Lists of the list sections this viewer may open (lib/settings-lists). */
   lists: SettingsLists;
@@ -389,7 +397,7 @@ export const SettingsShell = ({
                       ref={menu}
                     >
                       <Menu
-                        admin={admin}
+                        access={access}
                         marked={marked}
                         onDrill={(id) => {
                           setOpening(id);

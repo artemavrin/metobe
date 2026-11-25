@@ -21,7 +21,7 @@ import type {
 } from "@metobe/contracts/updates";
 import { getDb } from "@metobe/core/db";
 import { fetchFor } from "@metobe/core/net";
-import { setPrivacySettings } from "@metobe/core/privacy-settings";
+import { setGuardService } from "@metobe/core/privacy-settings";
 import {
   getUpdateAutomation,
   localUpdateClock,
@@ -420,10 +420,10 @@ const setGuard = async (ask: GuardRequest) => {
           ])
         );
       }
-      await setPrivacySettings((s) => ({ ...s, bundled: true }));
+      await setGuardService((s) => ({ ...s, bundled: true }));
     } else {
       await at("stop");
-      await setPrivacySettings((s) => ({ ...s, bundled: false }));
+      await setGuardService((s) => ({ ...s, bundled: false }));
       await writeFile(envPath, withProfile(env, GUARD_PROFILE, false));
       await compose(["rm", "--stop", "--force", GUARD]);
     }

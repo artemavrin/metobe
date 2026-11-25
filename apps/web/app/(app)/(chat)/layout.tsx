@@ -21,12 +21,13 @@ import { NotReady } from "./not-ready";
 // The chat's shell (P1 «Режимы»): a floating sidebar with the user's chats, the screen beside it. Chat opens once
 // any source puts a model into it; until then an admin sets it up, anyone else waits.
 const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
-  const [{ admin, role, user }, models, prefs, t] = await Promise.all([
-    getSettingsViewer(),
-    getChatModels(),
-    getPrefs(),
-    getTranslations("settings.roles"),
-  ]);
+  const [{ admin, orgManager, role, user }, models, prefs, t] =
+    await Promise.all([
+      getSettingsViewer(),
+      getChatModels(),
+      getPrefs(),
+      getTranslations("settings.roles"),
+    ]);
   // (app)/layout has sent anyone without a session to /login already.
   if (!user) {
     redirect("/login");
@@ -72,6 +73,7 @@ const ChatLayout = async ({ children }: { children: React.ReactNode }) => {
   return (
     <ChatShell
       admin={admin}
+      settings={{ orgManager, platform: admin }}
       chats={chats}
       memory={memory}
       tasks={tasks}

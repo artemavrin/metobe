@@ -1361,7 +1361,7 @@ skills; // + organization_id; unique (organization_id, name) для общих
      - `organizations` и сразу первая организация, если в установке есть хоть одна строка;
      - `organization_id` во всех пяти таблицах — с `DEFAULT` = id этой организации, а не через `UPDATE`. Существующие строки не перезаписываются (значение берётся из каталога, PG 11+), старый код при вставке получает организацию сам;
      - `org_role`, `blocked_at`, CHECK и FK — `NOT VALID`, без сканирования;
-     - организационные части `policies` (`access`, `personalConnections`, `personalApprovalDefaults`, `privacy`) копируются в `organizations.settings`. Из `policies` они удаляются в О3: старый код читает их там.
+     - организационные части `policies` (`access`, `personalConnections`, `personalApprovalDefaults`, `privacy`) копируются в `organizations.settings`. В О3 (`0074_orgs_settings_move`) они копируются ещё раз — предыдущий релиз писал их в `policies` — и код читает их из организации. Из `policies` ключи не удаляются: предыдущий релиз читает их там, откат должен их найти; чистит их contract. Сервисная часть `privacy` (`url`, `bundled`) остаётся в `policies.privacy`.
   2. **Backfill** — только роли: `superuser → owner`, `admin → admin`, `user → member`, в приглашениях `admin → admin`, `user → member`. Нет суперюзера — владелец старейший админ, иначе старейший человек (так выглядит база `upgrade-check.sh`). Повторный запуск ничего не меняет.
   3. **Contract.** Тот же `LOCK TABLE`, затем догон: организация, если первые строки появились после expand; `organization_id` и `org_role` у строк, которые старый код записал после backfill. Потом `DROP DEFAULT`, `VALIDATE`, `SET NOT NULL`, `unique (organization_id, key)` вместо `unique (key)`, `skills_shared_name` по `(organization_id, name)`, один владелец на организацию, индексы ниже.
 
@@ -1414,7 +1414,7 @@ skills; // + organization_id; unique (organization_id, name) для общих
   - `allowedModels` — подмножество моделей тарифов, null — все;
   - `builtinToolsOff` — встроенные инструменты, выключенные у себя.
 - **Модули, которые читают эти части сейчас** (`access.ts`, `personal.ts`, `privacy-settings.ts`, `web-settings.ts`), получают `orgId` и читают организационную часть. Платформенная часть остаётся у них же.
-- **Меню настроек.** Три группы вместо двух: «Моё» (`scope: 'user'`), «Организация» (`'org'` — владелец и админ организации), «Платформа» (`'platform'` — суперюзер и админ установки). `canOpen(section, ctx)` в `apps/web/lib/settings-nav.ts` решает по группе. В self-hosted админ видит обе группы, как сейчас видит одну.
+- **Меню настроек.** Три группы вместо двух: «Моё» (`scope: 'user'`), «Организация» (`'org'` — владелец и админ организации), «Платформа» (`'platform'` — суперюзер и админ установки). `canOpen(section, access)` в `apps/web/lib/settings-nav.ts` решает по группе (`access` — `{ orgManager, platform }`). Платформе отданы источники, провайдеры, служебные модели, поиск, песочница, лимиты, расходы команды, прокси, почта, хранилище, «О системе»; организации — люди, доступ, защита данных, каталог MCP, общие скиллы. В self-hosted админ видит обе группы, как сейчас видит одну.
 
 ### 20.7 Какие модели доступны человеку
 

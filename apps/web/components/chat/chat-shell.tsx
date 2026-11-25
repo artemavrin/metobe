@@ -72,6 +72,7 @@ import type { SidebarTask } from "@/components/tasks/task-level";
 import { useTaskEvents } from "@/components/tasks/use-task-events";
 import { groupChats } from "@/lib/chat-history";
 import { levelMotion } from "@/lib/level-motion";
+import type { SettingsAccess } from "@/lib/settings-nav";
 
 const NO_NEWS: WhatsNew = { latest: null, show: null };
 
@@ -306,6 +307,7 @@ export const ChatShell = ({
   tasks = NO_TASKS,
   memory = false,
   admin,
+  settings,
   user,
   sendKey,
   sidebarWidth = null,
@@ -319,8 +321,9 @@ export const ChatShell = ({
   tasks?: SidebarTask[];
   /** The memory is on: «Память» stands under «Задачи». */
   memory?: boolean;
-  /** The search offers the service's settings sections to admins. */
   admin: boolean;
+  /** The search offers the settings sections of the groups the person has. */
+  settings: SettingsAccess;
   user: Person;
   /** The key that sends a message, as the user chose it. */
   sendKey: "enter" | "mod-enter";
@@ -487,9 +490,9 @@ export const ChatShell = ({
                           <SidebarContent>
                             {/* The search on top, as everywhere; while it is searching its results take the place of tasks and chats. */}
                             <SidebarSearch
-                              admin={admin}
                               chats={chats}
                               memory={memory}
+                              settings={settings}
                             >
                               <Tasks tasks={taskRows} />
                               {memory && <Memory />}

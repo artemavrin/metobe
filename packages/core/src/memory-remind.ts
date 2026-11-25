@@ -27,7 +27,7 @@ import type { LetterFacts, LetterTone } from "./memory-letter";
 import { recordSource } from "./memory-page";
 import { sidesOf } from "./memory-today";
 import { getSlotModel } from "./model-slots";
-import { getPersonalPolicy } from "./personal";
+import { getPersonalPolicyOf } from "./personal";
 
 // «Напомнить» in «Не упустить» (Г2.4, P23 «Окно»): a letter to the one who owes the person, written by the model of
 // the slot «Память» (a person's memory goes to no other model, D39) or, without one, by a template; sent from the
@@ -55,7 +55,7 @@ const owedOf = async (ownerId: string, recordId: string) => {
 
 /** The boxes a letter can go from: the person's own mail is on and the box has not turned sending off. */
 const sendingBoxes = async (ownerId: string) => {
-  const personal = await getPersonalPolicy();
+  const personal = await getPersonalPolicyOf(ownerId);
   if (personal.mode === "off") {
     return [];
   }

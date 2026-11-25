@@ -83,7 +83,7 @@ import {
 import { rememberTool } from "@metobe/core/memory-remember";
 import { chatMemoryNote, isMemoryOnFor } from "@metobe/core/memory-write";
 import { payloadRecorder } from "@metobe/core/model-payloads";
-import { getPersonalPolicy } from "@metobe/core/personal";
+import { getPersonalPolicyOf } from "@metobe/core/personal";
 import { isGuardUnavailable } from "@metobe/core/pii-guard";
 import { forgetChatBox, sandboxOn } from "@metobe/core/sandbox";
 import { skillsForChat } from "@metobe/core/skills";
@@ -486,7 +486,7 @@ export const POST = async (request: Request) => {
       listChatServers(session.user.id),
       listMailboxes(session.user.id),
       getInstructions(session.user.id),
-      getPersonalPolicy(),
+      getPersonalPolicyOf(session.user.id),
       skillsForChat(session.user.id),
       // A chat a task was set up in is that task's: no second draft in it (ARCH §16.1).
       getTaskByChat(session.user.id, id),
