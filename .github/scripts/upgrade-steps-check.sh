@@ -22,7 +22,12 @@
 set -euo pipefail
 
 REPO="artemavrin/metobe"
-FROM="${UPGRADE_FROM:-$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -nE 's/.*"tag_name": *"v?([^"]+)".*/\1/p' | head -1)}"
+# The API turns away a runner's anonymous calls once its shared limit is spent: with GH_TOKEN they count as the repo's.
+latest() {
+  curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/$REPO/releases/latest" |
+    sed -nE 's/.*"tag_name": *"v?([^"]+)".*/\1/p' | head -1
+}
+FROM="${UPGRADE_FROM:-$(latest)}"
 VIA="${UPGRADE_VIA:-}"
 CHECKOUT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 migrations() { git -C "$CHECKOUT" ls-tree --name-only "$1" packages/db/migrations/ | grep -c '\.sql$' || true; }
