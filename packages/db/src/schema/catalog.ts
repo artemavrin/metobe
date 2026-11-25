@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { organizations } from "./organizations";
 import { proxies } from "./proxies";
 
 // The admin's catalog and users' connections (ARCH §5.4, §17). Secrets — a token, a header's value, OAuth tokens
@@ -60,6 +61,10 @@ export const catalogItems = pgTable(
     key: text("key").notNull().unique(),
     /** An optional picture (a small data URL). */
     logo: text("logo"),
+    /** The organization's (D48). Nullable until contract and filled by the column's default (ARCH §20.4); O4 writes it. */
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
     proxyId: uuid("proxy_id").references(() => proxies.id, {
       onDelete: "set null",
     }),

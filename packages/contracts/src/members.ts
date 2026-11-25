@@ -16,6 +16,26 @@ export const invitableRoleSchema = z.enum(invitableRoles);
 export const isRole = (value: unknown): value is Role =>
   typeof value === "string" && (roles as readonly string[]).includes(value);
 
+/**
+ * The role in the organization (D48, ARCH §20.3), beside the role in the install above: one `owner`, any number of
+ * `admin`s and `member`s. In self-hosted it follows the install's role — the superuser owns the one organization, an
+ * admin of the install is its admin (ORGS-PLAN §4) — so the rules above still decide; O2 moves them onto both roles.
+ */
+export const orgRoles = ["owner", "admin", "member"] as const;
+export type OrgRole = (typeof orgRoles)[number];
+
+export const isOrgRole = (value: unknown): value is OrgRole =>
+  typeof value === "string" && (orgRoles as readonly string[]).includes(value);
+
+const orgRoleByRole: Record<Role, OrgRole> = {
+  admin: "admin",
+  superuser: "owner",
+  user: "member",
+};
+
+/** The role in the organization that goes with a role in the install: what the migration and every new account get. */
+export const orgRoleFor = (role: Role): OrgRole => orgRoleByRole[role];
+
 /** An invitation to this role: the owner makes admins and users, an admin only users. */
 export const canInvite = (actor: Role, role: InvitableRole) =>
   actor === "superuser" || (actor === "admin" && role === "user");

@@ -1,7 +1,11 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
-import { INVITATION_TTL_DAYS, canInvite } from "@metobe/contracts/members";
+import {
+  INVITATION_TTL_DAYS,
+  canInvite,
+  orgRoleFor,
+} from "@metobe/contracts/members";
 import type { InvitableRole, Role } from "@metobe/contracts/members";
 import { user } from "@metobe/db/schema/auth";
 import { invitations } from "@metobe/db/schema/invitations";
@@ -12,6 +16,7 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import { getEnv } from "./env";
 import { isMailConfigured, sendMail } from "./mail";
+import { installOrganizationId } from "./organizations";
 import { staleUnverified } from "./users";
 
 // Invitations (D17): a link an admin copies and hands over. Whoever opens it names themselves and is signed in at once, so
@@ -54,6 +59,9 @@ export const issueInvitation = async (input: {
       expiresAt: new Date(
         Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000
       ),
+      orgRole: input.role === "admin" ? "admin" : "member",
+      // The inviter's organization — the install's one until there can be more (O6).
+      organizationId: await installOrganizationId(),
       role: input.role,
       tokenHash: hashToken(token),
     })
@@ -183,6 +191,12 @@ export const redeemInvitation = (input: {
       emailVerified: Boolean(invitation.email),
       id,
       name: input.name,
+      // A link the previous release made has its organization from the column's default and no role in it yet.
+      orgRole:
+        invitation.orgRole ??
+        orgRoleFor(invitation.role === "admin" ? "admin" : "user"),
+      organizationId:
+        invitation.organizationId ?? (await installOrganizationId(tx)),
       role: invitation.role,
     });
     await tx

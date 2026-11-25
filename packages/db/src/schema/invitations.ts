@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { organizations } from "./organizations";
 
 // Invitations (D17, ARCH §5.1): an admin makes a link, copies it and hands it over; whoever opens it names themselves and
 // is signed in at once — no mail needed (D15). Only a hash of the token is kept. `email`, when given, is the one address
@@ -30,12 +31,18 @@ export const invitations = pgTable(
     email: text("email"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     id: uuid("id").primaryKey().defaultRandom(),
+    orgRole: text("org_role").$type<"admin" | "member">(),
+    /** The organization the link joins and the role in it (D48); `role` stays the role in the install. */
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
     role: text("role").notNull(),
     tokenHash: text("token_hash").notNull().unique(),
   },
   (table) => [
     index("invitations_open").on(table.expiresAt),
     check("invitations_role", sql`${table.role} in ('admin', 'user')`),
+    check("invitations_org_role", sql`${table.orgRole} in ('admin', 'member')`),
   ]
 );
 

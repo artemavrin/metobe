@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # An update over several releases (DECISIONS D35): the oldest release we promise to update from, installed by its own
 # installer, with a row of data in it; then this checkout's image with this checkout's compose.yml — what the updater
-# does. Passes when every migration of the checkout is applied, the row is still there and /api/health says ok.
+# does. Passes when every migration of the checkout is applied, the row is still there and owns the install's one
+# organization, and /api/health says ok.
 #
 #   .github/scripts/upgrade-check.sh            # from 0.4.0
 #   UPGRADE_FROM=0.5.1 .github/scripts/upgrade-check.sh
@@ -57,10 +58,15 @@ expected="$(find "$CHECKOUT/packages/db/migrations" -maxdepth 1 -name '*.sql' | 
 applied="$(sql 'select count(*) from drizzle.__drizzle_migrations')"
 row="$(sql "select count(*) from \"user\" where id = 'upgrade-check'")"
 health="$(curl -fsS "http://localhost:$PORT/api/health")"
-echo "migrations: $before on $FROM → $applied (expected $expected); row: $row; health: $health"
+# Organizations (D48, ARCH §20.4): the install gets one, and with no superuser its oldest person owns it.
+orgs="$(sql 'select count(*) from organizations')"
+owner="$(sql "select org_role from \"user\" where id = 'upgrade-check' and organization_id = (select id from organizations)")"
+echo "migrations: $before on $FROM → $applied (expected $expected); row: $row; organizations: $orgs, upgrade-check: $owner; health: $health"
 
 [ "$applied" = "$expected" ] || { echo "not every migration was applied" >&2; exit 1; }
 [ "$row" = "1" ] || { echo "the data written on $FROM is gone" >&2; exit 1; }
+[ "$orgs" = "1" ] || { echo "the install has $orgs organizations, not one" >&2; exit 1; }
+[ "$owner" = "owner" ] || { echo "upgrade-check is not the owner of the organization: '$owner'" >&2; exit 1; }
 echo "$health" | grep -q '"status":"ok"' || { echo "/api/health is not ok" >&2; exit 1; }
 echo "== $FROM → this checkout: ok"
 

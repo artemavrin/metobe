@@ -11,6 +11,7 @@ import { buildAuthOptions } from "./auth-options";
 import { getDb } from "./db";
 import { buildLoginLink } from "./login-link";
 import { sendMail } from "./mail";
+import { installOrganizationId } from "./organizations";
 import { findUserByEmail, isSignInAllowed } from "./users";
 
 /** The sign-in letter in the recipient's language: their profile's choice, else the language they asked in. */
@@ -95,6 +96,8 @@ export const createAuth = (plugins: BetterAuthPlugin[] = []) =>
       canSignIn: isSignInAllowed,
       canSignUp,
       db: getDb().db,
+      // The install's one organization until sign-up by domain gets its own (O6).
+      organizationFor: () => installOrganizationId(),
       plugins,
       sendAccountCode,
       // The code goes only to someone in the install or who may join it: the send route is public, and with

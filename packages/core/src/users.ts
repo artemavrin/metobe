@@ -3,10 +3,11 @@ import {
   canChangeRole,
   canManageAccess,
   isRole,
+  orgRoleFor,
 } from "@metobe/contracts/members";
 import type { InvitableRole, Role } from "@metobe/contracts/members";
 import { session, user } from "@metobe/db/schema/auth";
-import { and, asc, eq, lt, max, ne } from "drizzle-orm";
+import { and, asc, eq, lt, max, ne, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
 
@@ -104,7 +105,15 @@ export const setMemberRole = async (
   ) {
     return false;
   }
-  await getDb().db.update(user).set({ role }).where(eq(user.id, id));
+  // The organization's role follows (ORGS-PLAN §4: the install's admin is the organization's admin), but never away
+  // from its owner.
+  await getDb()
+    .db.update(user)
+    .set({
+      orgRole: sql`case when ${user.orgRole} = 'owner' then 'owner' else ${orgRoleFor(role)} end`,
+      role,
+    })
+    .where(eq(user.id, id));
   return true;
 };
 

@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { organizations } from "./organizations";
 
 // Skills (ARCH §8.3): folders in the Agent Skills format — SKILL.md with `name` and `description` in its frontmatter,
 // and files beside it. Shared ones are the admin's (no owner), personal ones a user's. The model sees every enabled
@@ -44,6 +45,10 @@ export const skills = pgTable(
     instructions: text("instructions").notNull(),
     /** The skill's `name`: lowercase letters, digits and hyphens, up to 64 — what «/» and the model call it by. */
     name: text("name").notNull(),
+    /** The organization's (D48). Nullable until contract and filled by the column's default (ARCH §20.4); O4 writes it. */
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
     /** Null — the organization's (an admin's); otherwise one user's own. */
     ownerId: text("owner_id").references(() => user.id, {
       onDelete: "cascade",

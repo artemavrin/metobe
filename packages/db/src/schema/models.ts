@@ -30,6 +30,7 @@ import {
 
 import { user } from "./auth";
 import { chats } from "./chat";
+import { organizations } from "./organizations";
 import { proxies } from "./proxies";
 
 // ARCH §5.2, D29: a source gives access (key, route, health), a provider made the model (name and logo in chat).
@@ -179,6 +180,10 @@ export const modelRuns = pgTable(
     latencyMs: integer("latency_ms"),
     modelId: uuid("model_id").references(() => models.id, {
       onDelete: "set null",
+    }),
+    /** The organization's (D48). Nullable until contract and filled by the column's default (ARCH §20.4); O4 writes it. */
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "restrict",
     }),
     outputTokens: integer("output_tokens").notNull().default(0),
     /** A chat's answer or a service job (a chat title…): usage shows what each costs. */
