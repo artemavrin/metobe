@@ -1,7 +1,11 @@
-import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index, integer, jsonb } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+import { pgTable, text, timestamp, boolean, index, integer, jsonb, uuid, check } from "drizzle-orm/pg-core";
 
-export const user = pgTable("user", {
+import { organizations } from "./organizations";
+
+export const user = pgTable(
+  "user",
+  {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
@@ -36,7 +40,18 @@ export const user = pgTable("user", {
   digestKeys: jsonb("digest_keys").$type<string[]>(),
   // When an admin turned the account off: no sign-in, no code, no sessions; null — it works.
   disabledAt: timestamp("disabled_at"),
-});
+  // The person's organization and role in it (D48, ARCH §20.3); `role` above stays the role in the install. Nullable
+  // only for the release between expand and contract (ARCH §20.4): read them through `getMembership` (core), which
+  // fills a row the previous release wrote in that window.
+  organizationId: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "restrict",
+  }),
+  orgRole: text("org_role").$type<"owner" | "admin" | "member">(),
+  },
+  (table) => [
+    check("user_org_role", sql`${table.orgRole} in ('owner', 'admin', 'member')`),
+  ],
+);
 
 export const session = pgTable(
   "session",

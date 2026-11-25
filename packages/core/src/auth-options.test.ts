@@ -7,6 +7,7 @@ const options = buildAuthOptions({
   canSignIn: (userId) => Promise.resolve(userId !== "off"),
   canSignUp: (email) => Promise.resolve(email.endsWith("@kaminsoft.ru")),
   db: {} as Db,
+  organizationFor: () => Promise.resolve("org-1"),
   sendAccountCode: () => Promise.resolve(),
   sendSignInCode: () => Promise.resolve(),
 });
@@ -39,7 +40,11 @@ describe("the account's sign-in rules", () => {
   it("makes an account only for an address that may have one", async () => {
     const { before } = options.databaseHooks.user.create;
     await expect(before(person("anna@kaminsoft.ru"))).resolves.toMatchObject({
-      data: { email: "anna@kaminsoft.ru" },
+      data: {
+        email: "anna@kaminsoft.ru",
+        orgRole: "member",
+        organizationId: "org-1",
+      },
     });
     await expect(before(person("eve@example.com"))).resolves.toBe(false);
   });

@@ -24,6 +24,7 @@ export const buildAuthOptions = ({
   canSignIn,
   canSignUp,
   db,
+  organizationFor,
   plugins = [],
   sendSignInCode,
   sendAccountCode,
@@ -32,6 +33,8 @@ export const buildAuthOptions = ({
   canSignIn: (userId: string) => Promise<boolean>;
   canSignUp: (email: string) => Promise<boolean>;
   db: Db;
+  /** The organization an account made by signing in joins, as a member (D48); null — none to join, nothing is made. */
+  organizationFor: (email: string) => Promise<string | null>;
   plugins?: BetterAuthPlugin[];
   sendSignInCode: SendCode;
   sendAccountCode: SendAccountCode;
@@ -49,8 +52,15 @@ export const buildAuthOptions = ({
       },
       user: {
         create: {
-          before: async (created) =>
-            (await canSignUp(created.email)) ? { data: created } : false,
+          before: async (created) => {
+            if (!(await canSignUp(created.email))) {
+              return false;
+            }
+            const organizationId = await organizationFor(created.email);
+            return organizationId
+              ? { data: { ...created, orgRole: "member", organizationId } }
+              : false;
+          },
         },
       },
     },
@@ -88,6 +98,9 @@ export const buildAuthOptions = ({
         // The user's own notes for the model, told to it in every chat; and the key that sends a message.
         instructions: { input: false, required: false, type: "string" },
         locale: { input: false, required: false, type: "string" },
+        // The organization and the role in it (D48): set by the claim, an invitation or the sign-up hook above.
+        orgRole: { input: false, required: false, type: "string" },
+        organizationId: { input: false, required: false, type: "string" },
         role: {
           defaultValue: "user",
           input: false,

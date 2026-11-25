@@ -5,7 +5,9 @@ import {
   canInvite,
   canManageAccess,
   canRemove,
+  isOrgRole,
   isRole,
+  orgRoleFor,
 } from "./members";
 
 describe("who may do what to whom", () => {
@@ -47,5 +49,13 @@ describe("who may do what to whom", () => {
     expect(isRole("admin")).toBe(true);
     expect(isRole("root")).toBe(false);
     expect(isRole(null)).toBe(false);
+  });
+
+  it("gives the organization's role that goes with the install's", () => {
+    expect(orgRoleFor("superuser")).toBe("owner");
+    expect(orgRoleFor("admin")).toBe("admin");
+    expect(orgRoleFor("user")).toBe("member");
+    expect(isOrgRole("owner")).toBe(true);
+    expect(isOrgRole("superuser")).toBe(false);
   });
 });

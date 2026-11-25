@@ -7,6 +7,7 @@ import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "./db";
 import { getEnv } from "./env";
+import { claimOrganization } from "./organizations";
 
 const CLAIM_TTL_MS = 24 * 60 * 60 * 1000;
 // Serializes redemption so two different claim tokens cannot create two superusers.
@@ -45,7 +46,8 @@ export type ClaimResult =
   | { ok: true }
   | { ok: false; reason: "invalid-token" | "already-claimed" };
 
-// Creates the superuser. The caller signs them in afterwards (see apps/web claim action).
+// Creates the superuser, the owner of the install's organization — made here when the install has none (ARCH §20.1).
+// The caller signs them in afterwards (see apps/web claim action).
 export const redeemClaimToken = (input: {
   email: string;
   name: string;
@@ -78,11 +80,14 @@ export const redeemClaimToken = (input: {
       return { ok: false, reason: "invalid-token" };
     }
 
+    const email = input.email.toLowerCase();
     await tx.insert(user).values({
-      email: input.email.toLowerCase(),
+      email,
       emailVerified: true,
       id: randomUUID(),
       name: input.name,
+      orgRole: "owner",
+      organizationId: await claimOrganization(tx, email),
       role: "superuser",
     });
     return { ok: true };
