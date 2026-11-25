@@ -1,0 +1,53 @@
+{
+ "counter read by pk (busy people)": {
+  "n": 1500,
+  "p50": 0.64,
+  "p95": 3.07,
+  "p99": 6.89,
+  "max": 22.58
+ },
+ "write: insert only, 1 client, 2000": {
+  "n": 2000,
+  "p50": 0.98,
+  "p95": 4.89,
+  "p99": 9.4,
+  "max": 28.47,
+  "wallMs": 3226
+ },
+ "write: insert + counter row in a tx, 1 client, 2000": {
+  "n": 2000,
+  "p50": 1.34,
+  "p95": 5.34,
+  "p99": 10.5,
+  "max": 36.44,
+  "wallMs": 3995
+ },
+ "write: insert only, 2 clients on one person, 2x1000": {
+  "n": 2000,
+  "p50": 0.71,
+  "p95": 2.47,
+  "p99": 4.75,
+  "max": 18.97,
+  "wallMs": 1035
+ },
+ "write: insert + counter, 2 clients on one person, 2x1000": {
+  "n": 2000,
+  "p50": 1.82,
+  "p95": 7.7,
+  "p99": 14.87,
+  "max": 27.71,
+  "wallMs": 2715
+ },
+ "write: insert + counter, 8 clients on one person, 8x250 (more than the limit allows)": {
+  "n": 2000,
+  "p50": 5.38,
+  "p95": 20.1,
+  "p99": 30.65,
+  "max": 66.79,
+  "wallMs": 1899
+ },
+ "counter vs sum after writes (h_burst, week)": {
+  "counter": "44946.069324",
+  "sum": "47046.069324"
+ }
+}

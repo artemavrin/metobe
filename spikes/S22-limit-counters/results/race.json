@@ -1,0 +1,187 @@
+{
+ "unit": "S = the maximal cost of one step; numbers are overspend in S",
+ "uniform(0,S) | 1 answer(s) | A": {
+  "overspend": {
+   "mean": 0.332,
+   "p99": 0.901,
+   "max": 0.999
+  },
+  "unspentOfRemainder": 0
+ },
+ "uniform(0,S) | 1 answer(s) | B": {
+  "overspend": {
+   "mean": 0.332,
+   "p99": 0.901,
+   "max": 0.999
+  },
+  "unspentOfRemainder": 0
+ },
+ "uniform(0,S) | 1 answer(s) | C": {
+  "overspend": {
+   "mean": 0,
+   "p99": 0,
+   "max": 0
+  },
+  "unspentOfRemainder": 0.668
+ },
+ "uniform(0,S) | 2 answer(s) | A": {
+  "overspend": {
+   "mean": 5.911,
+   "p99": 10.761,
+   "max": 11.719
+  },
+  "unspentOfRemainder": 0
+ },
+ "uniform(0,S) | 2 answer(s) | B": {
+  "overspend": {
+   "mean": 0.832,
+   "p99": 1.688,
+   "max": 1.986
+  },
+  "unspentOfRemainder": 0
+ },
+ "uniform(0,S) | 2 answer(s) | C": {
+  "overspend": {
+   "mean": 0,
+   "p99": 0,
+   "max": 0
+  },
+  "unspentOfRemainder": 0.668
+ },
+ "uniform(0,S) | 3 answer(s) | A": {
+  "overspend": {
+   "mean": 11.509,
+   "p99": 20.943,
+   "max": 22.299
+  },
+  "unspentOfRemainder": 0
+ },
+ "uniform(0,S) | 3 answer(s) | B": {
+  "overspend": {
+   "mean": 1.332,
+   "p99": 2.409,
+   "max": 2.944
+  },
+  "unspentOfRemainder": 0
+ },
+ "uniform(0,S) | 3 answer(s) | C": {
+  "overspend": {
+   "mean": 0,
+   "p99": 0,
+   "max": 0
+  },
+  "unspentOfRemainder": 0.668
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 1 answer(s) | A": {
+  "overspend": {
+   "mean": 0.193,
+   "p99": 0.817,
+   "max": 1
+  },
+  "unspentOfRemainder": 0
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 1 answer(s) | B": {
+  "overspend": {
+   "mean": 0.193,
+   "p99": 0.817,
+   "max": 1
+  },
+  "unspentOfRemainder": 0
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 1 answer(s) | C": {
+  "overspend": {
+   "mean": 0,
+   "p99": 0,
+   "max": 0
+  },
+  "unspentOfRemainder": 0.803
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 2 answer(s) | A": {
+  "overspend": {
+   "mean": 5.64,
+   "p99": 10.407,
+   "max": 11.625
+  },
+  "unspentOfRemainder": 0
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 2 answer(s) | B": {
+  "overspend": {
+   "mean": 0.393,
+   "p99": 1.201,
+   "max": 1.998
+  },
+  "unspentOfRemainder": 0
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 2 answer(s) | C": {
+  "overspend": {
+   "mean": 0,
+   "p99": 0,
+   "max": 0
+  },
+  "unspentOfRemainder": 0.804
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 3 answer(s) | A": {
+  "overspend": {
+   "mean": 11.102,
+   "p99": 20.465,
+   "max": 22.002
+  },
+  "unspentOfRemainder": 0
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 3 answer(s) | B": {
+  "overspend": {
+   "mean": 0.59,
+   "p99": 1.555,
+   "max": 2.576
+  },
+  "unspentOfRemainder": 0
+ },
+ "mostly small, rare big (exp, mean S/5, cap S) | 3 answer(s) | C": {
+  "overspend": {
+   "mean": 0,
+   "p99": 0,
+   "max": 0
+  },
+  "unspentOfRemainder": 0.803
+ },
+ "A, remainder 50 S, 2 answers (uniform)": {
+  "mean": 50.666,
+  "p99": 51.504,
+  "max": 51.905
+ },
+ "B, remainder 50 S, 2 answers (uniform)": {
+  "mean": 0.834,
+  "p99": 1.688,
+  "max": 1.974
+ },
+ "real Postgres, 2 answers, B (recheck after each step)": {
+  "trials": 300,
+  "overspendInS": {
+   "mean": 0.768,
+   "p99": 1.684,
+   "max": 1.759
+  },
+  "recheckMs": {
+   "n": 3077,
+   "p50": 0.62,
+   "p95": 1.8,
+   "p99": 3.6,
+   "max": 37.42
+  }
+ },
+ "real Postgres, 2 answers, A (remainder fixed at start)": {
+  "trials": 300,
+  "overspendInS": {
+   "mean": 3.889,
+   "p99": 7.307,
+   "max": 7.529
+  },
+  "recheckMs": {
+   "n": 600,
+   "p50": 0.59,
+   "p95": 2.17,
+   "p99": 4.89,
+   "max": 9.46
+  }
+ }
+}

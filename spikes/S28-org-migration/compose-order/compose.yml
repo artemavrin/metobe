@@ -1,0 +1,19 @@
+name: spike-s28-compose
+x-svc: &svc
+  image: node:24-alpine
+  volumes: ["log:/log"]
+  stop_grace_period: 5s
+services:
+  app:
+    <<: *svc
+    environment: { V: "${V}", S: app }
+    # "migrate" for 8 s, then healthy — like entrypoint.sh: metobe migrate, then the server.
+    command: ["node", "-e", "const f=require('fs'),l=m=>f.appendFileSync('/log/events',`$${(Date.now()/1000).toFixed(1)} $${process.env.S} v$${process.env.V} $${m}\\n`);l('start (migrating)');process.on('SIGTERM',()=>{l('stop');process.exit(0)});setTimeout(()=>{f.writeFileSync('/tmp/ready','');l('healthy')},8000);setInterval(()=>{},1e6)"]
+    healthcheck: { test: ["CMD", "test", "-f", "/tmp/ready"], interval: 1s, start_period: 60s }
+  worker:
+    <<: *svc
+    environment: { V: "${V}", S: worker }
+    command: ["node", "-e", "const f=require('fs'),l=m=>f.appendFileSync('/log/events',`$${(Date.now()/1000).toFixed(1)} $${process.env.S} v$${process.env.V} $${m}\\n`);l('start');process.on('SIGTERM',()=>{l('stop');process.exit(0)});setInterval(()=>{},1e6)"]
+    depends_on: { app: { condition: service_healthy } }
+volumes:
+  log:

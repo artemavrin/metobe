@@ -1,0 +1,16 @@
+{
+  "name": "spike-s21-stop-by-cost",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ai": "7.0.173",
+    "vitest": "5.0.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43"
+  }
+}

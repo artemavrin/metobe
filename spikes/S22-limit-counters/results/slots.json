@@ -1,0 +1,83 @@
+{
+ "LEASE_MS": 3000,
+ "HEARTBEAT_MS": 1000,
+ "LIMIT": 2,
+ "1. five tabs + a task": {
+  "attempts": 6,
+  "acquired": 2,
+  "acquiredByRole": [
+   "app",
+   "worker"
+  ],
+  "busy": 4,
+  "inRedis": 2
+ },
+ "2. SIGKILL: ms until a waiting tab gets the slot": {
+  "n": 6,
+  "p50": 2364,
+  "p95": 2998,
+  "p99": 2998,
+  "max": 2998,
+  "samples": [
+   2155,
+   2998,
+   2665,
+   2352,
+   2364,
+   2867
+  ],
+  "expected": "2000..3000 (lease − beat period .. lease)"
+ },
+ "3. SIGTERM: ms until a waiting tab gets the slot": {
+  "wasFull": true,
+  "ms": 13
+ },
+ "4. answer 4 × lease long, third tab let in (must be 0)": {
+  "wrongly": 0,
+  "inRedis": 2
+ },
+ "5. loop stalled > lease": {
+  "thirdGotIn": true,
+  "a1BeatTakesSlotBack": true,
+  "a2BeatFindsNoRoom": true,
+  "inRedis": 2
+ },
+ "6. key lost": {
+  "newAnswerLetIn": true,
+  "beatX1": true,
+  "beatX2": false,
+  "inRedis": 2,
+  "note": "x3 + x1 fill the limit; x2 finds no room, keeps running, only counted as lost"
+ },
+ "7. race, 40 clients × 100 cycles": {
+  "got": 62,
+  "refused": 3938,
+  "maxHeld": 2,
+  "limit": 2,
+  "acquireLatencyMsUnderContention": {
+   "n": 4000,
+   "p50": 2.26,
+   "p95": 8.14,
+   "p99": 25.87,
+   "max": 49.68
+  }
+ },
+ "8. latency, one client": {
+  "acquire": {
+   "n": 3000,
+   "p50": 0.43,
+   "p95": 1.8,
+   "p99": 3.96,
+   "max": 35.09
+  },
+  "release": {
+   "n": 3000,
+   "p50": 0.4,
+   "p95": 1.61,
+   "p99": 4.09,
+   "max": 14.52
+  }
+ },
+ "cleanup: keys left deleted": 0,
+ "keys after cleanup": 0
+}

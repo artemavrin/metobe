@@ -1,0 +1,86 @@
+{
+ "I0: 16 clients, 5% busy, writer 50/s": {
+  "heavy": {
+   "n": 1892,
+   "p50": 38.9,
+   "p95": 86.62,
+   "p99": 127.95,
+   "max": 335.6
+  },
+  "others": {
+   "n": 36093,
+   "p50": 3,
+   "p95": 10.08,
+   "p99": 20.46,
+   "max": 317.05
+  },
+  "checks": 37985,
+  "written": 546
+ },
+ "I0: 16 clients, only busy (stress)": {
+  "heavy": {
+   "n": 3530,
+   "p50": 58.48,
+   "p95": 142.11,
+   "p99": 205.81,
+   "max": 352.24
+  },
+  "others": null,
+  "checks": 3530,
+  "written": 0
+ },
+ "I0: 4 clients, 100% busy (4 people at once)": {
+  "heavy": {
+   "n": 1655,
+   "p50": 22.64,
+   "p95": 35.28,
+   "p99": 45.42,
+   "max": 81.92
+  },
+  "others": null,
+  "checks": 1655,
+  "written": 0
+ },
+ "I1: 16 clients, 5% busy, writer 50/s": {
+  "heavy": {
+   "n": 4252,
+   "p50": 11.64,
+   "p95": 24.47,
+   "p99": 36.53,
+   "max": 79.02
+  },
+  "others": {
+   "n": 79121,
+   "p50": 1.78,
+   "p95": 5.37,
+   "p99": 8.77,
+   "max": 42.88
+  },
+  "checks": 83373,
+  "written": 636
+ },
+ "I1: 16 clients, only busy (stress)": {
+  "heavy": {
+   "n": 11798,
+   "p50": 18.25,
+   "p95": 37.5,
+   "p99": 59.57,
+   "max": 105.88
+  },
+  "others": null,
+  "checks": 11798,
+  "written": 0
+ },
+ "I1: 4 clients, 100% busy (4 people at once)": {
+  "heavy": {
+   "n": 3742,
+   "p50": 8.47,
+   "p95": 21.32,
+   "p99": 43.85,
+   "max": 131.81
+  },
+  "others": null,
+  "checks": 3742,
+  "written": 0
+ }
+}

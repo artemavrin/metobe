@@ -1,0 +1,21 @@
+{
+  "name": "spike-s26-forecast",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "node --import tsx seed.ts",
+    "calibrate": "node --import tsx calibrate.ts",
+    "parity": "node --import tsx parity.ts",
+    "bench": "node --import tsx bench.ts",
+    "test": "node --import tsx --test forecast.test.ts",
+    "report": "node --import tsx report.ts"
+  },
+  "dependencies": {
+    "postgres": "3.4.9",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5.9"
+  }
+}

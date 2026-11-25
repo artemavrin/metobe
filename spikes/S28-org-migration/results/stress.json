@@ -1,0 +1,121 @@
+{
+  "profile": "stress",
+  "seed": {
+    "bytes": 368607759,
+    "ms": 45981.5
+  },
+  "backup": {
+    "bytes": 98982150,
+    "ms": 7880.1
+  },
+  "perStatement": {
+    "locks": [
+      {
+        "table": "catalog_items",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      },
+      {
+        "table": "invitations",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      },
+      {
+        "table": "model_runs",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      },
+      {
+        "table": "organizations",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, RowShareLock, ShareLock, ShareRowExclusiveLock"
+      },
+      {
+        "table": "pg_class",
+        "modes": "AccessShareLock"
+      },
+      {
+        "table": "skills",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      },
+      {
+        "table": "system_settings",
+        "modes": "AccessShareLock"
+      },
+      {
+        "table": "user",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      }
+    ],
+    "slowest": [
+      {
+        "ms": 638,
+        "sql": "CREATE INDEX \"model_runs_org_time\" ON \"model_runs\" USING btree (\"organization_id\",\"created_at\");",
+        "step": "orgs_contract"
+      },
+      {
+        "ms": 150.3,
+        "sql": "DO $$ DECLARE org uuid := (SELECT \"id\" FROM \"organizations\" ORDER BY \"created_at\", \"id\" LIMIT 1); t text; BEGI",
+        "step": "orgs_contract"
+      },
+      {
+        "ms": 114.5,
+        "sql": "ALTER TABLE \"model_runs\" VALIDATE CONSTRAINT \"model_runs_organization_id_organizations_id_fk\";",
+        "step": "orgs_contract"
+      },
+      {
+        "ms": 106,
+        "sql": "ALTER TABLE \"model_runs\" ALTER COLUMN \"organization_id\" SET NOT NULL;",
+        "step": "orgs_contract"
+      },
+      {
+        "ms": 10,
+        "sql": "CREATE TABLE \"organizations\" ( \"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL, \"name\" text NOT NULL,",
+        "step": "orgs_expand"
+      },
+      {
+        "ms": 7.4,
+        "sql": "INSERT INTO \"organizations\" (\"name\", \"settings\") SELECT coalesce( (SELECT split_part(\"email\", '@', 2) FROM \"us",
+        "step": "orgs_expand"
+      }
+    ],
+    "total": 1073.7
+  },
+  "migrate": {
+    "ms": 1040.7,
+    "reader": {
+      "errors": [],
+      "errorCount": 0,
+      "max": 999.2,
+      "p50": 1,
+      "requests": 126
+    },
+    "writer": {
+      "errors": [
+        "null value in column \"organization_id\" of relation \"model_runs\" violates not-null constraint"
+      ],
+      "errorCount": 62,
+      "max": 999.1,
+      "p50": 1.4,
+      "requests": 119
+    }
+  },
+  "checks": {
+    "orgs": 1,
+    "users_unset": 0,
+    "owners": 1,
+    "roles": "admin→admin:5, superuser→owner:1, user→member:194",
+    "runs_unset": 0,
+    "catalog_unset": 0,
+    "skills_unset": 0,
+    "inv_unset": 0,
+    "settings": "{\"access\": {\"domains\": [\"example.test\"]}, \"privacy\": {\"mode\": \"mask\", \"keepDays\": 30}, \"personalConnections\": {\"allowed\": true}}",
+    "name": "example.test"
+  },
+  "rerunMs": 121.7,
+  "downSql": {
+    "ms": 70.4,
+    "schemaSameAsBefore": true
+  },
+  "reapplyAfterDownMs": 1401.9,
+  "restore": {
+    "asInUpdater": "pg_restore: error: could not execute query: ERROR:  schema \"public\" does not exist",
+    "withCreateSchemaMs": 7916.4
+  }
+}

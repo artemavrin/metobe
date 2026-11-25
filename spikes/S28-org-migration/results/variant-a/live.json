@@ -1,0 +1,121 @@
+{
+  "profile": "live",
+  "seed": {
+    "bytes": 32203279,
+    "ms": 2916.8
+  },
+  "backup": {
+    "bytes": 10689448,
+    "ms": 939.5
+  },
+  "perStatement": {
+    "locks": [
+      {
+        "table": "catalog_items",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      },
+      {
+        "table": "invitations",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      },
+      {
+        "table": "model_runs",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      },
+      {
+        "table": "organizations",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, RowShareLock, ShareLock, ShareRowExclusiveLock"
+      },
+      {
+        "table": "pg_class",
+        "modes": "AccessShareLock"
+      },
+      {
+        "table": "skills",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      },
+      {
+        "table": "system_settings",
+        "modes": "AccessShareLock"
+      },
+      {
+        "table": "user",
+        "modes": "AccessExclusiveLock, AccessShareLock, RowExclusiveLock, ShareLock, ShareRowExclusiveLock, ShareUpdateExclusiveLock"
+      }
+    ],
+    "slowest": [
+      {
+        "ms": 19.1,
+        "sql": "UPDATE \"model_runs\" SET \"organization_id\" = (SELECT \"id\" FROM \"organizations\" ORDER BY \"created_at\", \"id\" LIMI",
+        "step": "orgs_backfill"
+      },
+      {
+        "ms": 5,
+        "sql": "CREATE TABLE \"organizations\" ( \"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL, \"name\" text NOT NULL,",
+        "step": "orgs_expand"
+      },
+      {
+        "ms": 3.4,
+        "sql": "INSERT INTO \"organizations\" (\"name\", \"settings\") SELECT coalesce( (SELECT split_part(\"email\", '@', 2) FROM \"us",
+        "step": "orgs_backfill"
+      },
+      {
+        "ms": 2,
+        "sql": "CREATE INDEX \"model_runs_org_time\" ON \"model_runs\" USING btree (\"organization_id\",\"created_at\");",
+        "step": "orgs_contract"
+      },
+      {
+        "ms": 1.6,
+        "sql": "UPDATE \"user\" SET \"organization_id\" = (SELECT \"id\" FROM \"organizations\" ORDER BY \"created_at\", \"id\" LIMIT 1) W",
+        "step": "orgs_backfill"
+      },
+      {
+        "ms": 1.1,
+        "sql": "ALTER TABLE \"user\" ADD CONSTRAINT \"user_organization_id_organizations_id_fk\" FOREIGN KEY (\"organization_id\") R",
+        "step": "orgs_expand"
+      }
+    ],
+    "total": 54.4
+  },
+  "migrate": {
+    "ms": 134.2,
+    "reader": {
+      "errors": [],
+      "errorCount": 0,
+      "max": 77.8,
+      "p50": 0.6,
+      "requests": 183
+    },
+    "writer": {
+      "errors": [
+        "null value in column \"organization_id\" of relation \"model_runs\" violates not-null constraint"
+      ],
+      "errorCount": 101,
+      "max": 81,
+      "p50": 0.7,
+      "requests": 170
+    }
+  },
+  "checks": {
+    "orgs": 1,
+    "users_unset": 0,
+    "owners": 1,
+    "roles": "admin→admin:1, superuser→owner:1, user→member:9",
+    "runs_unset": 0,
+    "catalog_unset": 0,
+    "skills_unset": 0,
+    "inv_unset": 0,
+    "settings": "{\"access\": {\"domains\": [\"example.test\"]}, \"privacy\": {\"mode\": \"mask\", \"keepDays\": 30}, \"personalConnections\": {\"allowed\": true}}",
+    "name": "example.test"
+  },
+  "rerunMs": 25.5,
+  "downSql": {
+    "ms": 26.2,
+    "schemaSameAsBefore": true
+  },
+  "reapplyAfterDownMs": 96.4,
+  "restore": {
+    "asInUpdater": "pg_restore: error: could not execute query: ERROR:  schema \"public\" does not exist",
+    "withCreateSchemaMs": 1235.6
+  }
+}

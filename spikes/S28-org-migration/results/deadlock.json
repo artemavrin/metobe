@@ -1,0 +1,16 @@
+{
+  "without LOCK TABLE": {
+    "deadlock": 4,
+    "maxMs": 1229,
+    "ok": 6,
+    "other": [],
+    "writerDeadlocks": 19
+  },
+  "with LOCK TABLE": {
+    "deadlock": 0,
+    "maxMs": 117,
+    "ok": 10,
+    "other": [],
+    "writerDeadlocks": 0
+  }
+}

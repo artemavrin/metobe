@@ -1,0 +1,32 @@
+window: last 4 weeks, 136934 runs, read once in 174 ms
+
+## as is  (13 ms)
+   next month, ₽: revenue 4 200 000, VAT 757 377, models 306 149, servers 150 000, left 2 986 474
+   Обычный   700 seats  models/seat   246  left/seat  2 063  worst case left      7  weeks at limit 0.4 %  rejected 1.0 %  people at 5 h 6  near limit 14
+   Про       250 seats  models/seat   414  left/seat  4 354  worst case left     34  weeks at limit 0.1 %  rejected 0.0 %  people at 5 h 0  near limit 2
+   Макс       50 seats  models/seat   614  left/seat  9 072  worst case left      1  weeks at limit 0.0 %  rejected 0.0 %  people at 5 h 0  near limit 0
+## Regular: weekly limit halved (260 / 90)  (9 ms)
+   next month, ₽: revenue 4 200 000, VAT 757 377, models 295 350, servers 150 000, left 2 997 272
+   Обычный   700 seats  models/seat   230  left/seat  2 079  worst case left  1 180  weeks at limit 2.2 %  rejected 5.6 %  people at 5 h 92  near limit 68
+   Про       250 seats  models/seat   414  left/seat  4 354  worst case left     34  weeks at limit 0.1 %  rejected 0.0 %  people at 5 h 0  near limit 2
+   Макс       50 seats  models/seat   614  left/seat  9 072  worst case left      1  weeks at limit 0.0 %  rejected 0.0 %  people at 5 h 0  near limit 0
+## Regular: price 3600, limits by the break-even rule  (2 ms)
+   next month, ₽: revenue 4 620 000, VAT 833 115, models 307 422, servers 150 000, left 3 329 463
+   Обычный   700 seats  models/seat   247  left/seat  2 553  worst case left     21  weeks at limit 0.3 %  rejected 0.4 %  people at 5 h 5  near limit 8
+   Про       250 seats  models/seat   414  left/seat  4 354  worst case left     34  weeks at limit 0.1 %  rejected 0.0 %  people at 5 h 0  near limit 2
+   Макс       50 seats  models/seat   614  left/seat  9 072  worst case left      1  weeks at limit 0.0 %  rejected 0.0 %  people at 5 h 0  near limit 0
+## load ×2  (2 ms)
+   next month, ₽: revenue 4 200 000, VAT 757 377, models 587 401, servers 150 000, left 2 705 222
+   Обычный   700 seats  models/seat   461  left/seat  1 848  worst case left      7  weeks at limit 2.2 %  rejected 5.5 %  people at 5 h 92  near limit 65
+   Про       250 seats  models/seat   812  left/seat  3 956  worst case left     34  weeks at limit 0.9 %  rejected 1.4 %  people at 5 h 14  near limit 11
+   Макс       50 seats  models/seat 1 229  left/seat  8 458  worst case left      1  weeks at limit 0.0 %  rejected 0.0 %  people at 5 h 0  near limit 0
+## all answers on model X  (3 ms)
+   next month, ₽: revenue 4 200 000, VAT 757 377, models 1 786 581, servers 150 000, left 1 506 042
+   Обычный   700 seats  models/seat 1 206  left/seat  1 103  worst case left      7  weeks at limit 19.9 %  rejected 47.9 %  people at 5 h 622  near limit 544
+   Про       250 seats  models/seat 2 693  left/seat  2 075  worst case left     34  weeks at limit 22.2 %  rejected 39.2 %  people at 5 h 219  near limit 190
+   Макс       50 seats  models/seat 5 380  left/seat  4 306  worst case left      1  weeks at limit 29.9 %  rejected 25.3 %  people at 5 h 0  near limit 25
+## rate 100, fee 8 %  (2 ms)
+   next month, ₽: revenue 4 200 000, VAT 757 377, models 351 703, servers 150 000, left 2 940 920
+   Обычный   700 seats  models/seat   281  left/seat  2 028  worst case left      7  weeks at limit 0.7 %  rejected 1.5 %  people at 5 h 17  near limit 18
+   Про       250 seats  models/seat   477  left/seat  4 291  worst case left     34  weeks at limit 0.1 %  rejected 0.1 %  people at 5 h 0  near limit 3
+   Макс       50 seats  models/seat   709  left/seat  8 977  worst case left      1  weeks at limit 0.0 %  rejected 0.0 %  people at 5 h 0  near limit 0

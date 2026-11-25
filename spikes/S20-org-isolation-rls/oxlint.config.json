@@ -1,0 +1,23 @@
+{
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "@metobe/db/schema/catalog_items",
+            "message": "Import catalog_items only through core/catalog.ts."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["fixtures/core/catalog.ts"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ]
+}
