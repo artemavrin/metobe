@@ -203,7 +203,13 @@
       "without": "Without “{cap}” — {n}",
       "resetFilters": "Reset filters",
       "chipTip": "Favorite models · all —",
-      "chipLabel": "Model: {title}"
+      "chipLabel": "Model: {title}",
+      "limit": {
+        "column": "Of limit",
+        "columnTip": "How much faster than the tariff's main model an answer spends the limit",
+        "tip": "{times} of the limit against the tariff's main model",
+        "tierTip": "A model of the {tier} tariff. The organization's owner can change the tariff"
+      }
     },
     "allModels": "all models",
     "mcp": {

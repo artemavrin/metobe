@@ -157,18 +157,28 @@ const Specs = ({ m, other }: { m: PickerModel; other?: PickerModel }) => {
         value={m.firstTokenMs === null ? "—" : secs(m.firstTokenMs)}
         vs={vs}
       />
-      <Spec
-        delta={ratio(nf1, m.price?.input, theirs?.input, false)}
-        label={t("spec.input")}
-        value={money(m.price?.input)}
-        vs={vs}
-      />
-      <Spec
-        delta={ratio(nf1, m.price?.output, theirs?.output, false)}
-        label={t("spec.output")}
-        value={money(m.price?.output)}
-        vs={vs}
-      />
+      {m.limit ? (
+        <Spec
+          delta={null}
+          label={t("limit.column")}
+          value={`×${nf1.format(m.limit.times)}`}
+        />
+      ) : (
+        <>
+          <Spec
+            delta={ratio(nf1, m.price?.input, theirs?.input, false)}
+            label={t("spec.input")}
+            value={money(m.price?.input)}
+            vs={vs}
+          />
+          <Spec
+            delta={ratio(nf1, m.price?.output, theirs?.output, false)}
+            label={t("spec.output")}
+            value={money(m.price?.output)}
+            vs={vs}
+          />
+        </>
+      )}
     </>
   );
 };
