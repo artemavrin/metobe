@@ -1,7 +1,7 @@
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listMailWaits } from "@metobe/core/memory";
 import { isMemoryOnFor } from "@metobe/core/memory-write";
-import { getPersonalPolicy } from "@metobe/core/personal";
+import { getPersonalPolicyOf } from "@metobe/core/personal";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -18,7 +18,7 @@ const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
   }
   const [boxes, personal, memoryOn] = await Promise.all([
     listMailboxes(user.id),
-    getPersonalPolicy(),
+    getPersonalPolicyOf(user.id),
     isMemoryOnFor(user.id),
   ]);
   const box = boxes.find((b) => b.id === id);

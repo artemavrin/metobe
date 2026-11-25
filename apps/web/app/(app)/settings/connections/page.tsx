@@ -1,6 +1,6 @@
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listMyConnections } from "@metobe/core/mcp";
-import { getPersonalPolicy } from "@metobe/core/personal";
+import { getPersonalPolicyOf } from "@metobe/core/personal";
 import { Button } from "@metobe/ui/components/button";
 import {
   Empty,
@@ -28,7 +28,7 @@ const ConnectionsPage = async () => {
   const [servers, boxes, personal] = await Promise.all([
     listMyConnections(user.id),
     listMailboxes(user.id),
-    getPersonalPolicy(),
+    getPersonalPolicyOf(user.id),
   ]);
   const first = servers.find((s) => s.mode === "per_user") ?? servers[0];
   if (first) {

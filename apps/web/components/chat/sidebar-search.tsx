@@ -37,7 +37,8 @@ import {
   useRememberNote,
 } from "@/components/memory/use-memory-actions";
 import { useHotkeyLabel } from "@/lib/hotkey-label";
-import { SETTINGS_NAV } from "@/lib/settings-nav";
+import { canSee, SETTINGS_NAV } from "@/lib/settings-nav";
+import type { SettingsAccess } from "@/lib/settings-nav";
 
 // P11 «Палитра ⌘K», variant «В сайдбаре»: ⌘K goes into the sidebar's search, and while there is a query its results
 // take the place of the chat list — chats by title at once and by what was said from the server, the settings
@@ -76,7 +77,7 @@ const THEMES = [
 const Results = ({
   query,
   chats,
-  admin,
+  settings,
   memory,
   onDone,
   selected,
@@ -85,7 +86,7 @@ const Results = ({
 }: {
   query: string;
   chats: ChatItem[];
-  admin: boolean;
+  settings: SettingsAccess;
   /** The person's memory is on: «Записать в память» is offered. */
   memory: boolean;
   onDone: () => void;
@@ -150,7 +151,7 @@ const Results = ({
   const themes = THEMES.filter((th) =>
     matches(q, t(`themes.${th.id}`), t("theme"))
   );
-  const sections = SETTINGS_NAV.filter((g) => g.scope === "user" || admin)
+  const sections = SETTINGS_NAV.filter((g) => canSee(g.scope, settings))
     .flatMap((g) =>
       g.items.map((item) => ({
         group: ts(`groups.${g.key}`),
@@ -265,12 +266,12 @@ const Results = ({
  */
 export const SidebarSearch = ({
   chats,
-  admin,
+  settings,
   memory = false,
   children,
 }: {
   chats: ChatItem[];
-  admin: boolean;
+  settings: SettingsAccess;
   /** The memory is on: the query can be written to it. */
   memory?: boolean;
   children: ReactNode;
@@ -349,7 +350,6 @@ export const SidebarSearch = ({
         </div>
         {searching && (
           <Results
-            admin={admin}
             chats={chats}
             memory={memory}
             onDone={done}
@@ -357,6 +357,7 @@ export const SidebarSearch = ({
             onSelected={setSelected}
             query={query}
             selected={selected}
+            settings={settings}
           />
         )}
       </Command>

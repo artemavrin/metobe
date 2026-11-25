@@ -14,21 +14,23 @@ import { z } from "zod";
 
 import { getSettingsViewer } from "@/lib/settings-access";
 
-// Who may sign in by themselves (D17) and what people may connect by themselves (ARCH §17.1): admins only.
+// Who may sign in by themselves (D17) and what people may connect by themselves (ARCH §17.1): the organization's
+// owner and admins, for their own organization.
 
-const requireAdmin = async () => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
+const requireOrgManager = async () => {
+  const { orgId, orgManager } = await getSettingsViewer();
+  if (!(orgManager && orgId)) {
     throw new Error("forbidden");
   }
+  return orgId;
 };
 
 const refresh = () => revalidatePath("/settings/access");
 
 /** Lists a domain; what is wrong with it, when it cannot be listed. */
 export const addDomain = async (input: string): Promise<AddDomainResult> => {
-  await requireAdmin();
-  const result = await addAllowedDomain(input);
+  const orgId = await requireOrgManager();
+  const result = await addAllowedDomain(orgId, input);
   if (result.ok) {
     refresh();
   }
@@ -36,20 +38,20 @@ export const addDomain = async (input: string): Promise<AddDomainResult> => {
 };
 
 export const removeDomain = async (domain: string) => {
-  await requireAdmin();
+  const orgId = await requireOrgManager();
   const parsed = domainSchema.safeParse(domain);
   if (parsed.success) {
-    await removeAllowedDomain(parsed.data);
+    await removeAllowedDomain(orgId, parsed.data);
     refresh();
   }
 };
 
 /** Off, internet addresses only, or any, for people's own connections. */
 export const changePersonalMode = async (mode: string) => {
-  await requireAdmin();
+  const orgId = await requireOrgManager();
   const parsed = z.enum(personalModes).safeParse(mode);
   if (parsed.success) {
-    await setPersonalMode(parsed.data);
+    await setPersonalMode(orgId, parsed.data);
     // Their own boxes and the chat's tools follow it.
     revalidatePath("/settings", "layout");
   }
@@ -57,12 +59,12 @@ export const changePersonalMode = async (mode: string) => {
 
 /** «Ask first?» by default for a tool of people's own mail. */
 export const changePersonalApproval = async (tool: string, value: string) => {
-  await requireAdmin();
+  const orgId = await requireOrgManager();
   const parsed = z
     .object({ tool: z.enum(mailTools), value: z.enum(personalApprovals) })
     .safeParse({ tool, value });
   if (parsed.success) {
-    await setPersonalApproval(parsed.data.tool, parsed.data.value);
+    await setPersonalApproval(orgId, parsed.data.tool, parsed.data.value);
     revalidatePath("/settings", "layout");
   }
 };

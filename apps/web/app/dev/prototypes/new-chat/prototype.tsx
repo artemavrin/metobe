@@ -65,7 +65,7 @@ export const Prototype = ({
 }: Data & Pick<Shell, "chats" | "user" | "sendKey"> & { round: Round }) => (
   <DataProvider value={data}>
     <KnobsProvider>
-      <ChatShell admin={false} chats={chats} sendKey={sendKey} user={user}>
+      <ChatShell admin={false} chats={chats} sendKey={sendKey} settings={{ orgManager: false, platform: false }} user={user}>
         <Picker params={round >= 3 ? <BackdropParams eggs={round === 4} /> : undefined} variants={ROUNDS[round]} />
       </ChatShell>
     </KnobsProvider>

@@ -23,6 +23,8 @@ const URL = process.env.MEMORY_TEST_DATABASE_URL;
 
 /** The migration that brings organizations: an install before it is one at the migration before. */
 const EXPAND = "0071_orgs_expand";
+/** The one that moves the organization's settings out of the policies. */
+const SETTINGS_MOVE = "0074_orgs_settings_move";
 
 type Sql = ReturnType<typeof createDb>["sql"];
 
@@ -52,8 +54,8 @@ const dropDatabase = async (name: string) => {
   }
 };
 
-/** The migrations folder as the release before organizations shipped it: every migration before expand. */
-const folderBeforeOrganizations = async () => {
+/** The migrations folder as the release before `tag` shipped it: every migration before it. */
+const folderBefore = async (tag: string) => {
   const dir = await mkdtemp(path.join(tmpdir(), "metobe-orgs-"));
   await mkdir(path.join(dir, "meta"));
   const journal = JSON.parse(
@@ -62,7 +64,7 @@ const folderBeforeOrganizations = async () => {
       "utf-8"
     )
   ) as { entries: { tag: string }[] };
-  const cut = journal.entries.findIndex((entry) => entry.tag === EXPAND);
+  const cut = journal.entries.findIndex((entry) => entry.tag === tag);
   journal.entries = journal.entries.slice(0, cut);
   const kept = new Set(journal.entries.map((entry) => `${entry.tag}.sql`));
   for (const name of await readdir(defaultMigrationsFolder)) {
@@ -78,15 +80,21 @@ const folderBeforeOrganizations = async () => {
   return dir;
 };
 
+const folderBeforeOrganizations = () => folderBefore(EXPAND);
+
 /** The core's modules against another database: the pool and the environment are per process, so both are reset. */
 const coreOn = async (url: string) => {
   process.env.DATABASE_URL = url;
   Reflect.deleteProperty(globalThis, Symbol.for("metobe.db"));
   vi.resetModules();
   return {
+    access: await import("./access"),
     claim: await import("./claim"),
     invitations: await import("./invitations"),
+    orgSettings: await import("./org-settings"),
     organizations: await import("./organizations"),
+    personal: await import("./personal"),
+    privacy: await import("./privacy-settings"),
   };
 };
 
@@ -144,7 +152,7 @@ describe.skipIf(!URL)(
         expect(orgs).toHaveLength(1);
         const [org] = orgs;
         expect(org?.name).toBe("acme.example");
-        // Only the organization's parts of the policies, copied (O3 moves them).
+        // Only the organization's parts of the policies, copied (O3 moves them for good).
         expect(org?.settings).toEqual({
           access: { domains: ["acme.example"] },
         });
@@ -296,6 +304,109 @@ describe.skipIf(!URL)(
           org_role: "member",
           organization_id: org?.id,
         });
+      } finally {
+        await endCorePool();
+        await sql.end();
+      }
+    });
+
+    it("moves the organization's settings out of the policies, and leaves the platform's where they are", async () => {
+      const name = await createDatabase();
+      made.push(name);
+      const url = serverUrl(name);
+      const { sql } = createDb(url);
+      try {
+        await runMigrations(url, await folderBeforeOrganizations());
+        await sql`insert into "user" (id, name, email, role) values ('a-owner', 'Owner', 'owner@acme.example', 'superuser')`;
+        await sql`insert into system_settings (id, policies) values (1, ${JSON.stringify(
+          {
+            access: { domains: ["acme.example"] },
+            personalConnections: "public_only",
+          }
+        )}::jsonb) on conflict (id) do update set policies = excluded.policies`;
+        // Expand has the organization; the release before this one goes on writing the policies after it.
+        await runMigrations(url, await folderBefore(SETTINGS_MOVE));
+        await sql`update system_settings set policies = ${JSON.stringify({
+          access: { domains: ["acme.example", "beta.example"] },
+          mail: { host: "smtp.example" },
+          personalApprovalDefaults: { email_send: "ask" },
+          personalConnections: "off",
+          privacy: {
+            bundled: true,
+            keepFor: "7",
+            on: false,
+            url: "http://guard.example",
+          },
+        })}::jsonb where id = 1`;
+
+        await runMigrations(url);
+
+        const [org] = await sql<{ id: string; settings: unknown }[]>`
+        select id, settings from organizations`;
+        expect(org?.settings).toEqual({
+          access: { domains: ["acme.example", "beta.example"] },
+          personalApprovalDefaults: { email_send: "ask" },
+          personalConnections: "off",
+          privacy: { keepFor: "7", on: false },
+        });
+        // Nothing is taken out of the policies: the release before still reads them there, and a rollback finds them.
+        const [row] = await sql<{ policies: Record<string, unknown> }[]>`
+        select policies from system_settings where id = 1`;
+        expect(Object.keys(row?.policies ?? {}).toSorted()).toEqual([
+          "access",
+          "mail",
+          "personalApprovalDefaults",
+          "personalConnections",
+          "privacy",
+        ]);
+
+        // The core reads and writes them in the organization from now on.
+        const core = await coreOn(url);
+        const orgId = org?.id ?? "";
+        expect(await core.access.getAllowedDomains(orgId)).toEqual([
+          "acme.example",
+          "beta.example",
+        ]);
+        expect(
+          await core.access.addAllowedDomain(orgId, "gamma.example")
+        ).toEqual({
+          ok: true,
+        });
+        expect(await core.personal.getPersonalPolicy(orgId)).toEqual({
+          approvals: { email_send: "ask" },
+          mode: "off",
+        });
+        expect(await core.personal.getPersonalPolicyOf("a-owner")).toEqual({
+          approvals: { email_send: "ask" },
+          mode: "off",
+        });
+        await core.personal.setPersonalMode(orgId, "on");
+        const changed = await core.personal.getPersonalPolicy(orgId);
+        expect(changed.mode).toBe("on");
+
+        await core.privacy.setPrivacySettings(orgId, (s) => ({
+          ...s,
+          local: true,
+        }));
+        await core.privacy.setGuardService((s) => ({ ...s, bundled: false }));
+        const privacy = await core.privacy.readPrivacySettings(orgId);
+        // The rules from the organization, the service from the policies — each part changed on its own.
+        expect(privacy).toMatchObject({
+          bundled: false,
+          keepFor: "7",
+          local: true,
+          on: false,
+          url: "http://guard.example",
+        });
+        const [after] = await sql<{ settings: Record<string, unknown> }[]>`
+        select settings from organizations`;
+        expect(after?.settings.access).toEqual({
+          domains: ["acme.example", "beta.example", "gamma.example"],
+        });
+        expect(after?.settings.privacy).not.toHaveProperty("url");
+        const [platform] = await sql<{ policies: Record<string, unknown> }[]>`
+        select policies from system_settings where id = 1`;
+        expect(platform?.policies.mail).toEqual({ host: "smtp.example" });
       } finally {
         await endCorePool();
         await sql.end();

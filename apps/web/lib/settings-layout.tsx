@@ -17,12 +17,12 @@ export const SettingsLayoutBody = async ({
   children: React.ReactNode;
   intercepted?: boolean;
 }) => {
-  const [{ admin, role, user }, t] = await Promise.all([
+  const [{ admin, orgManager, role, user }, t] = await Promise.all([
     getSettingsViewer(),
     getTranslations("settings.roles"),
   ]);
   const [lists, update] = await Promise.all([
-    getSettingsLists(admin, user?.id),
+    getSettingsLists({ orgManager, platform: admin }, user?.id),
     admin ? availableUpdate() : null,
   ]);
   const name = user?.name || user?.email || "";
@@ -40,7 +40,7 @@ export const SettingsLayoutBody = async ({
           </span>
         </div>
       }
-      admin={admin}
+      access={{ orgManager, platform: admin }}
       intercepted={intercepted}
       lists={lists}
       marked={update ? ["about"] : []}

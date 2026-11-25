@@ -852,8 +852,15 @@
       "account": "Account",
       "models": "Models",
       "tools": "Tools",
+      "orgTools": "Tools",
+      "spend": "Usage",
       "team": "Team",
       "system": "System"
+    },
+    "scopes": {
+      "user": "Mine",
+      "org": "Organization",
+      "platform": "Platform"
     },
     "sections": {
       "account": {

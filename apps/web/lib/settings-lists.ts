@@ -3,7 +3,7 @@ import { listCatalog } from "@metobe/core/catalog";
 import { listMailboxes } from "@metobe/core/mailboxes";
 import { listMyConnections } from "@metobe/core/mcp";
 import type { MyServer } from "@metobe/core/mcp";
-import { getPersonalPolicy } from "@metobe/core/personal";
+import { getPersonalPolicyOf } from "@metobe/core/personal";
 import { listProviders } from "@metobe/core/providers";
 import { listProxies } from "@metobe/core/proxies";
 import { listSources } from "@metobe/core/sources-read";
@@ -13,7 +13,7 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 
 import { standingDot, standingOf } from "@/lib/my-connections";
 import { flagOf } from "@/lib/proxy-flag";
-import type { SettingsSectionId } from "@/lib/settings-nav";
+import type { SettingsAccess, SettingsSectionId } from "@/lib/settings-nav";
 import { sourceLogo } from "@/lib/source-logo";
 
 // What a list section shows in the sidebar once you drill into it (P7 «Погружение»): rows prepared on the server,
@@ -268,7 +268,7 @@ const connectionsList = async (userId: string): Promise<SettingsList> => {
   const [rows, boxes, personal, t, tm, format] = await Promise.all([
     listMyConnections(userId),
     listMailboxes(userId),
-    getPersonalPolicy(),
+    getPersonalPolicyOf(userId),
     getTranslations("myConnections"),
     getTranslations("mail"),
     getFormatter(),
@@ -341,21 +341,22 @@ const connectionsList = async (userId: string): Promise<SettingsList> => {
   };
 };
 
-/** The lists this viewer may open: their own connections always, the service's lists for admins only. */
+/**
+ * The lists this viewer may open: their own connections always, the organization's lists (people, the MCP catalog)
+ * for its owner and admins, the install's lists for its superuser and admins.
+ */
 export const getSettingsLists = async (
-  admin: boolean,
+  access: SettingsAccess,
   userId: string | undefined
 ): Promise<SettingsLists> => {
-  const connections = userId ? await connectionsList(userId) : undefined;
-  if (!admin) {
-    return connections ? { connections } : {};
-  }
-  const [sources, providers, proxies, mcp, users] = await Promise.all([
-    sourcesList(),
-    providersList(),
-    proxiesList(),
-    mcpList(),
-    usersList(),
+  const [connections, org, platform] = await Promise.all([
+    userId ? connectionsList(userId) : undefined,
+    access.orgManager ? Promise.all([mcpList(), usersList()]) : undefined,
+    access.platform
+      ? Promise.all([sourcesList(), providersList(), proxiesList()])
+      : undefined,
   ]);
+  const [mcp, users] = org ?? [];
+  const [sources, providers, proxies] = platform ?? [];
   return { connections, mcp, providers, proxies, sources, users };
 };

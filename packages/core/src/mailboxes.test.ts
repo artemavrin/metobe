@@ -13,7 +13,7 @@ vi.mock("./net", () => ({
     Promise.resolve({ host: "127.0.0.1", servername: "localhost" }),
 }));
 vi.mock("./personal", () => ({
-  getPersonalPolicy: () =>
+  getInstallPersonalPolicy: () =>
     Promise.resolve({ approvals: {}, mode: "public_only" }),
 }));
 

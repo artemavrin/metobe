@@ -224,7 +224,7 @@ export const ProtoShell = ({
   };
   const q = query.trim().toLowerCase();
   const match = (label: string) => !q || label.toLowerCase().includes(q);
-  const adminGroups = role === "admin" ? SETTINGS_NAV.filter((g) => g.scope === "admin") : [];
+  const adminGroups = role === "admin" ? SETTINGS_NAV.filter((g) => g.scope !== "user") : [];
   const shownPersonal = personal.filter((i) => match(i.label));
   const title =
     personal.find((i) => i.id === active)?.label ??

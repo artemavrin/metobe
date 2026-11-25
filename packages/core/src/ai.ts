@@ -18,7 +18,12 @@ import {
   previewMask,
 } from "./pii-guard";
 import type { GuardOptions, MaskedCall, ModelAnswer } from "./pii-guard";
-import { getPrivacySettings, guardUrl, policyFor } from "./privacy-settings";
+import {
+  getInstallPrivacySettings,
+  getPrivacySettings,
+  guardUrl,
+  policyFor,
+} from "./privacy-settings";
 import type { PrivacyPlace } from "./privacy-settings";
 import { withSecret } from "./secrets";
 
@@ -96,7 +101,7 @@ const decideGuard = async (
   sourceId: string,
   use: ModelUse
 ): Promise<GuardDecision> => {
-  const settings = await getPrivacySettings();
+  const settings = await getInstallPrivacySettings();
   const url = guardUrl(settings);
   if (!(url && settings.on && settings.places[use.place ?? "service"])) {
     return { state: "off" };
@@ -193,8 +198,11 @@ export type SandboxResult =
   | { state: "down" }
   | { state: "masked"; text: string; labels: ModelLabel[]; blocked: string[] };
 
-export const sandboxMask = async (text: string): Promise<SandboxResult> => {
-  const settings = await getPrivacySettings();
+export const sandboxMask = async (
+  orgId: string,
+  text: string
+): Promise<SandboxResult> => {
+  const settings = await getPrivacySettings(orgId);
   const url = guardUrl(settings);
   if (!url) {
     return { state: "unset" };

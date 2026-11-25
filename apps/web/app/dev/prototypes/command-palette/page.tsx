@@ -55,7 +55,7 @@ const CommandPalettePrototypePage = async () => {
   );
   const sections: PaletteSection[] = SETTINGS_NAV.filter((g) => g.scope === "user" || admin).flatMap((g) =>
     g.items.map((item) => ({
-      admin: g.scope === "admin",
+      admin: g.scope !== "user",
       group: t(`groups.${g.key}`),
       hint: t(`sections.${item.id}.hint`),
       id: item.id,

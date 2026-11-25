@@ -27,7 +27,7 @@ vi.mock("./mailboxes", () => ({
   },
 }));
 vi.mock("./personal", () => ({
-  getPersonalPolicy: () => Promise.resolve({ approvals: {}, mode: "on" }),
+  getPersonalPolicyOf: () => Promise.resolve({ approvals: {}, mode: "on" }),
 }));
 vi.mock("./model-slots", () => ({ getSlotModel: () => Promise.resolve(null) }));
 

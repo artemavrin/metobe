@@ -10,7 +10,7 @@ import { eq, lt } from "drizzle-orm";
 import { getDb } from "./db";
 import type { MaskedCall, ModelAnswer } from "./pii-guard";
 import { toolOutputText } from "./pii-guard";
-import { getPrivacySettings } from "./privacy-settings";
+import { getInstallPrivacySettings } from "./privacy-settings";
 
 // What the model saw (PII-GUARD-PLAN З4, P31): while data protection masks a chat's calls, the
 // masked requests and the answers as the model wrote them are collected, and once the answer is
@@ -116,7 +116,7 @@ export const payloadRecorder = () => {
         return;
       }
       // How long the admin keeps these (З6): not at all, a number of days, or as long as the chat.
-      const { keepFor } = await getPrivacySettings();
+      const { keepFor } = await getInstallPrivacySettings();
       if (keepFor === "none") {
         return;
       }

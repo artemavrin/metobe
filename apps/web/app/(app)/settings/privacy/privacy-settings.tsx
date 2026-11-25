@@ -130,6 +130,8 @@ export interface GuardSetup {
   bundled: boolean;
   /** An updater runs on this server to do it. */
   updater: boolean;
+  /** The viewer runs the platform: the service's address is theirs to change; an organization's admin only sees it. */
+  platform: boolean;
   run: GuardRun | null;
   /** The host's free memory, bytes, when it is short for the service; null — enough, or unknown. */
   lowMemory: number | null;
@@ -370,11 +372,13 @@ const ServiceSection = ({
   run,
   down,
   stopped,
+  editable,
   t,
 }: {
   settings: PrivacySettings;
   check: GuardCheck;
   defaultUrl: string | null;
+  editable: boolean;
   run: GuardRun | null;
   down: boolean;
   stopped: boolean;
@@ -383,6 +387,18 @@ const ServiceSection = ({
   const [checking, startCheck] = useTransition();
   const [draft, setDraft] = useState(settings.url ?? "");
   const address = settings.url ?? defaultUrl;
+  const addressValue = address ? (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="truncate font-mono text-sm">{address}</span>
+      {!settings.url && (
+        <span className="text-muted-foreground shrink-0 text-xs">
+          {t("service.address.default")}
+        </span>
+      )}
+    </span>
+  ) : (
+    <span className="text-muted-foreground">{t("service.address.none")}</span>
+  );
   return (
     <Section
       action={
@@ -407,45 +423,34 @@ const ServiceSection = ({
         </Alert>
       )}
       <Rows>
-        <EditRow
-          editor={
-            <Input
-              {...NO_AUTOFILL}
-              aria-label={t("service.address.label")}
-              autoFocus
-              className="font-mono"
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={defaultUrl ?? "http://pii-guard:8787"}
-              value={draft}
-            />
-          }
-          hint={
-            settings.url && defaultUrl
-              ? t("service.address.hint", { url: defaultUrl })
-              : t("service.address.hintNoDefault")
-          }
-          label={t("service.address.label")}
-          onSave={async () => {
-            const result = await saveAddress(draft);
-            return result.ok ? null : t("service.address.invalid");
-          }}
-          value={
-            address ? (
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-mono text-sm">{address}</span>
-                {!settings.url && (
-                  <span className="text-muted-foreground shrink-0 text-xs">
-                    {t("service.address.default")}
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">
-                {t("service.address.none")}
-              </span>
-            )
-          }
-        />
+        {editable ? (
+          <EditRow
+            editor={
+              <Input
+                {...NO_AUTOFILL}
+                aria-label={t("service.address.label")}
+                autoFocus
+                className="font-mono"
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder={defaultUrl ?? "http://pii-guard:8787"}
+                value={draft}
+              />
+            }
+            hint={
+              settings.url && defaultUrl
+                ? t("service.address.hint", { url: defaultUrl })
+                : t("service.address.hintNoDefault")
+            }
+            label={t("service.address.label")}
+            onSave={async () => {
+              const result = await saveAddress(draft);
+              return result.ok ? null : t("service.address.invalid");
+            }}
+            value={addressValue}
+          />
+        ) : (
+          <Row label={t("service.address.label")}>{addressValue}</Row>
+        )}
         <ServiceState
           check={check}
           checking={checking}
@@ -529,6 +534,7 @@ export const PrivacySettingsForm = ({
         check={check}
         defaultUrl={defaultUrl}
         down={shown.on && !check.ok && check.reason !== "unset" && !running}
+        editable={setup.platform}
         run={setup.run}
         settings={settings}
         stopped={!shown.on && setup.bundled && !check.ok}
