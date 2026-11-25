@@ -244,6 +244,7 @@ export const chatErrorCodes = [
   "too-fast",
   "daily-limit",
   "updating",
+  "org-disabled",
 ] as const;
 export type ChatErrorCode = (typeof chatErrorCodes)[number];
 

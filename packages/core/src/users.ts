@@ -2,6 +2,7 @@ import "server-only";
 import {
   canChangeRole,
   canManageAccess,
+  isOrgRole,
   isRole,
   orgRoleFor,
 } from "@metobe/contracts/members";
@@ -9,6 +10,7 @@ import type { InvitableRole, Role } from "@metobe/contracts/members";
 import { session, user } from "@metobe/db/schema/auth";
 import { and, asc, eq, lt, max, ne, sql } from "drizzle-orm";
 
+import type { Actor } from "./context";
 import { getDb } from "./db";
 
 export const findUserByEmail = async (email: string) => {
@@ -72,16 +74,22 @@ export const listMembers = async () => {
       id: user.id,
       lastSeenAt: max(session.updatedAt),
       name: user.name,
+      orgRole: user.orgRole,
+      organizationId: user.organizationId,
       role: user.role,
     })
     .from(user)
     .leftJoin(session, eq(session.userId, user.id))
     .groupBy(user.id)
     .orderBy(asc(user.name));
-  return rows.map((r) => ({
-    ...r,
-    role: isRole(r.role) ? r.role : ("user" as Role),
-  }));
+  return rows.map((r) => {
+    const role: Role = isRole(r.role) ? r.role : "user";
+    return {
+      ...r,
+      orgRole: isOrgRole(r.orgRole) ? r.orgRole : orgRoleFor(role),
+      role,
+    };
+  });
 };
 
 export type Member = Awaited<ReturnType<typeof listMembers>>[number];
@@ -93,7 +101,7 @@ export const getMember = async (id: string) => {
 
 /** Gives someone another role, when the actor may (the owner only, never to or from an owner). */
 export const setMemberRole = async (
-  actor: { id: string; role: Role },
+  actor: Actor,
   id: string,
   role: InvitableRole
 ) => {
@@ -101,7 +109,7 @@ export const setMemberRole = async (
   if (
     !target ||
     target.id === actor.id ||
-    !canChangeRole(actor.role, target.role)
+    !canChangeRole(actor, target, target.organizationId === actor.orgId)
   ) {
     return false;
   }
@@ -122,7 +130,7 @@ export const setMemberRole = async (
  * sessions it has; while it is off no code goes to it and no sign-in makes a session.
  */
 export const setMemberDisabled = async (
-  actor: { id: string; role: Role },
+  actor: Actor,
   id: string,
   disabled: boolean
 ) => {
@@ -130,7 +138,7 @@ export const setMemberDisabled = async (
   if (
     !target ||
     target.id === actor.id ||
-    !canManageAccess(actor.role, target.role)
+    !canManageAccess(actor, target, target.organizationId === actor.orgId)
   ) {
     return false;
   }
@@ -145,12 +153,15 @@ export const setMemberDisabled = async (
   return true;
 };
 
-/** Whether an account may have a session: it is not turned off. Someone who is not there is not turned off either. */
+/**
+ * Whether an account may have a session: neither its organization nor the platform turned it off. Someone who is not
+ * there is not turned off either. A person of an organization that is off still signs in — to see why they cannot work.
+ */
 export const isSignInAllowed = async (userId: string) => {
   const [found] = await getDb()
-    .db.select({ disabledAt: user.disabledAt })
+    .db.select({ blockedAt: user.blockedAt, disabledAt: user.disabledAt })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1);
-  return !found?.disabledAt;
+  return !(found?.disabledAt || found?.blockedAt);
 };

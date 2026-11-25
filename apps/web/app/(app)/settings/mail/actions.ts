@@ -14,15 +14,12 @@ import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requirePlatform } from "@/lib/context";
 
 // The service's mail (D15): admins only.
 
 const requireAdmin = async () => {
-  const { admin, user } = await getSettingsViewer();
-  if (!(admin && user)) {
-    throw new Error("forbidden");
-  }
+  const { user } = await requirePlatform();
   return user;
 };
 

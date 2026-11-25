@@ -8,6 +8,7 @@ import { getTranslator } from "@metobe/i18n/translator";
 import { eq } from "drizzle-orm";
 
 import { completeTelegramLink, userOfChat } from "./channels";
+import { userCanAct } from "./context";
 import { getDb } from "./db";
 import {
   answerCallback,
@@ -79,7 +80,8 @@ export const answerPress = async (update: TelegramUpdate) => {
   const chat = press.message?.chat.id;
   const action = parseAction(press.data);
   const owner = chat === undefined ? null : await userOfChat(String(chat));
-  if (!(chat !== undefined && action && owner)) {
+  // A turned-off person or organization acts on nothing: the press is as good as gone.
+  if (!(chat !== undefined && action && owner && (await userCanAct(owner)))) {
     await answerCallback(press.id, t("telegram.press.gone"));
     return;
   }
@@ -136,6 +138,11 @@ export const answerChat = async (
 ) => {
   const { locale, timeZone } = await ownerPrefs(owner);
   const t = await getTranslator(locale);
+  // The person or their organization is turned off: nothing is answered, and the model is not asked (ORGS-PLAN §6).
+  if (!(await userCanAct(owner))) {
+    await sendTelegram(chatId, t("telegram.chat.disabled"));
+    return;
+  }
   const typing = async () => {
     try {
       await sendTyping(chatId);

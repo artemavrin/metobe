@@ -102,7 +102,6 @@ import {
   validateUIMessages,
 } from "ai";
 import type { ModelMessage, TextStreamPart, ToolSet, UIMessageChunk } from "ai";
-import { headers } from "next/headers";
 
 import {
   applyApprovals,
@@ -111,13 +110,13 @@ import {
   settleAsks,
 } from "@/lib/approvals";
 import { ASK_USER, askUserTool } from "@/lib/ask-user";
-import { getAuth } from "@/lib/auth";
 import { fromCompaction } from "@/lib/compaction";
 import {
   MAIL_KEY,
   REQUEST_CONNECTION,
   requestConnectionTool,
 } from "@/lib/connect-tool";
+import { requireContext } from "@/lib/context";
 import {
   budgetMessages,
   clearPastTurns,
@@ -457,9 +456,9 @@ const uiError = (error: unknown) => {
 };
 
 export const POST = async (request: Request) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
-    return fail("unauthorized", 401);
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
   const body = chatRequestSchema.safeParse(
     await request.json().catch(() => null)
@@ -468,13 +467,13 @@ export const POST = async (request: Request) => {
     return fail("bad-request", 400);
   }
   const { id, modelId } = body.data;
-  const message = await readMessage(session.user.id, body.data.message);
+  const message = await readMessage(ctx.userId, body.data.message);
   if (message === null) {
     return fail("bad-request", 400);
   }
 
   const chat = await getChat(id);
-  const refused = await refuse(chat, session.user);
+  const refused = await refuse(chat, ctx.user);
   if (refused) {
     return refused;
   }
@@ -483,13 +482,13 @@ export const POST = async (request: Request) => {
   const [stored, chatServers, ownBoxes, notes, personal, skills, ownTask] =
     await Promise.all([
       chat ? listMessages(id) : [],
-      listChatServers(session.user.id),
-      listMailboxes(session.user.id),
-      getInstructions(session.user.id),
+      listChatServers(ctx.userId),
+      listMailboxes(ctx.userId),
+      getInstructions(ctx.userId),
       getPersonalPolicy(),
-      skillsForChat(session.user.id),
+      skillsForChat(ctx.userId),
       // A chat a task was set up in is that task's: no second draft in it (ARCH §16.1).
-      getTaskByChat(session.user.id, id),
+      getTaskByChat(ctx.userId, id),
     ]);
   // Own connections turned off in «Доступ»: the boxes stay, the chat neither uses nor asks for them.
   const mailOn = personal.mode !== "off";
@@ -541,21 +540,15 @@ export const POST = async (request: Request) => {
     await createChat({
       id,
       title: provisionalTitle(message),
-      userId: session.user.id,
+      userId: ctx.userId,
     });
   }
   if (prepared.dropFrom) {
-    await dropMessages(session.user.id, id, prepared.dropFrom);
+    await dropMessages(ctx.userId, id, prepared.dropFrom);
   }
   await saveMessages(id, prepared.save);
   // The question's files join the chat (approvals carry no message — nothing to join).
-  await settleFiles(
-    session.user.id,
-    id,
-    message,
-    prepared.dropFrom,
-    uiMessages
-  );
+  await settleFiles(ctx.userId, id, message, prepared.dropFrom, uiMessages);
   // Carrying on after approvals writes into the same answer.
   const originalMessages = message ? undefined : uiMessages;
   // «Stop» reaches the model through this (D6): what was written by then is saved as the answer.
@@ -583,7 +576,7 @@ export const POST = async (request: Request) => {
                     type: "data-naming",
                   }),
                 text: titleSource(message),
-                userId: session.user.id,
+                userId: ctx.userId,
               });
         if (title) {
           writer.write({ data: title, transient: true, type: "data-title" });
@@ -638,7 +631,7 @@ export const POST = async (request: Request) => {
         }
         return {};
       };
-      const run = { chatId: id, model, userId: session.user.id };
+      const run = { chatId: id, model, userId: ctx.userId };
       const record = async (
         r: Omit<Parameters<typeof recordRun>[0], keyof typeof run>
       ) => {
@@ -654,10 +647,7 @@ export const POST = async (request: Request) => {
       const servers =
         model.capabilities.tools === false
           ? []
-          : await toolsForUser(
-              session.user.id,
-              serversOf(chatServers, uiMessages)
-            );
+          : await toolsForUser(ctx.userId, serversOf(chatServers, uiMessages));
       // The web as the admin left it (ARCH §8.1): search needs a SearXNG, reading pages does not.
       const web = await webToolsOn();
       const waiting = chatServers.filter((s) => s.signIn === "self");
@@ -672,7 +662,7 @@ export const POST = async (request: Request) => {
         question: message ? textOf(message) : "",
         skills,
         tools: model.capabilities.tools !== false,
-        userId: session.user.id,
+        userId: ctx.userId,
         vision: model.capabilities.vision === true,
       });
       // The three widget tools take about 3,000 tokens of their schemas: a model with a small window has no room for
@@ -692,13 +682,13 @@ export const POST = async (request: Request) => {
           tools: model.capabilities.tools !== false,
         }
       );
-      const memory = await chatMemoryOf(session.user.id, id, message, timeZone);
+      const memory = await chatMemoryOf(ctx.userId, id, message, timeZone);
       const box = await codeBox({
         chatId: id,
         sources,
         thread: uiMessages,
         tools: model.capabilities.tools !== false,
-        userId: session.user.id,
+        userId: ctx.userId,
       });
       const tools: ToolSet =
         model.capabilities.tools === false
@@ -730,7 +720,7 @@ export const POST = async (request: Request) => {
               ...(hasFiles
                 ? {
                     [READ_ATTACHMENT]: readAttachmentTool(
-                      session.user.id,
+                      ctx.userId,
                       id,
                       box.ocrPage
                     ),
@@ -740,7 +730,7 @@ export const POST = async (request: Request) => {
               ...(web.search ? { [WEB_SEARCH]: webSearchTool } : {}),
               // The user's own mail, when they have a box (ARCH §17.7).
               ...(boxes.length > 0
-                ? emailTools(session.user.id, boxes, personal.approvals)
+                ? emailTools(ctx.userId, boxes, personal.approvals)
                 : {}),
               // «Connect X to go on», while there is a per-user service or mail the user has not connected.
               ...(waiting.length > 0 || (mailOn && boxes.length === 0)
@@ -759,7 +749,7 @@ export const POST = async (request: Request) => {
           clearPastTurns(
             await convertToModelMessages(
               // After a compaction (D37) the model gets its summary and what follows it, not the messages before.
-              await forModel(session.user.id, fromCompaction(uiMessages), {
+              await forModel(ctx.userId, fromCompaction(uiMessages), {
                 pdf: readsPdf(model.kind, model.modelId),
                 tools: model.capabilities.tools !== false,
                 vision: model.capabilities.vision,
@@ -779,7 +769,7 @@ export const POST = async (request: Request) => {
         TIME_NOTE,
         STYLE_NOTE,
         // The memory writes on its own (ARCH §19): the model must not claim it saved or removed anything.
-        await chatMemoryNote(session.user.id),
+        await chatMemoryNote(ctx.userId),
         hasFiles && tools[READ_ATTACHMENT] ? ATTACHMENT_NOTE : "",
         box.note,
         skilled.note,
@@ -988,7 +978,7 @@ export const POST = async (request: Request) => {
       if (message) {
         void queueMemoryWrite({
           chatId: id,
-          ownerId: session.user.id,
+          ownerId: ctx.userId,
           source: CHAT_SOURCE,
           sourceKey: message.id,
           timeZone,

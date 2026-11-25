@@ -6,13 +6,14 @@ import {
   canInvite,
   orgRoleFor,
 } from "@metobe/contracts/members";
-import type { InvitableRole, Role } from "@metobe/contracts/members";
+import type { InvitableRole } from "@metobe/contracts/members";
 import { user } from "@metobe/db/schema/auth";
 import { invitations } from "@metobe/db/schema/invitations";
 import type { Locale } from "@metobe/i18n/config";
 import { getTranslator } from "@metobe/i18n/translator";
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 
+import type { Actor } from "./context";
 import { getDb } from "./db";
 import { getEnv } from "./env";
 import { isMailConfigured, sendMail } from "./mail";
@@ -40,11 +41,11 @@ export class NotAllowedError extends Error {
  * `reason: "mail"` — when the link is for no address while the service has no mail to check the one its holder types.
  */
 export const issueInvitation = async (input: {
-  actor: { id: string; role: Role };
+  actor: Actor;
   role: InvitableRole;
   email?: string;
 }) => {
-  if (!canInvite(input.actor.role, input.role)) {
+  if (!canInvite(input.actor, input.role, true)) {
     throw new NotAllowedError();
   }
   if (!input.email?.trim() && !(await isMailConfigured())) {
@@ -60,8 +61,8 @@ export const issueInvitation = async (input: {
         Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000
       ),
       orgRole: input.role === "admin" ? "admin" : "member",
-      // The inviter's organization — the install's one until there can be more (O6).
-      organizationId: await installOrganizationId(),
+      // The inviter's organization.
+      organizationId: input.actor.orgId,
       role: input.role,
       tokenHash: hashToken(token),
     })
@@ -98,18 +99,27 @@ export const listOpenInvitations = () => {
 
 /** Takes an open invitation back: its link stops working. An admin takes back only the ones for users. */
 export const revokeInvitation = async (
-  actor: { role: Role },
+  actor: Actor,
   id: string
 ): Promise<boolean> => {
   const { db } = getDb();
   const [found] = await db
-    .select({ role: invitations.role })
+    .select({
+      organizationId: invitations.organizationId,
+      role: invitations.role,
+    })
     .from(invitations)
     .where(and(eq(invitations.id, id), isNull(invitations.acceptedAt)));
   if (!found) {
     return false;
   }
-  if (!canInvite(actor.role, found.role as InvitableRole)) {
+  if (
+    !canInvite(
+      actor,
+      found.role as InvitableRole,
+      found.organizationId === actor.orgId
+    )
+  ) {
     throw new NotAllowedError();
   }
   await db.delete(invitations).where(eq(invitations.id, id));

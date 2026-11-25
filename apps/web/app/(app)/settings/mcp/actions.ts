@@ -25,16 +25,13 @@ import {
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { requireOrgAdmin } from "@/lib/context";
 import { OAUTH_POPUP_RETURN } from "@/lib/oauth-window";
-import { getSettingsViewer } from "@/lib/settings-access";
 
 // MCP servers of the catalog (M4): admins only; every change refreshes the settings layout (the sidebar's rows).
 
 const requireAdmin = async () => {
-  const { admin, user } = await getSettingsViewer();
-  if (!admin || !user) {
-    throw new Error("forbidden");
-  }
+  const { user } = await requireOrgAdmin();
   return user;
 };
 

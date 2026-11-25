@@ -274,7 +274,12 @@ describe.skipIf(!URL)(
 
         // An invitation joins the inviter's organization, with the role in it that goes with the role in the install.
         const issued = await core.invitations.issueInvitation({
-          actor: { id: owner?.id ?? "", role: "superuser" },
+          actor: {
+            id: owner?.id ?? "",
+            orgId: membership?.organization.id ?? "",
+            orgRole: "owner",
+            role: "superuser",
+          },
           email: "new@acme.example",
           role: "user",
         });

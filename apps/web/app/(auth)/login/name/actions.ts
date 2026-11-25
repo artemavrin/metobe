@@ -2,10 +2,9 @@
 
 import { nameFormSchema } from "@metobe/contracts/auth";
 import { setUserName } from "@metobe/core/users";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { getAuth } from "@/lib/auth";
+import { getContext } from "@/lib/context";
 import { translateIssue } from "@/lib/validation";
 
 export interface NameState {
@@ -17,14 +16,14 @@ export const saveName = async (
   _: NameState,
   form: FormData
 ): Promise<NameState> => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
+  const ctx = await getContext();
+  if (!ctx) {
     redirect("/login");
   }
   const parsed = nameFormSchema.safeParse({ name: form.get("name") });
   if (!parsed.success) {
     return { error: await translateIssue(parsed.error.issues[0]?.message) };
   }
-  await setUserName(session.user.id, parsed.data.name);
+  await setUserName(ctx.userId, parsed.data.name);
   redirect("/");
 };

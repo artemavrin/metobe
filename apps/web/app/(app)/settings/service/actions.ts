@@ -5,7 +5,7 @@ import { setSlotModel } from "@metobe/core/model-slots";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requirePlatform } from "@/lib/context";
 
 const slotSchema = z.object({
   modelId: z.uuid().nullable(),
@@ -14,9 +14,9 @@ const slotSchema = z.object({
 
 /** Gives a service job to a model, or takes it away (null). Admins only. */
 export const saveSlot = async (slot: string, modelId: string | null) => {
-  const { admin } = await getSettingsViewer();
+  await requirePlatform();
   const parsed = slotSchema.safeParse({ modelId, slot });
-  if (!admin || !parsed.success) {
+  if (!parsed.success) {
     throw new Error("forbidden");
   }
   // A model of the wrong kind for the job (a decision model for titles, say) is refused.

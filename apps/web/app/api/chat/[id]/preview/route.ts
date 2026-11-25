@@ -1,9 +1,8 @@
 import { previewDraft } from "@metobe/core/ai";
 import { getChat, getChatModel } from "@metobe/core/chat";
-import { headers } from "next/headers";
 import { z } from "zod";
 
-import { getAuth } from "@/lib/auth";
+import { requireContext } from "@/lib/context";
 
 // POST /api/chat/[id]/preview (P31, PII-GUARD-PLAN З7): the draft in the composer as the chosen model
 // would get it — masked in the chat's data protection session without keeping anything, as it is for a
@@ -18,9 +17,9 @@ export const POST = async (
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
   const { id: given } = await params;
   const id = z.uuid().safeParse(given);
@@ -30,7 +29,7 @@ export const POST = async (
   }
   // A new chat has no row yet: its id is the session all the same.
   const chat = await getChat(id.data);
-  if (chat && chat.userId !== session.user.id) {
+  if (chat && chat.userId !== ctx.userId) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
   const model = await getChatModel(body.data.modelId);

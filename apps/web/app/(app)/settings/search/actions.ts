@@ -10,22 +10,15 @@ import {
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requirePlatform } from "@/lib/context";
 
 // The web search (ARCH §8.1): admins only.
-
-const requireAdmin = async () => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    throw new Error("forbidden");
-  }
-};
 
 const refresh = () => revalidatePath("/settings/search");
 
 /** Checks the SearXNG the chat searches with, and keeps what it found. */
 export const recheck = async () => {
-  await requireAdmin();
+  await requirePlatform();
   const url = await searxngUrl();
   if (url) {
     await saveSearchCheck(await checkSearxng(url));
@@ -34,7 +27,7 @@ export const recheck = async () => {
 };
 
 export const toggleTool = async (tool: string, on: boolean) => {
-  await requireAdmin();
+  await requirePlatform();
   await setWebTool(z.enum(["web_search", "web_fetch"]).parse(tool), on);
   refresh();
 };
@@ -45,7 +38,7 @@ const addressSchema = z
 
 /** A SearXNG address — empty goes back to the default — checked right after it is saved. */
 export const saveAddress = async (url: string) => {
-  await requireAdmin();
+  await requirePlatform();
   const parsed = addressSchema.safeParse(url.trim());
   if (!parsed.success) {
     return { ok: false as const };

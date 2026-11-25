@@ -4,6 +4,7 @@ import type * as ActionsModule from "./telegram-actions";
 
 const complete = vi.fn();
 const userOfChat = vi.fn();
+const userCanAct = vi.fn();
 const sendTelegram = vi.fn();
 const answerTelegram = vi.fn();
 const runAction = vi.fn();
@@ -12,6 +13,7 @@ const setButtons = vi.fn();
 
 vi.mock("server-only", () => ({}));
 vi.mock("./channels", () => ({ completeTelegramLink: complete, userOfChat }));
+vi.mock("./context", () => ({ userCanAct }));
 vi.mock("./telegram", () => ({
   answerCallback,
   getUpdates: vi.fn(),
@@ -59,6 +61,8 @@ const message = (text: string, over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   complete.mockReset();
   userOfChat.mockReset();
+  userCanAct.mockReset();
+  userCanAct.mockResolvedValue(true);
   sendTelegram.mockReset();
   sendTelegram.mockImplementation(() => Promise.resolve());
   answerTelegram.mockReset();
@@ -177,6 +181,14 @@ describe("a press on a button under a digest (D43)", () => {
     expect(setButtons).not.toHaveBeenCalled();
   });
 
+  it("does nothing for a person or an organization that is turned off", async () => {
+    userOfChat.mockResolvedValue("user-1");
+    userCanAct.mockResolvedValue(false);
+    await answerPress(press(`d:${ID}`));
+    expect(runAction).not.toHaveBeenCalled();
+    expect(answerCallback).toHaveBeenCalledWith("cb1", "Этого пункта уже нет");
+  });
+
   it("does nothing for data that is not an action", async () => {
     userOfChat.mockResolvedValue("user-1");
     await answerPress(press("hello"));
@@ -244,6 +256,24 @@ describe("a bound chat writes to the bot (шаг 7)", () => {
       expect(sendTelegram).toHaveBeenLastCalledWith(
         "77",
         expect.stringContaining("нет модели для чата")
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not ask the model for a person or an organization that is turned off, and says why", async () => {
+    vi.useFakeTimers();
+    try {
+      userOfChat.mockResolvedValue("owner");
+      userCanAct.mockResolvedValue(false);
+      await handleUpdate(message("что у меня горит?"));
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(userCanAct).toHaveBeenCalledWith("owner");
+      expect(answerTelegram).not.toHaveBeenCalled();
+      expect(sendTelegram).toHaveBeenLastCalledWith(
+        "77",
+        expect.stringContaining("отключены")
       );
     } finally {
       vi.useRealTimers();

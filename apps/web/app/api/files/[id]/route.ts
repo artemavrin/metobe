@@ -1,17 +1,11 @@
 import { deleteDraftFile, getReadableFile, readFile } from "@metobe/core/files";
-import { headers } from "next/headers";
 import { z } from "zod";
 
-import { getAuth } from "@/lib/auth";
+import { requireContext } from "@/lib/context";
 
 // GET /api/files/[id]: a file of the user, or of a chat shared with the team (read the way the chat is), streamed
 // from S3 — a picture or a PDF opens in the browser, anything else downloads under its own name. DELETE: a file
 // taken back from the composer before its message went.
-
-const user = async () => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  return session?.user.id ?? null;
-};
 
 const idOf = async (params: Promise<{ id: string }>) => {
   const { id } = await params;
@@ -25,12 +19,12 @@ export const GET = async (
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-  const userId = await user();
-  if (!userId) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
   const id = await idOf(params);
-  const file = id ? await getReadableFile(userId, id) : null;
+  const file = id ? await getReadableFile(ctx.userId, id) : null;
   if (!file) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
@@ -59,12 +53,12 @@ export const DELETE = async (
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-  const userId = await user();
-  if (!userId) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
   const id = await idOf(params);
-  const deleted = id ? await deleteDraftFile(userId, id) : false;
+  const deleted = id ? await deleteDraftFile(ctx.userId, id) : false;
   return deleted
     ? new Response(null, { status: 204 })
     : Response.json({ error: "not-found" }, { status: 404 });

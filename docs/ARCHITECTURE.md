@@ -1317,6 +1317,7 @@ interface RequestContext {
 }
 ```
 
+- **Сделано в О2.** `loadContext(userId)` в `packages/core/src/context.ts`, обёртки для веб-слоя — `apps/web/lib/context.ts`: `getContext`, `getActiveContext` (для server actions), `requireContext` (маршруты: 401 и 403 `org-disabled`), `requirePlatformRoute` (404 не-платформе), `requirePlatform`, `requireOrgAdmin`. Полей `tariffId` и `seesMoney` пока нет: тарифов нет, они появятся с О8; есть `orgDisabledReason` и `gate` (`org-disabled` | `blocked`). Прямых `getSession` в приложении не осталось. Отключённого платформой человека хранит `user.blocked_at`; воркер и бот Telegram проверяют `userCanAct` / `userCanActSql` (`core/context.ts`).
 - **Сессия Better Auth остаётся на пользователе.** Организация, роль и статус читаются из базы на каждый запрос одним запросом с join. Отключение организации должно действовать сразу, поэтому статус в cookie не кешируется. **Проверить:** включён ли `session.cookieCache` и что в нём лежит.
 - **Функции `@metobe/core`, которые трогают общее, принимают `orgId` аргументом.** Глобального «текущего пользователя» в ядре нет. Фоновая задача берёт организацию из своей полезной нагрузки (владелец задачи → его организация).
 - **Ворота:**

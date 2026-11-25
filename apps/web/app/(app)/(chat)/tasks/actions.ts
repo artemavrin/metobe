@@ -26,8 +26,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getPickerData } from "@/lib/chat-data";
+import { getActiveContext } from "@/lib/context";
 import { getPrefs } from "@/lib/prefs";
-import { getSettingsViewer } from "@/lib/settings-access";
 
 // What the task page does (ARCH §16.4): on and off, letters on and off, «Прогнать сейчас», delete, the answer of a past run,
 // «seen». Every action is the owner's own task only — someone else's is as missing as one that never was.
@@ -35,8 +35,8 @@ import { getSettingsViewer } from "@/lib/settings-access";
 const id = z.uuid();
 
 const owner = async () => {
-  const { user } = await getSettingsViewer();
-  return user?.id ?? null;
+  const ctx = await getActiveContext();
+  return ctx?.userId ?? null;
 };
 
 export const setTaskEnabledAction = async (

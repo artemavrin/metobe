@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type * as MemoryModule from "./memory";
 import type * as TodayModule from "./memory-today";
+import { testOrganizationId } from "./test-organization";
 
 vi.mock("server-only", () => ({}));
 
@@ -40,6 +41,7 @@ describe.skipIf(!URL)("letters with no answer in «Не упустить» (Г3.
       email: `${ana}@example.test`,
       id: ana,
       name: ana,
+      organizationId: await testOrganizationId(db),
     });
     const [row] = await db
       .insert(mailboxes)

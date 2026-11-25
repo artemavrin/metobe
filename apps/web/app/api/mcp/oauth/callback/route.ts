@@ -1,8 +1,7 @@
 import { finishOAuth } from "@metobe/core/catalog";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { getAuth } from "@/lib/auth";
+import { getContext } from "@/lib/context";
 import { OAUTH_POPUP_RETURN } from "@/lib/oauth-window";
 
 // GET /api/mcp/oauth/callback — where an MCP server's OAuth provider sends the user back (ARCH §17.4). The state
@@ -28,12 +27,15 @@ const to = (
 const failed = (request: Request) => to(request, "/mcp-oauth", { ok: "0" });
 
 export const GET = async (request: Request) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const ctx = await getContext();
   const query = new URL(request.url).searchParams;
   const state = query.get("state");
   const code = query.get("code");
-  if (!session) {
+  if (!ctx) {
     return to(request, "/login");
+  }
+  if (ctx.gate) {
+    return to(request, "/disabled");
   }
   if (!state || !code) {
     return failed(request);
@@ -43,7 +45,7 @@ export const GET = async (request: Request) => {
       code,
       issuer: query.get("iss") ?? undefined,
       state,
-      userId: session.user.id,
+      userId: ctx.userId,
     });
     if (!done) {
       return failed(request);

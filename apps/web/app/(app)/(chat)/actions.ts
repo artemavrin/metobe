@@ -27,6 +27,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { getAuth } from "@/lib/auth";
+import { getActiveContext } from "@/lib/context";
 import { isGenerating } from "@/lib/generations";
 import { getPrefs } from "@/lib/prefs";
 
@@ -39,12 +40,12 @@ const favoritesSchema = z.array(z.uuid()).max(500);
 
 /** The user's favorite models in their new order (the picker and the palette star, unstar and reorder). */
 export const saveFavorites = async (ids: string[]) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const ctx = await getActiveContext();
   const parsed = favoritesSchema.safeParse(ids);
-  if (!session || !parsed.success) {
+  if (!ctx || !parsed.success) {
     return;
   }
-  await setFavoriteModels(session.user.id, parsed.data);
+  await setFavoriteModels(ctx.userId, parsed.data);
 };
 
 export type ConnectResult =
@@ -63,12 +64,12 @@ export const connectServer = async (input: {
   secret?: string;
   username?: string;
 }): Promise<ConnectResult> => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const ctx = await getActiveContext();
   const id = z.uuid().safeParse(input.catalogId);
-  if (!session || !id.success) {
+  if (!ctx || !id.success) {
     return { state: "error" };
   }
-  const userId = session.user.id;
+  const { userId } = ctx;
   const servers = await listChatServers(userId);
   const item = servers.some((s) => s.id === id.data)
     ? await getCatalogItem(id.data)
@@ -104,8 +105,8 @@ const chatId = z.uuid();
 const chatTitle = z.string().trim().min(1).max(200);
 
 const userId = async () => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  return session?.user.id;
+  const ctx = await getActiveContext();
+  return ctx?.userId;
 };
 
 /** Opens the user's chat to everyone signed in, by its link — to read — or takes it back. */
@@ -190,15 +191,15 @@ export const voteAnswer = async (
   answer: string,
   up: boolean | null
 ) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const ctx = await getActiveContext();
   const parsed = z
     .object({ answer: z.uuid(), chat: z.uuid(), up: z.boolean().nullable() })
     .safeParse({ answer, chat, up });
-  if (!session || !parsed.success) {
+  if (!ctx || !parsed.success) {
     return false;
   }
   return await setVote(
-    session.user.id,
+    ctx.userId,
     parsed.data.chat,
     parsed.data.answer,
     parsed.data.up
@@ -207,12 +208,12 @@ export const voteAnswer = async (
 
 /** The user's chats holding every word of the query, in the title or in what was said; a piece of text for the latter. */
 export const searchChatsAction = async (query: string) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const ctx = await getActiveContext();
   const parsed = z.string().trim().min(1).max(200).safeParse(query);
-  if (!session || !parsed.success) {
+  if (!ctx || !parsed.success) {
     return [];
   }
-  const hits = await searchChats(session.user.id, parsed.data);
+  const hits = await searchChats(ctx.userId, parsed.data);
   return hits.map((h) => ({
     id: h.id,
     snippet: h.snippet,
@@ -223,11 +224,11 @@ export const searchChatsAction = async (query: string) => {
 
 /** «Что нового» closed: that version is seen; `off` — «Не показывать после обновлений». Only a version that has notes. */
 export const closeWhatsNewAction = async (version: string, off: boolean) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session || !RELEASE_NOTES.some((n) => n.version === version)) {
+  const ctx = await getActiveContext();
+  if (!ctx || !RELEASE_NOTES.some((n) => n.version === version)) {
     return;
   }
-  await closeWhatsNew(session.user.id, version, off === true);
+  await closeWhatsNew(ctx.userId, version, off === true);
 };
 
 /**

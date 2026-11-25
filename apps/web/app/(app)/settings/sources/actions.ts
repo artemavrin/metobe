@@ -32,19 +32,12 @@ import type {
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { requirePlatform } from "@/lib/context";
 import { logoSchema } from "@/lib/logo";
-import { getSettingsViewer } from "@/lib/settings-access";
 import { translateIssue } from "@/lib/validation";
 
 // Sources (M2 step 6b): every action is for admins only and refreshes the settings layout, so the sidebar list
 // and counts follow right away.
-
-const requireAdmin = async () => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    throw new Error("forbidden");
-  }
-};
 
 const refresh = () => revalidatePath("/settings", "layout");
 
@@ -62,7 +55,7 @@ export const connect = async (
   raw: SourceInput,
   via?: Via
 ): Promise<ConnectState> => {
-  await requireAdmin();
+  await requirePlatform();
   const parsed = sourceInputSchema.safeParse(raw);
   if (!parsed.success) {
     const errors: FieldErrors = {};
@@ -84,14 +77,14 @@ export const connect = async (
 };
 
 export const sync = async (id: string): Promise<SyncResult> => {
-  await requireAdmin();
+  await requirePlatform();
   const result = await syncSource(idSchema.parse(id));
   refresh();
   return result;
 };
 
 export const recheck = async (id: string): Promise<SourceHealth> => {
-  await requireAdmin();
+  await requirePlatform();
   const health = await recheckSource(idSchema.parse(id));
   refresh();
   return health;
@@ -101,7 +94,7 @@ export const replaceKey = async (
   id: string,
   apiKey: string
 ): Promise<ChangeResult> => {
-  await requireAdmin();
+  await requirePlatform();
   const key = z.string().trim().min(1).max(4096).parse(apiKey);
   const result = await replaceSourceKey(idSchema.parse(id), key);
   refresh();
@@ -115,7 +108,7 @@ export const updateConfig = async (
   id: string,
   change: { baseUrl?: string; folderId?: string }
 ): Promise<ConfigState> => {
-  await requireAdmin();
+  await requirePlatform();
   const sourceId = idSchema.parse(id);
   if (change.folderId !== undefined) {
     const options = sourceOptionsSchema.safeParse({
@@ -158,7 +151,7 @@ export const setRoute = async (
   id: string,
   route: { mode: string; proxyId: string | null }
 ): Promise<SourceHealth> => {
-  await requireAdmin();
+  await requirePlatform();
   const mode = z.enum(proxyModes).parse(route.mode);
   const health = await setSourceRoute(idSchema.parse(id), {
     mode,
@@ -169,7 +162,7 @@ export const setRoute = async (
 };
 
 export const rename = async (id: string, title: string) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateSource(idSchema.parse(id), {
     title: z.string().trim().min(1).max(100).parse(title),
   });
@@ -178,7 +171,7 @@ export const rename = async (id: string, title: string) => {
 
 /** A built-in logo key, an uploaded image, or `null` for the kind's own. */
 export const setLogo = async (id: string, logo: string | null) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateSource(idSchema.parse(id), {
     logo: logo === null ? null : logoSchema.parse(logo),
   });
@@ -186,19 +179,19 @@ export const setLogo = async (id: string, logo: string | null) => {
 };
 
 export const setEnabled = async (id: string, enabled: boolean) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateSource(idSchema.parse(id), { enabled: Boolean(enabled) });
   refresh();
 };
 
 export const setLocal = async (id: string, local: boolean) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateSource(idSchema.parse(id), { local: Boolean(local) });
   refresh();
 };
 
 export const remove = async (id: string) => {
-  await requireAdmin();
+  await requirePlatform();
   await deleteSource(idSchema.parse(id));
   refresh();
 };
@@ -208,7 +201,7 @@ export const toggleModels = async (
   modelIds: string[],
   enabled: boolean
 ) => {
-  await requireAdmin();
+  await requirePlatform();
   await setModelsEnabled(
     idSchema.parse(id),
     z.array(idSchema).max(5000).parse(modelIds),
@@ -225,7 +218,7 @@ export const setPricing = async (
   modelId: string,
   raw: unknown
 ): Promise<PricingState> => {
-  await requireAdmin();
+  await requirePlatform();
   const sourceId = idSchema.parse(id);
   const model = idSchema.parse(modelId);
   if (raw === null) {
@@ -250,7 +243,7 @@ export const renameModel = async (
   modelId: string,
   title: string | null
 ) => {
-  await requireAdmin();
+  await requirePlatform();
   await setModelTitle(
     idSchema.parse(id),
     idSchema.parse(modelId),
@@ -265,7 +258,7 @@ export const setCapabilities = async (
   modelId: string,
   raw: unknown
 ) => {
-  await requireAdmin();
+  await requirePlatform();
   const sourceId = idSchema.parse(id);
   const model = idSchema.parse(modelId);
   if (raw === null) {
@@ -283,7 +276,7 @@ export const setDecision = async (
   modelId: string,
   decision: boolean
 ) => {
-  await requireAdmin();
+  await requirePlatform();
   await setModelType(
     idSchema.parse(id),
     idSchema.parse(modelId),

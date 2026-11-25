@@ -24,31 +24,20 @@ import { ThemePicker } from "./theme-picker";
 // where the account is signed in, the data — one under another, in the order of use.
 
 const AccountPage = async () => {
-  const { user, role } = await getSettingsViewer();
+  const { ctx, user, role } = await getSettingsViewer();
   const requestHeaders = await headers();
-  const [
-    t,
-    tAppearance,
-    tModel,
-    tMemory,
-    current,
-    all,
-    account,
-    prefs,
-    mailOn,
-    memory,
-  ] = await Promise.all([
-    getTranslations("data"),
-    getTranslations("settings.appearance"),
-    getTranslations("personalization"),
-    getTranslations("memory"),
-    getAuth().api.getSession({ headers: requestHeaders }),
-    getAuth().api.listSessions({ headers: requestHeaders }),
-    user ? getAccount(user.id) : null,
-    getPrefs(),
-    isMailConfigured(),
-    user ? memoryStateFor(user.id) : null,
-  ]);
+  const [t, tAppearance, tModel, tMemory, all, account, prefs, mailOn, memory] =
+    await Promise.all([
+      getTranslations("data"),
+      getTranslations("settings.appearance"),
+      getTranslations("personalization"),
+      getTranslations("memory"),
+      getAuth().api.listSessions({ headers: requestHeaders }),
+      user ? getAccount(user.id) : null,
+      getPrefs(),
+      isMailConfigured(),
+      user ? memoryStateFor(user.id) : null,
+    ]);
   if (!user) {
     return null;
   }
@@ -88,7 +77,7 @@ const AccountPage = async () => {
         userId={user.id}
       />
       <Sessions
-        currentToken={current?.session.token ?? ""}
+        currentToken={ctx?.sessionToken ?? ""}
         sessions={all
           .map((s) => ({
             device: deviceOf(s.userAgent),
