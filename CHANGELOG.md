@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.6](https://github.com/artemavrin/metobe/compare/v0.11.5...v0.11.6) (2026-11-25)
+
+
+### Bug Fixes
+
+* **updater:** restore public schema on rollback ([9bb6ae5](https://github.com/artemavrin/metobe/commit/9bb6ae5b1f0b9deaadc0b0a54ef45ff5d0620648))
+
 ## [0.11.5](https://github.com/artemavrin/metobe/compare/v0.11.4...v0.11.5) (2026-11-24)
 
 
