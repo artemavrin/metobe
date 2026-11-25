@@ -130,10 +130,32 @@ const num = (locale: string, digits: number, v: number) => {
 const sym = (c: "USD" | "RUB") => (c === "USD" ? "$" : "₽");
 const money = (locale: string, v: number, c: "USD" | "RUB") =>
   `${num(locale, 2, v)} ${sym(c)}`;
-const priceCell = (locale: string, m: ChatModel) =>
-  m.price
+/** «×3» against the tariff's main model: whole from 10, one decimal below. */
+const limitTimes = (locale: string, n: number) =>
+  `×${num(locale, n < 10 ? 1 : 0, n)}`;
+const priceCell = (locale: string, m: ChatModel) => {
+  if (m.limit) {
+    return limitTimes(locale, m.limit.times);
+  }
+  return m.price
     ? `${num(locale, 2, m.price.input)} / ${num(locale, 2, m.price.output)} ${sym(m.price.currency)}`
     : "—";
+};
+/** The price cell's hint: what «×N» means, or the cache price. */
+const priceTip = (t: T, locale: string, m: ChatModel) => {
+  if (m.limit) {
+    return t("limit.tip", { times: limitTimes(locale, m.limit.times) });
+  }
+  if (!m.price) {
+    return;
+  }
+  return t(m.price.cacheRead === undefined ? "priceTip" : "priceTipCache", {
+    cache:
+      m.price.cacheRead === undefined
+        ? ""
+        : money(locale, m.price.cacheRead, m.price.currency),
+  });
+};
 const secs = (t: T, locale: string, ms: number | null) =>
   ms === null ? "—" : t("seconds", { n: num(locale, 1, ms / 1000) });
 
@@ -315,6 +337,18 @@ const byColumn = (t: T, entries: Entry[], sort: Sort): Section[] => {
     return [
       // oxlint-disable-next-line unicorn/no-array-sort -- a fresh array; toSorted/toReversed are past the ES2022 target
       { entries: [...entries].sort(cmp((m) => m.firstTokenMs)), key: "flat" },
+    ];
+  }
+  // A seat with a tariff: «×N к лимиту» in place of prices, one list from the lightest; older tariffs' models last.
+  if (entries.some((e) => e.m.limit)) {
+    return [
+      {
+        // oxlint-disable-next-line unicorn/no-array-sort -- a fresh array; toSorted/toReversed are past the ES2022 target
+        entries: [...entries].sort(
+          cmp((m) => (m.limit?.tier ? null : m.limit?.times))
+        ),
+        key: "flat",
+      },
     ];
   }
   const byInput = cmp((m) => m.price?.input);
@@ -587,6 +621,15 @@ const Title = ({ text, mask }: { text: string; mask?: string }) => {
   );
 };
 
+/** A model of an older tariff (P35): shown greyed with the tariff's name, not picked or starred. */
+const isLocked = (m: ChatModel) => Boolean(m.limit?.tier);
+const TierMark = ({ m }: { m: ChatModel }) =>
+  m.limit?.tier ? (
+    <Badge radius="full" size="xs" variant="outline">
+      {m.limit.tier}
+    </Badge>
+  ) : null;
+
 /** Fixed slots, strictly monochrome: yes — the icon, the source did not say — a faint icon, no — nothing. */
 const CapCells = ({ m }: { m: ChatModel }) => {
   const t = useTranslations("chat.picker");
@@ -680,7 +723,8 @@ const RowView = ({
       aria-describedby={selected ? describedBy : undefined}
       className={cn(
         "relative z-[1] grid h-9 items-center gap-2 rounded-[10px] px-2 py-0 data-selected:bg-transparent pointer-coarse:h-11 [&>svg:last-child]:hidden",
-        bare ? cn(COLS_BARE, "pl-[58px]") : COLS
+        bare ? cn(COLS_BARE, "pl-[58px]") : COLS,
+        isLocked(m) && "text-muted-foreground [&_img]:opacity-50"
       )}
       onSelect={onSelect}
       value={m.id}
@@ -699,6 +743,7 @@ const RowView = ({
             {t("new")}
           </Badge>
         )}
+        <TierMark m={m} />
         {/* The source, shown for duplicate names or a source match, and for the highlighted row — no height change */}
         {(showSource || selected) && (
           <span
@@ -722,19 +767,7 @@ const RowView = ({
       </span>
       <span
         className={cn(NUM, SEL_FG, "@max-[640px]:hidden")}
-        title={
-          m.price
-            ? t(
-                m.price.cacheRead === undefined ? "priceTip" : "priceTipCache",
-                {
-                  cache:
-                    m.price.cacheRead === undefined
-                      ? ""
-                      : money(locale, m.price.cacheRead, m.price.currency),
-                }
-              )
-            : undefined
-        }
+        title={priceTip(t, locale, m)}
       >
         {priceCell(locale, m)}
       </span>
@@ -748,13 +781,18 @@ const RowView = ({
             "opacity-0 group-hover/command-item:opacity-100 group-data-[selected=true]/command-item:opacity-100 max-sm:opacity-100 pointer-coarse:opacity-100"
         )}
       >
-        <StarToggle
-          className="size-5"
-          iconClassName={fav ? "text-amber-600 dark:text-amber-300" : undefined}
-          label={t(fav ? "unstar" : "star", { title: m.title })}
-          on={fav}
-          onToggle={() => onStar(m.id)}
-        />
+        {/* A model of an older tariff is not picked, so not starred either. */}
+        {!isLocked(m) && (
+          <StarToggle
+            className="size-5"
+            iconClassName={
+              fav ? "text-amber-600 dark:text-amber-300" : undefined
+            }
+            label={t(fav ? "unstar" : "star", { title: m.title })}
+            on={fav}
+            onToggle={() => onStar(m.id)}
+          />
+        )}
       </span>
       <span className="flex justify-center @max-[640px]:hidden">
         <FavKey fresh={fresh} n={n} />
@@ -943,7 +981,9 @@ const PaletteBar = ({
         </span>
       ) : (
         <span className="min-w-0 truncate">
-          {current && compareWith(t, locale, m, current)}
+          {m.limit?.tier
+            ? t("limit.tierTip", { tier: m.limit.tier })
+            : current && compareWith(t, locale, m, current)}
         </span>
       )}
       <span className="ml-auto flex shrink-0 items-center gap-3 max-sm:hidden">
@@ -999,6 +1039,7 @@ export const ModelPalette = ({
   const hk = useHotkeyLabel();
   const t = useTranslations("chat.picker");
   const { models, recent, byId, sameTitle } = usePickerData();
+  const limited = models.some((m) => m.limit);
   const data = useMemo(
     () => ({ byId, models, recent }),
     [byId, models, recent]
@@ -1150,6 +1191,10 @@ export const ModelPalette = ({
       onOpenChange(false);
       return;
     }
+    // A model of an older tariff is shown, not picked.
+    if (isLocked(m)) {
+      return;
+    }
     onPick(m, dirOf(m.id));
   };
   const toggleCap = (k: CapKey) => {
@@ -1278,6 +1323,9 @@ export const ModelPalette = ({
     if (starKey) {
       handled();
       const { id } = subject;
+      if (anyModel(id)?.limit?.tier) {
+        return;
+      }
       const pinning = !favorites.has(id);
       favorites.toggle(id);
       if (pinning) {
@@ -1513,9 +1561,11 @@ export const ModelPalette = ({
                     { key: "context", label: t("columns.context") },
                     {
                       key: "price",
-                      label: t("columns.price"),
+                      label: limited ? t("limit.column") : t("columns.price"),
                       narrow: true,
-                      tip: t("columns.priceTip"),
+                      tip: limited
+                        ? t("limit.columnTip")
+                        : t("columns.priceTip"),
                     },
                     {
                       key: "latency",

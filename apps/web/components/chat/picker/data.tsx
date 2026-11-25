@@ -35,6 +35,12 @@ export interface PickerModel {
     currency: "USD" | "RUB";
   } | null;
   released: string | null;
+  /**
+   * A seat with a tariff (ORGS-PLAN §7.6, P35): the person sees how fast the model spends the limit instead of its
+   * price — `times` against the tariff's main model; `tier` — the model belongs to an older tariff and is shown
+   * greyed, not picked. None — prices as before (self-hosted).
+   */
+  limit?: { times: number; tier?: string };
   /** The median time to the first token in Metobe over 30 days, ms. */
   firstTokenMs: number | null;
 }

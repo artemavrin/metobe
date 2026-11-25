@@ -13,7 +13,7 @@ import {
   useDragControls,
   useReducedMotion,
 } from "motion/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   useEffect,
   useId,
@@ -94,6 +94,7 @@ const Body = ({
   faded: boolean;
 }) => {
   const t = useTranslations("chat.picker");
+  const locale = useLocale();
   const { sameTitle } = usePickerData();
   return (
     <span
@@ -108,6 +109,11 @@ const Body = ({
         {sameTitle(m.title) && (
           <span className="text-muted-foreground shrink-0 text-xs">
             {m.source}
+          </span>
+        )}
+        {m.limit && m.limit.times !== 1 && (
+          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+            ×{m.limit.times.toLocaleString(locale)}
           </span>
         )}
         {isCurrent && (
