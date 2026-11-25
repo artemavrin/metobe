@@ -56,7 +56,11 @@ cleanup() {
 trap cleanup EXIT
 
 # Builds the image of a source tree (the way the CI e2e and the installer's METOBE_BUILD do).
-build() { (cd "$1" && METOBE_IMAGE="$2" docker compose -f compose.yml -f docker/compose.build.yml build --quiet app </dev/null); }
+# Quiet unless it fails: then the end of the build's own output says why.
+build() {
+  (cd "$1" && METOBE_IMAGE="$2" docker compose -f compose.yml -f docker/compose.build.yml build --progress plain app \
+    </dev/null >"$WORK/build.log" 2>&1) || { tail -n 120 "$WORK/build.log" >&2; return 1; }
+}
 # Runs an image with a compose.yml, as the updater does: the file beside the base, the image pinned in .env.
 run() {
   cp "$2" compose.yml
