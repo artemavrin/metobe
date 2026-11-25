@@ -1,3 +1,4 @@
+import { isOrgManager } from "@metobe/contracts/members";
 import { listSkills } from "@metobe/core/skills";
 import { getTranslations } from "next-intl/server";
 
@@ -14,11 +15,16 @@ import { SkillList } from "./skill-list";
 // picks one with `/name`.
 
 const SkillsPage = async () => {
-  const [{ admin, user }, t] = await Promise.all([
+  const [{ ctx, user }, t] = await Promise.all([
     getSettingsViewer(),
     getTranslations("skills"),
   ]);
-  const rows = user ? await listSkills({ admin, userId: user.id }) : [];
+  const rows = user
+    ? await listSkills({
+        admin: isOrgManager(ctx?.orgRole),
+        userId: user.id,
+      })
+    : [];
   return (
     <SettingsPageFrame>
       <SettingsHeader description={t("description")} title={t("title")} />

@@ -10,16 +10,15 @@ import {
 } from "@metobe/core/mailboxes";
 import type { SaveResult } from "@metobe/core/mailboxes";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 
-import { getAuth } from "@/lib/auth";
+import { getActiveContext } from "@/lib/context";
 
 // A user's own mailboxes (ARCH §17.7): added from «Мои подключения» or from the chat's «connect X to go on» — the
 // same form. The password goes from the form straight here, never through the model.
 
 const userId = async () => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const session = await getActiveContext();
   return session?.user.id ?? null;
 };
 

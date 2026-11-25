@@ -95,6 +95,7 @@
       "generation-failed": "The model didn’t answer. Try again.",
       "context-full": "The model’s context is full: the chat’s history is too long. Start a new chat or pick a model with a bigger window.",
       "guard-unavailable": "Data protection is unavailable: the request was not sent.",
+      "org-disabled": "The organization or the account is disabled. The chat is unavailable.",
       "network": "Can’t reach the server. Check your connection.",
       "forbidden": "This chat isn’t yours.",
       "unauthorized": "Your session has ended — sign in again.",
@@ -3088,6 +3089,13 @@
       "new": "New task"
     }
   },
+  "disabled": {
+    "orgTitle": "Organization disabled",
+    "orgUnpaid": "An invoice is unpaid. Chats, tasks and memory are off, the data is kept. Work resumes after payment.",
+    "orgManual": "Chats, tasks and memory are off, the data is kept. Ask the organization's owner for details.",
+    "blockedTitle": "Access disabled",
+    "blockedText": "The account is disabled by the platform. The data is kept."
+  },
   "mailOff": {
     "title": "Turn off letters for this task?",
     "text": "Letters about the task «{task}» will stop. Other tasks are not affected.",
@@ -3487,6 +3495,7 @@
       "onlyText": "For now I read only text and captions under files.",
       "empty": "No answer came out. Try putting it another way.",
       "failed": "Could not answer. Try again, or write in Metobe.",
+      "disabled": "The organization or the account is disabled, so there is no answer. The data is kept.",
       "noModel": "Metobe has no chat model, so there is nothing to answer with. An administrator turns one on.",
       "due": "by {date}",
       "late": "overdue",

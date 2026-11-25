@@ -40,6 +40,8 @@ export const user = pgTable(
   digestKeys: jsonb("digest_keys").$type<string[]>(),
   // When an admin turned the account off: no sign-in, no code, no sessions; null — it works.
   disabledAt: timestamp("disabled_at"),
+  // When the platform turned the person off (ORGS-PLAN §6): like `disabledAt`, but the organization cannot undo it.
+  blockedAt: timestamp("blocked_at"),
   // The person's organization and role in it (D48, ARCH §20.3); `role` above stays the role in the install. Nullable
   // only for the release between expand and contract (ARCH §20.4): read them through `getMembership` (core), which
   // fills a row the previous release wrote in that window.

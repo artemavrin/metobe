@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { LastPage } from "@/components/last-page";
-import { getAuth } from "@/lib/auth";
+import { getContext } from "@/lib/context";
 
 // `modal` is the slot of the settings window (app/(app)/@modal): opened from inside the app it shows over the page.
 const AppLayout = async ({
@@ -13,13 +13,17 @@ const AppLayout = async ({
   modal: React.ReactNode;
 }) => {
   // headers() first: it marks the route dynamic before auth (and its env) is touched.
-  const requestHeaders = await headers();
-  const session = await getAuth().api.getSession({ headers: requestHeaders });
-  if (!session) {
+  await headers();
+  const ctx = await getContext();
+  if (!ctx) {
     redirect("/login");
   }
+  // The organization or the person is turned off: nothing of the app works, the screen says why (ARCH §20.2).
+  if (ctx.gate) {
+    redirect("/disabled");
+  }
   // An account made by a first sign-in has no name until it is asked for.
-  if (!session.user.name.trim()) {
+  if (!ctx.user.name.trim()) {
     redirect("/login/name");
   }
   return (

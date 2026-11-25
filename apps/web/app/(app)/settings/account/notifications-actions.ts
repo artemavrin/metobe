@@ -11,18 +11,14 @@ import {
 import { setDigestTime } from "@metobe/core/memory-digest";
 import { TelegramError, sendTelegram } from "@metobe/core/telegram";
 import { getTranslations } from "next-intl/server";
-import { headers } from "next/headers";
 
-import { getAuth } from "@/lib/auth";
+import { getActiveContext } from "@/lib/context";
 
 // The user's own channels (D43): Telegram is bound by a code the bot reads (the worker); these are the settings' calls.
 
-const session = async () =>
-  getAuth().api.getSession({ headers: await headers() });
-
 /** A new link to the bot; refused while a chat is bound. */
 export const startTelegram = async () => {
-  const s = await session();
+  const s = await getActiveContext();
   if (!s) {
     return { ok: false as const, reason: "auth" as const };
   }
@@ -31,12 +27,12 @@ export const startTelegram = async () => {
 
 /** Where the channel stands now: the settings ask while the link waits for «Start» in the bot. */
 export const telegramStatus = async () => {
-  const s = await session();
+  const s = await getActiveContext();
   return s ? await telegramChannel(s.user.id) : null;
 };
 
 export const unlinkTelegramChat = async () => {
-  const s = await session();
+  const s = await getActiveContext();
   if (!s) {
     return { ok: false as const };
   }
@@ -46,7 +42,7 @@ export const unlinkTelegramChat = async () => {
 
 /** A line to the chat, to see it works; a blocked bot turns the channel to an error. */
 export const testTelegram = async () => {
-  const s = await session();
+  const s = await getActiveContext();
   if (!s) {
     return { ok: false as const };
   }
@@ -72,7 +68,7 @@ export const saveNotify = async (prefs: {
   email?: boolean;
   telegram?: boolean;
 }) => {
-  const s = await session();
+  const s = await getActiveContext();
   if (!s) {
     return { ok: false as const };
   }
@@ -82,7 +78,7 @@ export const saveNotify = async (prefs: {
 
 /** The morning digest of «Не упустить»: its time (`09:00`), or null — off. */
 export const saveDigest = async (time: string | null) => {
-  const s = await session();
+  const s = await getActiveContext();
   if (!s) {
     return { ok: false as const };
   }

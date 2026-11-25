@@ -4,7 +4,7 @@ import type { Db } from "@metobe/db/client";
 import { runMigrations } from "@metobe/db/migrate";
 import { user } from "@metobe/db/schema/auth";
 import { memoryRecords } from "@metobe/db/schema/memory";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   afterAll,
   beforeAll,
@@ -17,6 +17,7 @@ import {
 
 import type * as MemoryModule from "./memory";
 import type * as RemindersModule from "./memory-reminders";
+import { testOrganizationId } from "./test-organization";
 
 const notify = vi.fn();
 const memoryOn = vi.fn();
@@ -49,12 +50,14 @@ describe.skipIf(!URL)("the reminders people asked for (D43)", () => {
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     reminders = await import("./memory-reminders");
+    const organizationId = await testOrganizationId(db);
     await db.insert(user).values(
       [ana, bob].map((id) => ({
         email: `${id}@example.test`,
         id,
         locale: "ru",
         name: id,
+        organizationId,
         timeZone: "Europe/Moscow",
       }))
     );
@@ -146,6 +149,22 @@ describe.skipIf(!URL)("the reminders people asked for (D43)", () => {
     expect(await reminders.sendDueReminders(NOW)).toBe(1);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify.mock.calls[0]?.[0]).toBe(ana);
+  });
+
+  it("tells nothing to a person the platform turned off, and tells it when they are back", async () => {
+    await reminder(bob, "Бобово", minutes(-10));
+    await db
+      .update(user)
+      .set({ blockedAt: new Date() })
+      .where(eq(user.id, bob));
+    try {
+      expect(await reminders.sendDueReminders(NOW)).toBe(0);
+      expect(notify).not.toHaveBeenCalled();
+    } finally {
+      await db.update(user).set({ blockedAt: null }).where(eq(user.id, bob));
+    }
+    expect(await reminders.sendDueReminders(NOW)).toBe(1);
+    expect(notify.mock.calls[0]?.[0]).toBe(bob);
   });
 
   it("is told once when two ticks run together, and a reminder moved is told again", async () => {

@@ -5,6 +5,7 @@ import { createClient } from "redis";
 import { z } from "zod";
 
 import { isChatMemoryOff } from "./chat";
+import { userCanAct } from "./context";
 import {
   CHAT_SOURCE,
   createWrite,
@@ -188,6 +189,10 @@ const dropLock = async (ownerId: string, token: string) => {
 /** Reads a person's queue to the end; another reader at it — the job waits a little and looks again. */
 const readQueue = async (job: Job<QueueJob>, token?: string) => {
   const { ownerId } = job.data;
+  // A turned-off person or organization: nothing is read or written; what is queued waits (ORGS-PLAN §6).
+  if (!(await userCanAct(ownerId))) {
+    return "off";
+  }
   if ("messageId" in job.data) {
     const { chatId, messageId, timeZone } = job.data;
     await enqueue({

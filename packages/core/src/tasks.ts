@@ -33,6 +33,7 @@ import {
 } from "drizzle-orm";
 
 import { getChat, listMessages, saveMessages } from "./chat";
+import { userCanActSql } from "./context";
 import { getDb } from "./db";
 import { deleteTaskObjects } from "./files";
 import { announceTasks } from "./task-events";
@@ -139,7 +140,9 @@ export const claimDueTasks = async (now = new Date()) => {
         and(
           eq(tasks.enabled, true),
           isNull(tasks.pausedReason),
-          lte(tasks.nextRunAt, now)
+          lte(tasks.nextRunAt, now),
+          // A turned-off person or organization: the task stays due and runs once, catching up, when they are back.
+          userCanActSql(tasks.ownerId)
         )
       )
       .for("update", { skipLocked: true });

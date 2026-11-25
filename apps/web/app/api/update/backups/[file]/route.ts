@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requirePlatformRoute } from "@/lib/context";
 
 const BACKUPS = "/backups";
 const BACKUP_NAME = /^metobe-\d+\.\d+\.\d+-[\dTZ-]+\.dump$/u;
@@ -12,9 +12,10 @@ export const GET = async (
   _request: Request,
   { params }: { params: Promise<{ file: string }> }
 ) => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
+  // The dump holds every organization's data: the platform's staff only, and for anyone else the route is not there.
+  const ctx = await requirePlatformRoute();
+  if (ctx instanceof Response) {
+    return ctx;
   }
   const { file } = await params;
   if (!BACKUP_NAME.test(file) || path.basename(file) !== file) {

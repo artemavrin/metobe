@@ -17,16 +17,9 @@ import {
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requirePlatform } from "@/lib/context";
 
 // The sandbox (D47, P35): admins only. Each action changes one value; the rest stays.
-
-const requireAdmin = async () => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    throw new Error("forbidden");
-  }
-};
 
 const refresh = () => revalidatePath("/settings/sandbox");
 
@@ -39,7 +32,7 @@ const dropAll = async () => {
 };
 
 export const setSandboxOn = async (on: boolean) => {
-  await requireAdmin();
+  await requirePlatform();
   const value = z.boolean().parse(on);
   await setSandboxSettings((s) => ({ ...s, enabled: value }));
   if (!value) {
@@ -66,7 +59,7 @@ export const setSandboxLimit = async (
   key: (typeof limitKeys)[number],
   value: number | boolean
 ): Promise<boolean> => {
-  await requireAdmin();
+  await requirePlatform();
   const field = z.enum(limitKeys).parse(key);
   const [settings, status] = await Promise.all([
     getSandboxSettings(true),
@@ -88,7 +81,7 @@ export const setSandboxLimit = async (
 
 /** Drops one box (its chat's or task's key). `false` — the service did not answer. */
 export const dropBox = async (key: string): Promise<boolean> => {
-  await requireAdmin();
+  await requirePlatform();
   const ok = await dropSandboxBox(z.string().min(1).max(200).parse(key))
     .then(() => true)
     .catch(() => false);

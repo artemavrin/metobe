@@ -12,22 +12,15 @@ import { setPersonalApproval, setPersonalMode } from "@metobe/core/personal";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requireOrgAdmin } from "@/lib/context";
 
 // Who may sign in by themselves (D17) and what people may connect by themselves (ARCH §17.1): admins only.
-
-const requireAdmin = async () => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    throw new Error("forbidden");
-  }
-};
 
 const refresh = () => revalidatePath("/settings/access");
 
 /** Lists a domain; what is wrong with it, when it cannot be listed. */
 export const addDomain = async (input: string): Promise<AddDomainResult> => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const result = await addAllowedDomain(input);
   if (result.ok) {
     refresh();
@@ -36,7 +29,7 @@ export const addDomain = async (input: string): Promise<AddDomainResult> => {
 };
 
 export const removeDomain = async (domain: string) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const parsed = domainSchema.safeParse(domain);
   if (parsed.success) {
     await removeAllowedDomain(parsed.data);
@@ -46,7 +39,7 @@ export const removeDomain = async (domain: string) => {
 
 /** Off, internet addresses only, or any, for people's own connections. */
 export const changePersonalMode = async (mode: string) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const parsed = z.enum(personalModes).safeParse(mode);
   if (parsed.success) {
     await setPersonalMode(parsed.data);
@@ -57,7 +50,7 @@ export const changePersonalMode = async (mode: string) => {
 
 /** «Ask first?» by default for a tool of people's own mail. */
 export const changePersonalApproval = async (tool: string, value: string) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const parsed = z
     .object({ tool: z.enum(mailTools), value: z.enum(personalApprovals) })
     .safeParse({ tool, value });

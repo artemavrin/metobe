@@ -1,16 +1,15 @@
 import "server-only";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
-import { getAuth } from "@/lib/auth";
+import { getContext } from "@/lib/context";
 import { canOpen, isAdminRole } from "@/lib/settings-nav";
 
-/** The signed-in user and whether they may see the service's settings; read once per request. */
+/** The signed-in user, their context and whether they may see the service's settings; read once per request. */
 export const getSettingsViewer = cache(async () => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  const role = (session?.user as { role?: string } | undefined)?.role ?? "user";
-  return { admin: isAdminRole(role), role, user: session?.user ?? null };
+  const ctx = await getContext();
+  const role = ctx?.platformRole ?? "user";
+  return { admin: isAdminRole(role), ctx, role, user: ctx?.user ?? null };
 });
 
 /** 404 for sections that do not exist or that this user may not open (never an empty admin screen). */

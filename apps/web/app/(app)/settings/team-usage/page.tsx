@@ -1,3 +1,5 @@
+import { canSeeTeamUsage } from "@metobe/contracts/members";
+import { actorOf } from "@metobe/core/context";
 import { notFound } from "next/navigation";
 
 import { UsageScreen } from "@/components/usage/usage-screen";
@@ -11,8 +13,8 @@ const TeamUsagePage = async ({
 }: {
   searchParams: UsageSearch;
 }) => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
+  const { ctx } = await getSettingsViewer();
+  if (!(ctx && canSeeTeamUsage(actorOf(ctx), true))) {
     notFound();
   }
   return <UsageScreen scope="team" searchParams={searchParams} />;

@@ -10,14 +10,12 @@ import { APP_VERSION } from "@metobe/core/version";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requirePlatform } from "@/lib/context";
 
+// Updating and rolling back are the platform's: they restart the whole install, every organization with it.
 const adminId = async () => {
-  const { admin, user } = await getSettingsViewer();
-  if (!admin || !user) {
-    throw new Error("forbidden");
-  }
-  return user.id;
+  const { userId } = await requirePlatform();
+  return userId;
 };
 
 // «Проверить сейчас» (D35): asks GitHub at once instead of waiting for the six-hourly check. Admins only.

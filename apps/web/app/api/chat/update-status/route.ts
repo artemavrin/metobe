@@ -1,12 +1,11 @@
 import { isDraining } from "@metobe/core/updater-bus";
-import { headers } from "next/headers";
 
-import { getAuth } from "@/lib/auth";
+import { requireContext } from "@/lib/context";
 
 export const GET = async () => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
   return Response.json(
     { draining: await isDraining() },

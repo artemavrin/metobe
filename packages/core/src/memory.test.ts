@@ -17,6 +17,7 @@ import type * as MemoryModule from "./memory";
 import type * as MemoryPageModule from "./memory-page";
 import type * as MemoryReadModule from "./memory-read";
 import type * as MemoryTodayModule from "./memory-today";
+import { testOrganizationId } from "./test-organization";
 
 vi.mock("server-only", () => ({}));
 
@@ -98,11 +99,13 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     const dbModule = await import("./db");
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
+    const organizationId = await testOrganizationId(db);
     await db.insert(user).values(
       [ana, bob, cleo, dana, ella, fern, gwen, hana].map((id) => ({
         email: `${id}@example.test`,
         id,
         name: id,
+        organizationId,
       }))
     );
   });

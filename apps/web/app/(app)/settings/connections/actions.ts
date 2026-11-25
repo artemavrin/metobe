@@ -10,10 +10,9 @@ import {
 } from "@metobe/core/catalog";
 import { listMyConnections } from "@metobe/core/mcp";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 
-import { getAuth } from "@/lib/auth";
+import { getActiveContext } from "@/lib/context";
 import { OAUTH_POPUP_RETURN } from "@/lib/oauth-window";
 
 // «Мои подключения» (ARCH §17.6): a user's own credentials to the per-user servers they may use — saved and checked
@@ -23,16 +22,16 @@ const refresh = () => revalidatePath("/settings", "layout");
 
 /** The signed-in user and a per-user server they may use; null for anything else. */
 const mine = async (catalogId: string) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const ctx = await getActiveContext();
   const id = z.uuid().safeParse(catalogId);
-  if (!(session && id.success)) {
+  if (!(ctx && id.success)) {
     return null;
   }
-  const servers = await listMyConnections(session.user.id);
+  const servers = await listMyConnections(ctx.userId);
   const server = servers.find((s) => s.id === id.data);
   const item =
     server?.mode === "per_user" ? await getCatalogItem(id.data) : null;
-  return item && server ? { item, server, userId: session.user.id } : null;
+  return item && server ? { item, server, userId: ctx.userId } : null;
 };
 
 export type SaveResult =

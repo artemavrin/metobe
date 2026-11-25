@@ -3,6 +3,7 @@ import {
   canManageAccess,
   canRemove,
 } from "@metobe/contracts/members";
+import { actorOf } from "@metobe/core/context";
 import { getMember } from "@metobe/core/users";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -18,15 +19,19 @@ const UserPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   if (!member) {
     notFound();
   }
-  const { role, user } = await getSettingsViewer();
-  const viewer = role === "superuser" || role === "admin" ? role : "user";
-  const you = user?.id === member.id;
+  const { ctx } = await getSettingsViewer();
+  if (!ctx) {
+    notFound();
+  }
+  const actor = actorOf(ctx);
+  const you = actor.id === member.id;
+  const sameOrg = member.organizationId === ctx.orgId;
   return (
     <SettingsPageFrame>
       <UserDetail
-        canChangeRole={!you && canChangeRole(viewer, member.role)}
-        canManageAccess={!you && canManageAccess(viewer, member.role)}
-        canRemove={!you && canRemove(viewer, member.role)}
+        canChangeRole={!you && canChangeRole(actor, member, sameOrg)}
+        canManageAccess={!you && canManageAccess(actor, member, sameOrg)}
+        canRemove={!you && canRemove(actor, member, sameOrg)}
         key={member.id}
         member={{
           ...member,

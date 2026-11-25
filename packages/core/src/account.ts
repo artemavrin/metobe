@@ -1,9 +1,10 @@
 import "server-only";
+import { isRole, orgRoleFor } from "@metobe/contracts/members";
 import { user } from "@metobe/db/schema/auth";
 import { connections } from "@metobe/db/schema/catalog";
 import { chats, messages } from "@metobe/db/schema/chat";
 import { mailboxes } from "@metobe/db/schema/mail";
-import { asc, count, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 
 import { getDb } from "./db";
 import { deleteUserObjects } from "./files";
@@ -92,17 +93,31 @@ export class LastOwnerError extends Error {
 export const deleteAccount = async (userId: string) => {
   const { db } = getDb();
   const [me] = await db
-    .select({ role: user.role })
+    .select({
+      orgRole: user.orgRole,
+      organizationId: user.organizationId,
+      role: user.role,
+    })
     .from(user)
     .where(eq(user.id, userId));
   if (!me) {
     return;
   }
-  if (me.role === "superuser") {
+  // One owner per organization, and the organization cannot be left without one.
+  if (
+    (me.orgRole ?? orgRoleFor(isRole(me.role) ? me.role : "user")) === "owner"
+  ) {
     const [owners] = await db
       .select({ n: count() })
       .from(user)
-      .where(eq(user.role, "superuser"));
+      .where(
+        and(
+          me.organizationId
+            ? eq(user.organizationId, me.organizationId)
+            : isNull(user.organizationId),
+          eq(user.orgRole, "owner")
+        )
+      );
     if ((owners?.n ?? 0) <= 1) {
       throw new LastOwnerError();
     }

@@ -1,7 +1,6 @@
 import { onMemoryChanged, onTasksChanged } from "@metobe/core/task-events";
-import { headers } from "next/headers";
 
-import { getAuth } from "@/lib/auth";
+import { requireContext } from "@/lib/context";
 
 // «Something about your tasks moved» as server-sent events (ARCH §16.5), and the memory's «this chat's memory moved»
 // (ARCH §19). The word carries no data: the page that hears
@@ -14,11 +13,11 @@ const HEARTBEAT_MS = 20_000;
 const encoder = new TextEncoder();
 
 export const GET = async (request: Request) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
-  const ownerId = session.user.id;
+  const ownerId = ctx.userId;
   const ending: { stop?: () => void } = {};
   const stream = new ReadableStream({
     cancel() {

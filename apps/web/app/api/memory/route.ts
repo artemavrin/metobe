@@ -1,9 +1,8 @@
 import type { MemoryOverview } from "@metobe/contracts/memory";
 import { memoryOverview } from "@metobe/core/memory-page";
 import { memoryStateFor } from "@metobe/core/memory-write";
-import { headers } from "next/headers";
 
-import { getAuth } from "@/lib/auth";
+import { requireContext } from "@/lib/context";
 
 // GET /api/memory (ARCH §19, P16): the list on the left of the «Память» page — cards with their open and overdue
 // commitments, «Не записано» and «Правила». Off says so, and the page says the memory is off.
@@ -11,11 +10,11 @@ import { getAuth } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export const GET = async () => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
-  const state = await memoryStateFor(session.user.id);
+  const state = await memoryStateFor(ctx.userId);
   if (!state.on) {
     return Response.json({
       cards: [],
@@ -28,7 +27,7 @@ export const GET = async () => {
     } satisfies MemoryOverview);
   }
   return Response.json({
-    ...(await memoryOverview(session.user.id)),
+    ...(await memoryOverview(ctx.userId)),
     on: true,
   } satisfies MemoryOverview);
 };

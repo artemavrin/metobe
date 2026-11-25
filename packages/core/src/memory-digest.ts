@@ -7,6 +7,7 @@ import type { Locale } from "@metobe/i18n/config";
 import { getTranslator } from "@metobe/i18n/translator";
 import { and, eq, isNotNull, isNull, ne, or } from "drizzle-orm";
 
+import { userCanActSql } from "./context";
 import { getDb } from "./db";
 import { getEnv } from "./env";
 import { todaySuggestions } from "./memory-today";
@@ -232,7 +233,7 @@ export const sendDueDigests = async (now = new Date()) => {
         timeZone: user.timeZone,
       })
       .from(user)
-      .where(and(isNotNull(user.digestTime), isNull(user.disabledAt)));
+      .where(and(isNotNull(user.digestTime), userCanActSql(user.id)));
     for (const person of people) {
       try {
         // oxlint-disable-next-line eslint/no-await-in-loop -- one person after another: each reads their own memory

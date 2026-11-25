@@ -5,16 +5,13 @@ import { getSource } from "@metobe/core/sources-read";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requirePlatform } from "@/lib/context";
 
 const idSchema = z.uuid();
 
 /** The models step: exactly the chosen models of the source go to chat, the rest stay off. */
 export const chooseModels = async (sourceId: string, modelIds: string[]) => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    throw new Error("forbidden");
-  }
+  await requirePlatform();
   const id = idSchema.parse(sourceId);
   const on = new Set(z.array(idSchema).min(1).max(5000).parse(modelIds));
   const detail = await getSource(id);

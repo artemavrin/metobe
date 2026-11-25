@@ -8,6 +8,7 @@ import {
   invitableRoleSchema,
 } from "@metobe/contracts/members";
 import { deleteAccount } from "@metobe/core/account";
+import { actorOf } from "@metobe/core/context";
 import {
   issueInvitation,
   revokeInvitation,
@@ -23,6 +24,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getAuth } from "@/lib/auth";
+import { requireOrgAdmin } from "@/lib/context";
 import { getPrefs } from "@/lib/prefs";
 import { getSettingsViewer } from "@/lib/settings-access";
 
@@ -31,13 +33,8 @@ import { getSettingsViewer } from "@/lib/settings-access";
 const idSchema = z.uuid();
 const refresh = () => revalidatePath("/settings", "layout");
 
-const requireAdmin = async () => {
-  const { admin, role, user } = await getSettingsViewer();
-  if (!(admin && user)) {
-    throw new Error("forbidden");
-  }
-  return { id: user.id, role: role as "superuser" | "admin" | "user" };
-};
+// The people of the organization are its owner's and admins' (ORGS-PLAN §4); the rules check each act again.
+const requireAdmin = async () => actorOf(await requireOrgAdmin());
 
 export type InviteResult =
   | {
@@ -61,7 +58,7 @@ export const createInvite = async (
   if (!parsedRole.success || (address && !address.success)) {
     return { ok: false, reason: "invalid" };
   }
-  if (!canInvite(actor.role, parsedRole.data)) {
+  if (!canInvite(actor, parsedRole.data, true)) {
     throw new Error("forbidden");
   }
   const to = address?.success ? address.data : undefined;
@@ -121,7 +118,7 @@ export const removeUser = async (id: string) => {
   if (
     !target ||
     target.id === actor.id ||
-    !canRemove(actor.role, target.role)
+    !canRemove(actor, target, target.organizationId === actor.orgId)
   ) {
     throw new Error("forbidden");
   }
@@ -150,7 +147,7 @@ export const createLoginLink = async (id: string): Promise<LoginLinkResult> => {
     !target ||
     target.id === actor.id ||
     target.disabledAt ||
-    !canManageAccess(actor.role, target.role)
+    !canManageAccess(actor, target, target.organizationId === actor.orgId)
   ) {
     return { ok: false };
   }

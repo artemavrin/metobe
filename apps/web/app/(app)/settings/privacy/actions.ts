@@ -16,16 +16,9 @@ import { requestGuard, updaterAlive } from "@metobe/core/updater-bus";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requireOrgAdmin } from "@/lib/context";
 
 // Data protection (PII-GUARD-PLAN З6): admins only. Each action changes one value; the rest stays.
-
-const requireAdmin = async () => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    throw new Error("forbidden");
-  }
-};
 
 const refresh = () => revalidatePath("/settings/privacy");
 
@@ -37,7 +30,7 @@ const refresh = () => revalidatePath("/settings/privacy");
 export const toggleOn = async (
   on: boolean
 ): Promise<{ setup: "started" | "busy" | "manual" | null }> => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const value = z.boolean().parse(on);
   const settings = await readPrivacySettings();
   await setPrivacySettings((s) => ({ ...s, on: value }));
@@ -62,7 +55,7 @@ export const toggleOn = async (
 };
 
 export const togglePlace = async (place: string, on: boolean) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const id = z.enum(PRIVACY_PLACES).parse(place);
   await setPrivacySettings((s) => ({
     ...s,
@@ -72,7 +65,7 @@ export const togglePlace = async (place: string, on: boolean) => {
 };
 
 export const setTypeAction = async (type: string, action: string) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const id = z.enum(PRIVACY_TYPES).parse(type);
   const value = z.enum(PRIVACY_ACTIONS).parse(action);
   await setPrivacySettings((s) => ({
@@ -83,13 +76,13 @@ export const setTypeAction = async (type: string, action: string) => {
 };
 
 export const toggleLocal = async (on: boolean) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   await setPrivacySettings((s) => ({ ...s, local: z.boolean().parse(on) }));
   refresh();
 };
 
 export const setKeepFor = async (keepFor: string) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const value = z.enum(PRIVACY_RETENTION).parse(keepFor);
   await setPrivacySettings((s) => ({ ...s, keepFor: value }));
   refresh();
@@ -101,7 +94,7 @@ const addressSchema = z
 
 /** The service's address — empty goes back to the install's — checked again when the page reloads. */
 export const saveAddress = async (url: string) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   const parsed = addressSchema.safeParse(url.trim());
   if (!parsed.success) {
     return { ok: false as const };
@@ -113,12 +106,12 @@ export const saveAddress = async (url: string) => {
 
 /** Checks the service again: the page asks it when it renders. */
 export const recheck = async () => {
-  await requireAdmin();
+  await requireOrgAdmin();
   refresh();
 };
 
 /** The sandbox: a text masked under the current rules; nothing is kept. */
 export const sandbox = async (text: string) => {
-  await requireAdmin();
+  await requireOrgAdmin();
   return sandboxMask(z.string().max(20_000).parse(text));
 };

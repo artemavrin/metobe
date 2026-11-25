@@ -16,16 +16,9 @@ import { setSourceRoute } from "@metobe/core/sources";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getSettingsViewer } from "@/lib/settings-access";
+import { requirePlatform } from "@/lib/context";
 
 // Proxies (M2 step 6c-2): admins only; every change refreshes the settings layout (the sidebar's state and flags).
-
-const requireAdmin = async () => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    throw new Error("forbidden");
-  }
-};
 
 const idSchema = z.uuid();
 const refresh = () => revalidatePath("/settings", "layout");
@@ -37,7 +30,7 @@ export const create = async (
   address: string,
   type: string
 ): Promise<AddressResult> => {
-  await requireAdmin();
+  await requirePlatform();
   const config = parseProxyAddress(address, proxyTypeSchema.parse(type));
   if (!config) {
     return { ok: false };
@@ -48,7 +41,7 @@ export const create = async (
 };
 
 export const rename = async (id: string, title: string) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateProxy(idSchema.parse(id), {
     title: z.string().trim().min(1).max(100).parse(title),
   });
@@ -56,13 +49,13 @@ export const rename = async (id: string, title: string) => {
 };
 
 export const setType = async (id: string, type: string) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateProxy(idSchema.parse(id), { type: proxyTypeSchema.parse(type) });
   refresh();
 };
 
 export const setEnabled = async (id: string, enabled: boolean) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateProxy(idSchema.parse(id), { enabled: Boolean(enabled) });
   refresh();
 };
@@ -73,7 +66,7 @@ export const setAddress = async (
   address: string,
   type: string
 ): Promise<{ ok: boolean }> => {
-  await requireAdmin();
+  await requirePlatform();
   const proxyId = idSchema.parse(id);
   const config = parseProxyAddress(address, proxyTypeSchema.parse(type));
   if (!config) {
@@ -101,7 +94,7 @@ export const setCredentials = async (
   username: string,
   password: string
 ) => {
-  await requireAdmin();
+  await requirePlatform();
   const login = z.string().trim().max(200).parse(username);
   await setProxyCredentials(
     idSchema.parse(id),
@@ -112,7 +105,7 @@ export const setCredentials = async (
 };
 
 export const recheck = async (id: string) => {
-  await requireAdmin();
+  await requirePlatform();
   await recheckProxy(idSchema.parse(id));
   refresh();
 };
@@ -121,7 +114,7 @@ export const addDomain = async (
   id: string,
   raw: string
 ): Promise<DomainResult | { ok: false; invalid: true }> => {
-  await requireAdmin();
+  await requirePlatform();
   // People paste URLs: the scheme and the path go, the domain stays.
   const cleaned = raw
     .trim()
@@ -138,7 +131,7 @@ export const addDomain = async (
 };
 
 export const removeDomain = async (id: string, domain: string) => {
-  await requireAdmin();
+  await requirePlatform();
   await removeProxyDomain(idSchema.parse(id), proxyDomainSchema.parse(domain));
   refresh();
 };
@@ -149,7 +142,7 @@ export const routeSource = async (
   proxyId: string,
   on: boolean
 ) => {
-  await requireAdmin();
+  await requirePlatform();
   await setSourceRoute(
     idSchema.parse(sourceId),
     on
@@ -160,7 +153,7 @@ export const routeSource = async (
 };
 
 export const remove = async (id: string) => {
-  await requireAdmin();
+  await requirePlatform();
   await deleteProxy(idSchema.parse(id));
   refresh();
 };

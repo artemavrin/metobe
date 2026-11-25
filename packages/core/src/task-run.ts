@@ -42,6 +42,7 @@ import {
   webFetchTool,
   webSearchTool,
 } from "./chat-tools/web-tools";
+import { userCanAct } from "./context";
 import { filesOf } from "./files";
 import { listMailboxes } from "./mailboxes";
 import { listChatServers, toolsForUser } from "./mcp";
@@ -665,6 +666,14 @@ const modelOrEnd = async (ctx: Context) => {
 export const executeRun = async (runId: string, signal?: AbortSignal) => {
   const ctx = await getRunContext(runId);
   if (!ctx || ctx.run.status !== "queued") {
+    return;
+  }
+  // The owner or their organization is turned off: the run is skipped with that status, no model is asked, no letter goes.
+  if (!(await userCanAct(ctx.task.ownerId))) {
+    await finishRun(runId, {
+      error: "Организация или аккаунт отключены: задача не выполнялась",
+      status: "cancelled",
+    });
     return;
   }
   const model = await modelOrEnd(ctx);

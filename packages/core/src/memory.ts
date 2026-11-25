@@ -45,6 +45,7 @@ import {
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 
+import { userCanActSql } from "./context";
 import { getDb } from "./db";
 import { likelySame } from "./memory-candidates";
 import { memoryAad, newDataKey, openField, sealField } from "./memory-crypto";
@@ -2504,6 +2505,7 @@ export const dueReminders = async (now: Date) => {
     .where(
       and(
         eq(memoryRecords.scheduleKind, "reminder"),
+        userCanActSql(memoryRecords.ownerId),
         lte(memoryRecords.nextAt, now),
         isNull(memoryRecords.doneAt),
         live,

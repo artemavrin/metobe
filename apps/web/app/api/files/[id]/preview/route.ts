@@ -1,10 +1,9 @@
 import { bytesOf } from "@metobe/core/attachment-text";
 import { filePreview } from "@metobe/core/file-preview";
 import { getReadableFile } from "@metobe/core/files";
-import { headers } from "next/headers";
 import { z } from "zod";
 
-import { getAuth } from "@/lib/auth";
+import { requireContext } from "@/lib/context";
 
 // GET /api/files/[id]/preview: a file as the viewer draws it (D47) — a sheet's tables, a document's HTML, a text —
 // for whoever may read the file (GET /api/files/[id]). A PDF and a picture the viewer opens by the file's own URL.
@@ -13,14 +12,14 @@ export const GET = async (
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
   const { id } = await params;
   const parsed = z.uuid().safeParse(id);
   const file = parsed.success
-    ? await getReadableFile(session.user.id, parsed.data)
+    ? await getReadableFile(ctx.userId, parsed.data)
     : null;
   if (!file) {
     return Response.json({ error: "not-found" }, { status: 404 });

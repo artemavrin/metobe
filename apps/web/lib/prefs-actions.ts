@@ -3,9 +3,9 @@
 import { updateUserPrefs } from "@metobe/core/users";
 import { COOKIE, COOKIE_OPTIONS, isLocale } from "@metobe/i18n/config";
 import { isDateFormat, isTimeZone, isWeekStart } from "@metobe/i18n/prefs";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 
-import { getAuth } from "@/lib/auth";
+import { getActiveContext, getContext } from "@/lib/context";
 import { writePrefsCookies } from "@/lib/prefs";
 
 /** The language picker on public pages: a cookie, plus the profile when someone is signed in. */
@@ -15,15 +15,16 @@ export const setLocale = async (locale: string) => {
   }
   const store = await cookies();
   store.set(COOKIE.locale, locale, COOKIE_OPTIONS);
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (session) {
-    const u = session.user as {
+  // Signed in, even while turned off: the language is picked on the «disabled» screen too.
+  const ctx = await getContext();
+  if (ctx) {
+    const u = ctx.user as {
       locale?: string | null;
       timeZone?: string | null;
       weekStart?: number | null;
       dateFormat?: string | null;
     };
-    await updateUserPrefs(session.user.id, {
+    await updateUserPrefs(ctx.userId, {
       dateFormat: u.dateFormat ?? null,
       locale,
       timeZone: u.timeZone ?? null,
@@ -53,8 +54,8 @@ export const saveRegion = async (
   _: RegionState,
   form: FormData
 ): Promise<RegionState> => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
+  const ctx = await getActiveContext();
+  if (!ctx) {
     return {};
   }
   const locale = form.get("locale");
@@ -69,7 +70,7 @@ export const saveRegion = async (
     weekStart:
       weekStart !== "auto" && isWeekStart(weekStart) ? Number(weekStart) : null,
   };
-  await updateUserPrefs(session.user.id, prefs);
+  await updateUserPrefs(ctx.userId, prefs);
   await writePrefsCookies(prefs);
   return { saved: true };
 };

@@ -1,8 +1,7 @@
 import { memoryPromiseCreateSchema } from "@metobe/contracts/memory";
 import { createPromise } from "@metobe/core/memory-due";
-import { headers } from "next/headers";
 
-import { getAuth } from "@/lib/auth";
+import { getContext } from "@/lib/context";
 import { memoryOwner, notFound } from "@/lib/memory-route";
 
 // POST /api/memory/records: a promise written by hand in the calendar («Новое обещание»). A promise of the person, or a
@@ -21,7 +20,7 @@ export const POST = async (request: Request) => {
   if (!body.success) {
     return Response.json({ error: "invalid" }, { status: 400 });
   }
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  const id = await createPromise(owner, session?.user.name ?? "", body.data);
+  const ctx = await getContext();
+  const id = await createPromise(owner, ctx?.user.name ?? "", body.data);
   return id ? Response.json({ id }) : notFound();
 };

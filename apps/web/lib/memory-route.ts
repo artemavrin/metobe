@@ -1,21 +1,20 @@
 import { isMemoryOnFor } from "@metobe/core/memory-write";
-import { headers } from "next/headers";
 import { z } from "zod";
 
-import { getAuth } from "./auth";
+import { requireContext } from "./context";
 
 // The «Память» page's routes (ARCH §19, P16) start the same way: a session, and the memory on — the service's and the
 // person's own; off, it is neither read nor changed (§19.1), what is kept waits.
 
 export const memoryOwner = async () => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const ctx = await requireContext();
+  if (ctx instanceof Response) {
+    return ctx;
   }
-  if (!(await isMemoryOnFor(session.user.id))) {
+  if (!(await isMemoryOnFor(ctx.userId))) {
     return Response.json({ error: "memory-off" }, { status: 409 });
   }
-  return session.user.id;
+  return ctx.userId;
 };
 
 /** The id in the path, or null when it is not a uuid (then it is nobody's). */

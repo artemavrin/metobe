@@ -5,23 +5,16 @@ import { setModelsEnabled } from "@metobe/core/sources";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { requirePlatform } from "@/lib/context";
 import { logoSchema } from "@/lib/logo";
-import { getSettingsViewer } from "@/lib/settings-access";
 
 // Providers (M2 step 6c): admins only; every change refreshes the settings layout (sidebar names and logos).
-
-const requireAdmin = async () => {
-  const { admin } = await getSettingsViewer();
-  if (!admin) {
-    throw new Error("forbidden");
-  }
-};
 
 const idSchema = z.uuid();
 const refresh = () => revalidatePath("/settings", "layout");
 
 export const rename = async (id: string, title: string) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateProvider(idSchema.parse(id), {
     title: z.string().trim().min(1).max(100).parse(title),
   });
@@ -30,7 +23,7 @@ export const rename = async (id: string, title: string) => {
 
 /** A built-in logo key, an uploaded image, or `null` for the automatic one. */
 export const setLogo = async (id: string, logo: string | null) => {
-  await requireAdmin();
+  await requirePlatform();
   await updateProvider(idSchema.parse(id), {
     logo: logo === null ? null : logoSchema.parse(logo),
   });
@@ -43,7 +36,7 @@ export const toggleModel = async (
   modelId: string,
   enabled: boolean
 ) => {
-  await requireAdmin();
+  await requirePlatform();
   await setModelsEnabled(
     idSchema.parse(sourceId),
     [idSchema.parse(modelId)],

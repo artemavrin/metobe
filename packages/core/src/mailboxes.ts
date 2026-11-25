@@ -19,6 +19,7 @@ import { parseHTML } from "linkedom";
 import { simpleParser } from "mailparser";
 import { Marked } from "marked";
 
+import { userCanActSql } from "./context";
 import { getDb } from "./db";
 import { mailEndpoint } from "./net";
 import { getPersonalPolicy } from "./personal";
@@ -241,6 +242,7 @@ export const boxesForMemory = (before: Date) =>
       and(
         eq(mailboxes.memoryReads, true),
         eq(mailboxes.status, "active"),
+        userCanActSql(mailboxes.userId),
         or(
           isNull(mailboxes.memoryCheckedAt),
           lt(mailboxes.memoryCheckedAt, before)

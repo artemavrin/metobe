@@ -16,6 +16,7 @@ import {
 } from "vitest";
 
 import type * as DigestModule from "./memory-digest";
+import { testOrganizationId } from "./test-organization";
 
 const notify = vi.fn();
 const suggestions = vi.fn();
@@ -160,12 +161,14 @@ describe.skipIf(!URL)("sendDueDigests (D43)", () => {
     const dbModule = await import("./db");
     ({ db } = dbModule.getDb());
     digest = await import("./memory-digest");
+    const organizationId = await testOrganizationId(db);
     await db.insert(user).values(
       [ana, bob].map((id) => ({
         email: `${id}@example.test`,
         id,
         locale: "ru",
         name: id,
+        organizationId,
         timeZone: "Europe/Moscow",
       }))
     );
@@ -210,6 +213,22 @@ describe.skipIf(!URL)("sendDueDigests (D43)", () => {
     expect(s?.digestKeys).toEqual(["a", "b"]);
     // The same day again: nothing.
     expect(await digest.sendDueDigests(NOON)).toBe(0);
+  });
+
+  it("sends nothing to a person the platform turned off", async () => {
+    await on(ana);
+    suggestions.mockResolvedValue([row("a")]);
+    await db
+      .update(user)
+      .set({ blockedAt: new Date() })
+      .where(eq(user.id, ana));
+    try {
+      expect(await digest.sendDueDigests(NOON)).toBe(0);
+      expect(notify).not.toHaveBeenCalled();
+    } finally {
+      await db.update(user).set({ blockedAt: null }).where(eq(user.id, ana));
+    }
+    expect(await digest.sendDueDigests(NOON)).toBe(1);
   });
 
   it("does not send the same list twice, and sends when a row is new", async () => {
