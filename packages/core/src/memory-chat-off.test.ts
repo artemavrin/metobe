@@ -9,6 +9,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type * as ChatModule from "./chat";
+import { testMember } from "./test-organization";
 
 vi.mock("server-only", () => ({}));
 // The person's memory is on: what is under test is the chat's own switch.
@@ -37,8 +38,10 @@ describe.skipIf(!URL)("a chat the memory leaves alone (Д7.2)", () => {
     const dbModule = await import("./db");
     ({ db } = dbModule.getDb());
     chat = await import("./chat");
+    const member = await testMember(db);
     await db.insert(user).values(
       [ana, bob].map((id) => ({
+        ...member,
         email: `${id}@example.test`,
         id,
         name: id,

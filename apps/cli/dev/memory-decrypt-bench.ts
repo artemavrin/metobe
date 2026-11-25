@@ -16,6 +16,7 @@ import {
   candidateCards,
   candidateCommitments,
 } from "@metobe/core/memory-candidates";
+import { testMember } from "@metobe/core/test-organization";
 import { user } from "@metobe/db/schema/auth";
 
 const CARDS = 300;
@@ -25,7 +26,9 @@ const KINDS = ["fact", "event", "commitment", "fact", "event"] as const;
 
 const { db, sql } = getDb();
 const ownerId = `bench-${crypto.randomUUID().slice(0, 8)}`;
+const member = await testMember(db);
 await db.insert(user).values({
+  ...member,
   email: `${ownerId}@example.test`,
   id: ownerId,
   name: "Замер памяти",

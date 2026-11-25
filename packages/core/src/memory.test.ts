@@ -17,6 +17,7 @@ import type * as MemoryModule from "./memory";
 import type * as MemoryPageModule from "./memory-page";
 import type * as MemoryReadModule from "./memory-read";
 import type * as MemoryTodayModule from "./memory-today";
+import { testMember } from "./test-organization";
 
 vi.mock("server-only", () => ({}));
 
@@ -98,8 +99,10 @@ describe.skipIf(!URL)("memory store (ARCH §19)", () => {
     const dbModule = await import("./db");
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
+    const member = await testMember(db);
     await db.insert(user).values(
       [ana, bob, cleo, dana, ella, fern, gwen, hana].map((id) => ({
+        ...member,
         email: `${id}@example.test`,
         id,
         name: id,

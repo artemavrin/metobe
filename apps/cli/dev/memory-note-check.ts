@@ -7,6 +7,7 @@
 import { getDb } from "@metobe/core/db";
 import { createEntity, undoWrite } from "@metobe/core/memory";
 import { recordSource, writeNote } from "@metobe/core/memory-page";
+import { testMember } from "@metobe/core/test-organization";
 import { user } from "@metobe/db/schema/auth";
 
 const TIME_ZONE = "Europe/Moscow";
@@ -28,7 +29,9 @@ const NOTES = [
 
 const { db, sql } = getDb();
 const ownerId = `note-check-${crypto.randomUUID().slice(0, 8)}`;
+const member = await testMember(db);
 await db.insert(user).values({
+  ...member,
   email: `${ownerId}@example.test`,
   id: ownerId,
   name: "Проверка заметок",

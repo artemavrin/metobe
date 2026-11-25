@@ -9,6 +9,7 @@ import { createAuth } from "@metobe/core/auth";
 import { createChat, deleteChat, saveMessages } from "@metobe/core/chat";
 import { sandboxSession } from "@metobe/core/chat-tools/sandbox-tools";
 import { getDb } from "@metobe/core/db";
+import { testMember } from "@metobe/core/test-organization";
 import { user } from "@metobe/db/schema/auth";
 
 const [mode, given] = process.argv.slice(2);
@@ -38,9 +39,14 @@ if (mode === "code") {
 
 const id = `sandbox-check-${crypto.randomUUID().slice(0, 8)}`;
 const email = `${id}@example.test`;
-await db
-  .insert(user)
-  .values({ email, id, name: "Проверка файлов", timeZone: "Europe/Moscow" });
+const member = await testMember(db);
+await db.insert(user).values({
+  ...member,
+  email,
+  id,
+  name: "Проверка файлов",
+  timeZone: "Europe/Moscow",
+});
 const chatId = crypto.randomUUID();
 await createChat({ id: chatId, title: "Выручка по месяцам", userId: id });
 

@@ -14,6 +14,7 @@ import {
 } from "@metobe/core/memory";
 import { memoryStale } from "@metobe/core/memory-due";
 import { localMidnight } from "@metobe/core/memory-extract";
+import { testMember } from "@metobe/core/test-organization";
 import { user } from "@metobe/db/schema/auth";
 
 const DAY = 86_400_000;
@@ -44,9 +45,14 @@ if (mode === "state") {
 
 const id = `review-check-${crypto.randomUUID().slice(0, 8)}`;
 const email = `${id}@example.test`;
-await db
-  .insert(user)
-  .values({ email, id, name: "Проверка сверки", timeZone: "Europe/Moscow" });
+const member = await testMember(db);
+await db.insert(user).values({
+  ...member,
+  email,
+  id,
+  name: "Проверка сверки",
+  timeZone: "Europe/Moscow",
+});
 const self = await ensureSelf(id, "Проверка сверки");
 const olga = await createEntity(id, {
   aliases: [],

@@ -17,6 +17,7 @@ import {
 
 import type * as MemoryModule from "./memory";
 import type * as RemindersModule from "./memory-reminders";
+import { testMember } from "./test-organization";
 
 const notify = vi.fn();
 const memoryOn = vi.fn();
@@ -49,8 +50,10 @@ describe.skipIf(!URL)("the reminders people asked for (D43)", () => {
     ({ db } = dbModule.getDb());
     memory = await import("./memory");
     reminders = await import("./memory-reminders");
+    const member = await testMember(db);
     await db.insert(user).values(
       [ana, bob].map((id) => ({
+        ...member,
         email: `${id}@example.test`,
         id,
         locale: "ru",
