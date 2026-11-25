@@ -11,7 +11,7 @@ import { useState } from "react";
 import { Section } from "@/components/settings/rows";
 import { SettingsHeader, SettingsPageFrame } from "@/components/settings/settings-shell";
 
-import { MODELS, answersPerWeek, breakEvenWeek, modelById, money, multiplier, pct, times } from "../_orgs/data";
+import { MODELS, answersPerWeek, breakEvenWeek, modelById, money, pct, limitMark } from "../_orgs/data";
 import type { Tariff } from "../_orgs/data";
 import { NoteBar, PlatformWindow } from "../_orgs/frame";
 import { usePhone } from "../privacy/frame";
@@ -63,7 +63,7 @@ const TariffCard = ({ t, onEdit }: { t: Tariff; onEdit: () => void }) => {
               <span className="truncate">{m.name}</span>
             </span>
             <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-              {times(multiplier(m, base))} · ~{answersPerWeek(t.week, m)} в нед.
+              {limitMark(m, base)} · ~{answersPerWeek(t.week, m)} в нед.
             </span>
           </li>
         ))}

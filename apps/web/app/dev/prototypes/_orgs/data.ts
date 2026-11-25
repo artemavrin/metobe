@@ -49,12 +49,12 @@ export interface Model {
 }
 
 export const MODELS: Model[] = [
-  { id: "flash", name: "Gemini Flash", perAnswer: 0.6, priced: true, provider: "Google" },
-  { id: "mini", name: "GPT mini", perAnswer: 2.4, priced: true, provider: "OpenAI" },
-  { id: "gemini-pro", name: "Gemini 4 Pro", perAnswer: 5, priced: true, provider: "Google" },
-  { id: "sol", name: "GPT Sol", perAnswer: 6, priced: true, provider: "OpenAI" },
-  { id: "sonnet", name: "Claude Sonnet", perAnswer: 8, priced: true, provider: "Anthropic" },
-  { id: "opus", name: "Claude Opus", perAnswer: 16, priced: true, provider: "Anthropic" },
+  { id: "flash", name: "Gemini Flash", perAnswer: 0.3, priced: true, provider: "Google" },
+  { id: "mini", name: "GPT mini", perAnswer: 1.2, priced: true, provider: "OpenAI" },
+  { id: "gemini-pro", name: "Gemini 4 Pro", perAnswer: 2.5, priced: true, provider: "Google" },
+  { id: "sol", name: "GPT Sol", perAnswer: 3, priced: true, provider: "OpenAI" },
+  { id: "sonnet", name: "Claude Sonnet", perAnswer: 4, priced: true, provider: "Anthropic" },
+  { id: "opus", name: "Claude Opus", perAnswer: 8, priced: true, provider: "Anthropic" },
   { id: "local", name: "Локальная 8B", perAnswer: 0, priced: false, provider: "Своя" },
 ];
 
@@ -70,16 +70,16 @@ export const TARIFFS: Tariff[] = [
     defaultModel: "flash",
     early: false,
     fast: false,
-    fiveHours: 100,
+    fiveHours: 50,
     id: "basic",
     mailMemory: false,
     models: on(["flash", "mini"]),
     name: "Обычный",
-    price: 1500,
+    price: 1000,
     tasks: { count: 3, every: "day" },
     vat: 22,
-    vatMode: "above",
-    week: 300,
+    vatMode: "inside",
+    week: 150,
   },
   {
     archived: false,
@@ -87,16 +87,16 @@ export const TARIFFS: Tariff[] = [
     defaultModel: "gemini-pro",
     early: false,
     fast: false,
-    fiveHours: 200,
+    fiveHours: 100,
     id: "pro",
     mailMemory: true,
     models: on(["flash", "mini", "gemini-pro", "sol", "sonnet"]),
     name: "Про",
-    price: 3000,
+    price: 2000,
     tasks: { count: 20, every: "hour" },
     vat: 22,
-    vatMode: "above",
-    week: 600,
+    vatMode: "inside",
+    week: 300,
   },
   {
     archived: false,
@@ -109,11 +109,11 @@ export const TARIFFS: Tariff[] = [
     mailMemory: true,
     models: on(["flash", "mini", "gemini-pro", "sol", "sonnet", "opus"]),
     name: "Макс",
-    price: 6000,
+    price: 4000,
     tasks: { count: null, every: "15min" },
     vat: 22,
-    vatMode: "above",
-    week: 1300,
+    vatMode: "inside",
+    week: 600,
   },
 ];
 
@@ -135,6 +135,9 @@ export const answersPerWeek = (week: number, m: Model) => (m.perAnswer > 0 ? Mat
 /** «×N к лимиту» относительно модели по умолчанию. */
 export const multiplier = (m: Model, base: Model) => (base.perAnswer > 0 ? m.perAnswer / base.perAnswer : 1);
 
+/** Пометка модели в тарифе: у основной её нет, остальные — «×N» относительно основной (как в P35). */
+export const limitMark = (m: Model, base: Model) => (m.id === base.id ? "основная" : times(multiplier(m, base)));
+
 /** Правило §5.3: ≥100 — основная, 25–99 — «дороже», меньше 25 — не входит. */
 export const modelFit = (answers: number): "main" | "costly" | "out" => (answers >= 100 ? "main" : answers >= 25 ? "costly" : "out");
 
@@ -146,6 +149,9 @@ export const money = (n: number, currency: "RUB" | "USD" = "RUB") =>
   `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: n < 100 && n % 1 !== 0 ? 1 : 0 }).format(n)}${NBSP}${currency === "RUB" ? "₽" : "$"}`;
 
 export const pct = (n: number) => `${Math.round(n)}${NBSP}%`;
+
+/** Процент лимита для людей (как в P35 и P37): целый, вниз, но при любом расходе не меньше 1 %. */
+export const limitPct = (n: number) => (n <= 0 ? 0 : Math.max(1, Math.floor(n)));
 
 export const times = (n: number) => `×${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: n < 10 ? 1 : 0 }).format(n)}`;
 
@@ -191,33 +197,33 @@ export const ORGS: Org[] = [
   {
     created: "12 марта",
     customPrice: undefined,
-    domains: ["meridian.example"],
-    extras: [{ sum: 1300, text: "2 Обычных с 18 ноября, 13 дней из 30" }],
+    domains: ["severnyi-veter.example"],
+    extras: [{ sum: 867, text: "2 Обычных с 18 ноября, 13 дней из 30" }],
     hitWeek: 2,
-    id: "meridian",
-    name: "Меридиан",
-    next: s(12, 3, 1),
-    owner: { email: "owner@meridian.example", name: "Ольга Белова" },
+    id: "veter",
+    name: "Северный ветер",
+    next: s(8, 3, 1),
+    owner: { email: "owner@severnyi-veter.example", name: "Ольга Белова" },
     paid: true,
-    seats: s(12, 3, 1),
-    spend: 6240,
+    seats: s(10, 3, 1),
+    spend: 2240,
     status: "active",
     timezone: "Москва",
-    used: s(12, 3, 1),
+    used: s(10, 3, 1),
   },
   {
     created: "2 апреля",
-    customPrice: { basic: 1350, pro: 2700 },
-    domains: ["severnaya-verf.example"],
+    customPrice: { basic: 900, pro: 1800 },
+    domains: ["granit.example"],
     extras: [],
     hitWeek: 5,
     id: "verf",
-    name: "Северная верфь",
+    name: "Гранит Проект",
     next: s(30, 6, 2),
-    owner: { email: "it@severnaya-verf.example", name: "Павел Громов" },
+    owner: { email: "it@granit.example", name: "Павел Громов" },
     paid: false,
     seats: s(30, 6, 2),
-    spend: 21800,
+    spend: 13080,
     status: "active",
     timezone: "Москва",
     used: s(28, 6, 2),
@@ -225,7 +231,7 @@ export const ORGS: Org[] = [
   {
     created: "19 июня",
     domains: [],
-    extras: [{ sum: 400, text: "Обычный → Про у 1 человека с 20 ноября, 11 дней из 30" }],
+    extras: [{ sum: 367, text: "Обычный → Про у 1 человека с 20 ноября, 11 дней из 30" }],
     hitWeek: 0,
     id: "sfera",
     name: "Студия Сфера",
@@ -233,7 +239,7 @@ export const ORGS: Org[] = [
     owner: { email: "hello@sfera.example", name: "Вера Лосева" },
     paid: false,
     seats: s(5, 2, 0),
-    spend: 1900,
+    spend: 1140,
     status: "active",
     timezone: "Екатеринбург",
     used: s(4, 2, 0),
@@ -249,7 +255,7 @@ export const ORGS: Org[] = [
     owner: { email: "admin@ladoga-log.example", name: "Сергей Яковлев" },
     paid: true,
     seats: s(8, 1, 0),
-    spend: 2650,
+    spend: 1590,
     status: "active",
     timezone: "Москва",
     used: s(7, 1, 0),
@@ -265,7 +271,7 @@ export const ORGS: Org[] = [
     owner: { email: "team@arktur.example", name: "Нина Зайцева" },
     paid: false,
     seats: s(6, 1, 0),
-    spend: 830,
+    spend: 500,
     status: "trial",
     timezone: "Москва",
     trialUntil: "15 декабря",
@@ -298,7 +304,7 @@ export const ORGS: Org[] = [
     owner: { email: "director@teplyi-dom.example", name: "Алла Медведева" },
     paid: false,
     seats: s(10, 0, 0),
-    spend: 3120,
+    spend: 1870,
     status: "off-manual",
     timezone: "Москва",
     used: s(9, 0, 0),
@@ -311,7 +317,7 @@ export const seatTotal = (x: Seats) => x.basic + x.pro + x.max;
 
 export const priceFor = (org: Org, t: TariffId) => org.customPrice?.[t] ?? tariffById(t).price;
 
-/** Счёт за следующий месяц: места × цена + доплаты этого месяца, плюс НДС (ORGS-PLAN §6). */
+/** Счёт за следующий месяц: места × цена + доплаты этого месяца; НДС в цене (ORGS-PLAN §6). */
 export const invoiceFor = (org: Org) => {
   const lines = TARIFF_IDS.filter((t) => org.next[t] > 0).map((t) => ({
     sum: org.next[t] * priceFor(org, t),
@@ -319,12 +325,12 @@ export const invoiceFor = (org: Org) => {
   }));
   const extras = org.extras.map((e) => ({ sum: e.sum, text: `Доплата: ${e.text}` }));
   const base = [...lines, ...extras].reduce((a, l) => a + l.sum, 0);
-  const vat = Math.round((base * TARIFFS[0].vat) / 100);
-  return { base, extras, lines, total: base + vat, vat };
+  const vat = Math.round((base * TARIFFS[0].vat) / (100 + TARIFFS[0].vat));
+  return { base, extras, lines, total: base, vat };
 };
 
 /** Выручка этого месяца без НДС — для доли расхода на модели. */
-export const revenueNow = (org: Org) => TARIFF_IDS.reduce((a, t) => a + org.seats[t] * priceFor(org, t), 0);
+export const revenueNow = (org: Org) => TARIFF_IDS.reduce((a, t) => a + org.seats[t] * priceFor(org, t), 0) / (1 + TARIFFS[0].vat / 100);
 
 // ── Люди ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -375,34 +381,33 @@ const P = (
 });
 
 export const PEOPLE: Person[] = [
-  P("meridian", "Ольга Белова", "o.belova", "max", 41, 1680, "сегодня", { role: "owner" }),
-  P("meridian", "Игорь Петров", "i.petrov", "pro", 100, 1210, "сегодня", { five: 34, hits: 2 }),
-  P("meridian", "Анна Смирнова", "a.smirnova", "pro", 86, 690, "сегодня", { role: "admin" }),
-  P("meridian", "Мария Ким", "m.kim", "pro", 22, 310, "вчера"),
-  P("meridian", "Дмитрий Орлов", "d.orlov", "basic", 100, 520, "сегодня", { five: 18 }),
-  P("meridian", "Елена Соколова", "e.sokolova", "basic", 64, 330, "сегодня"),
-  P("meridian", "Артур Волков", "a.volkov", "basic", 48, 260, "сегодня"),
-  P("meridian", "Татьяна Новикова", "t.novikova", "basic", 31, 190, "вчера"),
-  P("meridian", "Роман Лебедев", "r.lebedev", "basic", 17, 120, "3 дня назад"),
-  P("meridian", "Светлана Егорова", "s.egorova", "basic", 9, 80, "неделю назад"),
-  P("meridian", "Кирилл Попов", "k.popov", "basic", 5, 40, "вчера"),
-  P("meridian", "Юлия Морозова", "y.morozova", "basic", 0, 0, "—", { five: 0, status: "invited" }),
-  P("meridian", "Глеб Тарасов", "g.tarasov", "basic", 72, 410, "сегодня"),
-  P("meridian", "Ксения Фомина", "k.fomina", "basic", 12, 90, "2 дня назад"),
-  P("meridian", "Никита Беляев", "n.belyaev", "basic", 0, 0, "—", { five: 0, status: "invited" }),
-  P("meridian", "Лев Комаров", "l.komarov", "basic", 0, 0, "месяц назад", { five: 0, status: "off-owner" }),
-  P("verf", "Павел Громов", "p.gromov", "max", 58, 2900, "сегодня", { role: "owner" }),
-  P("verf", "Андрей Киселёв", "a.kiselev", "pro", 100, 1840, "сегодня", { hits: 3 }),
-  P("verf", "Оксана Руденко", "o.rudenko", "basic", 92, 610, "сегодня"),
-  P("verf", "Максим Зуев", "m.zuev", "basic", 100, 700, "сегодня", { hits: 2 }),
+  P("veter", "Ольга Белова", "o.belova", "max", 41, 1010, "сегодня", { role: "owner" }),
+  P("veter", "Игорь Петров", "i.petrov", "pro", 100, 730, "сегодня", { five: 34, hits: 2 }),
+  P("veter", "Анна Смирнова", "a.smirnova", "pro", 86, 410, "сегодня", { role: "admin" }),
+  P("veter", "Мария Ким", "m.kim", "pro", 22, 190, "вчера"),
+  P("veter", "Дмитрий Орлов", "d.orlov", "basic", 100, 310, "сегодня", { five: 18 }),
+  P("veter", "Елена Соколова", "e.sokolova", "basic", 64, 200, "сегодня"),
+  P("veter", "Артур Волков", "a.volkov", "basic", 48, 160, "сегодня"),
+  P("veter", "Татьяна Новикова", "t.novikova", "basic", 31, 110, "вчера"),
+  P("veter", "Роман Лебедев", "r.lebedev", "basic", 17, 70, "3 дня назад"),
+  P("veter", "Светлана Егорова", "s.egorova", "basic", 9, 50, "неделю назад"),
+  P("veter", "Кирилл Попов", "k.popov", "basic", 5, 20, "вчера"),
+  P("veter", "Юлия Морозова", "y.morozova", "basic", 0, 0, "—", { five: 0, status: "invited" }),
+  P("veter", "Глеб Тарасов", "g.tarasov", "basic", 72, 250, "сегодня"),
+  P("veter", "Никита Беляев", "n.belyaev", "basic", 0, 0, "—", { five: 0, status: "invited" }),
+  P("veter", "Лев Комаров", "l.komarov", "basic", 0, 0, "месяц назад", { five: 0, status: "off-owner" }),
+  P("verf", "Павел Громов", "p.gromov", "max", 58, 1740, "сегодня", { role: "owner" }),
+  P("verf", "Андрей Киселёв", "a.kiselev", "pro", 100, 1100, "сегодня", { hits: 3 }),
+  P("verf", "Оксана Руденко", "o.rudenko", "basic", 92, 370, "сегодня"),
+  P("verf", "Максим Зуев", "m.zuev", "basic", 100, 420, "сегодня", { hits: 2 }),
   P("verf", "Георгий Блинов", "g.blinov", "basic", 0, 0, "2 недели назад", { five: 0, status: "off-platform" }),
-  P("sfera", "Вера Лосева", "v.loseva", "pro", 37, 520, "сегодня", { role: "owner" }),
-  P("sfera", "Денис Сафронов", "d.safronov", "pro", 54, 610, "вчера"),
-  P("sfera", "Алиса Котова", "a.kotova", "basic", 26, 140, "сегодня"),
-  P("ladoga", "Сергей Яковлев", "s.yakovlev", "pro", 63, 790, "сегодня", { role: "owner" }),
-  P("ladoga", "Инна Григорьева", "i.grigorieva", "basic", 100, 460, "сегодня"),
-  P("arktur", "Нина Зайцева", "n.zaitseva", "pro", 28, 330, "сегодня", { role: "owner" }),
-  P("arktur", "Олег Савин", "o.savin", "basic", 44, 210, "вчера"),
+  P("sfera", "Вера Лосева", "v.loseva", "pro", 37, 310, "сегодня", { role: "owner" }),
+  P("sfera", "Денис Сафронов", "d.safronov", "pro", 54, 370, "вчера"),
+  P("sfera", "Алиса Котова", "a.kotova", "basic", 26, 80, "сегодня"),
+  P("ladoga", "Сергей Яковлев", "s.yakovlev", "pro", 63, 470, "сегодня", { role: "owner" }),
+  P("ladoga", "Инна Григорьева", "i.grigorieva", "basic", 100, 280, "сегодня"),
+  P("arktur", "Нина Зайцева", "n.zaitseva", "pro", 28, 200, "сегодня", { role: "owner" }),
+  P("arktur", "Олег Савин", "o.savin", "basic", 44, 130, "вчера"),
   P("belyi", "Константин Фролов", "k.frolov", "basic", 0, 0, "8 дней назад", { role: "owner" }),
   P("teplyi", "Алла Медведева", "a.medvedeva", "basic", 0, 0, "5 дней назад", { role: "owner" }),
 ];
@@ -412,20 +417,19 @@ export const peopleOf = (org: string) => PEOPLE.filter((p) => p.org === org);
 // ── История мест и счета организации ─────────────────────────────────────────────────────────────────────────────────
 
 export const SEAT_HISTORY: Record<string, { date: string; text: string }[]> = {
-  meridian: [
-    { date: "20 ноября", text: "На декабрь: 12 Обычных, 3 Про, 1 Макс — без изменений" },
-    { date: "18 ноября", text: "+2 Обычных, доплата 1 300 ₽ в счёт за декабрь" },
-    { date: "6 ноября", text: "Анна Смирнова: Обычный → Про, доплата 1 250 ₽ в счёт за ноябрь" },
-    { date: "1 ноября", text: "Месяц начат: 10 Обычных, 3 Про, 1 Макс" },
+  veter: [
+    { date: "20 ноября", text: "На декабрь: 8 Обычных, 3 Про, 1 Макс" },
+    { date: "18 ноября", text: "+2 Обычных, доплата 867 ₽ в счёт за декабрь" },
+    { date: "1 ноября", text: "Месяц начат: 8 Обычных, 3 Про, 1 Макс" },
   ],
 };
 
 export type BillStatus = "issued" | "paid" | "late";
 
 export const PAST_BILLS = [
-  { month: "Ноябрь", status: "paid" as BillStatus, sum: 30_134 },
-  { month: "Октябрь", status: "paid" as BillStatus, sum: 28_670 },
-  { month: "Сентябрь", status: "paid" as BillStatus, sum: 26_840 },
+  { month: "Ноябрь", status: "paid" as BillStatus, sum: 19_800 },
+  { month: "Октябрь", status: "paid" as BillStatus, sum: 18_900 },
+  { month: "Сентябрь", status: "paid" as BillStatus, sum: 17_600 },
 ];
 
 export const PERSON_STATUS: Record<PersonStatus, string> = {

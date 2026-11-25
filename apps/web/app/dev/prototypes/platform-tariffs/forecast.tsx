@@ -85,7 +85,7 @@ export const MonthBreakdown = ({ f, base, dirty }: { f: MonthForecast; base: Mon
           </span>
         </li>
         <li className="text-muted-foreground flex items-baseline justify-between gap-3 text-xs">
-          <span>НДС сверху, уходит в бюджет</span>
+          <span>НДС в цене, уходит в бюджет</span>
           <span className="tabular-nums">{money(Math.round(f.vat))}</span>
         </li>
       </ul>

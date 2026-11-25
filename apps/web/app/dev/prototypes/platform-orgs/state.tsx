@@ -121,7 +121,7 @@ const useOrgsState = () => {
       ]);
       return id;
     },
-    org: orgs.find((o) => o.id === (knobs.org ?? "meridian")) ?? orgs[0],
+    org: orgs.find((o) => o.id === (knobs.org ?? "veter")) ?? orgs[0],
     orgs,
     people,
     scr: (knobs.scr ?? "orgs") as Screen,

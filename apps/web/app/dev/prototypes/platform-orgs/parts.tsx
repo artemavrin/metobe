@@ -378,7 +378,7 @@ export const OrgBills = ({ o }: { o: OrgView }) => {
               </li>
             ))}
             <li className="text-muted-foreground flex justify-between gap-4 px-4 py-2.5">
-              <span>НДС 22 % сверху</span>
+              <span>в т. ч. НДС 22 %</span>
               <span className="tabular-nums">{money(inv.vat)}</span>
             </li>
             <li className="flex justify-between gap-4 px-4 py-2.5 font-semibold">

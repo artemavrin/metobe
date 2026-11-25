@@ -16,7 +16,7 @@ import type { ReactNode } from "react";
 
 import { Row, Rows, Section } from "@/components/settings/rows";
 
-import { MODELS, SERVERS_PER_SEAT, answersPerWeek, breakEvenWeek, modelById, modelFit, money, multiplier, net, times } from "../_orgs/data";
+import { MODELS, SERVERS_PER_SEAT, answersPerWeek, breakEvenWeek, modelById, modelFit, money, net, limitMark } from "../_orgs/data";
 import type { Model, Tariff } from "../_orgs/data";
 import { usePhone } from "../privacy/frame";
 import { seatsNext } from "./state";
@@ -203,10 +203,10 @@ export const ModelList = ({ d, set }: { d: Tariff; set: (t: Tariff) => void }) =
                 </span>
                 <span className="text-muted-foreground text-xs">
                   {m.provider}
-                  {phone && m.priced && ` · ${times(multiplier(m, base))} · ~${answers} в неделю`}
+                  {phone && m.priced && ` · ${limitMark(m, base)} · ~${answers} в неделю`}
                 </span>
               </span>
-              {!phone && <span className="text-right tabular-nums">{m.priced ? times(multiplier(m, base)) : "—"}</span>}
+              {!phone && <span className="text-right tabular-nums">{m.priced ? limitMark(m, base) : "—"}</span>}
               {!phone && <span className="text-right tabular-nums">{m.priced ? `~${answers}` : "—"}</span>}
               <DefaultStar disabled={!row?.on} on={isDefault} onClick={() => set({ ...d, defaultModel: m.id })} />
             </div>

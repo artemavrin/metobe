@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
 import { Section } from "@/components/settings/rows";
 import { SettingsHeader } from "@/components/settings/settings-shell";
 
-import { MODELS, answersPerWeek, breakEvenWeek, modelById, modelFit, money, multiplier, pct, times } from "../_orgs/data";
+import { MODELS, answersPerWeek, breakEvenWeek, modelById, modelFit, money, pct, limitMark } from "../_orgs/data";
 import type { Tariff, TariffId } from "../_orgs/data";
 import { NoteBar, PlatformWindow, WideFrame } from "../_orgs/frame";
 import { usePhone } from "../privacy/frame";
@@ -129,7 +129,7 @@ const Editor = () => {
                   <Cell className={cn("gap-2 border-l", !row?.on && "text-muted-foreground")} key={d.id}>
                     {m.priced && (
                       <span className="flex flex-col items-end text-xs tabular-nums">
-                        <span>{times(multiplier(m, modelById(d.defaultModel)))}</span>
+                        <span>{limitMark(m, modelById(d.defaultModel))}</span>
                         <span className={cn(fit === "out" && "text-destructive", fit === "costly" && "text-warning-foreground")}>~{answers}</span>
                       </span>
                     )}

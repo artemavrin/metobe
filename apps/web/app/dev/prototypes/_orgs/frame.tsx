@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
 
 import { useProto } from "../memory/frame";
 import { usePhone } from "../privacy/frame";
-import { pct, pctTone, tariffById } from "./data";
+import { limitPct, pct, pctTone, tariffById } from "./data";
 import type { OrgStatus, PersonStatus, TariffId } from "./data";
 
 // Рамка раздела «Платформа» в настройках суперюзера (ORGS-PLAN §10) — общая для P36 и P38. На компьютере — боковое
@@ -143,7 +143,7 @@ export const Dot = ({ tone, className }: { tone: "ok" | "bad" | "warn" | "off" |
 );
 
 export const TariffBadge = ({ id }: { id: TariffId }) => (
-  <Badge className="shrink-0" variant={id === "max" ? "invert-light" : id === "pro" ? "primary-light" : "outline"}>
+  <Badge className="shrink-0" variant={id === "max" ? "primary-light" : id === "pro" ? "info-light" : "secondary"}>
     {tariffById(id).name}
   </Badge>
 );
@@ -165,16 +165,17 @@ export const PersonStatusBadge = ({ status }: { status: PersonStatus }) => {
 /** Процент лимита — полоса и число; тон с 80 % и на 100 % одинаковый с P35 и P37. */
 export const PctBar = ({ value, className, label }: { value: number | null; className?: string; label?: string }) => {
   if (value === null) return <span className={cn("text-muted-foreground text-xs", className)}>нет окна</span>;
-  const tone = pctTone(value);
+  const shown = limitPct(value);
+  const tone = pctTone(shown);
   return (
-    <span aria-label={label ? `${label}: ${pct(value)}` : undefined} className={cn("flex items-center gap-2", className)}>
+    <span aria-label={label ? `${label}: ${pct(shown)}` : undefined} className={cn("flex items-center gap-2", className)}>
       <span className="bg-muted relative h-1.5 w-16 overflow-hidden rounded-full">
         <span
           className={cn("absolute inset-y-0 left-0 rounded-full", tone === "ok" && "bg-foreground/50", tone === "warn" && "bg-warning", tone === "full" && "bg-destructive")}
-          style={{ width: `${Math.min(100, value)}%` }}
+          style={{ width: `${Math.min(100, shown)}%` }}
         />
       </span>
-      <span className={cn("w-9 text-right text-xs tabular-nums", tone === "full" && "text-destructive font-medium")}>{pct(value)}</span>
+      <span className={cn("w-9 text-right text-xs tabular-nums", tone === "full" && "text-destructive font-medium")}>{pct(shown)}</span>
     </span>
   );
 };

@@ -13,7 +13,7 @@ import { TableVariant } from "./v-table";
 // `day=25|28|1` (счета выставлены / за 3 дня до срока / 1 декабря, неоплаченные отключены), телефон — `sz=phone`.
 
 const PlatformOrgsPage = () => (
-  <ProtoProvider defaults={{ day: "25", org: "meridian", scr: "orgs" }}>
+  <ProtoProvider defaults={{ day: "25", org: "veter", scr: "orgs" }}>
     <OrgsStateProvider>
       <Picker
         params={

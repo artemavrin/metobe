@@ -14,7 +14,7 @@ import { useProto } from "../memory/frame";
 export type Screen = "tariff" | "forecast";
 
 /** Средний расход места на модели за последние 4 недели, в долларах (выдумано). */
-const SPEND_USD: Record<TariffId, number> = { basic: 2.6, max: 19.5, pro: 6.8 };
+const SPEND_USD: Record<TariffId, number> = { basic: 1.3, max: 9.8, pro: 3.4 };
 /** Доля человеко-недель с упором в недельный лимит и доля отклонённых запросов (выдумано). */
 const HIT: Record<TariffId, number> = { basic: 4.1, max: 1.6, pro: 3.2 };
 const REJECTED: Record<TariffId, number> = { basic: 0.7, max: 0.2, pro: 0.5 };
@@ -101,7 +101,7 @@ export const forecast = (tariffs: Tariff[], k: Knobs): MonthForecast => {
   const byTariff = tariffs.map((t) => economy(t, k));
   const per = (id: TariffId) => byTariff.find((e) => e.id === id) ?? byTariff[0];
   const byOrg = payingOrgs.map((o) => {
-    const revenue = TARIFF_IDS.reduce((a, id) => a + o.next[id] * priceFor(o, id), 0);
+    const revenue = TARIFF_IDS.reduce((a, id) => a + o.next[id] * priceFor(o, id), 0) / (1 + k.vat / 100);
     const models = TARIFF_IDS.reduce((a, id) => a + o.next[id] * per(id).models, 0);
     const servers = TARIFF_IDS.reduce((a, id) => a + o.next[id] * SERVERS_PER_SEAT, 0);
     return { id: o.id, left: revenue - models - servers, models, name: o.name, revenue, seats: TARIFF_IDS.reduce((a, id) => a + o.next[id], 0) };
